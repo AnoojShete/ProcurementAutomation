@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Type Checking
+.mypy_cache/
+.pyre/
+.ruff_cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# PostgreSQL
+*.db
+*.sqlite3
+
+# Docker
+.docker/
+
+# Ignore Docker volumes if created locally
+postgres_data/
+
+
+# Alembic
+alembic/versions/*.pyc
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# Secrets
+*.pem
+*.key
+*.crt
