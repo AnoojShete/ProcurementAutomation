@@ -1,0 +1,12 @@
+topics:
+  - document.ingested
+  - document.classified
+  - vendor.matched
+  - license.usage.updated
+  - approval.requested
+  - approval.decided
+  - contract.generated
+  - contract.signed
+  - contract.renewal.due
+  - risk.score.updated
+  - notification.send

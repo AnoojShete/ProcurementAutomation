@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  # Each service owner appends their service block here when ready.
+  # Example:
+  # document-vendor-agent:
+  #   build: ./services/document-vendor-agent
+  #   ports:
+  #     - 8001:8001
+  #   depends_on:
+  #     - postgres
+  #     - redpanda
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+  #     interval: 10s
+  #     retries: 5
