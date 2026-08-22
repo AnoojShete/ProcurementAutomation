@@ -1,0 +1,33 @@
+# Approval workflow spend-tier rules
+# These are configurable - not hardcoded in application logic
+spend_tiers:
+  - name: "auto"
+    max_amount: 500
+    approval_chain: []
+    description: "Auto-approved for amounts up to ₹500"
+  - name: "manager"
+    max_amount: 5000
+    approval_chain: ["dept_manager"]
+    description: "Manager approval for ₹500-₹5,000"
+  - name: "manager+finance"
+    max_amount: null  # unlimited
+    approval_chain: ["dept_manager", "finance_head"]
+    description: "Manager + Finance approval for amounts above ₹5,000"
+
+# SLA configuration
+sla:
+  approval_timeout_hours: 48
+  escalation_enabled: true
+
+# License utilisation thresholds
+utilisation:
+  reclaim_threshold: 0.3    # Below 30% usage triggers reclaim
+  warning_threshold: 0.5    # Below 50% usage triggers warning
+  measurement_periods:      # Days to look back
+    - 30
+    - 60
+    - 90
+
+# Inventory
+inventory:
+  reservation_ttl_seconds: 300  # 5 minutes lock timeout
