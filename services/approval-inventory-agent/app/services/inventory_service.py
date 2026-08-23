@@ -104,7 +104,9 @@ async def reserve_stock(
         item.available_quantity -= quantity
         item.reserved_quantity += quantity
         await db.commit()
-        logger.info(f"Reserved {quantity}x {sku} for request {request_id}")
+        # Release the lock immediately on commit as required by the prompt
+        await lock.release(sku, request_id)
+        logger.info(f"Reserved {quantity}x {sku} for request {request_id} and released lock")
         return True
 
     # Not enough stock — release the lock

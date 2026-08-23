@@ -1,11 +1,15 @@
 import yaml
 from functools import lru_cache
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://procurement:procurement123@postgres:5432/procurement_db"
     redis_url: str = "redis://redis:6379/0"
-    kafka_bootstrap_servers: str = "kafka:9092"
+    kafka_bootstrap_servers: str = Field(
+        "kafka:9092",
+        validation_alias=AliasChoices("APP_KAFKA_BOOTSTRAP_SERVERS", "REDPANDA_BROKERS")
+    )
     kafka_consumer_group: str = "approval-inventory-agent"
     temporal_host: str = "temporal:7233"
     temporal_namespace: str = "default"

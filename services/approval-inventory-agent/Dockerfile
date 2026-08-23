@@ -23,8 +23,10 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 # Copy application code
 COPY config.yaml .
 COPY app/ ./app/
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 EXPOSE 8002
 
-# Run FastAPI with uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--log-level", "info"]
+# Entrypoint runs migration then launches uvicorn
+CMD ["/bin/bash", "entrypoint.sh"]

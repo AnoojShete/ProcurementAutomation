@@ -44,8 +44,8 @@ class PurchaseRequestResponse(BaseModel):
     sla_deadline: Optional[str]
     items: Optional[list[dict]]
     is_backordered: bool
-    created_at: str
-    updated_at: str
+    created_at: Optional[str] = None   # None until DB sets default
+    updated_at: Optional[str] = None   # None until DB sets default
     approval_history: Optional[list[dict]] = None
     model_config = ConfigDict(from_attributes=True)
 
