@@ -9,6 +9,7 @@ Handles:
 - Kafka event publishing
 """
 import uuid
+from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -33,7 +34,7 @@ class ApprovalService:
         self.producer = producer
         self.redis = redis_client
 
-    def determine_spend_tier(self, amount: float) -> tuple[str, list[str]]:
+    def determine_spend_tier(self, amount: Decimal) -> tuple[str, list[str]]:
         """Determine approval tier and chain from amount using config.yaml rules.
         
         Returns:
@@ -44,7 +45,7 @@ class ApprovalService:
         return ApprovalService.determine_spend_tier_static(amount)
 
     @staticmethod
-    def determine_spend_tier_static(amount: float) -> tuple[str, list[str]]:
+    def determine_spend_tier_static(amount: Decimal) -> tuple[str, list[str]]:
         """Static version of determine_spend_tier for use without instantiation.
         
         This is used by tests to verify tier routing without needing
@@ -183,7 +184,7 @@ class ApprovalService:
                 entity_id=req.id,
                 action="auto_approved",
                 performed_by="system",
-                details={"tier": "auto", "amount": float(data.amount)},
+                details={"tier": "auto", "amount": str(data.amount)},
             )
             self.db.add(audit)
             await self.db.commit()

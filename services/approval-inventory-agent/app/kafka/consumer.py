@@ -6,22 +6,22 @@ Consumes events from external services only:
   - contract.signed      (from contract-risk-agent)
 
 This service PUBLISHES license.usage.updated — it must NOT consume it.
-The usage computation is driven by raw SSO login data (from the synthetic
-generator script), not from the event this service itself emits.
 
-Data flow for license utilisation:
-  1. scripts/generate_sso_logs.py → data/synthetic-sso-logs/sso_login_events.json
-  2. Periodic background task (main.py) reads that file → writes to license_usage table
-  3. UsageService.check_and_trigger_reclaims() → publishes license.usage.updated
+Idempotency (Issue 6):
+  Every inbound event is checked against the processed_events table
+  before being handled.  If the event_id has already been processed,
+  the message is silently skipped.  This protects against Kafka's
+  at-least-once redelivery semantics.
 """
 import json
 import asyncio
 import logging
+from datetime import datetime, timezone
 from aiokafka import AIOKafkaConsumer
 from sqlalchemy import select, update
 from app.config import settings
 from app.database import async_session_factory
-from app.models import PurchaseRequest, Contract, License
+from app.models import PurchaseRequest, Contract, License, ProcessedEvent
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,28 @@ CONSUME_TOPICS = [
     "contract.signed",      # Published by contract-risk-agent
 ]
 
+
+# ── Idempotency helpers ─────────────────────────────────────────────────
+
+async def _is_already_processed(session, event_id: str) -> bool:
+    """Check if an event_id has already been processed."""
+    stmt = select(ProcessedEvent).where(ProcessedEvent.event_id == event_id)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none() is not None
+
+
+async def _mark_processed(session, event_id: str, event_type: str):
+    """Record that an event has been successfully processed."""
+    record = ProcessedEvent(
+        event_id=event_id,
+        event_type=event_type,
+        processed_at=datetime.now(timezone.utc),
+    )
+    session.add(record)
+    # Committed by the caller along with the business transaction
+
+
+# ── Consumer loop ────────────────────────────────────────────────────────
 
 async def start_consumer(app):
     """Background task that consumes Kafka events.
@@ -54,9 +76,21 @@ async def start_consumer(app):
         async for msg in consumer:
             try:
                 event = msg.value
+                event_id = event.get("event_id")
                 event_type = event.get("event_type")
                 payload = event.get("payload", {})
 
+                # ── Idempotency check (Issue 6) ─────────────────────
+                if event_id:
+                    async with async_session_factory() as dedup_session:
+                        if await _is_already_processed(dedup_session, event_id):
+                            logger.info(
+                                f"Skipping already-processed event {event_id} "
+                                f"(type={event_type})"
+                            )
+                            continue
+
+                # ── Dispatch ─────────────────────────────────────────
                 if event_type == "document.classified":
                     await _handle_document_classified(payload, event)
 
@@ -76,6 +110,8 @@ async def start_consumer(app):
         logger.info("Kafka consumer stopped")
 
 
+# ── Handlers ─────────────────────────────────────────────────────────────
+
 async def _handle_document_classified(payload: dict, event: dict):
     """Handle a document.classified event.
     
@@ -92,22 +128,29 @@ async def _handle_document_classified(payload: dict, event: dict):
         f"vendor={vendor_name}, confidence={confidence}"
     )
 
+    # Mark as processed (document.classified is mostly audit/logging,
+    # but we still track it for idempotency)
+    event_id = event.get("event_id")
+    if event_id:
+        async with async_session_factory() as session:
+            await _mark_processed(session, event_id, "document.classified")
+            await session.commit()
+
 
 async def _handle_contract_signed(payload: dict, event: dict):
     """Handle a contract.signed event.
     
     Per the shared schema, this triggers two actions:
-      1. Mark the associated purchase_request as 'fulfilled' — the procurement
-         cycle is complete once the contract is executed.
-      2. Activate the corresponding license row (for license/saas requests) —
-         the license is now live and should be tracked for utilisation.
+      1. Mark the associated purchase_request as 'fulfilled'.
+      2. Activate the corresponding license row (for license/saas requests).
     
-    Payload fields (per shared/schemas/events.md):
-      contract_id, signed_at, signed_by, esign_provider_ref
+    The idempotency record is written in the SAME transaction as the
+    business update, so either both succeed or neither does.
     """
     contract_id = payload.get("contract_id")
     signed_by = payload.get("signed_by")
     signed_at = payload.get("signed_at")
+    event_id = event.get("event_id")
 
     logger.info(f"Contract signed: id={contract_id}, by={signed_by} at {signed_at}")
 
@@ -122,6 +165,10 @@ async def _handle_contract_signed(payload: dict, event: dict):
                 logger.info(
                     f"No purchase request linked to contract {contract_id} — nothing to update"
                 )
+                # Still mark as processed so we don't retry forever
+                if event_id:
+                    await _mark_processed(session, event_id, "contract.signed")
+                    await session.commit()
                 return
 
             purchase_request_id = contract.purchase_request_id
@@ -138,6 +185,9 @@ async def _handle_contract_signed(payload: dict, event: dict):
                     f"Purchase request {purchase_request_id} not found "
                     f"for contract {contract_id}"
                 )
+                if event_id:
+                    await _mark_processed(session, event_id, "contract.signed")
+                    await session.commit()
                 return
 
             # 3. Mark the purchase request as fulfilled
@@ -147,10 +197,7 @@ async def _handle_contract_signed(payload: dict, event: dict):
                 f"after contract {contract_id} signed"
             )
 
-            # 4. Activate the license if this is a license or saas procurement.
-            #    The license to activate is identified by:
-            #      a) vendor_id on the contract, or
-            #      b) a license_id embedded in req.items JSON
+            # 4. Activate the license if this is a license or saas procurement
             if req.request_type in ("license", "saas"):
                 activated = await _activate_license_for_request(session, req, contract)
                 if activated:
@@ -163,6 +210,10 @@ async def _handle_contract_signed(payload: dict, event: dict):
                         f"No license found to activate for {req.request_type} "
                         f"request {purchase_request_id}"
                     )
+
+            # 5. Mark as processed in the SAME transaction
+            if event_id:
+                await _mark_processed(session, event_id, "contract.signed")
 
             await session.commit()
 

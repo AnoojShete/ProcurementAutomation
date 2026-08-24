@@ -1,4 +1,5 @@
 from typing import Optional, List, Literal, Dict, Any
+from decimal import Decimal
 from pydantic import BaseModel, ConfigDict
 
 # --- Standard response wrappers ---
@@ -19,7 +20,7 @@ class CreatePurchaseRequest(BaseModel):
     requested_by: str
     department: str
     vendor_id: Optional[str] = None
-    amount: float
+    amount: Decimal
     currency: str = "INR"
     items: Optional[list[dict]] = None
     comments: Optional[str] = None
@@ -35,7 +36,7 @@ class PurchaseRequestResponse(BaseModel):
     requested_by: str
     department: str
     vendor_id: Optional[str]
-    amount: float
+    amount: Decimal
     currency: str
     spend_tier: Optional[str]
     status: str
@@ -57,7 +58,7 @@ class InventoryItemResponse(BaseModel):
     total_quantity: int
     available_quantity: int
     reserved_quantity: int
-    unit_cost: Optional[float]
+    unit_cost: Optional[Decimal]
     currency: Optional[str]
     location: Optional[str]
     model_config = ConfigDict(from_attributes=True)
@@ -67,7 +68,7 @@ class InboxItemResponse(BaseModel):
     request_type: str
     requested_by: str
     department: str
-    amount: float
+    amount: Decimal
     currency: str
     spend_tier: str
     sla_deadline: Optional[str]
@@ -82,7 +83,7 @@ class LicenseResponse(BaseModel):
     active_seats_60d: Optional[int] = 0
     active_seats_90d: Optional[int] = 0
     utilisation_score: Optional[float] = 0.0
-    cost_per_seat: Optional[float]
+    cost_per_seat: Optional[Decimal]
     period_end: Optional[str]
     status: str
     model_config = ConfigDict(from_attributes=True)

@@ -130,6 +130,14 @@ CREATE INDEX IF NOT EXISTS idx_license_usage_license_id
     ON license_usage(license_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_sku
     ON inventory(sku);
+
+-- 8. Create processed_events table for Kafka consumer idempotency (Issue 6)
+CREATE TABLE IF NOT EXISTS processed_events (
+    event_id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    processed_at TIMESTAMPTZ DEFAULT now()
+);
+
 """
 
 

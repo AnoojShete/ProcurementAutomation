@@ -1,4 +1,5 @@
 import yaml
+from decimal import Decimal
 from functools import lru_cache
 from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,7 +29,20 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 @lru_cache
-def load_spend_tiers() -> list[dict]:
-    """Extract spend tier rules from config.yaml."""
+def load_spend_tiers() -> tuple:
+    """Extract spend tier rules from config.yaml.
+    
+    Converts max_amount from YAML int/None to Decimal/None so that
+    all downstream comparisons use exact decimal arithmetic (no float).
+    Returns a tuple (immutable) so it can be cached by lru_cache.
+    """
     config = load_config()
-    return config.get("spend_tiers", [])
+    tiers = []
+    for tier in config.get("spend_tiers", []):
+        tiers.append({
+            "name": tier["name"],
+            "max_amount": Decimal(str(tier["max_amount"])) if tier["max_amount"] is not None else None,
+            "approval_chain": list(tier["approval_chain"]),
+        })
+    return tuple(tiers)
+

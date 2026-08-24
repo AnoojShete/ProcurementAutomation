@@ -6,6 +6,7 @@ The shared schema is the source of truth — never modify init.sql, use
 Alembic migrations for any extensions.
 """
 from datetime import datetime, date
+from decimal import Decimal
 from typing import Optional, List
 from sqlalchemy import String, Integer, Float, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -50,7 +51,7 @@ class PurchaseRequest(Base):
     request_type: Mapped[str] = mapped_column(String(20), nullable=False)
     requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
     department: Mapped[str] = mapped_column(String(255), nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     spend_tier: Mapped[Optional[str]] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="pending_approval")
@@ -103,7 +104,7 @@ class License(Base):
     vendor_id: Mapped[Optional[str]] = mapped_column(ForeignKey("vendors.id"))
     app_name: Mapped[str] = mapped_column(String(255), nullable=False)
     total_seats: Mapped[int] = mapped_column(Integer, nullable=False)
-    cost_per_seat: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+    cost_per_seat: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     period_start: Mapped[Optional[date]] = mapped_column(Date)
     period_end: Mapped[Optional[date]] = mapped_column(Date)
@@ -144,7 +145,7 @@ class Inventory(Base):
     total_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     available_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     reserved_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    unit_cost: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+    unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     location: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -182,3 +183,17 @@ class Contract(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[Optional[str]] = mapped_column(String(30))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ProcessedEvent(Base):
+    """Idempotency guard for Kafka consumer.
+
+    Before processing any inbound Kafka event, the consumer checks
+    whether event_id already exists in this table.  If it does, the
+    event is skipped (at-least-once redelivery protection).
+    """
+    __tablename__ = "processed_events"
+
+    event_id: Mapped[str] = mapped_column(String, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
