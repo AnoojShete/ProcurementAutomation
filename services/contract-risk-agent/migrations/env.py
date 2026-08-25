@@ -21,10 +21,20 @@ config.set_main_option("sqlalchemy.url", db_url)
 
 target_metadata = None
 
+# All services share ONE physical Postgres database (not separate
+# databases/schemas per service), so Alembic's default `alembic_version`
+# table name would collide across services — e.g. a second service using
+# Alembic would see this service's "0001" already recorded and silently
+# skip its own "0001" migration. Each service must use its own version
+# table (discovered while wiring up auth-service against the same DB).
+VERSION_TABLE = "alembic_version_contract_risk_agent"
+
 
 def run_migrations_offline():
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(
+        url=url, target_metadata=target_metadata, literal_binds=True, version_table=VERSION_TABLE
+    )
     with context.begin_transaction():
         context.run_migrations()
 
@@ -36,7 +46,7 @@ def run_migrations_online():
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(connection=connection, target_metadata=target_metadata, version_table=VERSION_TABLE)
         with context.begin_transaction():
             context.run_migrations()
 

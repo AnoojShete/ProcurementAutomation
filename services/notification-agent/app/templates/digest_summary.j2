@@ -1,0 +1,14 @@
+Subject: Daily digest: {{ count }} update{{ "s" if count != 1 else "" }} for {{ recipient }}
+---
+Hello,
+
+Here is your batched summary of non-urgent updates.
+
+{% for entry in entries %}
+{{ loop.index }}. [{{ entry.event_type }}]
+{% for key, value in entry.context.items() %}
+   {{ key }}: {{ value }}
+{% endfor %}
+
+{% endfor %}
+— IT Procurement Platform

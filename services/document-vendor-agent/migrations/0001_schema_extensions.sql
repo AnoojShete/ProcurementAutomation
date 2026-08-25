@@ -1,0 +1,72 @@
+-- Schema extensions this service's ORM models (app/models.py) require on
+-- top of shared/db/init.sql. Never edit init.sql directly — this file is
+-- applied idempotently (IF NOT EXISTS everywhere) at startup by
+-- app/database.py's init_db(), the same raw-SQL pattern
+-- approval-inventory-agent uses (see its migrations/0001_schema_extensions.sql).
+-- Every statement is safe to run whether or not another service's own
+-- migration already touched these shared tables.
+
+-- documents: shared table already has id, vendor_id, document_type,
+-- extracted, confidence, needs_review, created_at.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_type VARCHAR(10);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS minio_path TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS original_filename TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by VARCHAR(255);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMPTZ;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS vendor_name_raw TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS document_number VARCHAR(100);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS document_date DATE;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS total NUMERIC(14, 2);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS currency VARCHAR(10);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS overall_confidence NUMERIC(4, 3);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_likely_duplicate BOOLEAN DEFAULT false;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS duplicate_of_document_id UUID REFERENCES documents(id);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(255);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS error_message TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+
+-- vendors: shared table already has id, name, normalized_name, created_at.
+-- `status`/`contact_email`/etc may already exist courtesy of another
+-- service's migration (contract-risk-agent / approval-inventory-agent) —
+-- IF NOT EXISTS makes the ordering irrelevant.
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS bank_account_number TEXT;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS routing_code TEXT;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS payment_beneficiary_name TEXT;
+-- BEC-fraud control: true whenever there is an unresolved change request
+-- against this vendor's bank/payment details. OLD (live) payment fields
+-- above remain authoritative for any pending/future payment while true.
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS payment_details_pending_verification BOOLEAN DEFAULT false;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+
+-- Dual-control queue for bank/payment-detail changes on EXISTING vendors.
+-- A row here never auto-applies to vendors.bank_account_number etc — only
+-- POST /vendors/{id}/verify-payment-change, by a DIFFERENT user than
+-- submitted_by, moves it to status='verified' and copies the new_* fields
+-- onto the live vendor row.
+CREATE TABLE IF NOT EXISTS vendor_payment_change_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID NOT NULL REFERENCES vendors(id),
+  submitted_by VARCHAR(255) NOT NULL,
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  source VARCHAR(30) NOT NULL, -- portal | email | api | document
+  document_id UUID REFERENCES documents(id),
+  previous_bank_account_number TEXT,
+  previous_routing_code TEXT,
+  previous_beneficiary_name TEXT,
+  new_bank_account_number TEXT,
+  new_routing_code TEXT,
+  new_beneficiary_name TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending | verified | rejected
+  verified_by VARCHAR(255),
+  verified_at TIMESTAMPTZ,
+  verification_channel VARCHAR(50),
+  verification_notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- audit_log already has (id, entity_id, entity_type, action, payload,
+-- created_at) from init.sql; this service writes verifier/channel/reject
+-- details inside `payload` per the platform convention, no new columns.

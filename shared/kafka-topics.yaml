@@ -10,4 +10,5 @@ topics:
   - contract.renewal.due
   - risk.score.updated
   - vendor.offboarded
+  - vendor.payment_details_flagged
   - notification.send

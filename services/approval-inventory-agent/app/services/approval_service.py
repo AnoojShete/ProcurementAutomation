@@ -123,6 +123,7 @@ class ApprovalService:
                             await reserve_stock(self.db, self.redis, sku, req_id, item_avail)
 
         # 4. Insert into DB
+        now = datetime.now(timezone.utc)
         req = PurchaseRequest(
             id=req_id,
             request_type=data.request_type,
@@ -138,6 +139,8 @@ class ApprovalService:
             is_backordered=is_backordered,
             comments=data.comments,
             status="pending_approval",
+            created_at=now,
+            updated_at=now,
         )
         self.db.add(req)
         await self.db.commit()

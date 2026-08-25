@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IT Procurement Intelligence Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <h1>IT Procurement Intelligence Platform</h1>
+    <p class="sub">Sign in to continue</p>
+    <div id="login-error"></div>
+    <label for="login-email">Email</label>
+    <input id="login-email" type="email" value="approver@demo.example.com" autocomplete="username">
+    <label for="login-password">Password</label>
+    <input id="login-password" type="password" value="DemoPass123!" autocomplete="current-password">
+    <div class="login-actions">
+      <button id="login-btn" style="flex:1">Sign in</button>
+    </div>
+    <div class="demo-note">
+      <strong>DEMO ONLY</strong> — not for production use.<br>
+      Seeded accounts (all share password <code>DemoPass123!</code>):<br>
+      requester@demo.example.com &middot; approver@demo.example.com &middot;
+      finance@demo.example.com &middot; admin@demo.example.com
+    </div>
+  </div>
+</div>
+
+<div id="app-screen">
+  <header class="topbar">
+    <div class="brand">IT Procurement Intelligence Platform</div>
+    <div class="who">
+      <span id="who-label"></span>
+      <button class="secondary" id="logout-btn">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="contracts">Contracts &amp; Vendor Risk</button>
+    <button data-tab="approvals">Approver Inbox</button>
+    <button data-tab="documents">Document Review</button>
+  </nav>
+
+  <main>
+    <section id="tab-overview"></section>
+    <section id="tab-contracts" style="display:none"></section>
+    <section id="tab-approvals" style="display:none"></section>
+    <section id="tab-documents" style="display:none"></section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

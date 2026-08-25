@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 import redis.asyncio as redis
 import asyncio
@@ -9,6 +9,8 @@ from app.database import init_db
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
 from app.api import health, requests, inventory, inbox
+from shared.http.error_handlers import register_error_handlers
+from shared.auth import get_current_user
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,11 +46,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+register_error_handlers(app)
+
 # Prometheus metrics
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
-# Include routers
+# Include routers — /health and /metrics are the only unauthenticated
+# routes; every other router requires a valid JWT. Role restrictions on
+# individual write endpoints (approve/reject) are applied inline in
+# app/api/requests.py.
 app.include_router(health.router)
-app.include_router(requests.router, prefix="/requests", tags=["Purchase Requests"])
-app.include_router(inventory.router, prefix="/inventory", tags=["Inventory"])
-app.include_router(inbox.router, prefix="/inbox", tags=["Approver Inbox"])
+app.include_router(
+    requests.router, prefix="/requests", tags=["Purchase Requests"], dependencies=[Depends(get_current_user)]
+)
+app.include_router(
+    inventory.router, prefix="/inventory", tags=["Inventory"], dependencies=[Depends(get_current_user)]
+)
+app.include_router(
+    inbox.router, prefix="/inbox", tags=["Approver Inbox"], dependencies=[Depends(get_current_user)]
+)

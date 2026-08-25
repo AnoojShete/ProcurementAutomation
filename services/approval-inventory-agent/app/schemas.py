@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, List, Literal, Dict, Any
 from pydantic import BaseModel, ConfigDict
 
@@ -29,6 +30,17 @@ class ApprovalAction(BaseModel):
     comments: Optional[str] = None
 
 # --- Response schemas ---
+class ApprovalHistoryResponse(BaseModel):
+    id: str
+    decision: str
+    decided_by: str
+    decision_level: Optional[str]
+    escalated: bool
+    comments: Optional[str]
+    decided_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PurchaseRequestResponse(BaseModel):
     id: str
     request_type: str
@@ -41,12 +53,12 @@ class PurchaseRequestResponse(BaseModel):
     status: str
     approval_chain: Optional[list[str]]
     current_approver_index: int
-    sla_deadline: Optional[str]
+    sla_deadline: Optional[datetime]
     items: Optional[list[dict]]
     is_backordered: bool
-    created_at: str
-    updated_at: str
-    approval_history: Optional[list[dict]] = None
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    approval_history: Optional[List[ApprovalHistoryResponse]] = None
     model_config = ConfigDict(from_attributes=True)
 
 class InventoryItemResponse(BaseModel):
@@ -71,7 +83,7 @@ class InboxItemResponse(BaseModel):
     currency: str
     spend_tier: str
     sla_deadline: Optional[str]
-    created_at: str
+    created_at: Optional[str]
 
 class LicenseResponse(BaseModel):
     id: str

@@ -1,0 +1,22 @@
+Subject: Vendor risk update: {{ vendor_id }} is now {{ risk_band }} ({{ risk_score }})
+---
+Hello,
+
+A vendor's risk score has been recomputed.
+
+  Vendor ID:      {{ vendor_id }}
+  Risk band:        {{ risk_band }}
+  Risk score:         {{ risk_score }}
+  Model version:        {{ model_version }}
+  Scored at:              {{ scored_at }}
+
+Top contributing factors:
+{% for factor in top_factors %}
+  - {{ factor.feature }}: {{ factor.contribution }}
+{% endfor %}
+{% if risk_band == "High" %}
+
+This vendor is now HIGH RISK — please review before any new spend.
+{% endif %}
+
+— IT Procurement Platform

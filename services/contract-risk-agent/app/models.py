@@ -125,6 +125,17 @@ class RiskScoreOutcome(Base):
     logged_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
+class ProcessedWebhookEvent(Base):
+    """Replay protection for the e-sign webhook (POST /webhooks/esign) —
+    the provider's event id, checked before acting on a callback a second
+    time."""
+    __tablename__ = "processed_webhook_events"
+
+    provider_event_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    contract_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 

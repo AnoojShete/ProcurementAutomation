@@ -33,7 +33,7 @@ async def get_inbox(approver_id: str, db: AsyncSession = Depends(get_db)):
                 "currency": req.currency,
                 "spend_tier": req.spend_tier,
                 "sla_deadline": req.sla_deadline.isoformat() if req.sla_deadline else None,
-                "created_at": req.created_at.isoformat()
+                "created_at": req.created_at.isoformat() if req.created_at else None
             })
             
     # Sort by sla_deadline ascending (most urgent first)

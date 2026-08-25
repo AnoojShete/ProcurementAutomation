@@ -5,6 +5,7 @@ pydantic-settings==2.3.4
 sqlalchemy[asyncio]==2.0.31
 asyncpg==0.29.0
 redis[hiredis]==5.0.7
+pyjwt==2.8.0
 aiokafka==0.10.0
 temporalio==1.6.0
 pyyaml==6.0.1

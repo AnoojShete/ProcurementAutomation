@@ -1,0 +1,48 @@
+# Document & Vendor Intelligence Agent configuration.
+# Business-rule constants live here, not hardcoded in application code.
+
+extraction:
+  # Below this overall confidence, a document is routed to the human
+  # review queue (needs_review: true) instead of being trusted outright.
+  confidence_threshold: 0.8
+  # A PDF is treated as "text-native" (pdfplumber extraction only, no OCR)
+  # when its extracted text has at least this many non-whitespace chars.
+  # Below it, we treat the page as effectively scanned/garbled.
+  min_text_native_chars: 40
+
+vendor_matching:
+  # rapidfuzz token_sort_ratio (0-100) above which an extracted vendor
+  # name is considered the SAME vendor as an existing row, rather than
+  # creating a new one.
+  fuzzy_match_threshold: 88
+  # Corporate suffixes stripped during normalization before fuzzy matching.
+  suffixes:
+    - inc
+    - inc.
+    - incorporated
+    - ltd
+    - ltd.
+    - limited
+    - llc
+    - llc.
+    - corp
+    - corp.
+    - corporation
+    - co
+    - co.
+    - company
+    - pvt
+    - pvt.
+    - "private limited"
+    - gmbh
+    - plc
+
+duplicate_detection:
+  # Two invoices from the same vendor are flagged as likely duplicates
+  # when their totals are within this fraction of each other...
+  amount_tolerance_pct: 0.01
+  # ...AND their document dates are within this many days of each other...
+  date_window_days: 5
+  # ...AND their document numbers are similar enough (rapidfuzz ratio,
+  # 0-100) OR missing on one/both sides.
+  document_number_fuzzy_threshold: 85

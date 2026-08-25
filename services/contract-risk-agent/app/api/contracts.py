@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.config import load_renewal_config
+from app.config import load_renewal_config, settings
 from app.schemas import (
     GenerateContractRequest, SendForSignatureRequest, ContractResponse, DataResponse,
 )
 from app.services import contract_service
+from shared.auth import require_role
+from shared.idempotency import get_cached_response, store_response
 
 router = APIRouter()
 
@@ -31,18 +33,37 @@ def _serialize(contract) -> dict:
     }
 
 
-@router.post("/generate", response_model=DataResponse)
-async def generate_contract(data: GenerateContractRequest, request: Request, db: AsyncSession = Depends(get_db)):
+@router.post(
+    "/generate", response_model=DataResponse, dependencies=[Depends(require_role("approver", "finance", "admin"))]
+)
+async def generate_contract(
+    data: GenerateContractRequest,
+    request: Request,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    db: AsyncSession = Depends(get_db),
+):
+    if idempotency_key:
+        cached = await get_cached_response(request.app.state.redis, settings.service_name, idempotency_key)
+        if cached is not None:
+            return cached
+
     try:
         contract = await contract_service.generate_contract_for_request(
             db, request.app.state.kafka_producer, data.purchase_request_id, data.template_name
         )
     except contract_service.ContractGenerationError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return DataResponse(data=_serialize(contract))
+
+    result = DataResponse(data=_serialize(contract))
+    if idempotency_key:
+        await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"))
+    return result
 
 
-@router.post("/{contract_id}/send-for-signature", response_model=DataResponse)
+@router.post(
+    "/{contract_id}/send-for-signature", response_model=DataResponse,
+    dependencies=[Depends(require_role("approver", "finance", "admin"))],
+)
 async def send_for_signature(contract_id: str, data: SendForSignatureRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         contract = await contract_service.send_for_signature(

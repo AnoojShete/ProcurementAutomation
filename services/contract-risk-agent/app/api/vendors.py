@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import Vendor, RiskScoreOutcome
 from app.schemas import DataResponse, LogOutcomeRequest, OffboardVendorRequest
 from app.services import risk_service, offboard_service, drift_service
+from shared.auth import require_role
 
 router = APIRouter()
 
@@ -34,7 +35,10 @@ async def get_vendor_risk(vendor_id: str, db: AsyncSession = Depends(get_db)):
     return DataResponse(data=_serialize_risk(row))
 
 
-@router.post("/{vendor_id}/risk/recompute", response_model=DataResponse)
+@router.post(
+    "/{vendor_id}/risk/recompute", response_model=DataResponse,
+    dependencies=[Depends(require_role("finance", "admin"))],
+)
 async def recompute_vendor_risk(vendor_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     vendor = await db.get(Vendor, vendor_id)
     if vendor is None:
@@ -43,7 +47,10 @@ async def recompute_vendor_risk(vendor_id: str, request: Request, db: AsyncSessi
     return DataResponse(data=_serialize_risk(row))
 
 
-@router.post("/{vendor_id}/log-outcome", response_model=DataResponse)
+@router.post(
+    "/{vendor_id}/log-outcome", response_model=DataResponse,
+    dependencies=[Depends(require_role("finance", "admin"))],
+)
 async def log_outcome(vendor_id: str, data: LogOutcomeRequest, db: AsyncSession = Depends(get_db)):
     vendor = await db.get(Vendor, vendor_id)
     if vendor is None:
@@ -79,7 +86,10 @@ async def risk_model_drift_check(db: AsyncSession = Depends(get_db)):
     return DataResponse(data=result)
 
 
-@router.post("/{vendor_id}/offboard", response_model=DataResponse)
+@router.post(
+    "/{vendor_id}/offboard", response_model=DataResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
 async def offboard_vendor(vendor_id: str, data: OffboardVendorRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         result = await offboard_service.offboard_vendor(

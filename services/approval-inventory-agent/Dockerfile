@@ -1,10 +1,12 @@
 # Multi-stage Dockerfile for the Approval & Inventory Intelligence Agent
-# Stage 1: Install dependencies
-# Stage 2: Minimal runtime image
+# Build context is the REPO ROOT (not this folder) — this service imports
+# shared.http and shared.auth (added in the Prompt 5 hardening pass).
+# docker-compose.override.yml's entry for this service must set:
+#   build: { context: ., dockerfile: services/approval-inventory-agent/Dockerfile }
 
 FROM python:3.11-slim AS builder
-WORKDIR /app
-COPY requirements.txt .
+WORKDIR /build
+COPY services/approval-inventory-agent/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim AS runtime
@@ -21,8 +23,10 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/pyth
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 # Copy application code
-COPY config.yaml .
-COPY app/ ./app/
+COPY shared/ ./shared/
+COPY services/approval-inventory-agent/config.yaml .
+COPY services/approval-inventory-agent/app/ ./app/
+COPY services/approval-inventory-agent/migrations/ ./migrations/
 
 EXPOSE 8002
 

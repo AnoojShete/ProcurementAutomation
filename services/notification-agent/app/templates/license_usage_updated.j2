@@ -1,0 +1,21 @@
+Subject: License utilisation update: {{ app_name }} at {{ (utilisation_score * 100) | round(1) }}%
+---
+Hello,
+
+License utilisation has been recomputed.
+
+  License ID:          {{ license_id }}
+  Vendor ID:             {{ vendor_id }}
+  App:                    {{ app_name }}
+  Total seats:             {{ total_seats }}
+  Active seats (30d):        {{ active_seats_30d }}
+  Active seats (60d):        {{ active_seats_60d }}
+  Active seats (90d):        {{ active_seats_90d }}
+  Utilisation score:          {{ utilisation_score }}
+  Period end:                  {{ period_end }}
+{% if utilisation_score is not none and utilisation_score < 0.3 %}
+
+This is a LOW-UTILISATION alert — consider reclaiming unused seats.
+{% endif %}
+
+— IT Procurement Platform

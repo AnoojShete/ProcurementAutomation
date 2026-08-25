@@ -39,6 +39,7 @@ Every message on every topic is wrapped the same way:
 | `contract.renewal.due` | contract-risk-agent | notification-agent | `contract_id`, `vendor_id`, `renewal_type` (`auto`\|`manual`), `notice_period_days` (int), `contract_end_date` (iso8601 date), `days_remaining` (int), `alert_level` (`60`\|`30`\|`15`) |
 | `risk.score.updated` | contract-risk-agent | notification-agent | `vendor_id`, `risk_band` (`Low`\|`Medium`\|`High`), `risk_score` (0-1 float), `top_factors` (array of `{feature, contribution}`), `model_version` (string), `scored_at` (iso8601) |
 | `vendor.offboarded` | contract-risk-agent | notification-agent | `vendor_id`, `offboarded_by` (string), `offboarded_at` (iso8601), `contracts_flagged` (array of contract ids flagged for final reconciliation), `data_retention_flag` (bool) |
+| `vendor.payment_details_flagged` | document-vendor-agent | notification-agent | `vendor_id`, `change_request_id` (uuid), `submitted_by` (string), `source` (`portal`\|`email_derived_document`\|`api`), `fields_changed` (array of field names, e.g. `bank_account_number`), `flagged_at` (iso8601) — never carries the raw bank/routing values, only that a change happened |
 | `notification.send` | any service (generic fallback) | notification-agent | `recipient` (string, email or user id), `channel` (`email`\|`slack`), `template_name` (string), `template_context` (object), `priority` (`urgent`\|`digest`), `related_entity_id` (string) |
 
 If your service publishes a topic, write a **producer** that matches this

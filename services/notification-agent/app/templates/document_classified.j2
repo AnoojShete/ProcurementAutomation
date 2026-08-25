@@ -1,0 +1,15 @@
+Subject: Document {{ document_id }} needs manual review ({{ document_type }})
+---
+Hello,
+
+A classified document fell below the confidence threshold and needs
+manual review before it can proceed.
+
+  Document ID:           {{ document_id }}
+  Document type:           {{ document_type }}
+  Vendor (raw):              {{ vendor_name_raw }}
+  Overall confidence:          {{ overall_confidence }}
+
+Please review it in the document review queue.
+
+— IT Procurement Platform

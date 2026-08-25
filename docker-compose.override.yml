@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   # Each service owner appends their service block here when ready.
 
@@ -11,13 +10,18 @@ services:
       - "8003:8003"
     environment:
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       APP_TEMPORAL_HOST: temporal:7233
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
     depends_on:
       postgres:
         condition: service_healthy
       redpanda:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8003/health || exit 1"]
@@ -30,11 +34,15 @@ services:
       context: .
       dockerfile: services/contract-risk-agent/Dockerfile
     command: ["python", "-m", "app.worker"]
+    restart: on-failure
     environment:
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       APP_TEMPORAL_HOST: temporal:7233
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,6 +50,182 @@ services:
         condition: service_started
       contract-risk-agent:
         condition: service_healthy
+
+  # --- approval-inventory-agent (Niraj) ---
+  approval-inventory-agent:
+    build:
+      context: .
+      dockerfile: services/approval-inventory-agent/Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_REDIS_URL: redis://redis:6379/0
+      APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_TEMPORAL_HOST: temporal:7233
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  approval-inventory-agent-worker:
+    build:
+      context: .
+      dockerfile: services/approval-inventory-agent/Dockerfile
+    command: ["python", "-m", "app.worker"]
+    restart: on-failure
+    environment:
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_REDIS_URL: redis://redis:6379/0
+      APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_TEMPORAL_HOST: temporal:7233
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      approval-inventory-agent:
+        condition: service_healthy
+
+  # --- auth-service (Anooj, Prompt 5 Part A) ---
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      AUTH_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-60}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8005/health || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+
+  # --- document-vendor-agent (Vaidehi) ---
+  document-vendor-agent:
+    build:
+      context: .
+      dockerfile: services/document-vendor-agent/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_MINIO_ENDPOINT: minio:9000
+      APP_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      APP_MINIO_BUCKET: documents
+      APP_MINIO_SECURE: "false"
+      APP_CLAMAV_HOST: clamav
+      APP_CLAMAV_PORT: "3310"
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  document-vendor-agent-worker:
+    build:
+      context: .
+      dockerfile: services/document-vendor-agent/Dockerfile
+    command: ["python", "-m", "app.worker"]
+    restart: on-failure
+    environment:
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_MINIO_ENDPOINT: minio:9000
+      APP_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      APP_MINIO_BUCKET: documents
+      APP_MINIO_SECURE: "false"
+      APP_CLAMAV_HOST: clamav
+      APP_CLAMAV_PORT: "3310"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      document-vendor-agent:
+        condition: service_healthy
+
+  # --- ClamAV (malware scanning, document-vendor-agent governance control) ---
+  # First boot runs freshclam to pull virus definitions, which can take a
+  # couple of minutes — hence the generous start_period. document-vendor-agent's
+  # upload endpoint fails closed with 503 if ClamAV is ever unreachable.
+  clamav:
+    image: clamav/clamav:stable_base
+    platform: linux/amd64  # no native arm64 build published; emulated via Rosetta/QEMU on Apple Silicon
+    ports:
+      - "3310:3310"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  # --- notification-agent (Anooj) ---
+  notification-agent:
+    build:
+      context: .
+      dockerfile: services/notification-agent/Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_SMTP_HOST: mailpit
+      APP_SMTP_PORT: "1025"
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8004/health || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  # --- frontend ---
+  # No separate frontend container/port: the static files (frontend/public)
+  # are volume-mounted straight into the existing `nginx` gateway
+  # container (base docker-compose.yml) and served from `/`, alongside the
+  # /api/* proxy routes already defined in infra/nginx/nginx.conf. Same
+  # origin for the page and its API calls means zero CORS configuration.
+  nginx:
+    volumes:
+      - ./frontend/public:/usr/share/nginx/frontend:ro
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.14.3

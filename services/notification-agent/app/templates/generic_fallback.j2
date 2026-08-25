@@ -1,0 +1,12 @@
+Subject: Notification: {{ template_name }}
+---
+Hello,
+
+You have a new notification (template "{{ template_name }}" was requested
+but is not one this service ships, so this generic fallback was used).
+
+{% for key, value in context.items() %}
+  {{ key }}: {{ value }}
+{% endfor %}
+
+— IT Procurement Platform

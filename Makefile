@@ -1,3 +1,6 @@
+run:
+	./run.sh
+
 up:
 	docker compose up -d
 
@@ -10,3 +13,9 @@ logs:
 reset:
 	docker compose down -v
 	./install.sh
+
+test:
+	./scripts/test-service.sh all
+
+e2e:
+	./tests/e2e/run.sh

@@ -1,0 +1,16 @@
+Subject: Your request {{ request_id }} was {{ decision }}{{ " (escalated)" if escalated else "" }}
+---
+Hello,
+
+Your purchase request has been {{ decision }}.
+
+  Request ID:      {{ request_id }}
+  Decided by:       {{ decided_by }}
+  Decision level:   {{ decision_level }}
+  Escalated:        {{ escalated }}
+  Decided at:        {{ decided_at }}
+{% if comments %}
+  Comments: {{ comments }}
+{% endif %}
+
+— IT Procurement Platform

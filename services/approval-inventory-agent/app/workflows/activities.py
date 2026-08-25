@@ -10,6 +10,7 @@ import uuid
 import json
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 from temporalio import activity
 from dataclasses import dataclass
 from sqlalchemy import select
@@ -84,7 +85,7 @@ async def update_request_status(request_id: str, status: str, approver_index: in
 @activity.defn
 async def record_approval_decision(
     request_id: str, decision: str, decided_by: str,
-    decision_level: str, escalated: bool, comments: str = None
+    decision_level: str, escalated: bool, comments: Optional[str] = None
 ) -> None:
     """Record an approval/rejection decision in the approval_history table.
     
@@ -131,7 +132,7 @@ async def record_approval_decision(
 @activity.defn
 async def publish_approval_decided_event(
     request_id: str, decision: str, decided_by: str,
-    decision_level: str, escalated: bool, comments: str = None
+    decision_level: str, escalated: bool, comments: Optional[str] = None
 ) -> None:
     """Publish an approval.decided event to Kafka.
     

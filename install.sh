@@ -30,7 +30,13 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "Bringing up core services..."
-docker compose up -d
+# Scoped to core infra only (docker-compose.yml's own services) — an
+# unscoped `docker compose up -d` also starts every app service now
+# defined in docker-compose.override.yml, before shared/db/init.sql has
+# even been applied below. run.sh brings the app services up itself,
+# afterward, in the right order (see its comments for why).
+CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit"
+docker compose up -d $CORE_SERVICES
 
 echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO). This may take a minute..."
 set +e

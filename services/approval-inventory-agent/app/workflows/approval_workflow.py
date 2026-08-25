@@ -1,5 +1,6 @@
 from temporalio import workflow
 from datetime import timedelta
+from typing import Optional
 import asyncio
 from dataclasses import dataclass
 
@@ -15,7 +16,10 @@ with workflow.unsafe.imports_passed_through():
 class ApprovalSignal:
     decision: str  # approved or rejected
     decided_by: str
-    comments: str = None
+    # Temporal's payload converter checks the annotation strictly — `str`
+    # with a `None` default fails to decode a signal sent without
+    # comments, since None doesn't match `str`.
+    comments: Optional[str] = None
 
 @workflow.defn
 class ApprovalWorkflow:
