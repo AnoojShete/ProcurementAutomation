@@ -1,0 +1,35 @@
+SAAS SUBSCRIPTION AGREEMENT
+Contract ID: {{ contract_id }}
+Generated: {{ generated_at }}
+
+BETWEEN: IT Procurement Intelligence Platform ("Subscriber")
+AND: {{ vendor_name }} ("Provider")
+
+1. SUBSCRIPTION
+   Purchase request: {{ purchase_request_id }}
+   Department: {{ department }}
+   Subscribed services:
+{% for item in items %}
+   - {{ item.get('description', item.get('name', 'service')) }} x{{ item.get('quantity', 1) }} @ {{ item.get('unit_price', 'n/a') }} {{ currency }}
+{% else %}
+   - {{ amount }} {{ currency }} (subscription tier on file)
+{% endfor %}
+   Annual fee: {{ amount }} {{ currency }}
+
+2. SERVICE LEVEL
+   Provider shall maintain 99.9% uptime, measured monthly.
+
+3. DATA
+   Provider shall not use Subscriber data for purposes outside providing
+   the service without prior written consent.
+
+4. TERM AND RENEWAL
+   This agreement has a contract end date of {{ contract_end_date }}.
+   This subscription shall renew automatically (auto-renew) for successive
+   12-month terms unless either party gives written notice of
+   non-renewal at least {{ notice_period_days }} days prior to the contract
+   end date.
+
+5. SIGNATURES
+   Subscriber: ______________________     Provider: ______________________
+   Date:       ______________________     Date:      ______________________

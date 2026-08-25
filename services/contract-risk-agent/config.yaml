@@ -1,0 +1,33 @@
+# Contract & Risk Analysis Agent configuration
+# Business rules live here, not hardcoded in application code.
+
+templates:
+  hardware_purchase: "hardware_purchase.j2"
+  saas_subscription: "saas_subscription.j2"
+  professional_services: "professional_services.j2"
+
+renewal:
+  # Days-before-notice-deadline milestones that fire contract.renewal.due
+  alert_levels: [60, 30, 15]
+  default_notice_period_days: 30
+
+risk_model:
+  model_name: "vendor_risk_classifier"
+  bands:
+    low_max: 0.33
+    medium_max: 0.66
+  features:
+    - vendor_tenure_months
+    - on_time_delivery_rate
+    - financial_stability_score
+    - breach_disclosure_count
+    - security_cert_flag
+    - geo_risk_flag
+
+drift_monitoring:
+  check_interval_hours: 168 # weekly
+  psi_threshold: 0.2
+  min_outcomes_for_check: 5
+
+offboarding:
+  data_retention_days: 2555 # ~7 years, typical financial-record retention

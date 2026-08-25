@@ -1,0 +1,55 @@
+version: '3.8'
+services:
+  # Each service owner appends their service block here when ready.
+
+  # --- contract-risk-agent (Anjali) ---
+  contract-risk-agent:
+    build:
+      context: .
+      dockerfile: services/contract-risk-agent/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_TEMPORAL_HOST: temporal:7233
+      APP_MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8003/health || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  contract-risk-agent-worker:
+    build:
+      context: .
+      dockerfile: services/contract-risk-agent/Dockerfile
+    command: ["python", "-m", "app.worker"]
+    environment:
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_TEMPORAL_HOST: temporal:7233
+      APP_MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      contract-risk-agent:
+        condition: service_healthy
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.14.3
+    command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "/mlruns", "--default-artifact-root", "/mlruns"]
+    ports:
+      - "5050:5000"
+    volumes:
+      - mlflow-data:/mlruns
+
+volumes:
+  mlflow-data:

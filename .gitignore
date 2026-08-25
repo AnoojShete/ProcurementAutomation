@@ -3,7 +3,11 @@ __pycache__/
 *.pyc
 node_modules/
 .env
-docker-compose.override.yml
 .DS_Store
-*.md
 *.xml
+mlruns/
+mlartifacts/
+*.egg-info/
+.pytest_cache/
+**/ml/artifacts/
+services/*/ml/data/

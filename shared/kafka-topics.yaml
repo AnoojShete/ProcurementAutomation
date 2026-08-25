@@ -9,4 +9,5 @@ topics:
   - contract.signed
   - contract.renewal.due
   - risk.score.updated
+  - vendor.offboarded
   - notification.send

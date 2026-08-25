@@ -1,0 +1,35 @@
+PROFESSIONAL SERVICES AGREEMENT
+Contract ID: {{ contract_id }}
+Generated: {{ generated_at }}
+
+BETWEEN: IT Procurement Intelligence Platform ("Client")
+AND: {{ vendor_name }} ("Consultant")
+
+1. SERVICES
+   Purchase request: {{ purchase_request_id }}
+   Department: {{ department }}
+   Scope of work:
+{% for item in items %}
+   - {{ item.get('description', item.get('name', 'engagement')) }} x{{ item.get('quantity', 1) }} @ {{ item.get('unit_price', 'n/a') }} {{ currency }}
+{% else %}
+   - {{ amount }} {{ currency }} (statement of work on file)
+{% endfor %}
+   Engagement fee: {{ amount }} {{ currency }}
+
+2. DELIVERABLES
+   Consultant shall deliver work products per the attached statement of
+   work, subject to Client review and acceptance.
+
+3. CONFIDENTIALITY
+   Both parties shall keep confidential information disclosed during this
+   engagement strictly confidential.
+
+4. TERM AND RENEWAL
+   This agreement has a contract end date of {{ contract_end_date }}.
+   This engagement does not automatically renew (manual renew); any
+   extension requires written renewal at least {{ notice_period_days }} days
+   notice before the contract end date.
+
+5. SIGNATURES
+   Client: ______________________     Consultant: ______________________
+   Date:   ______________________     Date:       ______________________

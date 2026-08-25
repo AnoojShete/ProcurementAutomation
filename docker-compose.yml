@@ -22,7 +22,23 @@ services:
 
   redpanda:
     image: redpandadata/redpanda:latest
-    command: ["redpanda", "start", "--overprovisioned", "--smp 1", "--memory 1G", "--reserve-memory 0M"]
+    # --advertise-kafka-addr is required so clients that bootstrap from
+    # redpanda:9092 get told to reconnect to redpanda:9092 too — without
+    # it, redpanda advertises localhost:9092 in its metadata response and
+    # every service's producer/consumer fails with "No connection to node
+    # with id 0" the moment it tries to actually publish/consume.
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --advertise-kafka-addr
+      - redpanda:9092
     ports:
       - 9092:9092
     healthcheck:
@@ -68,6 +84,18 @@ services:
 
   temporal:
     image: temporalio/auto-setup:1.21
+    # Without these, auto-setup defaults to DB=cassandra and refuses to
+    # start ("CASSANDRA_SEEDS env must be set") — it needs to be told
+    # explicitly to use the shared postgres instance instead.
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PWD: postgres
+      POSTGRES_SEEDS: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - 7233:7233
 

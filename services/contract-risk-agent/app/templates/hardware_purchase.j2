@@ -1,0 +1,35 @@
+HARDWARE PURCHASE AGREEMENT
+Contract ID: {{ contract_id }}
+Generated: {{ generated_at }}
+
+BETWEEN: IT Procurement Intelligence Platform ("Buyer")
+AND: {{ vendor_name }} ("Vendor")
+
+1. SCOPE
+   Purchase request: {{ purchase_request_id }}
+   Department: {{ department }}
+   Line items:
+{% for item in items %}
+   - {{ item.get('description', item.get('name', 'item')) }} x{{ item.get('quantity', 1) }} @ {{ item.get('unit_price', 'n/a') }} {{ currency }}
+{% else %}
+   - {{ amount }} {{ currency }} (itemized quote on file)
+{% endfor %}
+   Total: {{ amount }} {{ currency }}
+
+2. DELIVERY
+   Vendor shall deliver the goods described above within 30 days of contract
+   execution, F.O.B. destination.
+
+3. WARRANTY
+   Vendor warrants all hardware against defects for a period of 12 months
+   from delivery.
+
+4. TERM AND RENEWAL
+   This agreement has a contract end date of {{ contract_end_date }}.
+   This agreement does not automatically renew (manual renew); renewal
+   requires written renewal executed by both parties at least
+   {{ notice_period_days }} days notice before the contract end date.
+
+5. SIGNATURES
+   Buyer: ______________________     Vendor: ______________________
+   Date:  ______________________     Date:  ______________________
