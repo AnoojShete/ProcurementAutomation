@@ -316,3 +316,16 @@ pre.contract-text {
   padding: 0;
   font-size: inherit;
 }
+
+/* --- Records tab --- */
+.copyable-id {
+  cursor: pointer;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.copyable-id:hover { border-color: var(--accent); color: var(--accent); }
+.table-scroll { overflow-x: auto; }
+.table-scroll table { min-width: 700px; }

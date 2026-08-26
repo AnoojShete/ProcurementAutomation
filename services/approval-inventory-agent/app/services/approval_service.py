@@ -62,6 +62,18 @@ class ApprovalService:
         # Fallback to highest tier
         return tiers[-1]["name"], list(tiers[-1]["approval_chain"])
 
+    async def list_requests(self, limit: int = 100) -> list[PurchaseRequest]:
+        """Every purchase request, most recently created first — backs the
+        tracking dashboard."""
+        stmt = (
+            select(PurchaseRequest)
+            .options(selectinload(PurchaseRequest.approval_history))
+            .order_by(PurchaseRequest.created_at.desc().nulls_last())
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_request_with_history(self, request_id: str) -> PurchaseRequest:
         """Fetch a purchase request with its full approval history."""
         stmt = (

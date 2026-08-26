@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -22,6 +23,27 @@ def _serialize_risk(row) -> dict:
         "model_version": row.model_version,
         "scored_at": row.scored_at.isoformat() if row.scored_at else None,
     }
+
+
+@router.get("/", response_model=DataResponse)
+async def list_vendors(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """All vendors with their latest risk score (if any), most recently
+    created first — backs the tracking dashboard."""
+    result = await db.execute(select(Vendor).order_by(Vendor.created_at.desc().nulls_last()).limit(limit))
+    vendors = list(result.scalars().all())
+    rows = []
+    for v in vendors:
+        latest = await risk_service.latest_risk_score(db, v.id)
+        rows.append({
+            "id": v.id,
+            "name": v.name,
+            "status": v.status,
+            "portal_access_revoked": v.portal_access_revoked,
+            "risk_band": latest.band if latest else None,
+            "risk_score": float(latest.score) if latest and latest.score is not None else None,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+        })
+    return DataResponse(data=rows, meta={"count": len(rows)})
 
 
 @router.get("/{vendor_id}/risk", response_model=DataResponse)

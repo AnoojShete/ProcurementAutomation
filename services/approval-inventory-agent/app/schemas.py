@@ -43,19 +43,24 @@ class ApprovalHistoryResponse(BaseModel):
 
 class PurchaseRequestResponse(BaseModel):
     id: str
-    request_type: str
-    requested_by: str
-    department: str
-    vendor_id: Optional[str]
-    amount: float
-    currency: str
-    spend_tier: Optional[str]
-    status: str
-    approval_chain: Optional[list[str]]
-    current_approver_index: int
-    sla_deadline: Optional[datetime]
-    items: Optional[list[dict]]
-    is_backordered: bool
+    # Optional rather than required: rows inserted directly via SQL (demo
+    # seed scripts, the e2e test's vendor-linking step) bypass
+    # create_request's validation and can leave this and other fields
+    # unset — the list/tracking endpoints must tolerate that rather than
+    # 500ing the whole list over one incomplete row.
+    request_type: Optional[str] = None
+    requested_by: Optional[str] = None
+    department: Optional[str] = None
+    vendor_id: Optional[str] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    spend_tier: Optional[str] = None
+    status: Optional[str] = None
+    approval_chain: Optional[list[str]] = None
+    current_approver_index: int = 0
+    sla_deadline: Optional[datetime] = None
+    items: Optional[list[dict]] = None
+    is_backordered: bool = False
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     approval_history: Optional[List[ApprovalHistoryResponse]] = None

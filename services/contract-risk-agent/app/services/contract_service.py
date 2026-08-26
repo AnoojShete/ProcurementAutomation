@@ -164,6 +164,14 @@ async def get_contract(db: AsyncSession, contract_id: str) -> Optional[Contract]
     return await db.get(Contract, contract_id)
 
 
+async def list_contracts(db: AsyncSession, limit: int = 100) -> list[Contract]:
+    """Most-recently-generated first — backs the tracking dashboard."""
+    result = await db.execute(
+        select(Contract).order_by(Contract.generated_at.desc().nulls_last()).limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def get_renewals_due(db: AsyncSession, within_days: int) -> list[Contract]:
     cutoff = (datetime.now(timezone.utc) + timedelta(days=within_days)).date()
     result = await db.execute(

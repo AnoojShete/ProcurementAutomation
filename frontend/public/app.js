@@ -140,7 +140,7 @@ document.querySelectorAll(".role-quickpick .chip").forEach((chip) => {
 
 // ---------- Tabs ----------
 
-const TAB_RENDERERS = { about: renderAbout, overview: renderOverview, contracts: renderContracts, approvals: renderApprovals, documents: renderDocuments };
+const TAB_RENDERERS = { about: renderAbout, overview: renderOverview, records: renderRecords, contracts: renderContracts, approvals: renderApprovals, documents: renderDocuments };
 let activeTab = "about";
 
 document.getElementById("tabs").addEventListener("click", (e) => {
@@ -215,6 +215,7 @@ function renderAbout() {
     ["— (automated)", "—", "In a real deployment the e-sign provider calls back when the document is actually signed. This demo doesn't have a live e-sign provider wired in, so there's no button for this step — the contract stays in \"pending signature\" here, and the automated e2e test (make e2e) simulates the callback directly against the API to prove the rest of the chain (signing → risk scoring → notification) works."],
     ["anyone", "Contracts & Vendor Risk → Vendor risk", "Look up or recompute the vendor's risk score — this is what a signed contract triggers automatically."],
     ["—", "Mailpit (localhost:8025)", "Every step above sends an email — check Mailpit's inbox to see them land."],
+    ["anyone", "Records", "Every id you just created — request, document, contract, vendor — shows up here with its current status, so you can trace the whole chain after the fact."],
   ];
   const table = el("table");
   table.appendChild(el("tr", {}, [el("th", { text: "#" }), el("th", { text: "Role" }), el("th", { text: "Tab" }), el("th", { text: "What happens" })]));
@@ -300,6 +301,163 @@ function buildArchitectureDiagram() {
   return wrap;
 }
 
+// ---------- Records (tracking dashboard) ----------
+
+function copyableId(id) {
+  const node = el("code", { class: "copyable-id", text: id, title: "Click to copy" });
+  node.addEventListener("click", () => {
+    navigator.clipboard?.writeText(id).catch(() => {});
+    const old = node.textContent;
+    node.textContent = "copied!";
+    setTimeout(() => { node.textContent = old; }, 700);
+  });
+  return node;
+}
+
+function filterableTable(columns, rows, rowToCells) {
+  const wrap = el("div");
+  const filterInput = el("input", { placeholder: "Filter (matches any column)…", style: "margin-bottom:10px" });
+  wrap.appendChild(filterInput);
+  const tableHolder = el("div", { class: "table-scroll" });
+  wrap.appendChild(tableHolder);
+
+  function draw(filterText) {
+    tableHolder.innerHTML = "";
+    const needle = (filterText || "").toLowerCase();
+    const filtered = needle
+      ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(needle))
+      : rows;
+    if (!filtered.length) {
+      tableHolder.appendChild(el("div", { class: "empty", text: rows.length ? "No rows match that filter." : "No records yet." }));
+      return;
+    }
+    const table = el("table");
+    table.appendChild(el("tr", {}, columns.map((c) => el("th", { text: c }))));
+    filtered.forEach((r) => table.appendChild(el("tr", {}, rowToCells(r))));
+    tableHolder.appendChild(table);
+  }
+
+  filterInput.addEventListener("input", () => draw(filterInput.value));
+  draw("");
+  return wrap;
+}
+
+async function renderRecords() {
+  const root = document.getElementById("tab-records");
+  root.innerHTML = "";
+
+  root.appendChild(el("div", { class: "help-text", html:
+    "Every request, document, contract, and vendor the platform knows about — click any ID to copy it, " +
+    "then paste it into the matching lookup field on another tab. This is a direct view of each " +
+    "service's own database table (via a small <code>GET /</code> list endpoint added to each), not a " +
+    "separate audit system." }));
+
+  const refreshAllBtn = el("button", { text: "↻ Refresh all" });
+  root.appendChild(el("div", { style: "margin-bottom:16px" }, refreshAllBtn));
+
+  const panels = {};
+
+  function makePanel(title, desc) {
+    const panel = el("div", { class: "panel" });
+    panel.appendChild(el("h2", { text: title }));
+    panel.appendChild(el("p", { class: "desc", text: desc }));
+    const body = el("div", { class: "empty", text: "Loading…" });
+    panel.appendChild(body);
+    root.appendChild(panel);
+    return body;
+  }
+
+  panels.requests = makePanel("Purchase requests", "approval-inventory-agent — every request raised, any status.");
+  panels.documents = makePanel("Documents", "document-vendor-agent — every upload and its extraction/review status.");
+  panels.contracts = makePanel("Contracts", "contract-risk-agent — every generated contract.");
+  panels.vendors = makePanel("Vendors", "shared vendor identity + latest risk score.");
+
+  async function loadRequests() {
+    panels.requests.innerHTML = "Loading…";
+    try {
+      const r = await api("/requests/?limit=200");
+      panels.requests.replaceWith(panels.requests = filterableTable(
+        ["ID", "Type", "Dept", "Amount", "Status", "Tier", "Vendor", "Created"],
+        r.data,
+        (req) => [
+          el("td", {}, copyableId(req.id)),
+          el("td", { text: req.request_type || "—" }),
+          el("td", { text: req.department || "—" }),
+          el("td", { text: req.amount != null ? `${req.amount} ${req.currency || ""}` : "—" }),
+          el("td", {}, badge(req.status)),
+          el("td", { text: req.spend_tier || "—" }),
+          el("td", {}, req.vendor_id ? copyableId(req.vendor_id) : document.createTextNode("—")),
+          el("td", { class: "small", text: req.created_at ? new Date(req.created_at).toLocaleString() : "—" }),
+        ]
+      ));
+    } catch (e) { panels.requests.innerHTML = ""; panels.requests.appendChild(errorBanner(e.message)); }
+  }
+
+  async function loadDocuments() {
+    panels.documents.innerHTML = "Loading…";
+    try {
+      const r = await api("/documents/?limit=200");
+      panels.documents.replaceWith(panels.documents = filterableTable(
+        ["ID", "Filename", "Type", "Status", "Confidence", "Needs review", "Vendor", "Uploaded"],
+        r.data,
+        (doc) => [
+          el("td", {}, copyableId(doc.id)),
+          el("td", { class: "small", text: doc.original_filename || "—" }),
+          el("td", { text: doc.document_type || "—" }),
+          el("td", {}, badge(doc.status)),
+          el("td", { text: doc.overall_confidence != null ? doc.overall_confidence.toFixed(2) : "—" }),
+          el("td", {}, doc.needs_review ? badge("review", "medium") : badge("ok", "low")),
+          el("td", {}, doc.vendor_id ? copyableId(doc.vendor_id) : document.createTextNode("—")),
+          el("td", { class: "small", text: doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : "—" }),
+        ]
+      ));
+    } catch (e) { panels.documents.innerHTML = ""; panels.documents.appendChild(errorBanner(e.message)); }
+  }
+
+  async function loadContracts() {
+    panels.contracts.innerHTML = "Loading…";
+    try {
+      const r = await api("/contracts/?limit=200");
+      panels.contracts.replaceWith(panels.contracts = filterableTable(
+        ["ID", "Purchase request", "Vendor", "Template", "Status", "End date", "Generated"],
+        r.data,
+        (c) => [
+          el("td", {}, copyableId(c.id)),
+          el("td", {}, c.purchase_request_id ? copyableId(c.purchase_request_id) : document.createTextNode("—")),
+          el("td", {}, c.vendor_id ? copyableId(c.vendor_id) : document.createTextNode("—")),
+          el("td", { text: c.template_used || "—" }),
+          el("td", {}, badge(c.status)),
+          el("td", { text: c.contract_end_date || "—" }),
+          el("td", { class: "small", text: c.generated_at ? new Date(c.generated_at).toLocaleString() : "—" }),
+        ]
+      ));
+    } catch (e) { panels.contracts.innerHTML = ""; panels.contracts.appendChild(errorBanner(e.message)); }
+  }
+
+  async function loadVendors() {
+    panels.vendors.innerHTML = "Loading…";
+    try {
+      const r = await api("/vendors/?limit=200");
+      panels.vendors.replaceWith(panels.vendors = filterableTable(
+        ["ID", "Name", "Status", "Risk band", "Risk score", "Created"],
+        r.data,
+        (v) => [
+          el("td", {}, copyableId(v.id)),
+          el("td", { text: v.name }),
+          el("td", {}, badge(v.status)),
+          el("td", {}, v.risk_band ? badge(v.risk_band) : document.createTextNode("not scored")),
+          el("td", { text: v.risk_score != null ? v.risk_score.toFixed(3) : "—" }),
+          el("td", { class: "small", text: v.created_at ? new Date(v.created_at).toLocaleString() : "—" }),
+        ]
+      ));
+    } catch (e) { panels.vendors.innerHTML = ""; panels.vendors.appendChild(errorBanner(e.message)); }
+  }
+
+  const loadAll = () => Promise.all([loadRequests(), loadDocuments(), loadContracts(), loadVendors()]);
+  refreshAllBtn.addEventListener("click", loadAll);
+  await loadAll();
+}
+
 // ---------- Overview ----------
 
 async function renderOverview() {
@@ -352,6 +510,7 @@ async function renderOverview() {
   const help = el("div", { class: "panel" });
   help.appendChild(el("h2", { text: "Where things live" }));
   help.appendChild(el("p", { class: "desc", html:
+    "<strong>Records</strong> — every request, document, contract, and vendor the platform knows about, in one trackable, filterable, cross-referenceable view.<br>" +
     "<strong>Contracts &amp; Vendor Risk</strong> — generate contracts, route for e-signature, inspect renewal dates, score/offboard vendors.<br>" +
     "<strong>Approver Inbox</strong> — pending purchase requests routed to an approver role, approve/reject.<br>" +
     "<strong>Document Review</strong> — upload a PO/invoice/quote, correct low-confidence extractions." }));

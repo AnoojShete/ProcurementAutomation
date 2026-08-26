@@ -19,8 +19,8 @@ INSERT INTO vendors (id, name, normalized_name)
 VALUES ('$DEMO_VENDOR_ID', 'Acme IT Supplies Inc', 'acme it supplies')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO purchase_requests (id, requested_by, department, amount, currency, status)
-VALUES ('$DEMO_REQUEST_ID', 'jane@company.com', 'Engineering', 4500, 'INR', 'approved')
+INSERT INTO purchase_requests (id, requested_by, department, amount, currency, status, request_type)
+VALUES ('$DEMO_REQUEST_ID', 'jane@company.com', 'Engineering', 4500, 'INR', 'approved', 'hardware')
 ON CONFLICT (id) DO NOTHING;
 
 UPDATE purchase_requests

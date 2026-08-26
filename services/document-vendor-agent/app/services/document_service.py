@@ -148,6 +148,13 @@ async def get_document(db: AsyncSession, document_id: str) -> Optional[Document]
     return await db.get(Document, document_id)
 
 
+async def list_all_documents(db: AsyncSession, limit: int = 100) -> List[Document]:
+    """Every document regardless of status, most recently uploaded first —
+    backs the tracking dashboard."""
+    result = await db.execute(select(Document).order_by(Document.uploaded_at.desc().nulls_last()).limit(limit))
+    return list(result.scalars().all())
+
+
 async def list_review_queue(db: AsyncSession, limit: int = 50) -> List[Document]:
     result = await db.execute(
         select(Document).where(Document.needs_review == True).order_by(Document.created_at.desc()).limit(limit)  # noqa: E712

@@ -60,6 +60,14 @@ async def upload_document(
     return DataResponse(data={"document_id": doc.id, "status": doc.status})
 
 
+@router.get("/", response_model=DataResponse)
+async def list_documents(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """All documents regardless of status, most recent first — backs the
+    tracking dashboard."""
+    docs = await document_service.list_all_documents(db, limit=limit)
+    return DataResponse(data=[_serialize_document(d) for d in docs], meta={"count": len(docs)})
+
+
 @router.get("/review-queue", response_model=DataResponse)
 async def get_review_queue(limit: int = 50, db: AsyncSession = Depends(get_db)):
     docs = await document_service.list_review_queue(db, limit=limit)

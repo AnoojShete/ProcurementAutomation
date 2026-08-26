@@ -74,6 +74,13 @@ async def send_for_signature(contract_id: str, data: SendForSignatureRequest, re
     return DataResponse(data=_serialize(contract))
 
 
+@router.get("/", response_model=DataResponse)
+async def list_contracts(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """All contracts, most recent first — backs the tracking dashboard."""
+    contracts = await contract_service.list_contracts(db, limit=limit)
+    return DataResponse(data=[_serialize(c) for c in contracts], meta={"count": len(contracts)})
+
+
 @router.get("/renewals-due", response_model=DataResponse)
 async def renewals_due(within_days: int | None = None, db: AsyncSession = Depends(get_db)):
     if within_days is None:

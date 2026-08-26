@@ -34,6 +34,18 @@ async def create_request(
         await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"))
     return result
 
+@router.get("/", response_model=DataResponse)
+async def list_requests(
+    limit: int = 100,
+    approval_svc: ApprovalService = Depends(get_approval_service)
+):
+    """All purchase requests, most recent first — backs the tracking dashboard."""
+    reqs = await approval_svc.list_requests(limit=limit)
+    return DataResponse(
+        data=[PurchaseRequestResponse.model_validate(r) for r in reqs],
+        meta={"count": len(reqs)},
+    )
+
 @router.get("/{request_id}", response_model=DataResponse)
 async def get_request(
     request_id: str,
