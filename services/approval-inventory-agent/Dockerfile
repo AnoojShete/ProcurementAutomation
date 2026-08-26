@@ -1,12 +1,10 @@
 # Multi-stage Dockerfile for the Approval & Inventory Intelligence Agent
-# Build context is the REPO ROOT (not this folder) — this service imports
-# shared.http and shared.auth (added in the Prompt 5 hardening pass).
-# docker-compose.override.yml's entry for this service must set:
-#   build: { context: ., dockerfile: services/approval-inventory-agent/Dockerfile }
+# Stage 1: Install dependencies
+# Stage 2: Minimal runtime image
 
 FROM python:3.11-slim AS builder
-WORKDIR /build
-COPY services/approval-inventory-agent/requirements.txt .
+WORKDIR /app
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim AS runtime
@@ -23,12 +21,12 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/pyth
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 # Copy application code
-COPY shared/ ./shared/
-COPY services/approval-inventory-agent/config.yaml .
-COPY services/approval-inventory-agent/app/ ./app/
-COPY services/approval-inventory-agent/migrations/ ./migrations/
+COPY config.yaml .
+COPY app/ ./app/
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 EXPOSE 8002
 
-# Run FastAPI with uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--log-level", "info"]
+# Entrypoint runs migration then launches uvicorn
+CMD ["/bin/bash", "entrypoint.sh"]

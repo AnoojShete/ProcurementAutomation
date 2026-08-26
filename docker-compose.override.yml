@@ -58,6 +58,8 @@ services:
       dockerfile: services/approval-inventory-agent/Dockerfile
     ports:
       - "8002:8002"
+    volumes:
+      - ./data:/data
     environment:
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
@@ -83,6 +85,8 @@ services:
       dockerfile: services/approval-inventory-agent/Dockerfile
     command: ["python", "-m", "app.worker"]
     restart: on-failure
+    volumes:
+      - ./data:/data
     environment:
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0

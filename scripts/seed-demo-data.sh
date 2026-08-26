@@ -13,6 +13,9 @@ POSTGRES_USER="${POSTGRES_USER:-postgres}"
 DEMO_VENDOR_ID="11111111-1111-1111-1111-111111111111"
 DEMO_REQUEST_ID="22222222-2222-2222-2222-222222222222"
 
+echo "Generating synthetic SSO logs..."
+python services/approval-inventory-agent/scripts/generate_sso_logs.py
+
 echo "Seeding demo vendor + approved purchase request..."
 docker compose exec -T postgres psql -U "$POSTGRES_USER" <<SQL
 INSERT INTO vendors (id, name, normalized_name)

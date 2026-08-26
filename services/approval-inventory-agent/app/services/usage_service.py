@@ -175,11 +175,15 @@ class UsageService:
                     f"below threshold {threshold:.0%} — creating reclaim request"
                 )
 
-                # Check if a pending reclaim already exists for this license
+                # Check if an OPEN reclaim already exists for this license.
+                # "Open" means any status that isn't a terminal state.
+                # This prevents duplicates when the scanner runs repeatedly
+                # while utilisation stays low (Issue 7).
+                open_statuses_to_skip = ("rejected", "fulfilled", "cancelled")
                 existing_stmt = (
                     select(PurchaseRequest)
                     .where(PurchaseRequest.request_type == "reclaim")
-                    .where(PurchaseRequest.status == "pending_approval")
+                    .where(PurchaseRequest.status.not_in(open_statuses_to_skip))
                     .where(
                         PurchaseRequest.items.contains(
                             [{"license_id": str(lic.id)}]
@@ -188,7 +192,10 @@ class UsageService:
                 )
                 existing = (await db.execute(existing_stmt)).scalar_one_or_none()
                 if existing:
-                    logger.info(f"Reclaim request already pending for {lic.id}, skipping")
+                    logger.info(
+                        f"Open reclaim request already exists for {lic.id} "
+                        f"(status={existing.status}), skipping"
+                    )
                     continue
 
                 # Calculate estimated savings
