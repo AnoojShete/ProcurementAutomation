@@ -1,6 +1,7 @@
-"""The extraction pipeline: OCR/text extraction -> classification -> field
-extraction -> vendor matching/dedup -> duplicate-invoice detection ->
-confidence scoring -> persist + publish document.classified/vendor.matched.
+"""Orchestrates the extraction pipeline (see app/services/pipeline.py for
+the actual agent chain: parsing -> classification -> field extraction ->
+vendor matching -> duplicate detection -> confidence scoring) and persists
++ publishes the result.
 
 Run by the background worker (app/worker.py) in response to a
 document.ingested event; also exposed directly for GET/POST endpoints
@@ -15,13 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Document, Vendor
 from app.services import storage
-from app.services.ocr import extract_text
-from app.services.classification import classify_document
-from app.services.field_extraction import extract_fields
-from app.services.vendor_matching import find_or_create_vendor
-from app.services.duplicate_detection import check_duplicate_invoice
-from app.services.confidence import build_confidence_scores, overall_confidence, needs_review
-from app.services.vendor_payment_service import submit_payment_change, PAYMENT_FIELDS
+from app.services import pipeline
 from app.services.audit import write_audit_log
 
 logger = logging.getLogger(__name__)
@@ -38,75 +33,41 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
 
     try:
         data = await storage.download_bytes(doc.minio_path)
-        extraction = extract_text(data, doc.original_filename or "", "")
-        classification = classify_document(extraction.text)
-        fields, field_conf = extract_fields(extraction.text)
 
-        confidence_scores = build_confidence_scores(
-            classification_confidence=classification.confidence,
-            field_confidences={
-                "vendor_name": field_conf.vendor_name,
-                "document_number": field_conf.document_number,
-                "document_date": field_conf.document_date,
-                "total": field_conf.total,
-                "line_items": field_conf.line_items,
-            },
-            text_quality=extraction.text_quality,
-        )
-        overall = overall_confidence(confidence_scores)
+        # The agent chain — see app/services/pipeline.py. Each stage reads
+        # from and writes back to the same envelope dict, so the full
+        # trace of what happened to this document is right there in one
+        # object (and in the [agent_name] log lines each stage emits).
+        envelope = pipeline.new_envelope(doc.id, doc.original_filename or "")
+        envelope = await pipeline.parsing_agent(envelope, data)
+        envelope = pipeline.classification_agent(envelope)
+        envelope = pipeline.field_extraction_agent(envelope)
+        envelope = await pipeline.vendor_matching_agent(db, kafka_producer, envelope, doc.uploaded_by)
+        envelope = await pipeline.duplicate_detection_agent(db, envelope)
+        envelope = pipeline.confidence_agent(envelope)
 
-        vendor_match = await find_or_create_vendor(db, fields.vendor_name_raw or "")
-        vendor = vendor_match.vendor
+        fields = envelope["extracted_fields"]
+        vendor = await db.get(Vendor, envelope["vendor_id"])
 
-        # BEC-fraud control: a change to an EXISTING vendor's bank/payment
-        # details, however it arrives (here: derived from an uploaded
-        # document), never updates the live field directly.
-        if vendor_match.match_type == "existing" and any(getattr(fields, f) for f in PAYMENT_FIELDS):
-            await submit_payment_change(
-                db, kafka_producer, vendor,
-                new_bank_account=fields.bank_account_number,
-                new_routing=fields.routing_code,
-                new_beneficiary=fields.payment_beneficiary_name,
-                submitted_by=doc.uploaded_by or "document-vendor-agent:worker",
-                source="document",
-                document_id=doc.id,
-            )
-        elif vendor_match.match_type == "new":
-            # No prior live value to protect for a brand-new vendor.
-            vendor.bank_account_number = fields.bank_account_number
-            vendor.routing_code = fields.routing_code
-            vendor.payment_beneficiary_name = fields.payment_beneficiary_name
-
-        duplicate_result = None
-        if classification.document_type == "invoice":
-            duplicate_result = await check_duplicate_invoice(
-                db, vendor_id=vendor.id, total=fields.total, document_date_str=fields.document_date,
-                document_number=fields.document_number, exclude_document_id=doc.id,
-            )
-            if duplicate_result.is_duplicate:
-                overall = min(overall, 0.5)  # always route likely duplicates to a human
-
-        needs_review_flag = needs_review(overall) or bool(duplicate_result and duplicate_result.is_duplicate)
-
-        doc.document_type = classification.document_type
-        doc.vendor_id = vendor.id
-        doc.vendor_name_raw = fields.vendor_name_raw
-        doc.document_number = fields.document_number
-        doc.document_date = _safe_date(fields.document_date)
-        doc.total = fields.total
-        doc.currency = fields.currency
+        doc.document_type = envelope["document_type"]
+        doc.vendor_id = envelope["vendor_id"]
+        doc.vendor_name_raw = fields.get("vendor_name_raw")
+        doc.document_number = fields.get("document_number")
+        doc.document_date = _safe_date(fields.get("document_date"))
+        doc.total = fields.get("total")
+        doc.currency = fields.get("currency")
         doc.extracted = {
-            "line_items": fields.line_items,
-            "total": fields.total,
-            "currency": fields.currency,
-            "document_number": fields.document_number,
-            "document_date": fields.document_date,
+            "line_items": fields.get("line_items"),
+            "total": fields.get("total"),
+            "currency": fields.get("currency"),
+            "document_number": fields.get("document_number"),
+            "document_date": fields.get("document_date"),
         }
-        doc.confidence = confidence_scores
-        doc.overall_confidence = overall
-        doc.needs_review = needs_review_flag
-        doc.is_likely_duplicate = bool(duplicate_result and duplicate_result.is_duplicate)
-        doc.duplicate_of_document_id = duplicate_result.duplicate_of_document_id if duplicate_result else None
+        doc.confidence = envelope["confidence_scores"]
+        doc.overall_confidence = envelope["overall_confidence"]
+        doc.needs_review = envelope["needs_review"]
+        doc.is_likely_duplicate = bool(envelope.get("is_duplicate"))
+        doc.duplicate_of_document_id = envelope.get("duplicate_of_document_id")
         doc.status = "classified"
         doc.updated_at = datetime.now(timezone.utc)
 
@@ -115,12 +76,12 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         if kafka_producer is not None:
             await kafka_producer.publish_document_classified(
                 document_id=doc.id, document_type=doc.document_type, vendor_name_raw=doc.vendor_name_raw,
-                extracted_fields=doc.extracted, confidence_scores=confidence_scores,
-                overall_confidence=overall, needs_review=needs_review_flag,
+                extracted_fields=doc.extracted, confidence_scores=doc.confidence,
+                overall_confidence=doc.overall_confidence, needs_review=doc.needs_review,
             )
             await kafka_producer.publish_vendor_matched(
                 document_id=doc.id, vendor_id=vendor.id, vendor_name_normalized=vendor.normalized_name,
-                match_type=vendor_match.match_type, match_confidence=vendor_match.match_confidence,
+                match_type=envelope["vendor_match_type"], match_confidence=envelope["vendor_match_confidence"],
             )
 
         return doc
