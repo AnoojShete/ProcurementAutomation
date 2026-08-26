@@ -30,12 +30,14 @@ body {
 }
 
 .login-card {
-  width: 340px;
+  width: 380px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 28px;
 }
+
+.login-logo { font-size: 32px; margin-bottom: 8px; }
 
 .login-card h1 {
   font-size: 18px;
@@ -208,3 +210,109 @@ pre.contract-text {
 
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
+
+/* --- login role quick-pick --- */
+.role-quickpick {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* --- role badges (About tab, who-label) --- */
+.badge.role-badge {
+  background: rgba(91, 140, 255, 0.15);
+  color: var(--accent);
+}
+
+/* --- architecture diagram (How It Works tab) --- */
+.diagram {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 0 8px;
+}
+.diagram-col {
+  flex: 1;
+  min-width: 170px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.diagram-col-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.diagram-node {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.diagram-node:last-child { margin-bottom: 0; }
+.diagram-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  width: 24px;
+}
+@media (max-width: 900px) {
+  .diagram { flex-direction: column; }
+  .diagram-arrow { transform: rotate(90deg); width: auto; padding: 2px 0; }
+}
+
+/* --- misc intuitiveness helpers --- */
+.help-text {
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+}
+.step-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(90deg, rgba(91,140,255,0.12), rgba(124,92,255,0.06));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+.step-banner .icon { font-size: 22px; }
+.step-banner a.link-btn, .link-btn {
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}

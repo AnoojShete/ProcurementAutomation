@@ -173,11 +173,23 @@ services. If you'd rather have a React app, `frontend/public/app.js`'s
 `api()`/`apiUpload()` helpers and per-tab render functions are a fairly
 direct map to components if someone wants to port it later.
 
-Four tabs: **Overview** (live counts across services), **Contracts &
-Vendor Risk** (generate/inspect/sign contracts, renewals due, vendor risk
-lookup/recompute/offboard), **Approver Inbox** (pending requests by
-approver role, approve/reject, create a request), **Document Review**
-(upload a PO/invoice/quote, correct low-confidence extractions).
+Five tabs: **How It Works** (why the project exists, an architecture
+diagram, a step-by-step "try it yourself" walkthrough matching the e2e
+test, the service/port table, and the role matrix — read this one first),
+**Overview** (live counts across services, plus role-aware "what to do
+next" guidance), **Contracts & Vendor Risk** (generate/inspect/sign
+contracts, renewals due, vendor risk lookup/recompute/offboard),
+**Approver Inbox** (pending requests by approver role — a dropdown of the
+known roles from `config.yaml`, not a free-text field — approve/reject,
+create a request), **Document Review** (upload a PO/invoice/quote,
+correct low-confidence extractions). The login screen has one-click role
+switching (fills in one of the seeded demo accounts) so trying different
+permissions doesn't mean retyping credentials.
+
+The approve/reject buttons poll briefly after submitting rather than
+trusting the immediate response — the decision is applied by signalling a
+Temporal workflow running in a separate worker process, so the status
+flip isn't synchronous with the HTTP call that triggers it.
 
 ## Testing
 
@@ -330,6 +342,96 @@ next:
   strictly. Two more instances of the same pattern in the same service's
   activities. Worth grepping for `: str = None` / `: int = None` /
   `: bool = None` if you add new Temporal signals/activities anywhere.
+- Grafana had no datasource at all — `docker-compose.yml`'s `grafana`
+  service never mounted `infra/grafana/provisioning/`, so the on-disk
+  datasource/dashboard config did nothing. Wired in via
+  `docker-compose.override.yml`, plus `infra/prometheus/prometheus.yml`
+  had no scrape targets beyond itself. Both fixed; a starter dashboard
+  (request rate / p95 latency / 5xx rate / service up-down, all per
+  service) is provisioned automatically at http://localhost:3000.
+- A malformed path parameter where a UUID was expected (e.g.
+  `/vendors/2.1/risk`) reached the database driver as a bad bind value
+  and surfaced as a raw 500 instead of a clean 4xx — `shared/http/error_handlers.py`
+  now recognizes the database driver's own "bad input" errors and maps
+  them to 400.
+- **Operational gotcha, not a code bug**: because nginx resolves upstream
+  hostnames to IPs once at its own boot and doesn't re-resolve
+  automatically, if you `docker compose up -d --force-recreate` a backend
+  service *without* also restarting nginx, the gateway will 502 for that
+  service until nginx is restarted too (hitting the service's own port
+  directly still works fine). `run.sh` always restarts nginx last for
+  exactly this reason — do the same after manually recreating any
+  service outside of `run.sh`.
+
+## Future scope
+
+Everything above is built and demoable end-to-end. A few things are
+explicitly out of scope for this pass — either because they need paid/
+rate-limited external accounts this environment doesn't have, or because
+they're a genuinely separate, larger effort:
+
+- **Document parsing upgrade** (document-vendor-agent currently uses
+  pdfplumber for text-native PDFs and Tesseract OCR for scans): a later
+  pass could swap in Docling (layout-aware parsing + table structure
+  recovery) with PaddleOCR as its OCR backend for meaningfully better
+  extraction on complex invoice layouts — both run fully local/offline,
+  no data leaves the machine. Heavier install (PaddlePaddle CPU wheels),
+  longer image build.
+- **India-specific vendor identity checks**: GSTIN validation (format +
+  real modulo-36 check-digit algorithm, then a live registry lookup —
+  gstincheck.co.in's free tier is ~20 lookups total, not per day, so
+  results need permanent caching) and IFSC bank-code validation (Razorpay's
+  free, keyless API) as a stronger vendor-dedup key than name-fuzzy-
+  matching, with a DB-level unique constraint on `gstin` to close the same
+  race condition the Redis reservation lock addresses elsewhere. Needs a
+  `GSTINCHECK_API_KEY` (free signup) — IFSC needs no key.
+- **Clause extraction validated against CUAD** (the Contract Understanding
+  Atticus Dataset — 510 real contracts, 13k+ expert-labeled clauses,
+  CC BY 4.0, atticusprojectai.org/cuad): a real, citable benchmark instead
+  of hand-written test contracts. Needs a real conversion step first — CUAD
+  ships as SQuAD-style (context, question, answer-span) tuples per clause
+  category, not as the (renewal_type, notice_period, end_date) records
+  this service extracts, so there's no shortcut to pointing the pipeline
+  at the raw download.
+- **Real external data for vendor risk scoring**, replacing more of the
+  synthetic feature set: OpenCorporates (company legitimacy — a name
+  search returns multiple candidates, so this needs a
+  `needs_manual_match` state, not blind `result[0]`), SEC EDGAR (financial
+  stability for US public companies specifically — resolve to a CIK
+  first, and "no CIK match" means *not applicable*, never "high risk"),
+  IAF CertSearch (ISO certification status), and Qualys SSL Labs (live TLS
+  grade — this one's fully real for any vendor with a website, no
+  fallback needed). Every feature would need normalizing onto one 0–1
+  scale before it enters the model, and an explicit `insufficient_data`
+  state per feature when a rate-limited API has nothing cached — a
+  silently-filled default reads as a real measurement when it isn't one.
+  Needs an `OPENCORPORATES_API_TOKEN` (free signup); the rest are keyless.
+- **Sanctions screening** (`POST /vendors/{id}/screen-sanctions` against
+  OFAC's SDN + Consolidated lists or OpenSanctions.org, fuzzy-matched):
+  a real KYC/AML control, not a synthetic one. The list needs to be
+  fetched at startup and refreshed on a schedule (a daily Temporal
+  workflow is enough), not baked into the image, or "screened against
+  the sanctions list" stops meaning anything a week in.
+- **A real e-signature provider**: the webhook path (signature
+  verification, replay protection, `contract.signed` publish) is real and
+  tested; there's no live OpenSign/Documenso instance actually wired in,
+  so `POST /contracts/{id}/send-for-signature` returns a simulated
+  provider reference rather than routing to a real signing flow. The e2e
+  test simulates the provider's callback directly against the API to
+  prove the rest of the chain.
+- **Grafana dashboards**: the provisioned starter dashboard covers
+  request rate/latency/errors; Kafka consumer lag and an approval SLA-
+  breach panel would need a bit more instrumentation (a lag exporter for
+  Redpanda, a counter in approval-inventory-agent) to be real rather than
+  decorative.
+- **CI**: `scripts/ci-build.sh` builds each service's Docker image on
+  push; it doesn't yet run the pytest suites or `make e2e` in CI. Wiring
+  `scripts/test-service.sh all` and `make e2e` in as pipeline steps (the
+  e2e step needs the full stack up first) would close that gap.
+
+None of the above blocks the current demo — they're the honest list of
+"what a longer engagement would add next," not missing pieces the
+platform depends on.
 
 ## Data provenance
 

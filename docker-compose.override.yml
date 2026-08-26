@@ -227,6 +227,16 @@ services:
     volumes:
       - ./frontend/public:/usr/share/nginx/frontend:ro
 
+  # --- observability ---
+  # Prompt 0/4 provisioned a Prometheus datasource + dashboard config on
+  # disk, but the base grafana service never actually mounted them in —
+  # Grafana had zero datasources configured. Wired in here.
+  grafana:
+    volumes:
+      - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./infra/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboard-json:ro
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.14.3
     command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "/mlruns", "--default-artifact-root", "/mlruns"]

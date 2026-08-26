@@ -4,14 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IT Procurement Intelligence Platform</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="login-screen">
   <div class="login-card">
+    <div class="login-logo">📦</div>
     <h1>IT Procurement Intelligence Platform</h1>
-    <p class="sub">Sign in to continue</p>
+    <p class="sub">Four AI-assisted services, one workflow — sign in to try it</p>
     <div id="login-error"></div>
     <label for="login-email">Email</label>
     <input id="login-email" type="email" value="approver@demo.example.com" autocomplete="username">
@@ -20,18 +22,24 @@
     <div class="login-actions">
       <button id="login-btn" style="flex:1">Sign in</button>
     </div>
+    <div class="role-quickpick">
+      <span class="small muted">Quick switch:</span>
+      <button type="button" class="chip" data-email="requester@demo.example.com">requester</button>
+      <button type="button" class="chip" data-email="approver@demo.example.com">approver</button>
+      <button type="button" class="chip" data-email="finance@demo.example.com">finance</button>
+      <button type="button" class="chip" data-email="admin@demo.example.com">admin</button>
+    </div>
     <div class="demo-note">
-      <strong>DEMO ONLY</strong> — not for production use.<br>
-      Seeded accounts (all share password <code>DemoPass123!</code>):<br>
-      requester@demo.example.com &middot; approver@demo.example.com &middot;
-      finance@demo.example.com &middot; admin@demo.example.com
+      <strong>DEMO ONLY</strong> — not for production use.
+      Every seeded account shares the password <code>DemoPass123!</code>.
+      New to this? Sign in, then open the <strong>How It Works</strong> tab first.
     </div>
   </div>
 </div>
 
 <div id="app-screen">
   <header class="topbar">
-    <div class="brand">IT Procurement Intelligence Platform</div>
+    <div class="brand">📦 IT Procurement Intelligence Platform</div>
     <div class="who">
       <span id="who-label"></span>
       <button class="secondary" id="logout-btn">Sign out</button>
@@ -39,14 +47,16 @@
   </header>
 
   <nav class="tabs" id="tabs">
-    <button data-tab="overview" class="active">Overview</button>
-    <button data-tab="contracts">Contracts &amp; Vendor Risk</button>
-    <button data-tab="approvals">Approver Inbox</button>
-    <button data-tab="documents">Document Review</button>
+    <button data-tab="about" class="active">📘 How It Works</button>
+    <button data-tab="overview">🏠 Overview</button>
+    <button data-tab="contracts">📄 Contracts &amp; Vendor Risk</button>
+    <button data-tab="approvals">✅ Approver Inbox</button>
+    <button data-tab="documents">🗂 Document Review</button>
   </nav>
 
   <main>
-    <section id="tab-overview"></section>
+    <section id="tab-about"></section>
+    <section id="tab-overview" style="display:none"></section>
     <section id="tab-contracts" style="display:none"></section>
     <section id="tab-approvals" style="display:none"></section>
     <section id="tab-documents" style="display:none"></section>

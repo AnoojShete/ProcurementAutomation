@@ -4,3 +4,28 @@ scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+
+  - job_name: 'document-vendor-agent'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['document-vendor-agent:8001']
+
+  - job_name: 'approval-inventory-agent'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['approval-inventory-agent:8002']
+
+  - job_name: 'contract-risk-agent'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['contract-risk-agent:8003']
+
+  - job_name: 'notification-agent'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['notification-agent:8004']
+
+  - job_name: 'auth-service'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['auth-service:8005']

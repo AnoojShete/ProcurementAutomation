@@ -5,6 +5,13 @@
 const API_BASE = "/api";
 const AUTH_KEY = "itpip_auth";
 
+const ROLE_NEXT_STEP = {
+  requester: "<strong>Document Review</strong> (upload something) or <strong>Approver Inbox</strong> (create a request).",
+  approver: "<strong>Approver Inbox</strong> — approve/reject pending requests.",
+  finance: "<strong>Approver Inbox</strong> — approve higher-spend-tier requests.",
+  admin: "<strong>Contracts &amp; Vendor Risk</strong> — generate/sign contracts, score or offboard vendors.",
+};
+
 function getAuth() {
   try { return JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); } catch { return null; }
 }
@@ -82,7 +89,10 @@ function showApp() {
   document.getElementById("login-screen").style.display = "none";
   document.getElementById("app-screen").style.display = "block";
   const auth = getAuth();
-  document.getElementById("who-label").textContent = `${auth.email} · ${auth.role}`;
+  const whoLabel = document.getElementById("who-label");
+  whoLabel.innerHTML = "";
+  whoLabel.appendChild(document.createTextNode(auth.email + " "));
+  whoLabel.appendChild(badge(auth.role, "role-badge"));
   renderActiveTab();
 }
 
@@ -120,11 +130,18 @@ async function doLogin() {
 document.getElementById("login-btn").addEventListener("click", doLogin);
 document.getElementById("login-password").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 document.getElementById("logout-btn").addEventListener("click", () => { clearAuth(); showLogin(); });
+document.querySelectorAll(".role-quickpick .chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    document.getElementById("login-email").value = chip.dataset.email;
+    document.getElementById("login-password").value = "DemoPass123!";
+    document.querySelectorAll(".role-quickpick .chip").forEach((c) => c.classList.toggle("active", c === chip));
+  });
+});
 
 // ---------- Tabs ----------
 
-const TAB_RENDERERS = { overview: renderOverview, contracts: renderContracts, approvals: renderApprovals, documents: renderDocuments };
-let activeTab = "overview";
+const TAB_RENDERERS = { about: renderAbout, overview: renderOverview, contracts: renderContracts, approvals: renderApprovals, documents: renderDocuments };
+let activeTab = "about";
 
 document.getElementById("tabs").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-tab]");
@@ -140,11 +157,168 @@ function renderActiveTab() {
   TAB_RENDERERS[activeTab]();
 }
 
+function goToTab(tab) {
+  document.querySelector(`#tabs button[data-tab="${tab}"]`).click();
+}
+
+// ---------- About / How It Works ----------
+
+function renderAbout() {
+  const root = document.getElementById("tab-about");
+  root.innerHTML = "";
+  const auth = getAuth();
+
+  // --- Why this project ---
+  const why = el("div", { class: "panel" });
+  why.appendChild(el("h2", { text: "Why this project" }));
+  why.appendChild(el("p", { class: "desc", html:
+    "IT procurement at most organizations still runs through email threads, spreadsheets, and " +
+    "whoever remembers to chase an approval. A vendor invoice arrives as a PDF and someone retypes " +
+    "it. A purchase sits waiting for the right manager to notice it. A contract auto-renews because " +
+    "nobody tracked the notice period. A vendor's bank details change and nobody double-checks it's " +
+    "really the vendor asking. None of this is a technology problem in the sense of missing tools — " +
+    "it's a problem of nothing in the chain actually talking to anything else." }));
+  why.appendChild(el("p", { class: "desc", html:
+    "This platform wires those steps into <strong>one event-driven pipeline</strong>: a document " +
+    "upload triggers extraction, extraction triggers vendor matching, an approval triggers a contract, " +
+    "a signed contract triggers a risk score and a renewal timer, and every step notifies the right " +
+    "person automatically. The goal isn't to replace judgment — approvals, risk decisions, and " +
+    "payment-detail changes still need a human — it's to remove the manual busywork and the silent " +
+    "gaps around those decisions." }));
+  root.appendChild(why);
+
+  // --- How it works ---
+  const how = el("div", { class: "panel" });
+  how.appendChild(el("h2", { text: "How it works" }));
+  how.appendChild(el("p", { class: "desc", text:
+    "Four independent services, each owning one part of the lifecycle, talking to each other only " +
+    "through Kafka events and a shared Postgres schema — never by calling each other's code directly. " +
+    "That's what lets them fail, scale, and get rebuilt independently." }));
+  how.appendChild(buildArchitectureDiagram());
+  how.appendChild(el("p", { class: "small muted", style: "margin-top:14px", html:
+    "Every request into any service goes through the same gateway (nginx, this page's own origin) and " +
+    "the same JWT check. Every service exposes <code>/health</code> and <code>/metrics</code> " +
+    "(scraped by Prometheus, visualized in Grafana at :3000)." }));
+  root.appendChild(how);
+
+  // --- Try it yourself ---
+  const walkthrough = el("div", { class: "panel" });
+  walkthrough.appendChild(el("h2", { text: "Try it yourself — the full loop, start to finish" }));
+  walkthrough.appendChild(el("p", { class: "desc", text:
+    "This is exactly the path the automated end-to-end test scripts. Switch roles with the inbox in " +
+    "the top-right (sign out, sign back in) as you go — each step below names which role does it." }));
+  const steps = [
+    ["requester", "Document Review", "Upload a PO/invoice/quote (or use the sample files in data/synthetic-invoices/). It's scanned for malware, stored, then classified and field-extracted in the background — refresh the review queue a few seconds later."],
+    ["requester", "Approver Inbox → Create a purchase request", "Or skip straight to this if you don't want to wait on document extraction — it's the same downstream flow either way."],
+    ["approver / finance", "Approver Inbox", "Load the inbox for the request's approver role (e.g. dept_manager) and approve it. This signals a running workflow — status settles within a second or two, it's not instant."],
+    ["admin / approver / finance", "Contracts & Vendor Risk", "Generate a contract from the now-approved request, then send it for signature."],
+    ["— (automated)", "—", "In a real deployment the e-sign provider calls back when the document is actually signed. This demo doesn't have a live e-sign provider wired in, so there's no button for this step — the contract stays in \"pending signature\" here, and the automated e2e test (make e2e) simulates the callback directly against the API to prove the rest of the chain (signing → risk scoring → notification) works."],
+    ["anyone", "Contracts & Vendor Risk → Vendor risk", "Look up or recompute the vendor's risk score — this is what a signed contract triggers automatically."],
+    ["—", "Mailpit (localhost:8025)", "Every step above sends an email — check Mailpit's inbox to see them land."],
+  ];
+  const table = el("table");
+  table.appendChild(el("tr", {}, [el("th", { text: "#" }), el("th", { text: "Role" }), el("th", { text: "Tab" }), el("th", { text: "What happens" })]));
+  steps.forEach((s, i) => {
+    table.appendChild(el("tr", {}, [
+      el("td", { text: String(i + 1) }),
+      el("td", {}, badge(s[0], "role-badge")),
+      el("td", { text: s[1] }),
+      el("td", { class: "small", text: s[2] }),
+    ]));
+  });
+  walkthrough.appendChild(table);
+  root.appendChild(walkthrough);
+
+  // --- Project layout ---
+  const layout = el("div", { class: "panel" });
+  layout.appendChild(el("h2", { text: "Project layout" }));
+  const svcTable = el("table");
+  svcTable.appendChild(el("tr", {}, [el("th", { text: "Service" }), el("th", { text: "Owns" }), el("th", { text: "Port" }), el("th", { text: "Key tech" })]));
+  const services = [
+    ["document-vendor-agent", "Upload, malware scan, OCR/classify, vendor match & dedup, payment-detail governance", "8001", "MinIO, ClamAV, pdfplumber/Tesseract, rapidfuzz"],
+    ["approval-inventory-agent", "Spend-tier approval chains, SLA escalation, inventory reservation, license utilisation", "8002", "Temporal, Redis locks"],
+    ["contract-risk-agent", "Contract generation, clause extraction, e-sign webhook, vendor risk scoring, drift monitoring", "8003", "Jinja2, scikit-learn, MLflow, Temporal"],
+    ["notification-agent", "Email rendering + delivery, urgent vs. digest batching, audit log of sends", "8004", "Jinja2, SMTP → Mailpit"],
+    ["auth-service", "Login, JWT issuance/refresh, demo user seeding", "8005", "bcrypt, PyJWT"],
+  ];
+  services.forEach((s) => svcTable.appendChild(el("tr", {}, s.map((v) => el("td", { text: v })))));
+  layout.appendChild(svcTable);
+  layout.appendChild(el("p", { class: "small muted", style: "margin-top:12px", html:
+    "Every service shares one Postgres database and one Kafka bus (Redpanda), but never queries another " +
+    "service's tables directly or imports its code — the only contracts between them are the documented " +
+    "Kafka event shapes and the REST endpoints through the gateway. This page is served as static files " +
+    "by the same nginx container that proxies <code>/api/*</code> to each service — no separate frontend " +
+    "server, no CORS." }));
+  root.appendChild(layout);
+
+  // --- Roles ---
+  const roles = el("div", { class: "panel" });
+  roles.appendChild(el("h2", { text: "Roles" }));
+  const roleTable = el("table");
+  roleTable.appendChild(el("tr", {}, [el("th", { text: "Role" }), el("th", { text: "Can do" })]));
+  [
+    ["requester", "Upload documents, create purchase requests"],
+    ["approver", "Approve/reject requests, recompute vendor risk"],
+    ["finance", "Same as approver, plus higher-spend-tier approvals"],
+    ["admin", "Everything above, plus generate/sign contracts, offboard vendors"],
+  ].forEach(([r, d]) => roleTable.appendChild(el("tr", {}, [el("td", {}, badge(r, "role-badge")), el("td", { text: d })])));
+  roles.appendChild(roleTable);
+  if (auth) {
+    roles.appendChild(el("p", { class: "small muted", style: "margin-top:10px", html: `You're signed in as <strong>${auth.email}</strong> (<code>${auth.role}</code>) — actions outside your role return a clear "forbidden" message rather than failing silently.` }));
+  }
+  root.appendChild(roles);
+}
+
+function buildArchitectureDiagram() {
+  const wrap = el("div", { class: "diagram" });
+
+  const col = (title, items) => {
+    const c = el("div", { class: "diagram-col" });
+    c.appendChild(el("div", { class: "diagram-col-title", text: title }));
+    items.forEach((it) => c.appendChild(el("div", { class: "diagram-node", text: it })));
+    return c;
+  };
+
+  wrap.appendChild(col("Frontend", ["This page (nginx)"]));
+  wrap.appendChild(el("div", { class: "diagram-arrow", text: "→" }));
+  wrap.appendChild(col("Gateway", ["nginx :8080", "/api/* routing", "JWT check"]));
+  wrap.appendChild(el("div", { class: "diagram-arrow", text: "→" }));
+  wrap.appendChild(col("Services", [
+    "document-vendor-agent",
+    "approval-inventory-agent",
+    "contract-risk-agent",
+    "notification-agent",
+    "auth-service",
+  ]));
+  wrap.appendChild(el("div", { class: "diagram-arrow", text: "⇄" }));
+  wrap.appendChild(col("Shared infra", [
+    "Postgres (one schema)",
+    "Kafka / Redpanda",
+    "Redis, MinIO",
+    "Temporal workflows",
+  ]));
+  return wrap;
+}
+
 // ---------- Overview ----------
 
 async function renderOverview() {
   const root = document.getElementById("tab-overview");
   root.innerHTML = "";
+  const auth = getAuth();
+
+  const banner = el("div", { class: "step-banner" });
+  banner.appendChild(el("div", { class: "icon", text: "👋" }));
+  const bannerText = el("div");
+  bannerText.appendChild(el("div", { html: `First time here? The <button class="link-btn" id="ov-goto-about">How It Works</button> tab walks through the whole demo loop step by step.` }));
+  const nextStep = ROLE_NEXT_STEP[auth?.role];
+  if (nextStep) {
+    bannerText.appendChild(el("div", { class: "small muted", style: "margin-top:4px", html: `As <strong>${auth.role}</strong>, you'll mostly use: ${nextStep}` }));
+  }
+  banner.appendChild(bannerText);
+  root.appendChild(banner);
+  root.querySelector("#ov-goto-about").addEventListener("click", () => goToTab("about"));
+
   const panel = el("div", { class: "panel" });
   panel.appendChild(el("h2", { text: "Platform status" }));
   panel.appendChild(el("p", { class: "desc", text: "Live counts pulled through the gateway from each service." }));
@@ -189,6 +363,10 @@ async function renderOverview() {
 async function renderContracts() {
   const root = document.getElementById("tab-contracts");
   root.innerHTML = "";
+
+  root.appendChild(el("div", { class: "help-text", html:
+    "Don't have a purchase request ID handy? Run <code>./scripts/seed-demo-data.sh</code> for a ready-made " +
+    "approved request + vendor, or approve one yourself in the <strong>Approver Inbox</strong> tab first." }));
 
   // --- Generate contract ---
   const genPanel = el("div", { class: "panel" });
@@ -403,11 +581,17 @@ async function renderApprovals() {
 
   const panel = el("div", { class: "panel" });
   panel.appendChild(el("h2", { text: "Approver inbox" }));
-  panel.appendChild(el("p", { class: "desc", text: "Pending requests routed to an approver role (e.g. dept_manager, finance_head — per config.yaml's spend-tier chains, not an individual user id)." }));
-  const approverInput = el("input", { value: "dept_manager" });
+  panel.appendChild(el("div", { class: "help-text", html:
+    "Requests route to an <strong>approver role</strong> (from the spend-tier chain in config.yaml), " +
+    "not an individual person — <code>dept_manager</code> handles the $500–$5,000 tier, " +
+    "<code>finance_head</code> is added for anything above that. Pick the role below, then load its inbox." }));
+  const approverInput = el("select", {}, [
+    el("option", { value: "dept_manager", text: "dept_manager (manager tier)" }),
+    el("option", { value: "finance_head", text: "finance_head (manager+finance tier)" }),
+  ]);
   const refreshBtn = el("button", { text: "Load inbox" });
   panel.appendChild(el("div", { class: "row" }, [
-    el("div", { class: "field", style: "flex:0;min-width:200px" }, [el("label", { text: "Approver role" }), approverInput]),
+    el("div", { class: "field", style: "flex:0;min-width:220px" }, [el("label", { text: "Approver role" }), approverInput]),
     refreshBtn,
   ]));
   const msg = el("div");
@@ -429,17 +613,38 @@ async function renderApprovals() {
       ]));
       r.data.forEach((req) => {
         const decideBtn = (decision, cls) => {
-          const b = el("button", { class: cls, text: decision === "approve" ? "Approve" : "Reject" });
+          const label = decision === "approve" ? "Approve" : "Reject";
+          const b = el("button", { class: cls, text: label });
           b.addEventListener("click", async () => {
             const auth = getAuth();
+            b.disabled = true;
+            b.textContent = "Processing…";
+            msg.innerHTML = "";
+            msg.appendChild(el("div", { class: "help-text", text:
+              "The decision is applied by a background workflow, not instantly — this waits up to a few seconds for it to settle." }));
             try {
               await api(`/requests/${req.request_id}/${decision}`, {
                 method: "POST",
-                body: JSON.stringify({ decided_by: approverInput.value.trim(), comments: `${decision}d by ${auth.email} via demo UI` }),
+                body: JSON.stringify({ decided_by: approverInput.value, comments: `${decision}d by ${auth.email} via demo UI` }),
               });
-              msg.innerHTML = ""; msg.appendChild(okBanner(`Request ${decision}d.`));
+              // Async: the decision is applied by a Temporal workflow signal,
+              // not by this call returning — poll briefly instead of trusting
+              // an immediate re-fetch.
+              let settled = false;
+              for (let i = 0; i < 10; i++) {
+                await new Promise((res) => setTimeout(res, 500));
+                const check = await api(`/requests/${req.request_id}`);
+                if (check.data.status !== "pending_approval") { settled = true; break; }
+              }
+              msg.innerHTML = "";
+              msg.appendChild(okBanner(settled ? `Request ${decision}d.` : `Request ${decision} submitted — still settling, reload the inbox in a moment.`));
               load();
-            } catch (e) { msg.innerHTML = ""; msg.appendChild(errorBanner(e.message)); }
+            } catch (e) {
+              msg.innerHTML = "";
+              msg.appendChild(errorBanner(e.message));
+              b.disabled = false;
+              b.textContent = label;
+            }
           });
           return b;
         };
@@ -497,6 +702,13 @@ async function renderApprovals() {
 async function renderDocuments() {
   const root = document.getElementById("tab-documents");
   root.innerHTML = "";
+
+  root.appendChild(el("div", { class: "help-text", html:
+    "<strong>Pipeline:</strong> upload → ClamAV malware scan → stored in MinIO → a background worker " +
+    "parses it (native text or OCR for scans), classifies PO/invoice/quote, extracts fields, and fuzzy-" +
+    "matches the vendor. Anything below the confidence threshold lands in the review queue below instead " +
+    "of auto-completing. No sample file handy? The repo ships ~20 synthetic ones under " +
+    "<code>data/synthetic-invoices/</code>." }));
 
   const uploadPanel = el("div", { class: "panel" });
   uploadPanel.appendChild(el("h2", { text: "Upload a document" }));

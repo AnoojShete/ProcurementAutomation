@@ -14,6 +14,11 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+try:
+    from sqlalchemy.exc import DBAPIError
+except ImportError:  # a service without SQLAlchemy installed just won't hit this branch
+    DBAPIError = None
+
 _STATUS_CODES = {
     400: "bad_request",
     401: "unauthorized",
@@ -40,6 +45,20 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         return JSONResponse(status_code=422, content=_error_body("validation_error", str(exc.errors())))
+
+    if DBAPIError is not None:
+        @app.exception_handler(DBAPIError)
+        async def dbapi_error_handler(request: Request, exc: DBAPIError):
+            # A malformed path/query value (e.g. "2.1" where a UUID is
+            # expected) reaches the database driver as a bad bind
+            # parameter, not as a FastAPI/Pydantic validation error — left
+            # unhandled this surfaces as a raw 500. Any error the driver
+            # itself flags as bad *input* (vs. e.g. a connection failure)
+            # is a client mistake, so it's a 400, not a 500.
+            cause = str(getattr(exc, "orig", exc)).lower()
+            if any(s in cause for s in ("invalid uuid", "invalid input syntax", "data error", "datatype mismatch")):
+                return JSONResponse(status_code=400, content=_error_body("bad_request", "malformed identifier or field value"))
+            return JSONResponse(status_code=500, content=_error_body("internal_error", "an unexpected error occurred"))
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
