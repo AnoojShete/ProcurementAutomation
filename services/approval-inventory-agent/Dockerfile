@@ -3,8 +3,8 @@
 # Stage 2: Minimal runtime image
 
 FROM python:3.11-slim AS builder
-WORKDIR /app
-COPY requirements.txt .
+WORKDIR /build
+COPY services/approval-inventory-agent/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim AS runtime
@@ -21,9 +21,11 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/pyth
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 # Copy application code
-COPY config.yaml .
-COPY app/ ./app/
-COPY entrypoint.sh .
+COPY shared/ ./shared/
+COPY services/approval-inventory-agent/config.yaml .
+COPY services/approval-inventory-agent/migrations/ ./migrations/
+COPY services/approval-inventory-agent/app/ ./app/
+COPY services/approval-inventory-agent/entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
 EXPOSE 8002
