@@ -15,9 +15,12 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-# curl: healthcheck. tesseract-ocr: pytesseract shells out to the `tesseract`
-# binary for OCR on scanned images — it is NOT a pip-installable dependency.
-RUN apt-get update && apt-get install -y --no-install-recommends curl tesseract-ocr && \
+# curl: healthcheck. tesseract-ocr: pytesseract's fallback-path binary
+# (NOT pip-installable). libgl1/libglib2.0-0: opencv (a Docling transitive
+# dependency) needs these even in a headless container, or it fails to
+# import with "libGL.so.1: cannot open shared object file".
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl tesseract-ocr libgl1 libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/

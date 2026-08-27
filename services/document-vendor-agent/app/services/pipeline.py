@@ -13,6 +13,7 @@ it's the same logic, just named and shaped so each step's inputs/outputs
 are explicit and independently testable, and so a new stage (e.g.
 swapping the parsing agent's backend) only ever touches its own function.
 """
+import asyncio
 import logging
 from dataclasses import asdict
 from typing import Optional
@@ -42,8 +43,18 @@ def new_envelope(document_id: str, filename: str) -> dict:
 
 async def parsing_agent(envelope: dict, data: bytes) -> dict:
     """Turns raw file bytes into text. See app/services/ocr.py for the
-    actual backend (Docling + PaddleOCR)."""
-    extraction = extract_text(data, envelope["filename"], envelope.get("content_type", ""))
+    actual backend (Docling for PDFs, pytesseract for images).
+
+    extract_text() is CPU-bound and synchronous — Docling's layout/table
+    inference on a real PDF took 15-75s in testing. Run directly in this
+    coroutine, that blocks the whole worker's event loop for the duration,
+    starving the Kafka consumer's heartbeat and forcing a rebalance on
+    every single document. asyncio.to_thread hands it to a worker thread
+    instead, so heartbeats (and any other pipeline concurrency) keep
+    flowing while the conversion runs."""
+    extraction = await asyncio.to_thread(
+        extract_text, data, envelope["filename"], envelope.get("content_type", "")
+    )
     envelope["raw_text"] = extraction.text
     envelope["extraction_method"] = extraction.method
     envelope["file_type"] = extraction.file_type

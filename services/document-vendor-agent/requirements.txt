@@ -1,7 +1,7 @@
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
 pydantic==2.7.4
-pydantic-settings==2.3.4
+pydantic-settings==2.14.1
 sqlalchemy[asyncio]==2.0.31
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
@@ -9,7 +9,7 @@ aiokafka==0.10.0
 pyjwt==2.8.0
 pyyaml==6.0.1
 prometheus-fastapi-instrumentator==7.0.0
-httpx==0.27.0
+httpx==0.28.1
 python-dateutil==2.9.0.post0
 pytest==8.2.2
 pytest-asyncio==0.23.7
@@ -22,3 +22,21 @@ pytesseract==0.3.10
 Pillow==10.4.0
 rapidfuzz==3.9.6
 reportlab==4.2.2
+# Docling: layout-aware PDF parsing (reading order, table structure) —
+# used for every PDF (text-native or scanned; Docling OCRs scanned pages
+# itself via its bundled RapidOCR engine), replacing plain pdfplumber for
+# those. pdfplumber/pytesseract stay as the dependency-light fallback path
+# if Docling fails to load or errors on a given file (see
+# app/services/ocr.py). Runs fully local/offline — no document content
+# leaves the machine.
+#
+# PaddleOCR/PaddlePaddle were evaluated for standalone image OCR and
+# rejected: the native inference engine segfaults/aborts on every version
+# pair tried (paddleocr 3.7.0+paddlepaddle 3.2.2, and the older
+# 2.9.1+2.6.2 pairing) on both native arm64 and emulated amd64 in this
+# Docker environment — three distinct crash signatures (SIGABRT in
+# paddle_infer::Predictor, a PIR/oneDNN NotImplementedError, and a SIGSEGV
+# in zlib's inflateReset2), none of them catchable from Python since
+# they're C-level process aborts. pytesseract remains the image-OCR
+# engine; see the finding written up for the team.
+docling==2.122.0
