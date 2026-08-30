@@ -19,6 +19,7 @@ from app.models import PurchaseRequest, ApprovalHistory, AuditLog, Inventory
 from app.schemas import CreatePurchaseRequest, ApprovalAction
 from app.kafka.producer import KafkaEventProducer
 from app.services.inventory_service import check_availability, reserve_stock, split_backorder
+from app.metrics import inventory_reservation_total
 
 
 class ApprovalService:
@@ -125,14 +126,17 @@ class ApprovalService:
                         )
                         if reserved:
                             total_available += qty
+                            inventory_reservation_total.labels(status="reserved").inc()
                         else:
                             is_backordered = True
                             total_available += item_avail
+                            inventory_reservation_total.labels(status="backordered").inc()
                     else:
                         is_backordered = True
                         total_available += item_avail
                         if item_avail > 0:
                             await reserve_stock(self.db, self.redis, sku, req_id, item_avail)
+                        inventory_reservation_total.labels(status="backordered").inc()
 
         # 4. Insert into DB
         now = datetime.now(timezone.utc)

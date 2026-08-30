@@ -28,6 +28,7 @@ from app.services.vendor_matching import find_or_create_vendor
 from app.services.duplicate_detection import check_duplicate_invoice
 from app.services.confidence import build_confidence_scores, overall_confidence, needs_review
 from app.services.vendor_payment_service import submit_payment_change, PAYMENT_FIELDS
+from app.services.agent_contracts import record_agent_result
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,13 @@ async def parsing_agent(envelope: dict, data: bytes) -> dict:
         f"[parsing_agent] document_id={envelope['document_id']} "
         f"method={extraction.method} file_type={extraction.file_type} text_quality={extraction.text_quality}"
     )
+    is_empty = not (extraction.text or "").strip()
+    record_agent_result(
+        envelope, "parsing_agent",
+        confidence=extraction.text_quality,
+        validation_status="invalid" if is_empty else "valid",
+        errors=["empty extraction: no text recovered from document"] if is_empty else [],
+    )
     return envelope
 
 
@@ -76,18 +84,33 @@ def classification_agent(envelope: dict) -> dict:
         f"[classification_agent] document_id={envelope['document_id']} "
         f"type={result.document_type} confidence={result.confidence}"
     )
+    record_agent_result(envelope, "classification_agent", confidence=result.confidence)
     return envelope
 
 
 def field_extraction_agent(envelope: dict) -> dict:
     """Pulls vendor name, line items, totals, dates, document numbers, and
-    (when present) vendor bank/payment details out of the text."""
+    (when present) vendor bank/payment details out of the text.
+
+    Does not blindly trust parsing_agent's output: if the upstream stage
+    already flagged an empty extraction (see its AgentResult in
+    envelope["_agent_trail"]), field extraction still runs (extract_fields
+    degrades gracefully on empty text) but is recorded as needs_review
+    rather than valid, since anything it "finds" in empty text is noise."""
+    upstream = envelope.get("_agent_trail", [])
+    upstream_invalid = bool(upstream) and upstream[-1].validation_status == "invalid"
+
     fields, field_conf = extract_fields(envelope["raw_text"])
     envelope["extracted_fields"] = asdict(fields)
     envelope["field_confidences"] = asdict(field_conf)
     logger.info(
         f"[field_extraction_agent] document_id={envelope['document_id']} "
         f"vendor_name_raw={fields.vendor_name_raw!r} total={fields.total} doc_number={fields.document_number}"
+    )
+    record_agent_result(
+        envelope, "field_extraction_agent",
+        validation_status="needs_review" if upstream_invalid else "valid",
+        warnings=["upstream parsing_agent output was invalid (empty text)"] if upstream_invalid else [],
     )
     return envelope
 
@@ -130,6 +153,19 @@ async def vendor_matching_agent(db: AsyncSession, kafka_producer, envelope: dict
         f"[vendor_matching_agent] document_id={envelope['document_id']} "
         f"vendor_id={vendor.id} match_type={match.match_type} confidence={match.match_confidence}"
     )
+    # Don't blindly trust field_extraction_agent's output: a missing
+    # vendor name means this stage matched against an empty string (see
+    # find_or_create_vendor call above), which is never a trustworthy
+    # match regardless of what match_confidence reports.
+    vendor_name_missing = not (fields.get("vendor_name_raw") or "").strip()
+    if vendor_name_missing:
+        envelope["needs_review_forced"] = True
+    record_agent_result(
+        envelope, "vendor_matching_agent",
+        confidence=match.match_confidence,
+        validation_status="needs_review" if vendor_name_missing else "valid",
+        warnings=["no vendor name extracted upstream; matched against an empty name"] if vendor_name_missing else [],
+    )
     return envelope
 
 
@@ -140,6 +176,7 @@ async def duplicate_detection_agent(db: AsyncSession, envelope: dict) -> dict:
     if envelope["document_type"] != "invoice":
         envelope["is_duplicate"] = False
         envelope["duplicate_of_document_id"] = None
+        record_agent_result(envelope, "duplicate_detection_agent", next_action="skipped_non_invoice")
         return envelope
 
     fields = envelope["extracted_fields"]
@@ -152,6 +189,11 @@ async def duplicate_detection_agent(db: AsyncSession, envelope: dict) -> dict:
     envelope["duplicate_of_document_id"] = result.duplicate_of_document_id
     if result.is_duplicate:
         logger.info(f"[duplicate_detection_agent] document_id={envelope['document_id']} likely duplicate of {result.duplicate_of_document_id}")
+    record_agent_result(
+        envelope, "duplicate_detection_agent",
+        validation_status="needs_review" if result.is_duplicate else "valid",
+        warnings=[f"likely duplicate of {result.duplicate_of_document_id}"] if result.is_duplicate else [],
+    )
     return envelope
 
 
@@ -178,9 +220,20 @@ def confidence_agent(envelope: dict) -> dict:
 
     envelope["confidence_scores"] = confidence_scores
     envelope["overall_confidence"] = overall
-    envelope["needs_review"] = needs_review(overall) or bool(envelope.get("is_duplicate"))
+    # needs_review_forced comes from an earlier stage explicitly flagging
+    # its own output as untrustworthy (e.g. vendor_matching_agent on a
+    # missing vendor name) — a human always sees it regardless of what the
+    # numeric confidence score alone would have decided.
+    envelope["needs_review"] = (
+        needs_review(overall) or bool(envelope.get("is_duplicate")) or bool(envelope.get("needs_review_forced"))
+    )
     logger.info(
         f"[confidence_agent] document_id={envelope['document_id']} "
         f"overall_confidence={overall} needs_review={envelope['needs_review']}"
+    )
+    record_agent_result(
+        envelope, "confidence_agent",
+        confidence=overall,
+        validation_status="needs_review" if envelope["needs_review"] else "valid",
     )
     return envelope

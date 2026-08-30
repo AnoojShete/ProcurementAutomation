@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import load_risk_config
 from app.models import RiskScore, VendorRiskFeatures
+from app.metrics import risk_assessment_total
 
 ML_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "ml")
 ARTIFACT_DIR = os.path.join(ML_DIR, "artifacts")
@@ -109,6 +110,7 @@ async def score_vendor(db: AsyncSession, kafka_producer, vendor_id: str) -> Risk
     db.add(row)
     await db.commit()
     await db.refresh(row)
+    risk_assessment_total.labels(risk_band=band).inc()
 
     if kafka_producer is not None:
         await kafka_producer.publish_risk_score_updated(

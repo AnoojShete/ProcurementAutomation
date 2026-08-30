@@ -15,16 +15,27 @@ echo "  IT Procurement Intelligence Platform — full stack bring-up"
 echo "=================================================================="
 echo
 
-echo "--- [1/6] Core infra (postgres, redis, kafka, minio, temporal, ---"
+echo "--- [1/7] Core infra (postgres, redis, kafka, minio, temporal, ---"
 echo "---       prometheus, grafana, nginx, mailpit) via install.sh  ---"
 ./install.sh
 
 echo
-echo "--- [2/6] Building every service image ---"
+echo "--- [2/7] Building every service image ---"
 docker compose build
 
 echo
-echo "--- [3/6] Starting ClamAV (malware scanning) — first boot pulls ---"
+echo "--- [3/7] Building the frontend (React/Vite -> frontend/dist) ---"
+echo "---       Built in a throwaway node container so the host     ---"
+echo "---       doesn't need Node installed — nginx serves the      ---"
+echo "---       static dist/ output (docker-compose.override.yml).  ---"
+docker run --rm \
+  -v "$ROOT_DIR/frontend:/app" \
+  -w /app \
+  node:20-alpine \
+  sh -c "npm ci && npm run build"
+
+echo
+echo "--- [4/7] Starting ClamAV (malware scanning) — first boot pulls ---"
 echo "---       virus definitions, can take a couple of minutes      ---"
 docker compose up -d clamav
 echo -n "Waiting for ClamAV to report healthy"
@@ -40,7 +51,7 @@ for i in $(seq 1 60); do
 done
 
 echo
-echo "--- [4/6] Starting every app service + its worker ---"
+echo "--- [5/7] Starting every app service + its worker ---"
 docker compose up -d \
   auth-service \
   document-vendor-agent document-vendor-agent-worker \
@@ -50,13 +61,13 @@ docker compose up -d \
   mlflow
 
 echo
-echo "--- [5/6] Recreating the gateway (nginx) ---"
+echo "--- [6/7] Recreating the gateway (nginx) ---"
 echo "---       nginx resolves every upstream hostname at boot, so it ---"
 echo "---       needs a restart now that every service above exists  ---"
 docker compose up -d nginx --force-recreate
 
 echo
-echo "--- [6/6] Waiting for every service's healthcheck ---"
+echo "--- [7/7] Waiting for every service's healthcheck ---"
 SERVICES="postgres redis redpanda minio temporal clamav auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
 for i in $(seq 1 30); do
   unhealthy=""

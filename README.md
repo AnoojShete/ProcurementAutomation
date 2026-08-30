@@ -18,7 +18,18 @@ clone: core infra → builds every service image → ClamAV (first boot pulls
 virus definitions, ~1–2 min) → every app service + its worker → the
 gateway/frontend → a health-check pass over everything. It takes several
 minutes on a clean clone (mostly image builds + ClamAV); subsequent runs
-are much faster since Docker caches layers.
+are much faster since Docker caches layers. If Docker Desktop (macOS/
+Windows) or the Docker daemon (Linux) isn't already running,
+`scripts/ensure-docker.sh` starts it automatically and waits for it to
+become ready before continuing.
+
+**Platform support**: macOS and Ubuntu/Linux run `./run.sh` directly.
+**Windows** needs WSL2 (Docker Desktop's own requirement for Linux
+containers) — either run `./run.sh` from inside a WSL2 terminal, or run
+`run.ps1` / double-click `run.bat` from PowerShell/Explorer, which
+re-exec it into WSL for you. Either way, enable Docker Desktop's WSL
+integration for your distro first: Settings → Resources → WSL
+Integration.
 
 Then, optionally, seed one demo vendor + an already-approved purchase
 request so there's something to click through immediately:
@@ -162,34 +173,48 @@ per-endpoint restrictions are in each service's `app/api/*.py`
 
 ## Frontend
 
-`frontend/public/` — plain HTML/CSS/JS, no build step, no framework.
-Served by the **same nginx container** as the API gateway (volume-mounted
-at `/usr/share/nginx/frontend`), so the page and its `/api/*` calls share
-one origin and there's no CORS to configure. This is a deliberate
-deviation from a React+build-step frontend: it trades some polish for
-guaranteed-boots-every-time reliability and zero extra moving parts,
-which mattered more for a project already integrating five backend
-services. If you'd rather have a React app, `frontend/public/app.js`'s
-`api()`/`apiUpload()` helpers and per-tab render functions are a fairly
-direct map to components if someone wants to port it later.
+`frontend/` is a React + TypeScript + Vite + Tailwind app (source in
+`frontend/src/`), built to `frontend/dist/` and served by the **same nginx
+container** as the API gateway (volume-mounted at
+`/usr/share/nginx/frontend` — see `docker-compose.override.yml`), so the
+page and its `/api/*` calls still share one origin with no CORS to
+configure. `run.sh` builds it in a throwaway `node:20-alpine` container
+before (re)starting nginx, so the host doesn't need Node installed. For
+local iteration: `cd frontend && npm install && npm run dev` runs Vite's
+dev server on :5173 with `/api` proxied to the running gateway at :8080
+(see `vite.config.ts`) — no rebuild needed between edits. The previous
+no-build-step vanilla JS version is kept at `frontend/legacy-static/` for
+reference.
 
-Five tabs: **How It Works** (why the project exists, an architecture
-diagram, a step-by-step "try it yourself" walkthrough matching the e2e
-test, the service/port table, and the role matrix — read this one first),
-**Overview** (live counts across services, plus role-aware "what to do
-next" guidance), **Contracts & Vendor Risk** (generate/inspect/sign
-contracts, renewals due, vendor risk lookup/recompute/offboard),
-**Approver Inbox** (pending requests by approver role — a dropdown of the
-known roles from `config.yaml`, not a free-text field — approve/reject,
-create a request), **Document Review** (upload a PO/invoice/quote,
-correct low-confidence extractions). The login screen has one-click role
-switching (fills in one of the seeded demo accounts) so trying different
-permissions doesn't mean retyping credentials.
+The app is **role-aware end to end**: login routes each of the four demo
+roles (`requester`/`approver`/`finance`/`admin`) to its own navigation and
+dashboard rather than one shared view. Login has one-click demo-role
+switching (fills in one of the seeded demo accounts below) so trying
+different permissions doesn't mean retyping credentials. Route-level role
+checks in the frontend are a UX convenience only — every backend endpoint
+still enforces its own `require_role` check regardless of what the UI
+shows.
+
+Covers, per role: purchase-request creation (a 5-step wizard: details,
+vendor, optional supporting-document upload with live pipeline status,
+review with per-field confidence, submit), an approval inbox with
+async-settling approve/reject, document review (extracted fields, per-field
+confidence, correct-and-save), vendor profiles (risk score, contributing
+factors, payment-change dual-control queue), contract generation/
+send-for-signature/renewal timeline, vendor risk scoring/recompute/drift
+check/offboarding, inventory (hardware + license utilisation), a
+notification log, and a global `Cmd/Ctrl+K` search across already-loaded
+requests/vendors/contracts/documents. Anywhere the backend doesn't expose
+an API for something the UI conceptually wants (vendor creation, full-text
+search, editable business rules, an aggregated health endpoint), the
+frontend says so explicitly (disabled controls with a tooltip, an
+"unavailable" state) rather than faking it.
 
 The approve/reject buttons poll briefly after submitting rather than
 trusting the immediate response — the decision is applied by signalling a
 Temporal workflow running in a separate worker process, so the status
-flip isn't synchronous with the HTTP call that triggers it.
+flip isn't synchronous with the HTTP call that triggers it. Same pattern
+for document upload → classification status in the request wizard.
 
 ## Testing
 
@@ -214,14 +239,19 @@ flip isn't synchronous with the HTTP call that triggers it.
 Upload endpoint streams the file through ClamAV (fails closed — a 503 if
 ClamAV is unreachable, never a silent skip) before writing to MinIO and
 publishing `document.ingested`. A separate worker consumes that event and
-runs the extraction pipeline: pdfplumber for text-native PDFs /
-pytesseract OCR for scans, a keyword-weighted PO/invoice/quote classifier,
-regex-based field extraction (vendor, line items, totals, dates,
-document numbers), rapidfuzz vendor name normalization + dedup against
-the shared `vendors` table, and duplicate-invoice detection (vendor +
-amount tolerance + date window). Confidence below threshold (default 0.8)
-routes to the review queue instead of auto-completing. Publishes
-`document.classified` and `vendor.matched`.
+runs the extraction pipeline as an explicit chain of agents passing a
+JSON envelope from one to the next (`app/services/pipeline.py`):
+parsing (Docling for every PDF — layout-aware, recovers table structure,
+falls back to plain pdfplumber if it errors; pytesseract OCR for
+standalone scanned images) → classification (keyword-weighted PO/invoice/
+quote classifier) → field extraction (regex-based: vendor, line items,
+totals, dates, document numbers) → vendor matching (rapidfuzz name
+normalization + dedup against the shared `vendors` table) → duplicate
+detection (vendor + amount tolerance + date window) → confidence scoring.
+Confidence below threshold (default 0.8) routes to the review queue
+instead of auto-completing. Publishes `document.classified` and
+`vendor.matched`. See the README's Future scope note on why PaddleOCR
+isn't the image-OCR engine.
 
 Two governance controls: vendor bank/payment-detail changes go into a
 `payment_details_pending_verification` state instead of updating live
@@ -370,13 +400,18 @@ explicitly out of scope for this pass — either because they need paid/
 rate-limited external accounts this environment doesn't have, or because
 they're a genuinely separate, larger effort:
 
-- **Document parsing upgrade** (document-vendor-agent currently uses
-  pdfplumber for text-native PDFs and Tesseract OCR for scans): a later
-  pass could swap in Docling (layout-aware parsing + table structure
-  recovery) with PaddleOCR as its OCR backend for meaningfully better
-  extraction on complex invoice layouts — both run fully local/offline,
-  no data leaves the machine. Heavier install (PaddlePaddle CPU wheels),
-  longer image build.
+- **PaddleOCR for image OCR** (document-vendor-agent currently uses
+  Docling for PDFs — layout-aware parsing with table-structure recovery,
+  shipped — and pytesseract for standalone scanned images): PaddleOCR was
+  evaluated as pytesseract's replacement for the image path and rejected
+  for now. Its native inference engine segfaults/aborts the host process
+  on every version pairing tried (current and an older 2.9.1/2.6.2 pair),
+  on both native arm64 and emulated amd64 — three distinct crash
+  signatures, none catchable from Python since they're C-level process
+  aborts, not exceptions. Worth revisiting against a future PaddleOCR
+  release or a different deployment target (bare-metal Linux rather than
+  Docker Desktop's Apple Silicon virtualization) rather than this
+  environment.
 - **India-specific vendor identity checks**: GSTIN validation (format +
   real modulo-36 check-digit algorithm, then a live registry lookup —
   gstincheck.co.in's free tier is ~20 lookups total, not per day, so

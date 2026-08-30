@@ -11,3 +11,4 @@ mlartifacts/
 .pytest_cache/
 **/ml/artifacts/
 services/*/ml/data/
+frontend/dist/

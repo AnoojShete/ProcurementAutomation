@@ -18,6 +18,7 @@ from sqlalchemy import select
 from app.database import async_session_factory
 from app.models import PurchaseRequest, ApprovalHistory, AuditLog
 from app.config import settings
+from app.metrics import approval_escalated_total
 from app.kafka.producer import KafkaEventProducer
 from app.services.redis_lock import InventoryLock
 import redis.asyncio as aioredis
@@ -123,6 +124,8 @@ async def record_approval_decision(
         session.add(audit)
 
         await session.commit()
+        if escalated:
+            approval_escalated_total.inc()
         logger.info(
             f"Recorded {decision} for request {request_id} "
             f"by {decided_by} at level {decision_level}"

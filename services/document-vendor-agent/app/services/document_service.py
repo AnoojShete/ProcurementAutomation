@@ -8,6 +8,7 @@ document.ingested event; also exposed directly for GET/POST endpoints
 that read or correct a document's extraction result.
 """
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Optional, List
 
@@ -17,9 +18,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Document, Vendor
 from app.services import storage
 from app.services import pipeline
+from app.services import checkpoints as checkpoint_service
 from app.services.audit import write_audit_log
+from app.metrics import (
+    document_processing_total,
+    document_pipeline_stage_duration_seconds,
+    extraction_confidence,
+    vendor_matching_total,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _elapsed_ms(start: float) -> float:
+    return (time.perf_counter() - start) * 1000
 
 
 async def process_document(db: AsyncSession, kafka_producer, document_id: str) -> Optional[Document]:
@@ -37,14 +49,40 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         # The agent chain — see app/services/pipeline.py. Each stage reads
         # from and writes back to the same envelope dict, so the full
         # trace of what happened to this document is right there in one
-        # object (and in the [agent_name] log lines each stage emits).
+        # object (and in the [agent_name] log lines each stage emits, plus
+        # the typed AgentResult trail in envelope["_agent_trail"] — see
+        # app/services/agent_contracts.py). Per-stage durations feed both
+        # the Prometheus histogram below and the pipeline_checkpoints rows
+        # persisted after the pipeline finishes.
+        stage_durations_ms: dict = {}
         envelope = pipeline.new_envelope(doc.id, doc.original_filename or "")
+
+        t0 = time.perf_counter()
         envelope = await pipeline.parsing_agent(envelope, data)
+        stage_durations_ms["parsing_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
         envelope = pipeline.classification_agent(envelope)
+        stage_durations_ms["classification_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
         envelope = pipeline.field_extraction_agent(envelope)
+        stage_durations_ms["field_extraction_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
         envelope = await pipeline.vendor_matching_agent(db, kafka_producer, envelope, doc.uploaded_by)
+        stage_durations_ms["vendor_matching_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
         envelope = await pipeline.duplicate_detection_agent(db, envelope)
+        stage_durations_ms["duplicate_detection_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
         envelope = pipeline.confidence_agent(envelope)
+        stage_durations_ms["confidence_agent"] = _elapsed_ms(t0)
+
+        for stage, duration_ms in stage_durations_ms.items():
+            document_pipeline_stage_duration_seconds.labels(stage=stage).observe(duration_ms / 1000)
 
         fields = envelope["extracted_fields"]
         vendor = await db.get(Vendor, envelope["vendor_id"])
@@ -73,6 +111,15 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
 
         await db.commit()
 
+        await checkpoint_service.write_checkpoints(
+            db, doc.id, envelope.get("_agent_trail", []), stage_durations_ms
+        )
+        await db.commit()
+
+        document_processing_total.labels(status="classified").inc()
+        extraction_confidence.observe(envelope["overall_confidence"])
+        vendor_matching_total.labels(match_type=envelope["vendor_match_type"]).inc()
+
         if kafka_producer is not None:
             await kafka_producer.publish_document_classified(
                 document_id=doc.id, document_type=doc.document_type, vendor_name_raw=doc.vendor_name_raw,
@@ -92,6 +139,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         doc.error_message = str(e)
         doc.updated_at = datetime.now(timezone.utc)
         await db.commit()
+        document_processing_total.labels(status="failed").inc()
         return doc
 
 

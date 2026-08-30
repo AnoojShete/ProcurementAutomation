@@ -6,12 +6,14 @@ import redis.asyncio as redis
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
-from app.database import init_db
+from app.database import init_db, get_db
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
 from app.api import health, contracts, vendors, webhooks
+from app.models import AuditLog
 from shared.http.error_handlers import register_error_handlers
 from shared.auth import get_current_user
+from shared.audit import build_audit_router
 
 
 @asynccontextmanager
@@ -54,6 +56,14 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_sch
 # `Depends(require_role(...))` inline in app/api/contracts.py and
 # app/api/vendors.py where they create/mutate state.
 app.include_router(health.router)
+# GET /contracts/audit is registered BEFORE contracts.router: it already
+# has GET /contracts/{contract_id}, and Starlette matches routes in
+# registration order — that catch-all would otherwise swallow
+# "/contracts/audit" as contract_id="audit".
+app.include_router(
+    build_audit_router(AuditLog, get_db, entity_types=["contract", "vendor"]),
+    prefix="/contracts", tags=["Audit"], dependencies=[Depends(get_current_user)],
+)
 app.include_router(
     contracts.router, prefix="/contracts", tags=["Contracts"], dependencies=[Depends(get_current_user)]
 )

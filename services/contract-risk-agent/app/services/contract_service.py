@@ -13,6 +13,7 @@ from app.services.clause_extraction import extract_clauses
 from app.services.esign_client import request_signature
 from app.services.audit import write_audit_log
 from app.services.temporal_client import start_renewal_workflow
+from app.metrics import contract_generation_total
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
 _jinja_env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=select_autoescape(disabled_extensions=("j2",)))
@@ -122,6 +123,7 @@ async def generate_contract_for_request(
     )
     await db.commit()
     await db.refresh(contract)
+    contract_generation_total.labels(status="generated").inc()
 
     await start_renewal_workflow(contract_id)
 

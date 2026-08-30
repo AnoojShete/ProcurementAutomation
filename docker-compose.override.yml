@@ -226,14 +226,18 @@ services:
       start_period: 30s
 
   # --- frontend ---
-  # No separate frontend container/port: the static files (frontend/public)
-  # are volume-mounted straight into the existing `nginx` gateway
-  # container (base docker-compose.yml) and served from `/`, alongside the
-  # /api/* proxy routes already defined in infra/nginx/nginx.conf. Same
-  # origin for the page and its API calls means zero CORS configuration.
+  # No separate frontend container/port: the built static files
+  # (frontend/dist, produced by run.sh's frontend-build step) are volume-
+  # mounted straight into the existing `nginx` gateway container (base
+  # docker-compose.yml) and served from `/`, alongside the /api/* proxy
+  # routes already defined in infra/nginx/nginx.conf. Same origin for the
+  # page and its API calls means zero CORS configuration.
   nginx:
     volumes:
-      - ./frontend/public:/usr/share/nginx/frontend:ro
+      # React/Vite build output — see run.sh's frontend-build step. Built
+      # outside Docker Compose (a throwaway node container) since it's a
+      # static-file build, not a long-running service.
+      - ./frontend/dist:/usr/share/nginx/frontend:ro
 
   # --- observability ---
   # Prompt 0/4 provisioned a Prometheus datasource + dashboard config on

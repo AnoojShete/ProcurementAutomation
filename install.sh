@@ -4,11 +4,22 @@ ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 echo "Checking for Docker..."
 if ! command -v docker >/dev/null 2>&1; then
-  echo "Docker not found. On Ubuntu 26.04 install Docker with:" >&2
-  echo "  sudo apt update && sudo apt install -y ca-certificates curl gnupg lsb-release" >&2
-  echo "  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg" >&2
-  echo "  echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null" >&2
-  echo "  sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin" >&2
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "Docker not found. Install Docker Desktop for Mac:" >&2
+    echo "  brew install --cask docker" >&2
+    echo "  (or download from https://www.docker.com/products/docker-desktop/)" >&2
+  elif grep -qi microsoft /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]; then
+    echo "Docker not found inside WSL. Install Docker Desktop for Windows on the" >&2
+    echo "Windows host (not inside WSL) and enable WSL integration for this distro:" >&2
+    echo "  Settings > Resources > WSL Integration" >&2
+    echo "  https://www.docker.com/products/docker-desktop/" >&2
+  else
+    echo "Docker not found. On Ubuntu install Docker with:" >&2
+    echo "  sudo apt update && sudo apt install -y ca-certificates curl gnupg lsb-release" >&2
+    echo "  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg" >&2
+    echo "  echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null" >&2
+    echo "  sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin" >&2
+  fi
   exit 1
 fi
 
@@ -22,12 +33,10 @@ if [ ! -f .env ]; then
   cp .env.example .env
 fi
 
-if ! docker info >/dev/null 2>&1; then
-  echo "Docker daemon not accessible by current user. If you see permission denied, run:" >&2
-  echo "  sudo usermod -aG docker $USER && newgrp docker" >&2
-  echo "Then re-run this script." >&2
-  exit 1
-fi
+# Starts Docker Desktop / the Docker daemon automatically where possible
+# (macOS, WSL2, native Linux) instead of just failing here — see the
+# script for exactly what each platform does.
+source "$ROOT_DIR/scripts/ensure-docker.sh"
 
 echo "Bringing up core services..."
 # Scoped to core infra only (docker-compose.yml's own services) — an

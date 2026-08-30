@@ -70,3 +70,22 @@ CREATE TABLE IF NOT EXISTS vendor_payment_change_requests (
 -- audit_log already has (id, entity_id, entity_type, action, payload,
 -- created_at) from init.sql; this service writes verifier/channel/reject
 -- details inside `payload` per the platform convention, no new columns.
+
+-- Per-stage diagnostic trail for the document pipeline
+-- (app/services/pipeline.py / app/services/checkpoints.py). Not part of
+-- the business transaction — a write failure here never fails real
+-- document processing (see checkpoints.py's try/except).
+CREATE TABLE IF NOT EXISTS pipeline_checkpoints (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID NOT NULL REFERENCES documents(id),
+  stage_index INT NOT NULL,
+  agent_name VARCHAR(50) NOT NULL,
+  agent_version VARCHAR(20) NOT NULL,
+  task_id UUID NOT NULL,
+  confidence NUMERIC(4, 3),
+  validation_status VARCHAR(20) NOT NULL DEFAULT 'valid',
+  errors JSONB,
+  warnings JSONB,
+  duration_ms NUMERIC(10, 2),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

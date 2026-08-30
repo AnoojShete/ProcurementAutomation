@@ -5,7 +5,7 @@ see app/database.py). Never edit init.sql directly.
 """
 from datetime import datetime, date
 from typing import Optional
-from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric
+from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric, Integer
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -102,4 +102,26 @@ class AuditLog(Base):
     entity_type: Mapped[Optional[str]] = mapped_column(String)
     action: Mapped[Optional[str]] = mapped_column(String)
     payload: Mapped[Optional[dict]] = mapped_column(JSON)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class PipelineCheckpoint(Base):
+    """One row per document-processing pipeline stage (see
+    app/services/pipeline.py / app/services/checkpoints.py) — a diagnostic
+    trail, not part of the business transaction; a write failure here is
+    logged and swallowed, never surfaced as a document-processing
+    failure."""
+    __tablename__ = "pipeline_checkpoints"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    document_id: Mapped[str] = mapped_column(Uuid, ForeignKey("documents.id"), nullable=False)
+    stage_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    agent_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    agent_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    task_id: Mapped[str] = mapped_column(Uuid, nullable=False)
+    confidence: Mapped[Optional[float]] = mapped_column(Numeric(4, 3))
+    validation_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    errors: Mapped[Optional[list]] = mapped_column(JSON)
+    warnings: Mapped[Optional[list]] = mapped_column(JSON)
+    duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

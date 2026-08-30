@@ -7,6 +7,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import routing, templating, email_service, log_service, digest_service
+from app.metrics import notification_sent_total
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ async def notify(
                 related_entity_id=related_entity_id,
                 status="sent",
             )
+            notification_sent_total.labels(channel="email", status="sent").inc()
         except Exception as e:
             logger.error(f"Failed to send urgent notification for {event_type}: {e}", exc_info=True)
             await log_service.record(
@@ -54,6 +56,7 @@ async def notify(
                 status="failed",
                 error=str(e),
             )
+            notification_sent_total.labels(channel="email", status="failed").inc()
     else:
         await digest_service.enqueue(
             db,
@@ -63,5 +66,6 @@ async def notify(
             template_context=context,
             related_entity_id=related_entity_id,
         )
+        notification_sent_total.labels(channel="email", status="queued").inc()
 
     return priority
