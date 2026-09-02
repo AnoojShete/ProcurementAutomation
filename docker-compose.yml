@@ -114,6 +114,15 @@ services:
       interval: 10s
       retries: 5
 
+  clamav:
+    image: clamav/clamav:stable_base
+    ports:
+      - 3310:3310
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "127.0.0.1:3310"]
+      interval: 10s
+      retries: 5
+
 volumes:
   pgdata:
   miniodata:

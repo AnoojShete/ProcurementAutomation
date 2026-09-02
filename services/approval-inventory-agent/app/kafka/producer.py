@@ -94,9 +94,11 @@ class KafkaEventProducer:
 
     async def publish_license_usage_updated(self, license_data: dict):
         """Publish a license.usage.updated event.
-        
+
         Args:
             license_data: dict with keys matching the event payload schema.
+                          Anomaly fields (anomaly_score, top_factors, model_version)
+                          are optional and default to 0.0 / [] / 'not_trained'.
         """
         payload = build_license_usage_updated_payload(
             license_id=license_data["license_id"],
@@ -108,6 +110,9 @@ class KafkaEventProducer:
             active_seats_90d=license_data["active_seats_90d"],
             utilisation_score=license_data["utilisation_score"],
             period_end=license_data["period_end"],
+            anomaly_score=license_data.get("anomaly_score", 0.0),
+            top_factors=license_data.get("top_factors", []),
+            model_version=license_data.get("model_version", "not_trained"),
         )
         event = build_event(TOPIC_LICENSE_USAGE_UPDATED, self.service_name, payload)
         await self.publish(TOPIC_LICENSE_USAGE_UPDATED, event)

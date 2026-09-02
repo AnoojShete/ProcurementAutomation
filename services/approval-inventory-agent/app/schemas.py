@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional, List, Literal, Dict, Any
 from pydantic import BaseModel, ConfigDict
 
@@ -90,6 +91,36 @@ class InboxItemResponse(BaseModel):
     sla_deadline: Optional[str]
     created_at: Optional[str]
 
+
+# --- Anomaly factor schema (matches risk.score.updated top_factors shape) ---
+class AnomalyFactor(BaseModel):
+    """A single SHAP contribution for one feature.
+
+    Positive contribution → feature pushes toward anomaly (unusual drop/decline).
+    Negative contribution → feature pushes toward normal/inlier.
+    """
+    feature: str
+    contribution: float
+
+
+class UsageAnomalyResponse(BaseModel):
+    """Response for GET /licenses/{id}/usage-anomaly.
+
+    anomaly_score : 0.0 (normal) – 1.0 (maximally anomalous, IsolationForest)
+    top_factors   : top 2-3 SHAP contributors sorted by |contribution|
+    model_version : training run identifier (e.g. v20260902123456)
+    utilisation_score : raw seat-utilisation ratio (kept for human-readable context)
+    """
+    license_id: str
+    app_name: str
+    anomaly_score: float
+    top_factors: List[AnomalyFactor]
+    model_version: str
+    utilisation_score: float
+    active_seats_30d: int
+    total_seats: int
+
+
 class LicenseResponse(BaseModel):
     id: str
     vendor_id: Optional[str]
@@ -99,6 +130,12 @@ class LicenseResponse(BaseModel):
     active_seats_60d: Optional[int] = 0
     active_seats_90d: Optional[int] = 0
     utilisation_score: Optional[float] = 0.0
+    # ── ML anomaly fields ─────────────────────────────────────────────────────
+    anomaly_score: Optional[float] = None
+    top_factors: Optional[List[AnomalyFactor]] = None
+    model_version: Optional[str] = None
+    # ─────────────────────────────────────────────────────────────────────────
+    cost_per_seat: Optional[Decimal]
     cost_per_seat: Optional[float]
     period_end: Optional[str]
     status: str

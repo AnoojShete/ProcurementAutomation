@@ -165,11 +165,20 @@ class ApprovalService:
         if is_backordered and data.request_type == "hardware":
             immediate_req, backorder_req = await split_backorder(self.db, req, total_available)
             if immediate_req:
-                req = immediate_req
-            elif backorder_req:
-                req = backorder_req
+                req = immediate_req  # The immediate portion goes through approval flow
 
-        # 5. Publish approval.requested Kafka event
+            # GAP-A8 fix: also publish approval.requested for the backordered portion
+            # so notification-agent and other services know about it.
+            if backorder_req:
+                try:
+                    await self.producer.publish_approval_requested(backorder_req)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(
+                        f"Failed to publish approval.requested for backorder {backorder_req.id}: {e}"
+                    )
+
+        # 5. Publish approval.requested Kafka event for the immediate / main request
         try:
             await self.producer.publish_approval_requested(req)
         except Exception as e:

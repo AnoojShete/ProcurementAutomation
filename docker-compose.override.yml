@@ -26,8 +26,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8003/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 120s
 
   contract-risk-agent-worker:
     build:

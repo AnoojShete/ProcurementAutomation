@@ -89,7 +89,8 @@ class TestEventSchemas:
         required_keys = {
             "license_id", "vendor_id", "app_name", "total_seats",
             "active_seats_30d", "active_seats_60d", "active_seats_90d",
-            "utilisation_score", "period_end"
+            "utilisation_score", "period_end",
+            "anomaly_score", "model_version", "top_factors"
         }
         assert set(payload.keys()) == required_keys
         assert isinstance(payload["total_seats"], int)

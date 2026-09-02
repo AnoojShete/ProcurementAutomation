@@ -26,6 +26,8 @@ def mock_kafka_producer():
     producer.publish = AsyncMock()
     producer.publish_approval_requested = AsyncMock()
     producer.publish_approval_decided = AsyncMock()
+    # publish_license_usage_updated now accepts anomaly_score, top_factors,
+    # model_version in the license_data dict (all optional, default-safe).
     producer.publish_license_usage_updated = AsyncMock()
     return producer
 

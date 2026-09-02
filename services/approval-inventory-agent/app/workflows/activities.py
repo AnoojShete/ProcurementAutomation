@@ -16,11 +16,14 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from app.database import async_session_factory
+from app.models import PurchaseRequest, ApprovalHistory, AuditLog, Inventory
+from app.config import settings, load_config
 from app.models import PurchaseRequest, ApprovalHistory, AuditLog
 from app.config import settings
 from app.metrics import approval_escalated_total
 from app.kafka.producer import KafkaEventProducer
 from app.services.redis_lock import InventoryLock
+from app.services.inventory_service import release_reservation
 import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
@@ -59,10 +62,14 @@ async def fetch_request_details(request_id: str) -> dict:
         if not req:
             raise ValueError(f"Request {request_id} not found")
 
+        # GAP-A5: read SLA from config.yaml, never hardcode
+        config = load_config()
+        sla_hours = config.get("sla", {}).get("approval_timeout_hours", 48)
+
         return {
             "id": req.id,
             "approval_chain": req.approval_chain or [],
-            "sla_hours": 48,  # Could also be read from config
+            "sla_hours": sla_hours,
             "request_type": req.request_type,
             "items": req.items,
         }
@@ -179,8 +186,11 @@ async def publish_notification_event(notification: NotificationInput) -> None:
 async def release_inventory_lock(sku: str, request_id: str) -> None:
     """Release the Redis inventory lock for a given SKU.
     
-    Called when a request is fully approved or rejected to free
-    the reserved inventory for other requests.
+    NOTE: The short-lived Redis lock used by reserve_stock() is already
+    released inside reserve_stock() itself (in the `finally` block).
+    This activity is kept for backward compatibility but is effectively a
+    no-op at runtime — inventory de-reservation is handled by
+    release_hardware_reservations() below.
     """
     redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
     try:
@@ -189,9 +199,53 @@ async def release_inventory_lock(sku: str, request_id: str) -> None:
         if released:
             logger.info(f"Released inventory lock for SKU {sku} (request {request_id})")
         else:
-            logger.warning(
-                f"Could not release lock for SKU {sku} — "
-                f"may have expired or been released already"
+            logger.debug(
+                f"Lock for SKU {sku} already released or expired (request {request_id})"
             )
+    finally:
+        await redis_client.aclose()
+
+
+@activity.defn
+async def release_hardware_reservations(request_id: str) -> None:
+    """De-reserve all inventory stock held by a rejected/expired purchase request.
+
+    GAP-A3 fix: previously release_reservation() was never called anywhere,
+    leaving reserved_quantity permanently inflated after a rejection.
+
+    This activity:
+    1. Loads the purchase request and its items list.
+    2. For each item with a SKU, calls release_reservation() which atomically
+       decrements reserved_quantity and increments available_quantity.
+    3. Non-hardware request types (license/saas/reclaim) are silently skipped
+       since they don't reserve physical inventory.
+    """
+    redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        async with async_session_factory() as session:
+            stmt = select(PurchaseRequest).where(PurchaseRequest.id == request_id)
+            result = await session.execute(stmt)
+            req = result.scalar_one_or_none()
+
+            if not req or req.request_type != "hardware":
+                return  # Only hardware requests hold physical reservations
+
+            items = req.items or []
+            for item in items:
+                sku = item.get("sku")
+                qty = item.get("quantity", 0)
+                if sku and qty > 0:
+                    released = await release_reservation(
+                        session, redis_client, sku, request_id, qty
+                    )
+                    if released:
+                        logger.info(
+                            f"Released {qty}x {sku} reserved by request {request_id}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Could not release {qty}x {sku} for request {request_id} "
+                            f"(may have already been released)"
+                        )
     finally:
         await redis_client.aclose()
