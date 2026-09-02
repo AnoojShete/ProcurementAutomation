@@ -69,6 +69,12 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         envelope = pipeline.field_extraction_agent(envelope)
         stage_durations_ms["field_extraction_agent"] = _elapsed_ms(t0)
 
+        # LayoutLMv3 cross-check: lazy, non-blocking — if the model isn't
+        # loaded or fails, the pipeline continues and the field stays unset.
+        t0 = time.perf_counter()
+        envelope = pipeline.layoutlm_crosscheck_agent(envelope)
+        stage_durations_ms["layoutlm_crosscheck_agent"] = _elapsed_ms(t0)
+
         t0 = time.perf_counter()
         envelope = await pipeline.vendor_matching_agent(db, kafka_producer, envelope, doc.uploaded_by)
         stage_durations_ms["vendor_matching_agent"] = _elapsed_ms(t0)
@@ -100,6 +106,9 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
             "currency": fields.get("currency"),
             "document_number": fields.get("document_number"),
             "document_date": fields.get("document_date"),
+            # Include cross-check result if available — surfaces both pipelines
+            # side-by-side for the human reviewer when they disagree.
+            "crosscheck": envelope.get("crosscheck_result"),
         }
         doc.confidence = envelope["confidence_scores"]
         doc.overall_confidence = envelope["overall_confidence"]

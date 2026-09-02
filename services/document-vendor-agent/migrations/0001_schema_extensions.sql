@@ -41,6 +41,26 @@ ALTER TABLE vendors ADD COLUMN IF NOT EXISTS payment_beneficiary_name TEXT;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS payment_details_pending_verification BOOLEAN DEFAULT false;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 
+-- GSTIN verification columns (document-vendor-agent, Prompt 1).
+-- UNIQUE INDEX prevents two concurrent vendor-creation requests with the
+-- same GSTIN from both inserting (a DB-level constraint, not just app-level).
+-- Partial index (WHERE gstin IS NOT NULL) so NULLs don't conflict with each other.
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin VARCHAR(15);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin_verification_status VARCHAR(20) DEFAULT 'unverified';
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin_data_source VARCHAR(20);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin_cached_response JSONB;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin_cached_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS vendors_gstin_unique ON vendors(gstin) WHERE gstin IS NOT NULL;
+
+-- Tiered vetting + spend tracking (structuring detection)
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS vendor_tier VARCHAR(10) DEFAULT 'standard';
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS cumulative_spend_90d NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS spend_last_reset_at TIMESTAMPTZ;
+
+-- No-GSTIN attestation (logged when onboarding a petty/sub-threshold vendor)
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS no_gstin_confirmed_by VARCHAR(255);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS no_gstin_confirmed_at TIMESTAMPTZ;
+
 -- Dual-control queue for bank/payment-detail changes on EXISTING vendors.
 -- A row here never auto-applies to vendors.bank_account_number etc — only
 -- POST /vendors/{id}/verify-payment-change, by a DIFFERENT user than

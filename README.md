@@ -249,15 +249,22 @@ totals, dates, document numbers) → vendor matching (rapidfuzz name
 normalization + dedup against the shared `vendors` table) → duplicate
 detection (vendor + amount tolerance + date window) → confidence scoring.
 Confidence below threshold (default 0.8) routes to the review queue
-instead of auto-completing. Publishes `document.classified` and
-`vendor.matched`. See the README's Future scope note on why PaddleOCR
-isn't the image-OCR engine.
+scoring. Confidence below threshold (default 0.8) routes to the review
+queue instead of auto-completing. Publishes `document.classified` and
+`vendor.matched`. PaddleOCR (via `_paddle_worker.py` subprocess isolation)
+is used for image OCR, preventing C-level segfaults from crashing the API.
 
 Two governance controls: vendor bank/payment-detail changes go into a
 `payment_details_pending_verification` state instead of updating live
 (dual control — the submitter can't also verify, via
 `POST /vendors/{id}/verify-payment-change`), and every upload is
 malware-scanned before storage.
+
+Additionally, India-specific vendor identity checks are enforced for
+tiered vetting: GSTIN validation (format + modulo-36 check-digit + live
+registry lookup via `GSTINCHECK_API_KEY`) and IFSC bank-code validation
+(free Razorpay API) with DB-level uniqueness constraints. Ensure your
+live API quotas are protected via Live Verification Mode.
 
 ### approval-inventory-agent (Niraj) — port 8002
 
@@ -399,27 +406,6 @@ Everything above is built and demoable end-to-end. A few things are
 explicitly out of scope for this pass — either because they need paid/
 rate-limited external accounts this environment doesn't have, or because
 they're a genuinely separate, larger effort:
-
-- **PaddleOCR for image OCR** (document-vendor-agent currently uses
-  Docling for PDFs — layout-aware parsing with table-structure recovery,
-  shipped — and pytesseract for standalone scanned images): PaddleOCR was
-  evaluated as pytesseract's replacement for the image path and rejected
-  for now. Its native inference engine segfaults/aborts the host process
-  on every version pairing tried (current and an older 2.9.1/2.6.2 pair),
-  on both native arm64 and emulated amd64 — three distinct crash
-  signatures, none catchable from Python since they're C-level process
-  aborts, not exceptions. Worth revisiting against a future PaddleOCR
-  release or a different deployment target (bare-metal Linux rather than
-  Docker Desktop's Apple Silicon virtualization) rather than this
-  environment.
-- **India-specific vendor identity checks**: GSTIN validation (format +
-  real modulo-36 check-digit algorithm, then a live registry lookup —
-  gstincheck.co.in's free tier is ~20 lookups total, not per day, so
-  results need permanent caching) and IFSC bank-code validation (Razorpay's
-  free, keyless API) as a stronger vendor-dedup key than name-fuzzy-
-  matching, with a DB-level unique constraint on `gstin` to close the same
-  race condition the Redis reservation lock addresses elsewhere. Needs a
-  `GSTINCHECK_API_KEY` (free signup) — IFSC needs no key.
 - **Clause extraction validated against CUAD** (the Contract Understanding
   Atticus Dataset — 510 real contracts, 13k+ expert-labeled clauses,
   CC BY 4.0, atticusprojectai.org/cuad): a real, citable benchmark instead

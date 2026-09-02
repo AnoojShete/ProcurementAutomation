@@ -5,8 +5,8 @@ envelope for the next agent. This is the same envelope-passing shape used
 between *services* on the Kafka bus (see shared/schemas/events.md:
 event_id/event_type/timestamp/source_service/payload) applied one level
 down, inside a single service's own worker: parsing -> classification ->
-field extraction -> vendor matching -> duplicate detection -> confidence
-scoring, each stage logged so the flow is traceable, not a black box.
+field extraction -> LayoutLMv3 cross-check -> vendor matching ->
+duplicate detection -> confidence scoring, each stage logged.
 
 Nothing here changes behavior versus a plain sequence of function calls —
 it's the same logic, just named and shaped so each step's inputs/outputs
@@ -44,7 +44,7 @@ def new_envelope(document_id: str, filename: str) -> dict:
 
 async def parsing_agent(envelope: dict, data: bytes) -> dict:
     """Turns raw file bytes into text. See app/services/ocr.py for the
-    actual backend (Docling for PDFs, pytesseract for images).
+    actual backend (Docling for PDFs, PaddleOCR for images).
 
     extract_text() is CPU-bound and synchronous — Docling's layout/table
     inference on a real PDF took 15-75s in testing. Run directly in this
@@ -60,9 +60,14 @@ async def parsing_agent(envelope: dict, data: bytes) -> dict:
     envelope["extraction_method"] = extraction.method
     envelope["file_type"] = extraction.file_type
     envelope["text_quality"] = extraction.text_quality
+    # Pass word/box pairs forward for LayoutLMv3 cross-check
+    envelope["words_with_boxes"] = extraction.words_with_boxes or []
+    envelope["raw_image_bytes"] = data if extraction.file_type == "image" else None
+
     logger.info(
         f"[parsing_agent] document_id={envelope['document_id']} "
-        f"method={extraction.method} file_type={extraction.file_type} text_quality={extraction.text_quality}"
+        f"method={extraction.method} file_type={extraction.file_type} "
+        f"text_quality={extraction.text_quality} words={len(extraction.words_with_boxes)}"
     )
     is_empty = not (extraction.text or "").strip()
     record_agent_result(
@@ -93,10 +98,8 @@ def field_extraction_agent(envelope: dict) -> dict:
     (when present) vendor bank/payment details out of the text.
 
     Does not blindly trust parsing_agent's output: if the upstream stage
-    already flagged an empty extraction (see its AgentResult in
-    envelope["_agent_trail"]), field extraction still runs (extract_fields
-    degrades gracefully on empty text) but is recorded as needs_review
-    rather than valid, since anything it "finds" in empty text is noise."""
+    already flagged an empty extraction, field extraction still runs but
+    is recorded as needs_review rather than valid."""
     upstream = envelope.get("_agent_trail", [])
     upstream_invalid = bool(upstream) and upstream[-1].validation_status == "invalid"
 
@@ -112,6 +115,76 @@ def field_extraction_agent(envelope: dict) -> dict:
         validation_status="needs_review" if upstream_invalid else "valid",
         warnings=["upstream parsing_agent output was invalid (empty text)"] if upstream_invalid else [],
     )
+    return envelope
+
+
+def layoutlm_crosscheck_agent(envelope: dict) -> dict:
+    """Second, independent extraction pass using LayoutLMv3
+    (ngvozdenovic/invoice_extraction). Loaded lazily — if the model isn't
+    available or fails to load, this agent skips and logs a WARNING but
+    never blocks the pipeline.
+
+    If vendor_name, total, or invoice_number disagree between Docling and
+    LayoutLMv3, sets needs_review_forced=True and stores both results
+    side-by-side in envelope["crosscheck_result"] so the reviewer sees
+    exactly what each pipeline found.
+    """
+    try:
+        from app.services.layoutlm_crosscheck import run_crosscheck
+
+        words_with_boxes = envelope.get("words_with_boxes", [])
+        words = [w["word"] for w in words_with_boxes]
+        boxes = [w.get("box", [0, 0, 0, 0]) for w in words_with_boxes]
+        page_w = words_with_boxes[0].get("page_w", 1000) if words_with_boxes else 1000
+        page_h = words_with_boxes[0].get("page_h", 1000) if words_with_boxes else 1000
+
+        fields = envelope.get("extracted_fields", {})
+        result = run_crosscheck(
+            image_bytes=envelope.get("raw_image_bytes"),
+            docling_words=words,
+            docling_boxes=boxes,
+            page_width=page_w,
+            page_height=page_h,
+            docling_vendor_name=fields.get("vendor_name_raw"),
+            docling_total=fields.get("total"),
+            docling_invoice_num=fields.get("document_number"),
+        )
+
+        envelope["crosscheck_result"] = {
+            "available": result.available,
+            "disagrees": result.disagrees,
+            "docling_fields": result.docling_fields,
+            "layoutlm_fields": result.layoutlm_fields,
+            "disagreement_details": result.disagreement_details,
+        }
+
+        if result.disagrees:
+            envelope["needs_review_forced"] = True
+            logger.info(
+                f"[layoutlm_crosscheck_agent] document_id={envelope['document_id']} "
+                f"DISAGREES on: {list(result.disagreement_details.keys())}"
+            )
+            record_agent_result(
+                envelope, "layoutlm_crosscheck_agent",
+                validation_status="needs_review",
+                warnings=[f"pipeline disagreement on: {list(result.disagreement_details.keys())}"],
+            )
+        else:
+            status = "skipped_model_unavailable" if not result.available else "valid"
+            logger.info(
+                f"[layoutlm_crosscheck_agent] document_id={envelope['document_id']} "
+                f"result={result.agreement_rate_note}"
+            )
+            record_agent_result(envelope, "layoutlm_crosscheck_agent",
+                                validation_status=status)
+
+    except Exception as e:
+        logger.warning(f"[layoutlm_crosscheck_agent] failed (non-fatal): {e}", exc_info=True)
+        envelope["crosscheck_result"] = {"available": False, "disagrees": False, "error": str(e)}
+        record_agent_result(envelope, "layoutlm_crosscheck_agent",
+                            validation_status="skipped_error",
+                            warnings=[f"crosscheck error: {e}"])
+
     return envelope
 
 
@@ -153,10 +226,6 @@ async def vendor_matching_agent(db: AsyncSession, kafka_producer, envelope: dict
         f"[vendor_matching_agent] document_id={envelope['document_id']} "
         f"vendor_id={vendor.id} match_type={match.match_type} confidence={match.match_confidence}"
     )
-    # Don't blindly trust field_extraction_agent's output: a missing
-    # vendor name means this stage matched against an empty string (see
-    # find_or_create_vendor call above), which is never a trustworthy
-    # match regardless of what match_confidence reports.
     vendor_name_missing = not (fields.get("vendor_name_raw") or "").strip()
     if vendor_name_missing:
         envelope["needs_review_forced"] = True
@@ -220,10 +289,6 @@ def confidence_agent(envelope: dict) -> dict:
 
     envelope["confidence_scores"] = confidence_scores
     envelope["overall_confidence"] = overall
-    # needs_review_forced comes from an earlier stage explicitly flagging
-    # its own output as untrustworthy (e.g. vendor_matching_agent on a
-    # missing vendor name) — a human always sees it regardless of what the
-    # numeric confidence score alone would have decided.
     envelope["needs_review"] = (
         needs_review(overall) or bool(envelope.get("is_duplicate")) or bool(envelope.get("needs_review_forced"))
     )

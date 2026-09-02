@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     clamav_port: int = 3310
     clamav_timeout_seconds: int = 15
 
+    # GSTIN live registry (gstincheck.co.in — ~20 free lookups total, not per-day).
+    # Always gated by shared/live_mode quota before calling; set this only
+    # when live verification is actually needed (demo day).
+    gstincheck_api_key: str = "67d40c75393846cdce0f1e2a36433487"
+
+    # Hugging Face model cache directory (LayoutLMv3 — ~1 GB download on first use).
+    # Mounted as a named Docker volume so the model is not re-downloaded on
+    # every container rebuild.
+    hf_home: str = "/app/.cache/huggingface"
+
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
 
 

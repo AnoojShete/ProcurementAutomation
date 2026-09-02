@@ -19,25 +19,39 @@ python-multipart==0.0.9
 minio==7.2.7
 clamd==1.0.2
 pdfplumber==0.11.4
-pytesseract==0.3.10
 Pillow==10.4.0
+numpy>=1.24.0
 rapidfuzz==3.9.6
 reportlab==4.2.2
-# Docling: layout-aware PDF parsing (reading order, table structure) —
-# used for every PDF (text-native or scanned; Docling OCRs scanned pages
-# itself via its bundled RapidOCR engine), replacing plain pdfplumber for
-# those. pdfplumber/pytesseract stay as the dependency-light fallback path
-# if Docling fails to load or errors on a given file (see
-# app/services/ocr.py). Runs fully local/offline — no document content
-# leaves the machine.
-#
-# PaddleOCR/PaddlePaddle were evaluated for standalone image OCR and
-# rejected: the native inference engine segfaults/aborts on every version
-# pair tried (paddleocr 3.7.0+paddlepaddle 3.2.2, and the older
-# 2.9.1+2.6.2 pairing) on both native arm64 and emulated amd64 in this
-# Docker environment — three distinct crash signatures (SIGABRT in
-# paddle_infer::Predictor, a PIR/oneDNN NotImplementedError, and a SIGSEGV
-# in zlib's inflateReset2), none of them catchable from Python since
-# they're C-level process aborts. pytesseract remains the image-OCR
-# engine; see the finding written up for the team.
+
+# ---------------------------------------------------------------------------
+# Docling: layout-aware PDF parsing (reading order, table structure).
+# Runs fully local/offline — no document content leaves the machine.
+# Heavier install (~300MB models on first use) — mounted as a Docker volume
+# (docling-models, see docker-compose.override.yml) so models are cached
+# across container rebuilds.
+# ---------------------------------------------------------------------------
 docling==2.122.0
+
+# ---------------------------------------------------------------------------
+# PaddleOCR: PP-OCR pipeline, strong on invoice/table layouts.
+# Run in a subprocess (_paddle_worker.py) to isolate C-level crashes
+# (SIGABRT/SIGSEGV in paddle_infer::Predictor) from the main worker.
+# CPU-only paddlepaddle pinned — no GPU needed at this project's scale.
+# PaddleOCR uses standard CPU inference.
+# ---------------------------------------------------------------------------
+paddlepaddle==2.6.2
+paddleocr==2.9.1
+
+# ---------------------------------------------------------------------------
+# LayoutLMv3 cross-check (ngvozdenovic/invoice_extraction).
+# Loaded lazily — if the model isn't available, the pipeline continues
+# without it. HF_HOME is set to a named Docker volume so the ~1GB model
+# is downloaded once and cached across rebuilds.
+# apply_ocr=False is always passed to the processor — see layoutlm_crosscheck.py.
+# License of ngvozdenovic/invoice_extraction: verify on HF model card before demo.
+# ---------------------------------------------------------------------------
+transformers>=4.40.0
+torch==2.3.1+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+safetensors>=0.4.0

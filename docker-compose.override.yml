@@ -133,7 +133,11 @@ services:
       APP_MINIO_SECURE: "false"
       APP_CLAMAV_HOST: clamav
       APP_CLAMAV_PORT: "3310"
+      APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-67d40c75393846cdce0f1e2a36433487}
+      HF_HOME: /app/.cache/huggingface
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+    volumes:
+      - hf-cache:/app/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,14 +169,14 @@ services:
       APP_MINIO_SECURE: "false"
       APP_CLAMAV_HOST: clamav
       APP_CLAMAV_PORT: "3310"
-    # Docling downloads its layout/table models (~a few hundred MB) from
-    # Hugging Face on first use, which took ~75s in testing — long enough to
-    # trip the Kafka consumer's heartbeat and force a rebalance (recoverable,
-    # but noisy). Persisting the cache means that cost is paid once ever,
-    # not on every container restart, and the worker keeps working offline
-    # after that first run.
+      APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-67d40c75393846cdce0f1e2a36433487}
+      HF_HOME: /app/.cache/huggingface
+    # docling-models: Docling layout/table models (~300MB).
+    # hf-cache: LayoutLMv3 model (~1GB) + PaddleOCR weights.
+    # Both downloaded once ever and reused across container rebuilds.
     volumes:
       - docling-models:/root/.cache/huggingface
+      - hf-cache:/app/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
@@ -260,3 +264,7 @@ services:
 volumes:
   mlflow-data:
   docling-models:
+  # HF model cache for LayoutLMv3 (ngvozdenovic/invoice_extraction ~1GB).
+  # Shared between the API and worker containers so the model is downloaded
+  # exactly once, whichever container starts first.
+  hf-cache:

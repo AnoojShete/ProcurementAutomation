@@ -32,6 +32,26 @@ class Vendor(Base):
     routing_code: Mapped[Optional[str]] = mapped_column(Text)
     payment_beneficiary_name: Mapped[Optional[str]] = mapped_column(Text)
     payment_details_pending_verification: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # GSTIN (primary dedup key where available) — UNIQUE constraint enforced
+    # at DB level (see migration 0001_schema_extensions.sql) to prevent
+    # concurrent inserts from creating two rows for the same legal entity.
+    gstin: Mapped[Optional[str]] = mapped_column(String(15))
+    gstin_verification_status: Mapped[Optional[str]] = mapped_column(String(20), default="unverified")
+    # 'real' (live API verified) | 'simulated' (structural only) | 'offline'
+    gstin_data_source: Mapped[Optional[str]] = mapped_column(String(20))
+    gstin_cached_response: Mapped[Optional[dict]] = mapped_column(JSON)
+    gstin_cached_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # Tiered vetting (petty | standard | strategic)
+    vendor_tier: Mapped[Optional[str]] = mapped_column(String(10), default="standard")
+    cumulative_spend_90d: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), default=0.0)
+    spend_last_reset_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # No-GSTIN attestation (required when vendor is below GST threshold)
+    no_gstin_confirmed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    no_gstin_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
