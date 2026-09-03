@@ -17,7 +17,7 @@ class ErrorResponse(BaseModel): # {"error": ErrorDetail}
 
 # --- Request schemas ---
 class CreatePurchaseRequest(BaseModel):
-    request_type: Literal["hardware", "license", "saas", "reclaim"]
+    request_type: Literal["hardware", "license", "saas", "reclaim", "reinstate"]
     requested_by: str
     department: str
     vendor_id: Optional[str] = None
@@ -136,7 +136,8 @@ class LicenseResponse(BaseModel):
     model_version: Optional[str] = None
     # ─────────────────────────────────────────────────────────────────────────
     cost_per_seat: Optional[Decimal]
-    cost_per_seat: Optional[float]
+    assigned_seats: Optional[int] = 0
+    reclaim_cooldown_until: Optional[datetime] = None
     period_end: Optional[str]
     status: str
     model_config = ConfigDict(from_attributes=True)

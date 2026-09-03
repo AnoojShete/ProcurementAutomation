@@ -40,7 +40,7 @@ Every message on every topic is wrapped the same way:
 | `risk.score.updated` | contract-risk-agent | notification-agent | `vendor_id`, `risk_band` (`Low`\|`Medium`\|`High`), `risk_score` (0-1 float), `top_factors` (array of `{feature, contribution}`), `model_version` (string), `scored_at` (iso8601) |
 | `vendor.offboarded` | contract-risk-agent | notification-agent | `vendor_id`, `offboarded_by` (string), `offboarded_at` (iso8601), `contracts_flagged` (array of contract ids flagged for final reconciliation), `data_retention_flag` (bool) |
 | `vendor.payment_details_flagged` | document-vendor-agent | notification-agent | `vendor_id`, `change_request_id` (uuid), `submitted_by` (string), `source` (`portal`\|`email_derived_document`\|`api`), `fields_changed` (array of field names, e.g. `bank_account_number`), `flagged_at` (iso8601) — never carries the raw bank/routing values, only that a change happened |
-| `notification.send` | any service (generic fallback) | notification-agent | `recipient` (string, email or user id), `channel` (`email`\|`slack`), `template_name` (string), `template_context` (object), `priority` (`urgent`\|`digest`), `related_entity_id` (string) |
+| `notification.send` | any service (generic fallback) | notification-agent | `recipient` (string, email or user id), `channel` (`email`\|`slack`), `template_name` (string, e.g. `license_reclaim_warning`), `template_context` (object, e.g. includes `grace_period_ends_at`), `priority` (`urgent`\|`digest`), `related_entity_id` (string) |
 
 If your service publishes a topic, write a **producer** that matches this
 shape exactly. If you consume a topic, write your **consumer** to read

@@ -114,3 +114,20 @@ async def reject_request(
         return _error("VALIDATION_ERROR", str(e), 400)
     except Exception as e:
         return _error("INTERNAL_ERROR", str(e), 500)
+
+@router.post(
+    "/{request_id}/decline-reclaim", response_model=DataResponse,
+    dependencies=[Depends(require_role("requester", "admin"))],
+)
+async def decline_reclaim(
+    request_id: str,
+    action: ApprovalAction,
+    approval_svc: ApprovalService = Depends(get_approval_service)
+):
+    try:
+        req = await approval_svc.decline_reclaim(request_id, action.decided_by)
+        return DataResponse(data=PurchaseRequestResponse.model_validate(req))
+    except ValueError as e:
+        return _error("VALIDATION_ERROR", str(e), 400)
+    except Exception as e:
+        return _error("INTERNAL_ERROR", str(e), 500)

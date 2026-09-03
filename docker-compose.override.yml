@@ -194,10 +194,11 @@ services:
   clamav:
     image: clamav/clamav:stable_base
     platform: linux/amd64  # no native arm64 build published; emulated via Rosetta/QEMU on Apple Silicon
+    command: ["sh", "-c", "freshclam -d & clamd"]
     ports:
       - "3310:3310"
     healthcheck:
-      test: ["CMD", "sh", "-c", "clamdcheck.sh"]
+      test: ["CMD-SHELL", "clamdscan --ping 127.0.0.1:3310 && test -f /var/lib/clamav/main.cvd"]
       interval: 30s
       timeout: 10s
       retries: 10

@@ -116,12 +116,13 @@ services:
 
   clamav:
     image: clamav/clamav:stable_base
+    command: ["sh", "-c", "freshclam -d & clamd"]
     ports:
       - 3310:3310
     healthcheck:
-      test: ["CMD", "clamdscan", "--ping", "127.0.0.1:3310"]
+      test: ["CMD-SHELL", "clamdscan --ping 127.0.0.1:3310 && test -f /var/lib/clamav/main.cvd"]
       interval: 10s
-      retries: 5
+      retries: 30
 
 volumes:
   pgdata:

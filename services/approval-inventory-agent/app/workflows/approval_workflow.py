@@ -9,7 +9,7 @@ with workflow.unsafe.imports_passed_through():
         fetch_request_details, update_request_status,
         record_approval_decision, publish_approval_decided_event,
         publish_notification_event, release_inventory_lock,
-        release_hardware_reservations,
+        release_hardware_reservations, set_reclaim_cooldown,
         NotificationInput
     )
 
@@ -142,6 +142,24 @@ class ApprovalWorkflow:
         # GAP-A5: read SLA from config rather than using a hardcoded 48
         sla_hours = request.get("sla_hours", 48)
         
+        if request["request_type"] == "reclaim":
+            try:
+                await workflow.wait_condition(
+                    lambda: self._approval_signal is not None,
+                    timeout=timedelta(days=7)
+                )
+                if self._approval_signal and self._approval_signal.decision == "cancelled":
+                    # Request was declined during grace period
+                    await workflow.execute_activity(
+                        record_approval_decision,
+                        args=[request_id, "cancelled", self._approval_signal.decided_by, "grace_period",
+                              False, self._approval_signal.comments],
+                        start_to_close_timeout=timedelta(seconds=10)
+                    )
+                    return {"request_id": request_id, "status": "cancelled"}
+            except asyncio.TimeoutError:
+                pass # Grace period expired, proceed
+        
         # 2. Iterate through approval chain
         for i, approver_id in enumerate(approval_chain):
             decision_level = f"level_{i+1}_{approver_id}"
@@ -198,5 +216,12 @@ class ApprovalWorkflow:
             args=[request_id, "approved", len(approval_chain)],
             start_to_close_timeout=timedelta(seconds=10)
         )
+        
+        if request["request_type"] == "reinstate":
+            await workflow.execute_activity(
+                set_reclaim_cooldown,
+                args=[request_id],
+                start_to_close_timeout=timedelta(seconds=10)
+            )
         
         return {"request_id": request_id, "status": "approved"}

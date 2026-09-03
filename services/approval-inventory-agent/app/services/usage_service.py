@@ -23,7 +23,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.models import License, LicenseUsage, PurchaseRequest, ApprovalHistory, AuditLog
-from app.config import load_config
+from app.config import load_config, settings
 from app.kafka.producer import KafkaEventProducer
 from app.ml.usage_anomaly import get_scorer
 
@@ -234,6 +234,10 @@ class UsageService:
                 logger.error(f"Failed to publish license usage for {lic.id}: {e}")
 
             # ── ML-driven reclaim trigger ──────────────────────────────────
+            now = datetime.now(timezone.utc)
+            if lic.reclaim_cooldown_until and lic.reclaim_cooldown_until > now:
+                continue
+
             if UsageService.should_trigger_reclaim_ml(anomaly_score, anomaly_threshold):
                 logger.info(
                     f"License {lic.app_name} ({lic.id}) anomaly_score={anomaly_score:.3f} "
@@ -241,13 +245,11 @@ class UsageService:
                     f"top_factors={usage_data['top_factors']}"
                 )
 
-                # Check if an OPEN reclaim already exists for this license.
                 open_statuses_to_skip = ("rejected", "fulfilled", "cancelled")
-                # Check if a pending reclaim already exists for this license
                 existing_stmt = (
                     select(PurchaseRequest)
                     .where(PurchaseRequest.request_type == "reclaim")
-                    .where(PurchaseRequest.status == "pending_approval")
+                    .where(PurchaseRequest.status.in_(["pending_approval", "pending_grace_period"]))
                     .where(
                         PurchaseRequest.items.contains(
                             [{"license_id": str(lic.id)}]
@@ -259,7 +261,7 @@ class UsageService:
                     logger.info(f"Reclaim request already pending for {lic.id}, skipping")
                     continue
 
-                unused_seats = lic.total_seats - usage_data["active_seats_30d"]
+                unused_seats = lic.total_seats - lic.assigned_seats
                 savings = float(lic.cost_per_seat or 0) * unused_seats
 
                 reclaim_request = PurchaseRequest(
@@ -272,8 +274,8 @@ class UsageService:
                     currency=lic.currency or "INR",
                     spend_tier="auto",
                     approval_chain=[],
-                    sla_deadline=datetime.now(timezone.utc) + timedelta(hours=48),
-                    status="pending_approval",
+                    sla_deadline=now + timedelta(hours=48),
+                    status="pending_grace_period",
                     items=[{
                         "license_id": str(lic.id),
                         "app_name": lic.app_name,
@@ -292,66 +294,36 @@ class UsageService:
                 await db.flush()
 
                 try:
-                    await producer.publish_approval_requested(reclaim_request)
-                except Exception as e:
-                    logger.error(
-                        f"Failed to publish approval.requested for reclaim "
-                        f"{reclaim_request.id}: {e}"
+                    await producer.publish_notification(
+                        recipient="license_owner",
+                        channel="email",
+                        template_name="license_reclaim_warning",
+                        template_context={
+                            "grace_period_ends_at": (now + timedelta(days=7)).isoformat()
+                        },
+                        priority="urgent",
+                        related_entity_id=reclaim_request.id,
                     )
-
-                # Auto-approve (spend_tier='auto', empty approval_chain)
-                now = datetime.now(timezone.utc)
-                reclaim_request.status = "approved"
-
-                history = ApprovalHistory(
-                    id=str(uuid.uuid4()),
-                    request_id=reclaim_request.id,
-                    decision="approved",
-                    decided_by="system",
-                    decision_level="auto",
-                    escalated=False,
-                    comments=(
-                        f"Auto-approved: reclaim triggered by anomaly_score={anomaly_score:.3f}"
-                    ),
-                    decided_at=now,
-                )
-                db.add(history)
-
-                audit = AuditLog(
-                    id=str(uuid.uuid4()),
-                    entity_type="purchase_request",
-                    entity_id=reclaim_request.id,
-                    action="auto_approved",
-                    performed_by="system",
-                    details={
-                        "tier": "auto",
-                        "source": "usage_anomaly_scanner",
-                        "anomaly_score": anomaly_score,
-                        "top_factors": usage_data["top_factors"],
-                        "model_version": usage_data["model_version"],
-                    },
-                )
-                db.add(audit)
-                await db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to publish notification for reclaim {reclaim_request.id}: {e}")
 
                 try:
-                    await producer.publish_approval_decided(
-                        request_id=reclaim_request.id,
-                        decision="approved",
-                        decided_by="system",
-                        decision_level="auto",
-                        escalated=False,
-                        comments=(
-                            f"Auto-approved: reclaim triggered by "
-                            f"anomaly_score={anomaly_score:.3f}"
-                        ),
-                        decided_at=now,
+                    from temporalio.client import Client
+                    temporal_client = await Client.connect(
+                        settings.temporal_host, namespace=settings.temporal_namespace
+                    )
+                    await temporal_client.start_workflow(
+                        "ApprovalWorkflow",
+                        reclaim_request.id,
+                        id=f"approval-{reclaim_request.id}",
+                        task_queue=settings.temporal_task_queue,
                     )
                 except Exception as e:
-                    logger.error(
-                        f"Failed to publish approval.decided for reclaim "
-                        f"{reclaim_request.id}: {e}"
+                    logger.warning(
+                        f"Failed to start Temporal workflow (will retry): {e}"
                     )
+
+                await db.commit()
 
     @staticmethod
     async def get_license_usage_summary(db: AsyncSession, license_id: str) -> dict:

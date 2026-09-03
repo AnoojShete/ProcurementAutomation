@@ -249,3 +249,27 @@ async def release_hardware_reservations(request_id: str) -> None:
                         )
     finally:
         await redis_client.aclose()
+
+@activity.defn
+async def set_reclaim_cooldown(request_id: str) -> None:
+    """Set reclaim_cooldown_until on the license when a reinstate request is approved."""
+    from app.models import License
+    from datetime import timedelta
+    async with async_session_factory() as session:
+        stmt = select(PurchaseRequest).where(PurchaseRequest.id == request_id)
+        result = await session.execute(stmt)
+        req = result.scalar_one_or_none()
+        
+        if not req or req.request_type != "reinstate":
+            return
+            
+        items = req.items or []
+        for item in items:
+            license_id = item.get("license_id")
+            if license_id:
+                stmt_lic = select(License).where(License.id == license_id)
+                res_lic = await session.execute(stmt_lic)
+                lic = res_lic.scalar_one_or_none()
+                if lic:
+                    lic.reclaim_cooldown_until = datetime.now(timezone.utc) + timedelta(days=45)
+        await session.commit()

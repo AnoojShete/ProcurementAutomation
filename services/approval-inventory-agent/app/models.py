@@ -125,11 +125,13 @@ class License(Base):
     vendor_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendors.id"))
     app_name: Mapped[str] = mapped_column(String(255), nullable=False)
     total_seats: Mapped[int] = mapped_column(Integer, nullable=False)
+    assigned_seats: Mapped[int] = mapped_column(Integer, default=0)
     cost_per_seat: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     period_start: Mapped[Optional[date]] = mapped_column(Date)
     period_end: Mapped[Optional[date]] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(20), default="active")
+    reclaim_cooldown_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

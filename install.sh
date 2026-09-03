@@ -44,10 +44,10 @@ echo "Bringing up core services..."
 # defined in docker-compose.override.yml, before shared/db/init.sql has
 # even been applied below. run.sh brings the app services up itself,
 # afterward, in the right order (see its comments for why).
-CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit"
+CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit clamav"
 docker compose up -d $CORE_SERVICES
 
-echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO). This may take a minute..."
+echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO, ClamAV). This may take a minute..."
 set +e
 MAX=60
 for i in $(seq 1 $MAX); do
@@ -76,8 +76,16 @@ for i in $(seq 1 $MAX); do
       healthy_count=$((healthy_count+1))
     fi
   fi
+  # check clamav
+  clamav_cont=$(docker compose ps -q clamav 2>/dev/null || true)
+  if [ -n "$clamav_cont" ]; then
+    status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $clamav_cont 2>/dev/null || true)
+    if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+      healthy_count=$((healthy_count+1))
+    fi
+  fi
 
-  if [ "$healthy_count" -ge 3 ]; then
+  if [ "$healthy_count" -ge 4 ]; then
     echo "Core services are up."
     break
   fi
