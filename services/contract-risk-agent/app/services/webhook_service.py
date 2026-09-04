@@ -3,6 +3,7 @@ import hmac
 import json
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -66,7 +67,14 @@ async def handle_esign_webhook(db: AsyncSession, kafka_producer, payload: dict) 
         db, "contract", contract.id, "signed_via_webhook",
         {"provider_event_id": provider_event_id, "signed_by": payload["signed_by"]},
     )
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # A concurrent delivery of the same provider_event_id committed
+        # first — the check-then-insert above isn't atomic, so this is
+        # caught here via the ProcessedWebhookEvent primary key instead.
+        await db.rollback()
+        raise WebhookReplayError(f"webhook event {provider_event_id} already processed")
     await db.refresh(contract)
 
     if kafka_producer is not None:

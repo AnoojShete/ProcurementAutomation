@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models import Vendor, VendorPaymentChangeRequest
 from app.schemas import DataResponse, VerifyPaymentChangeRequest
 from app.services.vendor_payment_service import verify_payment_change, SameSubmitterError
+from shared.auth import CurrentUser, require_role
 
 router = APIRouter()
 
@@ -38,9 +39,16 @@ async def list_payment_changes(vendor_id: str, db: AsyncSession = Depends(get_db
     return DataResponse(data=[_serialize_change(c) for c in changes])
 
 
-@router.post("/{vendor_id}/verify-payment-change", response_model=DataResponse)
+@router.post(
+    "/{vendor_id}/verify-payment-change",
+    response_model=DataResponse,
+    dependencies=[Depends(require_role("finance", "admin"))],
+)
 async def verify_payment_change_endpoint(
-    vendor_id: str, body: VerifyPaymentChangeRequest, db: AsyncSession = Depends(get_db),
+    vendor_id: str,
+    body: VerifyPaymentChangeRequest,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_role("finance", "admin")),
 ):
     vendor = await db.get(Vendor, vendor_id)
     if vendor is None:
@@ -52,9 +60,13 @@ async def verify_payment_change_endpoint(
     if change.status != "pending":
         raise HTTPException(status_code=409, detail=f"change request already {change.status}")
 
+    # verified_by is derived from the caller's authenticated identity, never
+    # from the request body — otherwise dual control is trivially bypassed
+    # by self-submitting a verified_by that merely differs textually from
+    # submitted_by.
     try:
         change = await verify_payment_change(
-            db, change, vendor, verified_by=body.verified_by, channel=body.channel,
+            db, change, vendor, verified_by=user.email, channel=body.channel,
             approve=body.approve, notes=body.notes,
         )
     except SameSubmitterError as e:

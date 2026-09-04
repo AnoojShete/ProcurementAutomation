@@ -20,6 +20,7 @@ from app.services import storage
 from app.services import pipeline
 from app.services import checkpoints as checkpoint_service
 from app.services.audit import write_audit_log
+from app.services.vendor_matching import find_or_create_vendor
 from app.metrics import (
     document_processing_total,
     document_pipeline_stage_duration_seconds,

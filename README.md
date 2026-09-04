@@ -86,7 +86,7 @@ Local UIs once the stack is up:
 | Prometheus | http://localhost:9090 |
 | Temporal UI | http://localhost:8088 |
 | MLflow | http://localhost:5050 |
-| MinIO console | http://localhost:9000 |
+| MinIO console | http://localhost:9001 |
 | Mailpit | http://localhost:8025 |
 
 ## Shared contracts

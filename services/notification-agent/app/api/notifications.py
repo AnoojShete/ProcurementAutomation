@@ -7,12 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas import DataResponse, NotificationLogEntry
 from app.services import log_service
-from shared.auth import get_current_user
+from shared.auth import require_role
 
 router = APIRouter()
 
 
-@router.get("/log", response_model=DataResponse, dependencies=[Depends(get_current_user)])
+@router.get(
+    "/log",
+    response_model=DataResponse,
+    dependencies=[Depends(require_role("approver", "finance", "admin"))],
+)
 async def get_notification_log(
     recipient: Optional[str] = None,
     event_type: Optional[str] = None,
