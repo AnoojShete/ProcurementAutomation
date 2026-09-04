@@ -14,7 +14,7 @@ from app.api import health, requests, inventory, inbox
 from app.models import AuditLog, PurchaseRequest
 from app.metrics import approval_pending_total
 from shared.http.error_handlers import register_error_handlers
-from shared.auth import get_current_user
+from shared.auth import get_current_user, require_role
 from shared.audit import build_audit_router
 
 logger = logging.getLogger(__name__)
@@ -105,5 +105,6 @@ app.include_router(
     inventory.router, prefix="/inventory", tags=["Inventory"], dependencies=[Depends(get_current_user)]
 )
 app.include_router(
-    inbox.router, prefix="/inbox", tags=["Approver Inbox"], dependencies=[Depends(get_current_user)]
+    inbox.router, prefix="/inbox", tags=["Approver Inbox"],
+    dependencies=[Depends(require_role("approver", "finance", "admin"))],
 )

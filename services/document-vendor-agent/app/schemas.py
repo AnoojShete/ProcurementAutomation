@@ -71,7 +71,6 @@ class ReviewCorrectionRequest(BaseModel):
 # --- Vendors / payment-detail governance ---
 class VerifyPaymentChangeRequest(BaseModel):
     change_request_id: str
-    verified_by: str
     channel: str  # e.g. "phone_on_file", "known_contact_email"
     approve: bool = True
     notes: Optional[str] = None

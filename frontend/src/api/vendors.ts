@@ -20,14 +20,12 @@ export const vendorsApi = {
   verifyPaymentChange: (
     vendorId: string,
     change_request_id: string,
-    verified_by: string,
     channel: string,
     approve: boolean,
     notes?: string,
   ) =>
     api.post<VendorPaymentChange>(`/vendors/${vendorId}/verify-payment-change`, {
       change_request_id,
-      verified_by,
       channel,
       approve,
       notes,

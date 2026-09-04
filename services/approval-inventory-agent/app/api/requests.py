@@ -25,11 +25,8 @@ async def create_request(
         cached = await get_cached_response(request.app.state.redis, settings.service_name, idempotency_key)
         if cached is not None:
             return cached
-    try:
-        req = await approval_svc.create_request(data)
-        result = DataResponse(data=PurchaseRequestResponse.model_validate(req))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    req = await approval_svc.create_request(data)
+    result = DataResponse(data=PurchaseRequestResponse.model_validate(req))
     if idempotency_key:
         await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"))
     return result
