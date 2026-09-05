@@ -119,6 +119,8 @@ services:
     command: ["sh", "-c", "freshclam -d & clamd"]
     ports:
       - 3310:3310
+    volumes:
+      - clamav-data:/var/lib/clamav
     healthcheck:
       test: ["CMD-SHELL", "clamdscan --ping 127.0.0.1:3310 && test -f /var/lib/clamav/main.cvd"]
       interval: 10s
@@ -128,6 +130,7 @@ volumes:
   pgdata:
   miniodata:
   grafana-data:
+  clamav-data:
 
 networks:
   default:
