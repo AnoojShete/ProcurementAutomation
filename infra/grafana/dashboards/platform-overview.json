@@ -2,7 +2,7 @@
   "title": "IT Procurement Platform — Overview",
   "uid": "itpip-overview",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "time": { "from": "now-1h", "to": "now" },
   "refresh": "10s",
@@ -62,6 +62,71 @@
         "defaults": { "min": 0, "max": 1 },
         "overrides": []
       }
+    },
+    {
+      "id": 5,
+      "title": "Kafka consumer lag by group",
+      "description": "Consumer group lag — how many unconsumed messages remain per consumer group topic partition. High or growing lag means a consumer is falling behind.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (group) (kafka_consumergroup_lag)",
+          "legendFormat": "{{group}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (group) (kafka_consumer_group_lag)",
+          "legendFormat": "{{group}} (alt metric)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "min": 0 },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Approval SLA breach count",
+      "description": "Cumulative count of purchase requests that exceeded their SLA deadline before receiving a decision. Sourced from the approval-inventory-agent-worker's custom metric.",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "approval_sla_breaches_total",
+          "legendFormat": "SLA breaches"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "Notifications sent (total by status)",
+      "description": "Counter of notifications dispatched by the notification-agent, split by channel and delivery status.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(notification_sent_total[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
     }
   ]
 }

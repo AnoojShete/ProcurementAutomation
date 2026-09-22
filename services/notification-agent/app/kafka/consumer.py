@@ -25,16 +25,17 @@ from app.services import dispatcher, directory, routing, templating
 logger = logging.getLogger(__name__)
 
 CONSUME_TOPICS = [
-    "document.classified",     # published by document-vendor-agent
-    "license.usage.updated",   # published by approval-inventory-agent
-    "approval.requested",      # published by approval-inventory-agent
-    "approval.decided",        # published by approval-inventory-agent
-    "contract.generated",      # published by contract-risk-agent
-    "contract.signed",         # published by contract-risk-agent
-    "contract.renewal.due",    # published by contract-risk-agent
-    "risk.score.updated",      # published by contract-risk-agent
-    "vendor.offboarded",       # published by contract-risk-agent
-    "notification.send",       # generic fallback, published by any service
+    "document.classified",              # published by document-vendor-agent
+    "vendor.payment_details_flagged",   # published by document-vendor-agent (fraud alert)
+    "license.usage.updated",            # published by approval-inventory-agent
+    "approval.requested",               # published by approval-inventory-agent
+    "approval.decided",                 # published by approval-inventory-agent
+    "contract.generated",               # published by contract-risk-agent
+    "contract.signed",                  # published by contract-risk-agent
+    "contract.renewal.due",             # published by contract-risk-agent
+    "risk.score.updated",               # published by contract-risk-agent
+    "vendor.offboarded",                # published by contract-risk-agent
+    "notification.send",                # generic fallback, published by any service
 ]
 
 
@@ -201,6 +202,22 @@ async def _handle_vendor_offboarded(db, payload: dict):
     )
 
 
+async def _handle_vendor_payment_details_flagged(db, payload: dict):
+    """Fraud-prevention alert: a vendor's bank/payment details have been
+    changed. Per the prompt this is ALWAYS urgent (never digest) —
+    finance needs to verify through out-of-band channels before any
+    payments go through the updated details."""
+    recipient = await directory.resolve_recipient(db, None)
+    await dispatcher.notify(
+        db,
+        event_type="vendor.payment_details_flagged",
+        template_name="vendor_payment_details_flagged",
+        context=payload,
+        recipient=recipient,
+        related_entity_id=payload.get("vendor_id"),
+    )
+
+
 async def _handle_notification_send(db, payload: dict):
     """Generic fallback: any service can ask us to render+send an
     arbitrary template with arbitrary context. `priority` is authoritative
@@ -237,6 +254,7 @@ async def _handle_notification_send(db, payload: dict):
 
 _HANDLERS = {
     "document.classified": _handle_document_classified,
+    "vendor.payment_details_flagged": _handle_vendor_payment_details_flagged,
     "license.usage.updated": _handle_license_usage_updated,
     "approval.requested": _handle_approval_requested,
     "approval.decided": _handle_approval_decided,

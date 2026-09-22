@@ -1,0 +1,16 @@
+Subject: ⚠️ URGENT: Vendor Payment Details Changed — Verify Immediately
+---
+A vendor's payment details have been modified and require immediate
+verification by the finance team.
+
+  Vendor ID:          {{ vendor_id }}
+  Change Request ID:  {{ change_request_id }}
+  Submitted by:       {{ submitted_by }}
+  Source:             {{ source }}
+  Fields changed:     {{ fields_changed | join(', ') }}
+  Flagged at:         {{ flagged_at }}
+
+This is a fraud-prevention alert. The raw bank/routing values are NOT
+included in this notification for security — only that a change occurred.
+Please verify the change through your out-of-band verification channel
+before any payments are processed against the updated details.

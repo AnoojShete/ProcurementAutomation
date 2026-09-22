@@ -20,6 +20,7 @@ _ALWAYS_URGENT = {
     "contract.generated",
     "contract.signed",
     "vendor.offboarded",
+    "vendor.payment_details_flagged",  # fraud-prevention — always urgent, never digest
 }
 
 # Event types that are inherently routine/informational and safe to batch.

@@ -12,6 +12,7 @@ def build_event(event_type: str, source_service: str, payload: dict) -> dict:
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,
+        "schema_version": 1,
         "payload": payload,
     }
 

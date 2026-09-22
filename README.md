@@ -462,3 +462,71 @@ platform depends on.
 - `data/synthetic-invoices/` — synthetic PO/invoice/quote PDFs for
   document-vendor-agent, generated from
   `services/document-vendor-agent/scripts/synthetic_invoice_lib.py`.
+
+## Running the whole project (end-to-end demo)
+
+### Prerequisites
+
+- **Docker Desktop** (macOS / Windows) or **Docker Engine + Compose plugin**
+  (Linux). Docker Compose v2 (`docker compose`, not `docker-compose`) is
+  required.
+- **Windows**: needs WSL2 with Docker Desktop's WSL integration enabled
+  (Settings → Resources → WSL Integration). Run from inside a WSL2
+  terminal, or use `run.ps1` / `run.bat` which re-exec into WSL.
+
+### Step-by-step
+
+```bash
+# 1. Clone the repository
+git clone <repo-url>
+cd ProcurementAutomation
+
+# 2. Bootstrap infrastructure (Postgres, Kafka/Redpanda, MinIO, etc.)
+./install.sh
+
+# 3. Bring up the full stack (all services + workers + gateway)
+docker compose up -d
+
+# 4. (Optional) Seed demo data for an immediate walkthrough
+./scripts/seed-demo-data.sh
+```
+
+Or use the all-in-one script that does everything:
+
+```bash
+./run.sh
+```
+
+### Demo UI URLs
+
+Once the stack is up, every UI you need to demo end-to-end:
+
+| What | URL | Notes |
+|---|---|---|
+| **Frontend** | http://localhost:8080/ | Main application — sign in with a [demo account](#security--auth) |
+| **Mailpit** (email inbox) | http://localhost:8025 | All notification emails land here in dev |
+| **Grafana** | http://localhost:3000 | Pre-provisioned dashboards (admin/admin) |
+| **Temporal UI** | http://localhost:8088 | Workflow visibility (approval chains, contract generation) |
+| **MinIO Console** | http://localhost:9000 | Object storage browser (minioadmin/minioadmin) |
+| **Prometheus** | http://localhost:9090 | Raw metrics queries |
+| **MLflow** | http://localhost:5050 | ML experiment tracking (vendor risk model) |
+
+### Service direct ports (for debugging, not for demo)
+
+| Service | Port |
+|---|---|
+| document-vendor-agent | 8001 |
+| approval-inventory-agent | 8002 |
+| contract-risk-agent | 8003 |
+| notification-agent | 8004 |
+| auth-service | 8005 |
+
+All API calls from the frontend route through the Nginx gateway at `:8080`
+via `/api/*` paths — direct service ports are only useful for debugging.
+
+### Teardown
+
+```bash
+docker compose down       # stop everything, keep data volumes
+docker compose down -v    # stop everything AND delete all data volumes
+```
