@@ -13,6 +13,7 @@ from app.config import settings
 from app.database import init_db, get_db, async_session_factory
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
+from app.usage_scanner import run_usage_scanner
 from app.api import health, requests, inventory, inbox
 from app.schemas import ErrorResponse, ErrorDetail
 
@@ -87,16 +88,12 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown — cancel background tasks gracefully
-    for task in (consumer_task, scanner_task):
-
-    # Shutdown
-    for task in (consumer_task, gauge_task):
+    for task in (consumer_task, scanner_task, gauge_task):
         task.cancel()
         try:
             await task
         except asyncio.CancelledError:
             pass
-
 
     await app.state.kafka_producer.stop()
     await app.state.redis.aclose()

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings, digest_flush_interval_seconds
@@ -11,6 +11,7 @@ from app.kafka.consumer import start_consumer
 from app.services.digest_service import flush_due_digests
 from app.api import health, notifications
 from shared.http.error_handlers import register_error_handlers
+from shared.auth import get_current_user
 
 # Uvicorn only configures its own (uvicorn.*) loggers; the root logger has
 # no handler by default, so plain `logging.getLogger(__name__).info(...)`
@@ -71,4 +72,7 @@ register_error_handlers(app)
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 app.include_router(health.router)
-app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+app.include_router(
+    notifications.router, prefix="/notifications", tags=["Notifications"],
+    dependencies=[Depends(get_current_user)],
+)

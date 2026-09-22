@@ -21,6 +21,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

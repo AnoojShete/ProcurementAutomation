@@ -30,7 +30,6 @@ def get_approval_service(request: Request, db: AsyncSession = Depends(get_db)):
     return ApprovalService(db, producer, redis)
 
 
-@router.post("/", response_model=DataResponse)
 @router.post("/", response_model=DataResponse, dependencies=[Depends(require_role("requester", "admin"))])
 async def create_request(
     data: CreatePurchaseRequest,
@@ -44,14 +43,11 @@ async def create_request(
             return cached
     try:
         req = await approval_svc.create_request(data)
-        return DataResponse(data=PurchaseRequestResponse.model_validate(req))
+        result = DataResponse(data=PurchaseRequestResponse.model_validate(req))
     except ValueError as e:
         return _error("VALIDATION_ERROR", str(e), 400)
-        result = DataResponse(data=PurchaseRequestResponse.model_validate(req))
     except Exception as e:
         return _error("INTERNAL_ERROR", str(e), 500)
-
-        raise HTTPException(status_code=400, detail=str(e))
     if idempotency_key:
         await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"))
     return result

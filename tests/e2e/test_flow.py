@@ -3,6 +3,7 @@ import time
 import os
 import hmac
 import hashlib
+import json
 
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080/api")
 ESIGN_SECRET = os.getenv("ESIGN_WEBHOOK_SECRET", "dev-esign-secret-change-me")
@@ -15,8 +16,10 @@ def test_full_procurement_flow():
     req_headers = {"Authorization": f"Bearer {req_token}"}
 
     print("2. Uploading synthetic invoice...")
-    files = {'file': ('invoice.pdf', b'dummy content', 'application/pdf')}
-    resp = requests.post(f"{BASE_URL}/documents/upload", files=files, headers=req_headers)
+    invoice_path = os.path.join(os.path.dirname(__file__), "../../data/synthetic-invoices/00_invoice_hpindiasalespvtltd_INV-2026-00001.pdf")
+    with open(invoice_path, "rb") as invoice_file:
+        files = {'file': ('invoice.pdf', invoice_file, 'application/pdf')}
+        resp = requests.post(f"{BASE_URL}/documents/upload", files=files, headers=req_headers)
     assert resp.status_code in [200, 202], "Failed to upload document"
 
     print("3. Creating purchase request...")
@@ -55,10 +58,16 @@ def test_full_procurement_flow():
     contract_id = resp.json()["data"]["id"]
 
     print("8. Simulating E-Sign Webhook Callback...")
-    payload = b'{"event_id":"evt_' + str(time.time()).encode() + b'","contract_id":"' + contract_id.encode() + b'","status":"signed"}'
-    sig = hmac.new(ESIGN_SECRET.encode(), payload, hashlib.sha256).hexdigest()
+    payload = {
+        "provider_event_id": f"evt_{time.time()}",
+        "contract_id": contract_id,
+        "signed_by": "signer@demo.example.com",
+        "signed_at": "2026-09-23T00:00:00+00:00",
+    }
+    unsigned_payload = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    payload["signature"] = hmac.new(ESIGN_SECRET.encode(), unsigned_payload.encode(), hashlib.sha256).hexdigest()
     
-    resp = requests.post(f"{BASE_URL}/webhooks/esign", data=payload, headers={"X-Signature": sig})
+    resp = requests.post(f"{BASE_URL}/webhooks/esign", json=payload)
     assert resp.status_code == 200, "Webhook rejected"
     
     print("E2E Validation Passed. Pipeline flows end-to-end successfully.")

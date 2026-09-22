@@ -6,7 +6,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.config import settings
 from app.database import init_db, get_db
 from app.kafka.producer import KafkaEventProducer
-from app.api import health, documents, vendors
+from app.api import health, documents, vendors, admin
 from app.models import AuditLog
 from app.services.storage import ensure_bucket
 from shared.http.error_handlers import register_error_handlers
@@ -60,3 +60,4 @@ app.include_router(
 app.include_router(
     vendors.router, prefix="/vendors", tags=["Vendors"], dependencies=[Depends(get_current_user)]
 )
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
