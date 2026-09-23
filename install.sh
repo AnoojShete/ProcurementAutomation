@@ -137,7 +137,7 @@ if [ -f shared/kafka-topics.yaml ]; then
   # Attempt to create each topic using Redpanda's rpk tool inside the redpanda container
   if docker compose ps -q redpanda >/dev/null 2>&1; then
     echo "Creating topics via redpanda rpk (best-effort)"
-    topics=$(grep -oE '^[[:space:]]*-\s*[^[:space:]]+' shared/kafka-topics.yaml | sed 's/^-//; s/^\s*//') || true
+    topics=$(grep -oE '^[[:space:]]*-\s*[^[:space:]]+' shared/kafka-topics.yaml | awk '{print $2}') || true
     for t in $topics; do
       echo "Creating topic: $t"
       docker compose exec -T redpanda rpk topic create "$t" --brokers redpanda:9092 || true
@@ -157,8 +157,7 @@ else
   # Try using containerized mc on the compose network
   NETNAME="${NETWORK_NAME:-it-procurement-network}"
   echo "Attempting to create MinIO bucket using containerized mc on network $NETNAME"
-  docker run --rm --network "$NETNAME" minio/mc:latest alias set local http://minio:9000 "${MINIO_ROOT_USER:-minioadmin}" "${MINIO_ROOT_PASSWORD:-minioadmin}" || true
-  docker run --rm --network "$NETNAME" minio/mc:latest mb --ignore-existing local/it-procurement || true
+  docker run --rm --network "$NETNAME" --entrypoint /bin/sh minio/mc:latest -c "mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} && mc mb --ignore-existing myminio/it-procurement" || true
 fi
 
 echo "Summary URLs:
