@@ -43,9 +43,11 @@ async def _digest_flush_loop():
             logger.error(f"Digest flush loop error: {e}", exc_info=True)
 
 
+from shared.infra.retry import with_retry
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await with_retry(init_db, name="Postgres init")
 
     consumer_task = asyncio.create_task(start_consumer(app))
     digest_task = asyncio.create_task(_digest_flush_loop())

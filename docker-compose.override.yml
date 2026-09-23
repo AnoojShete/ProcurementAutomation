@@ -146,7 +146,7 @@ services:
       minio:
         condition: service_healthy
       clamav:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 10s

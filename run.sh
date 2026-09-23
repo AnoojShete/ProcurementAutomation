@@ -35,20 +35,7 @@ docker run --rm \
   sh -c "npm ci && npm run build"
 
 echo
-echo "--- [4/7] Starting ClamAV (malware scanning) — first boot pulls ---"
-echo "---       virus definitions, can take a couple of minutes      ---"
-docker compose up -d clamav
-echo -n "Waiting for ClamAV to report healthy"
-for i in $(seq 1 60); do
-  status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' \
-    "$(docker compose ps -q clamav)" 2>/dev/null || echo "starting")
-  if [ "$status" = "healthy" ]; then
-    echo " healthy."
-    break
-  fi
-  echo -n "."
-  sleep 5
-done
+echo "--- [4/7] ClamAV (malware scanning) — already started by install.sh ---"
 
 echo
 echo "--- [5/7] Starting every app service + its worker ---"
@@ -82,6 +69,19 @@ for i in $(seq 1 30); do
   if [ -z "$unhealthy" ]; then
     echo "All services healthy."
     break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "ERROR: Services failed to become healthy:" >&2
+    for svc in $SERVICES; do
+      cid=$(docker compose ps -q "$svc" 2>/dev/null || true)
+      [ -z "$cid" ] && continue
+      status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null || echo "unknown")
+      if [ "$status" != "healthy" ] && [ "$status" != "running" ]; then
+        echo "--- $svc ($status) ---" >&2
+        docker inspect --format='{{json .State.Health}}' "$cid" 2>/dev/null | grep -o '"Output":"[^"]*"' | tail -n 1 >&2 || true
+      fi
+    done
+    exit 1
   fi
   echo "Still waiting on:$unhealthy ($i/30)"
   sleep 5

@@ -31,8 +31,10 @@ async def start_consumer(app):
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
+from shared.infra.retry import with_retry
+
     try:
-        await consumer.start()
+        await with_retry(consumer.start, name="Kafka consumer")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
         async for msg in consumer:

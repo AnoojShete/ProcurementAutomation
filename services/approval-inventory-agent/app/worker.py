@@ -45,8 +45,6 @@ async def main():
     # infra/prometheus/prometheus.yml scrapes it as approval-inventory-agent-worker:9100.
     start_http_server(9100)
 
-    client = await Client.connect(settings.temporal_host, namespace=settings.temporal_namespace)
-    
     worker = Worker(
         client,
         task_queue=settings.temporal_task_queue,

@@ -8,9 +8,11 @@ from app.api import health, auth
 from shared.http.error_handlers import register_error_handlers
 
 
+from shared.infra.retry import with_retry
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await with_retry(init_db, name="Postgres init")
     yield
 
 

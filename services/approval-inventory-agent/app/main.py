@@ -53,20 +53,23 @@ async def _refresh_approval_pending_gauge():
         await asyncio.sleep(30)
 
 
+from shared.infra.retry import with_retry
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await init_db()
+    await with_retry(init_db, name="Postgres init")
 
 
     # Redis
     app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    await with_retry(app.state.redis.ping, name="Redis ping")
 
     # Kafka Producer (shared across the app)
 
     # Kafka Producer
     app.state.kafka_producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
-    await app.state.kafka_producer.start()
+    await with_retry(app.state.kafka_producer.start, name="Kafka producer")
 
     # Kafka Consumer — subscribes to document.classified and contract.signed.
     # NOTE: We do NOT consume license.usage.updated because we publish it.
