@@ -159,7 +159,7 @@ function LagMonitor() {
       {lag.map(l => (
         <div key={l.group} className="flex justify-between items-center p-3 border rounded-lg">
           <span className="font-medium text-sm text-slate-700">{l.group}</span>
-          <Badge tone={l.lag > 50 ? "critical" : l.lag > 10 ? "warning" : "positive"}>{l.lag} msgs</Badge>
+          <Badge tone={l.lag > 50 ? "danger" : l.lag > 10 ? "warning" : "success"}>{l.lag} msgs</Badge>
         </div>
       ))}
     </>
@@ -194,7 +194,7 @@ function RoutingLog() {
               <td className="px-4 py-2">{l.route_name}</td>
               <td className="px-4 py-2">{l.model_used}</td>
               <td className="px-4 py-2">
-                {l.fallback_triggered ? <Badge tone="critical">{l.fallback_reason || "yes"}</Badge> : "-"}
+                {l.fallback_triggered ? <Badge tone="danger">{l.fallback_reason || "yes"}</Badge> : "-"}
               </td>
               <td className="px-4 py-2">{l.confidence?.toFixed(2)}</td>
             </tr>
