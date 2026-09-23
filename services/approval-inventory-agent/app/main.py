@@ -152,24 +152,7 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_sch
 # app/api/requests.py.
 app.include_router(health.router)
 
-app.include_router(
-    requests.router,
-    prefix="/requests",
-    tags=["Purchase Requests"],
-    dependencies=[Depends(get_current_user)],
-)
-app.include_router(
-    inventory.router,
-    prefix="/inventory",
-    tags=["Inventory"],
-    dependencies=[Depends(get_current_user)],
-)
-app.include_router(
-    inbox.router,
-    prefix="/inbox",
-    tags=["Approver Inbox"],
-    dependencies=[Depends(get_current_user)],
-)
+
 # GET /requests/audit is registered BEFORE requests.router: it already has
 # GET /requests/{request_id}, and Starlette matches routes in registration
 # order — that catch-all would otherwise swallow "/requests/audit" as

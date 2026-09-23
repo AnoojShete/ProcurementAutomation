@@ -12,7 +12,9 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import async_session_factory
 from app.models import PurchaseRequest, Contract, License, ProcessedEvent, Inventory
-from app.models import PurchaseRequest
+
+from shared.infra.retry import with_retry
+from shared.logging.context import CorrelationContext
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +39,9 @@ async def start_consumer(app):
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
-from shared.infra.retry import with_retry
-
     try:
         await with_retry(consumer.start, name="Kafka consumer")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
-
-from shared.logging.context import CorrelationContext
 
         async for msg in consumer:
             try:
@@ -90,14 +88,21 @@ async def _handle_document_classified(payload: dict, event: dict):
     )
 
 
+async def _mark_processed(session, event_id: str, topic: str):
+    from datetime import datetime, timezone
+    stmt = ProcessedEvent(event_id=event_id, topic=topic, processed_at=datetime.now(timezone.utc))
+    session.add(stmt)
+
 async def _handle_contract_signed(payload: dict, event: dict):
     """Handle a contract.signed event.
     
     Updates the associated purchase request status to 'contract_signed'
     when the downstream contract is fully executed.
     """
+    event_id = event.get("event_id")
     contract_id = payload.get("contract_id")
     signed_by = payload.get("signed_by")
+    signed_at = payload.get("signed_at")
 
     logger.info(f"Contract signed: id={contract_id}, by={signed_by} at {signed_at}")
 
@@ -261,8 +266,3 @@ async def _fulfill_hardware_inventory(session, req: PurchaseRequest) -> None:
             f"Hardware fulfilled: released {to_release}x {sku} from reserved_quantity "
             f"(request {req.id})"
         )
-    logger.info(f"Contract signed: id={contract_id}, by={signed_by}")
-
-    # The contract.signed payload has contract_id, not a direct request_id.
-    # In a full implementation, you'd look up the contract to find the
-    # associated purchase_request_id. For now, we log it.

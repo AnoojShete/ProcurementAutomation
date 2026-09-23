@@ -34,13 +34,30 @@ class Document(Base):
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
 
 
+class Contract(Base):
+    """Read-only stub: used for contract.signed event processing."""
+    __tablename__ = "contracts"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    purchase_request_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("purchase_requests.id"))
+
+
+class ProcessedEvent(Base):
+    """Idempotency tracking for Kafka consumer."""
+    __tablename__ = "processed_kafka_events"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    event_id: Mapped[str] = mapped_column(Uuid, unique=True, nullable=False)
+    topic: Mapped[str] = mapped_column(String(255), nullable=False)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
 class Vendor(Base):
     """Vendor/supplier in the procurement system."""
     __tablename__ = "vendors"
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    name_normalized: Mapped[Optional[str]] = mapped_column(String(255))
+    normalized_name: Mapped[Optional[str]] = mapped_column(String(255))
     contact_email: Mapped[Optional[str]] = mapped_column(String(255))
     contact_phone: Mapped[Optional[str]] = mapped_column(String(50))
     address: Mapped[Optional[str]] = mapped_column(Text)

@@ -11,6 +11,9 @@ from app.config import settings
 from app.database import async_session_factory
 from app.services.document_service import process_document
 
+from shared.infra.retry import with_retry
+from shared.logging.context import CorrelationContext
+
 logger = logging.getLogger(__name__)
 
 CONSUME_TOPICS = [
@@ -27,13 +30,9 @@ async def start_consumer(kafka_producer):
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
-from shared.infra.retry import with_retry
-
     try:
         await with_retry(consumer.start, name="Kafka consumer")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
-
-from shared.logging.context import CorrelationContext
 
         async for msg in consumer:
             try:
