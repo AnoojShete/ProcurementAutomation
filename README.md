@@ -15,7 +15,7 @@ cd ProcurementAutomation
 
 That's the one script that brings up the **entire** stack from a clean
 clone: core infra → builds every service image → ClamAV (first boot pulls
-virus definitions, ~1–2 min) → every app service + its worker → the
+virus definitions, ~1–2 min; later starts reuse the persisted database) → every app service + its worker → the
 gateway/frontend → a health-check pass over everything. It takes several
 minutes on a clean clone (mostly image builds + ClamAV); subsequent runs
 are much faster since Docker caches layers. If Docker Desktop (macOS/

@@ -116,7 +116,10 @@ services:
 
   clamav:
     image: clamav/clamav:stable_base
-    command: ["sh", "-c", "freshclam -d & clamd"]
+    # The named volume keeps the virus database between container restarts.
+    # Download definitions only on the first run; use the cached database
+    # immediately on subsequent starts.
+    command: ["sh", "-c", "if [ ! -f /var/lib/clamav/main.cvd ]; then freshclam; fi; exec clamd --foreground=true"]
     ports:
       - 3310:3310
     volumes:

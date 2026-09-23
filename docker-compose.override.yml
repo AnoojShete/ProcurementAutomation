@@ -194,7 +194,9 @@ services:
   clamav:
     image: clamav/clamav:stable_base
     platform: linux/amd64  # no native arm64 build published; emulated via Rosetta/QEMU on Apple Silicon
-    command: ["sh", "-c", "freshclam -d & clamd"]
+    # Definitions live in the named clamav-data volume from the base compose
+    # file. Only the first startup downloads them; later starts reuse them.
+    command: ["sh", "-c", "if [ ! -f /var/lib/clamav/main.cvd ]; then freshclam; fi; exec clamd --foreground=true"]
     ports:
       - "3310:3310"
     healthcheck:
