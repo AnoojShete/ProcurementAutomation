@@ -204,7 +204,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 120s
+      start_period: 300s
 
   # --- notification-agent (Anooj) ---
   notification-agent:

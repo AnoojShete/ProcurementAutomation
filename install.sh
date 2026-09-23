@@ -44,11 +44,21 @@ echo "Bringing up core services..."
 # defined in docker-compose.override.yml, before shared/db/init.sql has
 # even been applied below. run.sh brings the app services up itself,
 # afterward, in the right order (see its comments for why).
+#
+# --remove-orphans: cleans up containers left over from renamed/removed
+# services that otherwise hold stale Docker-network references and cause
+# "network <id> not found" errors on the next `up`.
 CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit clamav"
-docker compose up -d $CORE_SERVICES
 
-echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO, ClamAV). This may take a minute..."
-MAX=60
+# If any containers are already running with stale network references
+# (e.g. ClamAV kept alive between runs), tear them down first so they
+# don't block the fresh `up` with "network not found" errors.
+docker compose down --remove-orphans 2>/dev/null || true
+
+docker compose up -d --remove-orphans $CORE_SERVICES
+
+echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO, ClamAV). This may take a few minutes on first run..."
+MAX=120
 for i in $(seq 1 $MAX); do
   healthy_count=0
   pg_status="unknown"

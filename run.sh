@@ -39,7 +39,7 @@ echo "--- [4/7] ClamAV (malware scanning) — already started by install.sh ---"
 
 echo
 echo "--- [5/7] Starting every app service + its worker ---"
-docker compose up -d \
+docker compose up -d --remove-orphans \
   auth-service \
   document-vendor-agent document-vendor-agent-worker \
   approval-inventory-agent approval-inventory-agent-worker \
@@ -51,7 +51,7 @@ echo
 echo "--- [6/7] Recreating the gateway (nginx) ---"
 echo "---       nginx resolves every upstream hostname at boot, so it ---"
 echo "---       needs a restart now that every service above exists  ---"
-docker compose up -d nginx --force-recreate
+docker compose up -d --remove-orphans nginx --force-recreate
 
 echo
 echo "--- [7/7] Waiting for every service's healthcheck ---"
