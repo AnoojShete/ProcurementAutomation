@@ -90,15 +90,7 @@ for i in $(seq 1 $MAX); do
     fi
   fi
 
-  clamav_cont=$(docker compose ps -q clamav 2>/dev/null || true)
-  if [ -n "$clamav_cont" ]; then
-    clamav_status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $clamav_cont 2>/dev/null || echo "unknown")
-    if [ "$clamav_status" = "healthy" ] || [ "$clamav_status" = "running" ]; then
-      healthy_count=$((healthy_count+1))
-    fi
-  fi
-
-  if [ "$healthy_count" -ge 4 ]; then
+  if [ "$healthy_count" -ge 3 ]; then
     echo "Core services are up."
     break
   fi
