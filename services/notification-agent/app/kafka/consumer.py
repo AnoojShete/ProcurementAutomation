@@ -54,8 +54,14 @@ from shared.infra.retry import with_retry
         await with_retry(consumer.start, name="Kafka consumer")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
+from shared.logging.context import CorrelationContext
+
         async for msg in consumer:
             try:
+                correlation_id = msg.value.get("correlation_id") if isinstance(msg.value, dict) else None
+                if correlation_id:
+                    CorrelationContext.set(correlation_id)
+                
                 event_type, payload, schema_version = parse_envelope(msg.value)
                 if schema_version != 1:
                     logger.info(f"event {event_type} has schema_version={schema_version} (handled as v1-compatible)")

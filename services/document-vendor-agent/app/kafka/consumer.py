@@ -33,9 +33,14 @@ from shared.infra.retry import with_retry
         await with_retry(consumer.start, name="Kafka consumer")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
+from shared.logging.context import CorrelationContext
+
         async for msg in consumer:
             try:
                 event = msg.value
+                correlation_id = event.get("correlation_id")
+                if correlation_id:
+                    CorrelationContext.set(correlation_id)
                 event_type = event.get("event_type")
                 payload = event.get("payload", {})
 

@@ -1,10 +1,15 @@
 import uuid
 from datetime import datetime, timezone
 
-def build_event(event_type: str, source_service: str, payload: dict) -> dict:
+from typing import Optional
+from shared.logging.context import CorrelationContext
+
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None) -> dict:
     """Build a Kafka event envelope per the shared contract."""
+    corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
     return {
         "event_id": str(uuid.uuid4()),
+        "correlation_id": corr_id,
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,

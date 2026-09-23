@@ -11,6 +11,7 @@ Every message on every topic is wrapped the same way:
 ```json
 {
   "event_id": "uuid",
+  "correlation_id": "uuid",
   "event_type": "document.classified",
   "timestamp": "2026-08-22T10:15:00Z",
   "source_service": "document-vendor-agent",
@@ -19,6 +20,7 @@ Every message on every topic is wrapped the same way:
 ```
 
 - `event_id` — a fresh UUID per message (not the entity's own id).
+- `correlation_id` — a UUID tracing a single logical request/action across services.
 - `event_type` — matches the Kafka topic name.
 - `timestamp` — ISO-8601 UTC.
 - `source_service` — the service name that published the event.

@@ -81,6 +81,16 @@ services:
     ports:
       - 8080:80
 
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    command: ["--kafka.server=redpanda:9092"]
+    ports:
+      - "9308:9308"
+    depends_on:
+      redpanda:
+        condition: service_started
+    restart: unless-stopped
+
   temporal:
     image: temporalio/auto-setup:1.21
     # Without these, auto-setup defaults to DB=cassandra and refuses to

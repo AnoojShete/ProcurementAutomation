@@ -127,6 +127,20 @@
           "legendFormat": "{{status}}"
         }
       ]
+    },
+    {
+      "id": 8,
+      "title": "Model routing decisions",
+      "description": "Counter of model routing decisions.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (route_name, model_used, fallback_triggered) (rate(model_routing_total[5m]))",
+          "legendFormat": "{{route_name}} ({{model_used}}) fallback={{fallback_triggered}}"
+        }
+      ]
     }
   ]
 }

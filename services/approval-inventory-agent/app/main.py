@@ -10,6 +10,8 @@ import asyncio
 import logging
 
 from app.config import settings
+from shared.logging.configure import configure_logging
+configure_logging(settings.service_name)
 from app.database import init_db, get_db, async_session_factory
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer

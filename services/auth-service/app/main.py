@@ -3,6 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from app.config import settings
+from shared.logging.configure import configure_logging
+configure_logging(settings.service_name)
 from app.database import init_db
 from app.api import health, auth
 from shared.http.error_handlers import register_error_handlers

@@ -96,10 +96,9 @@ async def generate_contract_for_request(
         },
     )
 
-    # Extract clauses back out of the generated text — same code path used
-    # for contracts uploaded/imported from elsewhere, so it's exercised and
-    # tested against real prose, not just trusted because we wrote it.
-    clauses = extract_clauses(contract_text)
+    from app.services.clause_router import route_clause_extraction
+    router_result = await route_clause_extraction(db, contract_id, contract_text)
+    clauses = router_result.clauses.copy() if isinstance(router_result.clauses, dict) else router_result.clauses.__dict__
 
     contract = Contract(
         id=contract_id,
@@ -128,7 +127,11 @@ async def generate_contract_for_request(
     await start_renewal_workflow(contract_id)
 
     if kafka_producer is not None:
-        await kafka_producer.publish_contract_generated(contract)
+        await kafka_producer.publish_contract_generated(
+            contract,
+            model_used=router_result.model_used,
+            fallback_triggered=router_result.fallback_triggered
+        )
         if pr.vendor_id:
             await kafka_producer.publish_notification(
                 recipient=pr.requested_by,

@@ -58,7 +58,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         envelope = pipeline.new_envelope(doc.id, doc.original_filename or "")
 
         t0 = time.perf_counter()
-        envelope = await pipeline.parsing_agent(envelope, data)
+        envelope = await pipeline.parsing_agent(db, envelope, data)
         stage_durations_ms["parsing_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
@@ -134,6 +134,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
                 document_id=doc.id, document_type=doc.document_type, vendor_name_raw=doc.vendor_name_raw,
                 extracted_fields=doc.extracted, confidence_scores=doc.confidence,
                 overall_confidence=doc.overall_confidence, needs_review=doc.needs_review,
+                model_used=envelope.get("model_used"), fallback_triggered=envelope.get("fallback_triggered", False),
             )
             await kafka_producer.publish_vendor_matched(
                 document_id=doc.id, vendor_id=vendor.id, vendor_name_normalized=vendor.normalized_name,
@@ -236,6 +237,7 @@ async def submit_review(db: AsyncSession, kafka_producer, document_id: str, corr
             document_id=doc.id, document_type=doc.document_type, vendor_name_raw=doc.vendor_name_raw,
             extracted_fields=doc.extracted, confidence_scores=doc.confidence,
             overall_confidence=doc.overall_confidence, needs_review=doc.needs_review,
+            model_used="human_review", fallback_triggered=False,
         )
 
     return doc

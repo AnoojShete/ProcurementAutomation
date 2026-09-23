@@ -58,3 +58,29 @@ async def update_live_mode(req: LiveModeUpdate, db: AsyncSession = Depends(get_d
         "UPDATE system_settings SET live_verification_enabled = :enabled, enabled_at = now() WHERE id = 1"
     ), {"enabled": req.enabled})
     return DataResponse(data=await _status(db))
+
+@router.get("/model-routing-log")
+async def get_model_routing_log(limit: int = 30, db: AsyncSession = Depends(get_db)):
+    rows = (await db.execute(text(
+        "SELECT id, document_id, route_name, model_used, fallback_triggered, fallback_reason, confidence, duration_ms, created_at "
+        "FROM model_routing_log ORDER BY created_at DESC LIMIT :limit"
+    ), {"limit": limit})).mappings().all()
+    return DataResponse(data=[dict(r) for r in rows])
+
+@router.get("/kafka-lag")
+async def get_kafka_lag():
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get("http://prometheus:9090/api/v1/query?query=sum(kafka_consumergroup_lag)+by+(group)")
+            if resp.status_code == 200:
+                data = resp.json()
+                results = []
+                for result in data.get("data", {}).get("result", []):
+                    group = result.get("metric", {}).get("group", "unknown")
+                    val = int(result.get("value", [0, "0"])[1])
+                    results.append({"group": group, "lag": val})
+                return DataResponse(data=results)
+    except Exception:
+        pass
+    return DataResponse(data=[])

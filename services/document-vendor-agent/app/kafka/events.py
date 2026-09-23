@@ -6,9 +6,13 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 
-def build_event(event_type: str, source_service: str, payload: dict) -> dict:
+from shared.logging.context import CorrelationContext
+
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None) -> dict:
+    corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
     return {
         "event_id": str(uuid.uuid4()),
+        "correlation_id": corr_id,
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,
@@ -33,7 +37,8 @@ def build_document_ingested_payload(document_id, uploaded_by, file_type, minio_p
 
 def build_document_classified_payload(
     document_id, document_type, vendor_name_raw, extracted_fields: Dict[str, Any],
-    confidence_scores: Dict[str, Any], overall_confidence: float, needs_review: bool
+    confidence_scores: Dict[str, Any], overall_confidence: float, needs_review: bool,
+    model_used: Optional[str] = None, fallback_triggered: bool = False
 ) -> dict:
     return {
         "document_id": str(document_id),
@@ -43,6 +48,8 @@ def build_document_classified_payload(
         "confidence_scores": confidence_scores,
         "overall_confidence": float(overall_confidence) if overall_confidence is not None else None,
         "needs_review": bool(needs_review),
+        "model_used": model_used,
+        "fallback_triggered": fallback_triggered,
     }
 
 

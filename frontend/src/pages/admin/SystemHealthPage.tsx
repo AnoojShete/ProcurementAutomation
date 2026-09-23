@@ -72,6 +72,29 @@ export function SystemHealthPage() {
       <InlineInfo message="The API gateway only proxies business endpoints (/api/requests, /api/documents, …) — each service's own /health check isn't exposed through it, so live per-service status can't be polled from this page. Use Grafana for real-time metrics." />
 
       <Card>
+        <CardHeader title="Kafka Consumer Lag" subtitle="Live view of unconsumed messages by group" />
+        <CardBody>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <LagMonitor />
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Model Routing Log" subtitle="Recent routing decisions" />
+        <CardBody>
+          <RoutingLog />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Live Activity Feed" subtitle="Recent notifications and events" />
+        <CardBody>
+          <ActivityFeed />
+        </CardBody>
+      </Card>
+
+      <Card>
         <CardHeader
           title={
             <span className="flex items-center gap-1.5">
@@ -117,6 +140,93 @@ export function SystemHealthPage() {
           </div>
         </CardBody>
       </Card>
+    </div>
+  );
+}
+
+function LagMonitor() {
+  const [lag, setLag] = useState<{group: string, lag: number}[]>([]);
+  useEffect(() => {
+    const fetchLag = () => api.get<{group: string, lag: number}[]>("/admin/kafka-lag").then(r => setLag(r.data)).catch(() => {});
+    fetchLag();
+    const interval = setInterval(fetchLag, 10000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  if (lag.length === 0) return <div className="text-sm text-slate-500">No lag data available.</div>;
+  return (
+    <>
+      {lag.map(l => (
+        <div key={l.group} className="flex justify-between items-center p-3 border rounded-lg">
+          <span className="font-medium text-sm text-slate-700">{l.group}</span>
+          <Badge tone={l.lag > 50 ? "critical" : l.lag > 10 ? "warning" : "positive"}>{l.lag} msgs</Badge>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function RoutingLog() {
+  const [logs, setLogs] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchLogs = () => api.get<any[]>("/admin/model-routing-log").then(r => setLogs(r.data)).catch(() => {});
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 10000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm text-left">
+        <thead className="bg-slate-50 text-slate-600">
+          <tr>
+            <th className="px-4 py-2">Time</th>
+            <th className="px-4 py-2">Route</th>
+            <th className="px-4 py-2">Model</th>
+            <th className="px-4 py-2">Fallback</th>
+            <th className="px-4 py-2">Conf</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y text-slate-700">
+          {logs.map((l, idx) => (
+            <tr key={idx}>
+              <td className="px-4 py-2 whitespace-nowrap">{new Date(l.created_at).toLocaleTimeString()}</td>
+              <td className="px-4 py-2">{l.route_name}</td>
+              <td className="px-4 py-2">{l.model_used}</td>
+              <td className="px-4 py-2">
+                {l.fallback_triggered ? <Badge tone="critical">{l.fallback_reason || "yes"}</Badge> : "-"}
+              </td>
+              <td className="px-4 py-2">{l.confidence?.toFixed(2)}</td>
+            </tr>
+          ))}
+          {logs.length === 0 && <tr><td colSpan={5} className="px-4 py-2 text-slate-500">No routing events yet</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ActivityFeed() {
+  const [activities, setActivities] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchAct = () => api.get<any[]>("/notifications/log?limit=10").then(r => setActivities(r.data)).catch(() => {});
+    fetchAct();
+    const interval = setInterval(fetchAct, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (activities.length === 0) return <div className="text-sm text-slate-500">No activity yet.</div>;
+  return (
+    <div className="space-y-3">
+      {activities.map((a, idx) => (
+        <div key={idx} className="flex justify-between items-center text-sm border-b pb-2">
+          <div>
+            <span className="font-medium text-slate-700">{a.template_name}</span>
+            <span className="ml-2 text-slate-500">to {a.recipient} via {a.channel}</span>
+          </div>
+          <span className="text-xs text-slate-400">{new Date(a.created_at).toLocaleTimeString()}</span>
+        </div>
+      ))}
     </div>
   );
 }

@@ -145,3 +145,17 @@ class PipelineCheckpoint(Base):
     warnings: Mapped[Optional[list]] = mapped_column(JSON)
     duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ModelRoutingLog(Base):
+    __tablename__ = "model_routing_log"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    document_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("documents.id"))
+    route_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_used: Mapped[str] = mapped_column(String(50), nullable=False)
+    fallback_triggered: Mapped[bool] = mapped_column(Boolean, default=False)
+    fallback_reason: Mapped[Optional[str]] = mapped_column(String(50))
+    confidence: Mapped[Optional[float]] = mapped_column(Numeric(4, 3))
+    duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

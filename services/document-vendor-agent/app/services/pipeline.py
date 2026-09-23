@@ -21,7 +21,6 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Vendor
-from app.services.ocr import extract_text
 from app.services.classification import classify_document
 from app.services.field_extraction import extract_fields
 from app.services.vendor_matching import find_or_create_vendor
@@ -42,32 +41,28 @@ def new_envelope(document_id: str, filename: str) -> dict:
     return {"document_id": document_id, "filename": filename}
 
 
-async def parsing_agent(envelope: dict, data: bytes) -> dict:
-    """Turns raw file bytes into text. See app/services/ocr.py for the
-    actual backend (Docling for PDFs, PaddleOCR for images).
-
-    extract_text() is CPU-bound and synchronous — Docling's layout/table
-    inference on a real PDF took 15-75s in testing. Run directly in this
-    coroutine, that blocks the whole worker's event loop for the duration,
-    starving the Kafka consumer's heartbeat and forcing a rebalance on
-    every single document. asyncio.to_thread hands it to a worker thread
-    instead, so heartbeats (and any other pipeline concurrency) keep
-    flowing while the conversion runs."""
-    extraction = await asyncio.to_thread(
-        extract_text, data, envelope["filename"], envelope.get("content_type", "")
-    )
+async def parsing_agent(db: AsyncSession, envelope: dict, data: bytes) -> dict:
+    from app.services.extraction_router import route_extraction
+    
+    route_result = await route_extraction(db, envelope["document_id"], data, envelope["filename"], envelope.get("content_type", ""))
+    extraction = route_result.extraction_result
+    
     envelope["raw_text"] = extraction.text
     envelope["extraction_method"] = extraction.method
     envelope["file_type"] = extraction.file_type
     envelope["text_quality"] = extraction.text_quality
-    # Pass word/box pairs forward for LayoutLMv3 cross-check
     envelope["words_with_boxes"] = extraction.words_with_boxes or []
     envelope["raw_image_bytes"] = data if extraction.file_type == "image" else None
+    
+    envelope["model_used"] = route_result.model_used
+    envelope["fallback_triggered"] = route_result.fallback_triggered
+    envelope["route_name"] = route_result.route_name
 
     logger.info(
         f"[parsing_agent] document_id={envelope['document_id']} "
-        f"method={extraction.method} file_type={extraction.file_type} "
-        f"text_quality={extraction.text_quality} words={len(extraction.words_with_boxes)}"
+        f"route={route_result.route_name} model_used={route_result.model_used} "
+        f"fallback={route_result.fallback_triggered} "
+        f"text_quality={extraction.text_quality} words={len(extraction.words_with_boxes or [])}"
     )
     is_empty = not (extraction.text or "").strip()
     record_agent_result(

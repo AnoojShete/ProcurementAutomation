@@ -47,7 +47,7 @@ class KafkaEventProducer:
         await self.producer.send_and_wait(topic, event)
         logger.info(f"Published event {event.get('event_type')} to {topic}")
 
-    async def publish_contract_generated(self, contract):
+    async def publish_contract_generated(self, contract, model_used=None, fallback_triggered=False):
         payload = build_contract_generated_payload(
             contract_id=contract.id,
             purchase_request_id=contract.purchase_request_id,
@@ -56,6 +56,8 @@ class KafkaEventProducer:
             version=contract.version,
             status=contract.status,
             generated_at=contract.generated_at,
+            model_used=model_used,
+            fallback_triggered=fallback_triggered,
         )
         event = build_event(TOPIC_CONTRACT_GENERATED, self.service_name, payload)
         await self.publish(TOPIC_CONTRACT_GENERATED, event)

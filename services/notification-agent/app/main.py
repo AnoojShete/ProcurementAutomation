@@ -6,6 +6,8 @@ from fastapi import Depends, FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings, digest_flush_interval_seconds
+from shared.logging.configure import configure_logging
+configure_logging(settings.service_name)
 from app.database import init_db, async_session_factory
 from app.kafka.consumer import start_consumer
 from app.services.digest_service import flush_due_digests

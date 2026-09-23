@@ -53,12 +53,14 @@ class KafkaEventProducer:
 
     async def publish_document_classified(
         self, document_id, document_type, vendor_name_raw, extracted_fields,
-        confidence_scores, overall_confidence, needs_review
+        confidence_scores, overall_confidence, needs_review,
+        model_used=None, fallback_triggered=False
     ):
         payload = build_document_classified_payload(
             document_id=document_id, document_type=document_type, vendor_name_raw=vendor_name_raw,
             extracted_fields=extracted_fields, confidence_scores=confidence_scores,
             overall_confidence=overall_confidence, needs_review=needs_review,
+            model_used=model_used, fallback_triggered=fallback_triggered,
         )
         event = build_event(TOPIC_DOCUMENT_CLASSIFIED, self.service_name, payload)
         await self.publish(TOPIC_DOCUMENT_CLASSIFIED, event)

@@ -6,9 +6,13 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict
 
 
-def build_event(event_type: str, source_service: str, payload: dict) -> dict:
+from shared.logging.context import CorrelationContext
+
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None) -> dict:
+    corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
     return {
         "event_id": str(uuid.uuid4()),
+        "correlation_id": corr_id,
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,
@@ -22,7 +26,8 @@ def _iso(value) -> Optional[str]:
 
 
 def build_contract_generated_payload(
-    contract_id, purchase_request_id, vendor_id, template_used, version, status, generated_at
+    contract_id, purchase_request_id, vendor_id, template_used, version, status, generated_at,
+    model_used: Optional[str] = None, fallback_triggered: bool = False
 ) -> dict:
     return {
         "contract_id": str(contract_id),
@@ -32,6 +37,8 @@ def build_contract_generated_payload(
         "version": version,
         "status": status,
         "generated_at": _iso(generated_at),
+        "model_used": model_used,
+        "fallback_triggered": fallback_triggered,
     }
 
 

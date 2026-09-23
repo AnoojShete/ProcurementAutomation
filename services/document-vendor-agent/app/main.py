@@ -4,6 +4,8 @@ from fastapi import Depends, FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
+from shared.logging.configure import configure_logging
+configure_logging(settings.service_name)
 from app.database import init_db, get_db
 from app.kafka.producer import KafkaEventProducer
 from app.api import health, documents, vendors, admin
