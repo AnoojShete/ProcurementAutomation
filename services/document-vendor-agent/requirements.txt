@@ -38,6 +38,8 @@ datasets>=2.19.0
 # across container rebuilds.
 # ---------------------------------------------------------------------------
 docling==2.122.0
+docling-ibm-models==3.15.0
+accelerate==1.5.1
 
 # ---------------------------------------------------------------------------
 # PaddleOCR: PP-OCR pipeline, strong on invoice/table layouts.
@@ -48,6 +50,9 @@ docling==2.122.0
 # ---------------------------------------------------------------------------
 paddlepaddle==2.6.2
 paddleocr==2.9.1
+opencv-python==4.11.0.86
+opencv-contrib-python==4.11.0.86
+opencv-python-headless==4.11.0.86
 
 # ---------------------------------------------------------------------------
 # LayoutLMv3 cross-check (ngvozdenovic/invoice_extraction).
@@ -61,4 +66,4 @@ transformers>=4.40.0
 torch==2.3.1+cpu
 torchvision==0.18.1+cpu
 --extra-index-url https://download.pytorch.org/whl/cpu
-safetensors>=0.4.0
+safetensors==0.4.5
