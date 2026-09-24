@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models import Document
 from app.schemas import DataResponse, ReviewCorrectionRequest
 from app.services import document_service
-from app.services.upload_service import scan_upload, store_and_record_upload, MalwareDetectedError, ScanUnavailableError
+from app.services.upload_service import store_and_record_upload
 from shared.idempotency import get_cached_response, store_response
 
 router = APIRouter()
@@ -49,15 +49,6 @@ async def upload_document(
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="uploaded file is empty")
-
-    try:
-        await scan_upload(data, db, file.filename or "upload")
-    except MalwareDetectedError as e:
-        await db.commit()
-        raise HTTPException(status_code=422, detail=f"upload rejected: malware detected ({e.signature})")
-    except ScanUnavailableError:
-        await db.commit()
-        raise HTTPException(status_code=503, detail="scanning unavailable, try again")
 
     doc = await store_and_record_upload(
         db, request.app.state.kafka_producer, data, file.filename or "upload",

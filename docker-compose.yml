@@ -123,29 +123,10 @@ services:
       test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v1/info"]
       interval: 10s
       retries: 5
-
-  clamav:
-    image: clamav/clamav:stable_base
-    # The named volume keeps the virus database between container restarts.
-    # Download definitions only on the first run; use the cached database
-    # immediately on subsequent starts.
-    command: ["sh", "-c", "if [ ! -f /var/lib/clamav/main.cvd ]; then freshclam; fi; exec clamd --foreground=true"]
-    ports:
-      - 3310:3310
-    volumes:
-      - clamav-data:/var/lib/clamav
-    healthcheck:
-      test: ["CMD-SHELL", "clamdscan --ping 1 && test -f /var/lib/clamav/main.cvd"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 300s
-
 volumes:
   pgdata:
   miniodata:
   grafana-data:
-  clamav-data:
 
 networks:
   default:

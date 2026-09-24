@@ -48,23 +48,22 @@ echo "Bringing up core services..."
 # --remove-orphans: cleans up containers left over from renamed/removed
 # services that otherwise hold stale Docker-network references and cause
 # "network <id> not found" errors on the next `up`.
-CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit clamav"
+CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit"
 
 # If any containers are already running with stale network references
-# (e.g. ClamAV kept alive between runs), tear them down first so they
+# (e.g. containers kept alive between runs), tear them down first so they
 # don't block the fresh `up` with "network not found" errors.
 docker compose down --remove-orphans 2>/dev/null || true
 
 docker compose up -d --remove-orphans $CORE_SERVICES
 
-echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO, ClamAV). This may take a few minutes on first run..."
+echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO). This may take a few minutes on first run..."
 MAX=120
 for i in $(seq 1 $MAX); do
   healthy_count=0
   pg_status="unknown"
   rd_status="unknown"
   min_status="unknown"
-  clamav_status="unknown"
 
   pg_cont=$(docker compose ps -q postgres 2>/dev/null || true)
   if [ -n "$pg_cont" ]; then
@@ -100,10 +99,9 @@ for i in $(seq 1 $MAX); do
     echo "  postgres: $pg_status" >&2
     echo "  redpanda: $rd_status" >&2
     echo "  minio: $min_status" >&2
-    echo "  clamav: $clamav_status" >&2
     
     # Print the detailed healthcheck log for the failing service(s)
-    for svc in postgres redpanda minio clamav; do
+    for svc in postgres redpanda minio; do
       cont=$(docker compose ps -q $svc 2>/dev/null || true)
       if [ -n "$cont" ]; then
         status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $cont 2>/dev/null || echo "unknown")

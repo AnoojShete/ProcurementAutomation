@@ -14,10 +14,9 @@ cd ProcurementAutomation
 ```
 
 That's the one script that brings up the **entire** stack from a clean
-clone: core infra → builds every service image → ClamAV (first boot pulls
-virus definitions, ~1–2 min; later starts reuse the persisted database) → every app service + its worker → the
+clone: core infra → builds every service image → every app service + its worker → the
 gateway/frontend → a health-check pass over everything. It takes several
-minutes on a clean clone (mostly image builds + ClamAV); subsequent runs
+minutes on a clean clone (mostly image builds); subsequent runs
 are much faster since Docker caches layers. If Docker Desktop (macOS/
 Windows) or the Docker daemon (Linux) isn't already running,
 `scripts/ensure-docker.sh` starts it automatically and waits for it to
@@ -60,7 +59,7 @@ and `make e2e` are shortcuts for the equivalents above.
 
 | Service | Owner | Folder | Port | Depends on |
 |---|---|---|---|---|
-| document-vendor-agent | Vaidehi | `services/document-vendor-agent/` | 8001 | Postgres, Kafka, MinIO, ClamAV |
+| document-vendor-agent | Vaidehi | `services/document-vendor-agent/` | 8001 | Postgres, Kafka, MinIO |
 | approval-inventory-agent | Niraj | `services/approval-inventory-agent/` | 8002 | Postgres, Kafka, Redis, Temporal |
 | contract-risk-agent | Anjali | `services/contract-risk-agent/` | 8003 | Postgres, Kafka, Redis, Temporal, MLflow |
 | notification-agent | Anooj | `services/notification-agent/` | 8004 | Postgres, Kafka, Mailpit |
@@ -73,7 +72,7 @@ Kafka and/or running Temporal workflows.
 
 Shared infrastructure (`docker-compose.yml`): Postgres, Redis, Redpanda
 (Kafka API), MinIO, Temporal + Temporal UI, MLflow, Prometheus, Grafana,
-Mailpit, and the Nginx gateway. ClamAV and each app service live in
+Mailpit, and the Nginx gateway. Each app service lives in
 `docker-compose.override.yml`.
 
 Local UIs once the stack is up:
@@ -236,9 +235,8 @@ for document upload → classification status in the request wizard.
 
 ### document-vendor-agent (Vaidehi) — port 8001
 
-Upload endpoint streams the file through ClamAV (fails closed — a 503 if
-ClamAV is unreachable, never a silent skip) before writing to MinIO and
-publishing `document.ingested`. A separate worker consumes that event and
+Upload endpoint stores the file directly in MinIO and
+publishes `document.ingested`. A separate worker consumes that event and
 runs the extraction pipeline as an explicit chain of agents passing a
 JSON envelope from one to the next (`app/services/pipeline.py`):
 parsing (Docling for every PDF — layout-aware, recovers table structure,
@@ -370,9 +368,6 @@ next:
   immediately — before `shared/db/init.sql` had even been applied. Scoped
   to core infra only; `run.sh` brings the app services up itself,
   afterward, in the right order.
-- ClamAV's published image has no native `arm64` build; pinned to
-  `platform: linux/amd64` (works via Rosetta/QEMU emulation on Apple
-  Silicon, just slower to pull the first time).
 - A Temporal signal dataclass field typed `comments: str = None` (should
   be `Optional[str]`) made the *entire* approval-decision path silently
   fail to decode — Temporal's payload converter checks annotations

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One script that brings up the ENTIRE platform from a clean clone:
-# core infra -> build every service image -> ClamAV (slow first boot) ->
+# core infra -> build every service image ->
 # every app service + its worker -> gateway/frontend -> optional demo data.
 #
 # Individual pieces can be run/tested on their own via scripts/ — see
@@ -15,16 +15,16 @@ echo "  IT Procurement Intelligence Platform — full stack bring-up"
 echo "=================================================================="
 echo
 
-echo "--- [1/7] Core infra (postgres, redis, kafka, minio, temporal, ---"
+echo "--- [1/6] Core infra (postgres, redis, kafka, minio, temporal, ---"
 echo "---       prometheus, grafana, nginx, mailpit) via install.sh  ---"
 ./install.sh
 
 echo
-echo "--- [2/7] Building every service image ---"
+echo "--- [2/6] Building every service image ---"
 docker compose build
 
 echo
-echo "--- [3/7] Building the frontend (React/Vite -> frontend/dist) ---"
+echo "--- [3/6] Building the frontend (React/Vite -> frontend/dist) ---"
 echo "---       Built in a throwaway node container so the host     ---"
 echo "---       doesn't need Node installed — nginx serves the      ---"
 echo "---       static dist/ output (docker-compose.override.yml).  ---"
@@ -35,10 +35,7 @@ docker run --rm \
   sh -c "npm ci && npm run build"
 
 echo
-echo "--- [4/7] ClamAV (malware scanning) — already started by install.sh ---"
-
-echo
-echo "--- [5/7] Starting every app service + its worker ---"
+echo "--- [4/6] Starting every app service + its worker ---"
 docker compose up -d --remove-orphans \
   auth-service \
   document-vendor-agent document-vendor-agent-worker \
@@ -48,13 +45,13 @@ docker compose up -d --remove-orphans \
   mlflow
 
 echo
-echo "--- [6/7] Recreating the gateway (nginx) ---"
+echo "--- [5/6] Recreating the gateway (nginx) ---"
 echo "---       nginx resolves every upstream hostname at boot, so it ---"
 echo "---       needs a restart now that every service above exists  ---"
 docker compose up -d --remove-orphans nginx --force-recreate
 
 echo
-echo "--- [7/7] Waiting for every service's healthcheck ---"
+echo "--- [6/6] Waiting for every service's healthcheck ---"
 SERVICES="postgres redis redpanda minio temporal auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
 for i in $(seq 1 30); do
   unhealthy=""

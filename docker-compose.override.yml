@@ -131,8 +131,6 @@ services:
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
-      APP_CLAMAV_HOST: clamav
-      APP_CLAMAV_PORT: "3310"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-67d40c75393846cdce0f1e2a36433487}
       HF_HOME: /app/.cache/huggingface
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
@@ -145,8 +143,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      clamav:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 10s
@@ -167,8 +163,6 @@ services:
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
-      APP_CLAMAV_HOST: clamav
-      APP_CLAMAV_PORT: "3310"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-67d40c75393846cdce0f1e2a36433487}
       HF_HOME: /app/.cache/huggingface
     # docling-models: Docling layout/table models (~300MB).
@@ -186,25 +180,6 @@ services:
         condition: service_healthy
       document-vendor-agent:
         condition: service_healthy
-
-  # --- ClamAV (malware scanning, document-vendor-agent governance control) ---
-  # First boot runs freshclam to pull virus definitions, which can take a
-  # couple of minutes — hence the generous start_period. document-vendor-agent's
-  # upload endpoint fails closed with 503 if ClamAV is ever unreachable.
-  clamav:
-    image: clamav/clamav:stable_base
-    platform: linux/amd64  # no native arm64 build published; emulated via Rosetta/QEMU on Apple Silicon
-    # Definitions live in the named clamav-data volume from the base compose
-    # file. Only the first startup downloads them; later starts reuse them.
-    command: ["sh", "-c", "if [ ! -f /var/lib/clamav/main.cvd ]; then freshclam; fi; exec clamd --foreground=true"]
-    ports:
-      - "3310:3310"
-    healthcheck:
-      test: ["CMD-SHELL", "clamdscan --ping 1 && test -f /var/lib/clamav/main.cvd"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 300s
 
   # --- notification-agent (Anooj) ---
   notification-agent:

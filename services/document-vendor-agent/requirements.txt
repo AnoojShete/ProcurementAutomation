@@ -17,7 +17,6 @@ pytest-asyncio==0.23.7
 aiofiles==24.1.0
 python-multipart==0.0.9
 minio==7.2.7
-clamd==1.0.2
 pdfplumber==0.11.4
 Pillow==10.4.0
 numpy>=1.24.0
