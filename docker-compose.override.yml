@@ -200,7 +200,7 @@ services:
     ports:
       - "3310:3310"
     healthcheck:
-      test: ["CMD-SHELL", "clamdscan --ping 127.0.0.1:3310 && test -f /var/lib/clamav/main.cvd"]
+      test: ["CMD-SHELL", "clamdscan --ping 1 && test -f /var/lib/clamav/main.cvd"]
       interval: 30s
       timeout: 10s
       retries: 10

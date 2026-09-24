@@ -135,7 +135,7 @@ services:
     volumes:
       - clamav-data:/var/lib/clamav
     healthcheck:
-      test: ["CMD-SHELL", "clamdscan --ping 127.0.0.1:3310 && test -f /var/lib/clamav/main.cvd"]
+      test: ["CMD-SHELL", "clamdscan --ping 1 && test -f /var/lib/clamav/main.cvd"]
       interval: 15s
       timeout: 10s
       retries: 20

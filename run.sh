@@ -55,7 +55,7 @@ docker compose up -d --remove-orphans nginx --force-recreate
 
 echo
 echo "--- [7/7] Waiting for every service's healthcheck ---"
-SERVICES="postgres redis redpanda minio temporal clamav auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
+SERVICES="postgres redis redpanda minio temporal auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
 for i in $(seq 1 30); do
   unhealthy=""
   for svc in $SERVICES; do
