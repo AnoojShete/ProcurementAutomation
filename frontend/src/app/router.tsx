@@ -16,6 +16,9 @@ const VendorsListPage = lazy(() => import("@/pages/vendors/VendorsListPage").the
 const VendorDetailPage = lazy(() => import("@/pages/vendors/VendorDetailPage").then((m) => ({ default: m.VendorDetailPage })));
 const ApprovalInboxPage = lazy(() => import("@/pages/approvals/ApprovalInboxPage").then((m) => ({ default: m.ApprovalInboxPage })));
 const InventoryPage = lazy(() => import("@/pages/inventory/InventoryPage").then((m) => ({ default: m.InventoryPage })));
+const LicensesListPage = lazy(() => import("@/pages/licenses/LicensesListPage").then((m) => ({ default: m.LicensesListPage })));
+const LicenseDetailPage = lazy(() => import("@/pages/licenses/LicenseDetailPage").then((m) => ({ default: m.LicenseDetailPage })));
+
 const ContractsListPage = lazy(() => import("@/pages/contracts/ContractsListPage").then((m) => ({ default: m.ContractsListPage })));
 const ContractDetailPage = lazy(() => import("@/pages/contracts/ContractDetailPage").then((m) => ({ default: m.ContractDetailPage })));
 const RiskDashboardPage = lazy(() => import("@/pages/risk/RiskDashboardPage").then((m) => ({ default: m.RiskDashboardPage })));
@@ -78,6 +81,23 @@ const router = createBrowserRouter([
           </RoleGuard>,
         ),
       },
+      {
+        path: "licenses",
+        element: withSuspense(
+          <RoleGuard allow={["admin", "finance", "approver"]}>
+            <LicensesListPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "licenses/:id",
+        element: withSuspense(
+          <RoleGuard allow={["admin", "finance", "approver"]}>
+            <LicenseDetailPage />
+          </RoleGuard>,
+        ),
+      },
+
       {
         path: "contracts",
         element: withSuspense(

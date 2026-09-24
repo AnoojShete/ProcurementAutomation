@@ -290,8 +290,28 @@ class UsageAnomalyScorer:
         s_max    = bundle.get("score_max", 0.0)
         version  = bundle.get("version", "unknown")
 
+        # ── Insufficient history check ─────────────────────────────────────
+        if not sso_events:
+            return {
+                "anomaly_score": None,
+                "model_version": version,
+                "top_factors": [],
+                "insufficient_history": True,
+                "days_since_last_login": 90,
+            }
+
         # ── Feature vector ─────────────────────────────────────────────────
         X, feat_names = self._engineer(sso_events, total_seats, now=now)
+
+        # If zero events parsed from sso_events, treat as insufficient history
+        if np.all(X == 0):
+            return {
+                "anomaly_score": None,
+                "model_version": version,
+                "top_factors": [],
+                "insufficient_history": True,
+                "days_since_last_login": 90,
+            }
 
         # Reorder columns to match training order if features were stored
         if features and features != feat_names:
@@ -323,6 +343,7 @@ class UsageAnomalyScorer:
                     {
                         "feature": feat_names[i],
                         "contribution": round(float(sv[i]), 6),
+                        "direction": "increasing_risk" if float(sv[i]) > 0 else "decreasing_risk",
                     }
                     for i in top_indices
                     if abs(sv[i]) > 1e-9   # skip zero-contribution features
@@ -333,6 +354,25 @@ class UsageAnomalyScorer:
                     exc_info=True,
                 )
 
+        # Compute days_since_last_login
+        parsed_dates = []
+        for ev in sso_events:
+            ts_raw = ev.get("login_timestamp") or ev.get("ts")
+            if ts_raw:
+                try:
+                    t = datetime.fromisoformat(ts_raw)
+                    if t.tzinfo is None:
+                        t = t.replace(tzinfo=timezone.utc)
+                    parsed_dates.append(t)
+                except Exception:
+                    pass
+        ref_now = now or datetime.now(timezone.utc)
+        if parsed_dates:
+            last_ts = max(parsed_dates)
+            days_since = int(max(0.0, (ref_now - last_ts).total_seconds() / 86400.0))
+        else:
+            days_since = 90
+
         logger.debug(
             f"License {license_id}: anomaly_score={anomaly_score:.4f} "
             f"top_factors={top_factors}"
@@ -342,7 +382,10 @@ class UsageAnomalyScorer:
             "anomaly_score": round(anomaly_score, 6),
             "model_version": version,
             "top_factors": top_factors,
+            "days_since_last_login": days_since,
+            "insufficient_history": False,
         }
+
 
 
 # Module-level singleton — import and use directly in usage_service.py

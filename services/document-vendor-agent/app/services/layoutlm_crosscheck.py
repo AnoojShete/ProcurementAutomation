@@ -72,10 +72,17 @@ def _load_model() -> bool:
 
         logger.info(f"Loading LayoutLMv3 model '{model_name}' (this may take a moment)...")
 
-        # apply_ocr=False is CRITICAL — see module docstring.
-        _PROCESSOR = LayoutLMv3Processor.from_pretrained(model_name, apply_ocr=False)
-        _MODEL = LayoutLMv3ForTokenClassification.from_pretrained(model_name)
-        _MODEL.eval()
+        # Use local_files_only=True to prevent blocking live requests on 1GB model downloads.
+        # If the model was not pre-downloaded, skip cross-check gracefully.
+        try:
+            _PROCESSOR = LayoutLMv3Processor.from_pretrained(model_name, apply_ocr=False, local_files_only=True)
+            _MODEL = LayoutLMv3ForTokenClassification.from_pretrained(model_name, local_files_only=True)
+            _MODEL.eval()
+        except Exception:
+            logger.info("LayoutLMv3 model not found in local cache; skipping cross-check to keep extraction fast.")
+            _MODEL = None
+            _PROCESSOR = None
+            return False
 
         # Build label map from model config
         if hasattr(_MODEL.config, "id2label"):

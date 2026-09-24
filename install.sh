@@ -48,7 +48,7 @@ echo "Bringing up core services..."
 # --remove-orphans: cleans up containers left over from renamed/removed
 # services that otherwise hold stale Docker-network references and cause
 # "network <id> not found" errors on the next `up`.
-CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit"
+CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit kafka-exporter"
 
 # If any containers are already running with stale network references
 # (e.g. containers kept alive between runs), tear them down first so they

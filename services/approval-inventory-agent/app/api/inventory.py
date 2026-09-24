@@ -54,12 +54,10 @@ async def list_inventory(
 
     enriched_licenses = []
     for lic_dict in lic_inv:
-        # Run the anomaly scorer for this license
+        # Run the anomaly scorer for this license and enrich with all fields
         usage_data = await UsageService.compute_utilisation(db, lic_dict["id"])
         if usage_data:
-            lic_dict["anomaly_score"]  = usage_data.get("anomaly_score")
-            lic_dict["top_factors"]    = usage_data.get("top_factors", [])
-            lic_dict["model_version"]  = usage_data.get("model_version")
+            lic_dict.update(usage_data)
         enriched_licenses.append(LicenseResponse(**lic_dict))
 
     return DataResponse(
@@ -76,29 +74,54 @@ async def list_inventory(
     )
 
 
+@router.get("/licenses/anomaly-summary", response_model=DataResponse)
+async def get_anomaly_summary(db: AsyncSession = Depends(get_db)):
+    """Summary counts of licenses by anomaly status and potential annual savings."""
+    summary = await UsageService.get_anomaly_summary(db)
+    return DataResponse(data=summary)
+
+
+@router.get("/licenses/{license_id}/usage-history", response_model=DataResponse)
+async def get_license_usage_history(
+    license_id: str,
+    days: int = 90,
+    db: AsyncSession = Depends(get_db),
+):
+    """Raw daily active seat counts for the last 90 days for a specific license."""
+    history = await UsageService.get_usage_history(db, license_id, days=days)
+    if history is None:
+        raise HTTPException(status_code=404, detail=f"License {license_id} not found")
+    return DataResponse(data=history)
+
+
+@router.get("/licenses/{license_id}/reclaim-history", response_model=DataResponse)
+async def get_license_reclaim_history(
+    license_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Reclaim events timeline for a specific license."""
+    history = await UsageService.get_reclaim_history(db, license_id)
+    return DataResponse(data=history)
+
+
+@router.post("/licenses/{license_id}/mark-reviewed", response_model=DataResponse)
+async def mark_license_reviewed(
+    license_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark a license as reviewed, logging to reclaim history and setting 30-day cooldown."""
+    result = await UsageService.mark_reviewed(db, license_id, reviewer="admin@example.com")
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"License {license_id} not found")
+    return DataResponse(data=result)
+
+
 @router.get("/licenses/{license_id}/usage-anomaly", response_model=DataResponse)
 async def get_license_usage_anomaly(
     license_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get the ML anomaly score and SHAP top factors for a specific license.
-
-    Returns the IsolationForest anomaly_score (0 = normal, 1 = maximally
-    anomalous) together with the top 2-3 SHAP contributors explaining
-    why the model assigned that score.
-
-    Path Parameters:
-        license_id: UUID of the license to score.
-
-    Returns:
-        DataResponse with 'usage_anomaly' key containing:
-          - anomaly_score      float [0,1]
-          - top_factors        list of {feature, contribution} sorted by |SHAP|
-          - model_version      training run identifier
-          - utilisation_score  raw seat-ratio (kept for human-readable context)
-          - active_seats_30d   int
-          - total_seats        int
-    """
+    """Get the ML anomaly score and SHAP top factors for a specific license."""
     usage_data = await UsageService.compute_utilisation(db, license_id)
     if usage_data is None:
         raise HTTPException(
@@ -109,7 +132,7 @@ async def get_license_usage_anomaly(
     anomaly_response = UsageAnomalyResponse(
         license_id=str(usage_data["license_id"]),
         app_name=usage_data["app_name"],
-        anomaly_score=usage_data.get("anomaly_score", 0.0),
+        anomaly_score=usage_data.get("anomaly_score") or 0.0,
         top_factors=[
             AnomalyFactor(**f) for f in usage_data.get("top_factors", [])
         ],
@@ -123,3 +146,4 @@ async def get_license_usage_anomaly(
         data={"usage_anomaly": anomaly_response.model_dump()},
         meta={"license_id": license_id},
     )
+

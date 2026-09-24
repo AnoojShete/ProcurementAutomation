@@ -27,6 +27,8 @@ COPY shared/ ./shared/
 COPY services/approval-inventory-agent/config.yaml .
 COPY services/approval-inventory-agent/app/ ./app/
 COPY services/approval-inventory-agent/migrations/ ./migrations/
+COPY services/approval-inventory-agent/ml/ ./ml/
+
 
 EXPOSE 8002
 

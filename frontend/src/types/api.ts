@@ -99,18 +99,60 @@ export interface InventoryItem {
   location: string | null;
 }
 
+export type AnomalyStatus = "normal" | "watch" | "anomalous" | "insufficient_history";
+
+export interface AnomalyFactor {
+  feature: string;
+  contribution: number;
+  direction?: "increasing_risk" | "decreasing_risk";
+}
+
 export interface LicenseItem {
   id: string;
   vendor_id: string | null;
+  vendor_name?: string | null;
   app_name: string;
   total_seats: number;
+  assigned_seats?: number;
   active_seats_30d: number;
   active_seats_60d: number;
   active_seats_90d: number;
   utilisation_score: number;
+  anomaly_score: number | null;
+  anomaly_status: AnomalyStatus;
+  top_factors?: AnomalyFactor[];
+  reclaim_cooldown_until: string | null;
+  last_scored_at: string | null;
+  days_since_last_login: number;
   cost_per_seat: number | null;
+  currency?: string;
+  period_start?: string | null;
   period_end: string | null;
   status: string;
+}
+
+export interface UsageHistoryEntry {
+  date: string;
+  active_seats: number;
+}
+
+export interface LicenseAnomalySummary {
+  total_licenses: number;
+  anomalous: number;
+  watch: number;
+  normal: number;
+  insufficient_history: number;
+  last_scoring_run: string | null;
+  potential_annual_savings: number;
+}
+
+export interface ReclaimHistoryEntry {
+  id?: string;
+  event_type: "reclaim_opened" | "declined" | "reinstated" | "reclaimed" | "reviewed" | string;
+  event_at: string;
+  by_user: string | null;
+  cooldown_set_until: string | null;
+  notes?: string | null;
 }
 
 export interface InventorySnapshot {

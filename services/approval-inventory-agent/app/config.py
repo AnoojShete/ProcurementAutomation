@@ -12,10 +12,19 @@ class Settings(BaseSettings):
     temporal_task_queue: str = "approval-task-queue"
     service_name: str = "approval-inventory-agent"
     service_port: int = 8002
+    anomaly_watch_threshold: float = 0.5
+    anomaly_anomalous_threshold: float = 0.75
 
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()
+
+def get_anomaly_thresholds() -> tuple[float, float]:
+    import os
+    watch = float(os.getenv("ANOMALY_WATCH_THRESHOLD", os.getenv("APP_ANOMALY_WATCH_THRESHOLD", str(settings.anomaly_watch_threshold))))
+    anomalous = float(os.getenv("ANOMALY_ANOMALOUS_THRESHOLD", os.getenv("APP_ANOMALY_ANOMALOUS_THRESHOLD", str(settings.anomaly_anomalous_threshold))))
+    return watch, anomalous
+
 
 @lru_cache
 def load_config() -> dict:

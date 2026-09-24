@@ -1,7 +1,18 @@
 import pytest
 import asyncio
+import os
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 import redis.asyncio as aioredis
+
+# Ensure service root and shared directory are in sys.path
+_service_root = Path(__file__).resolve().parent.parent
+_repo_root = _service_root.parent.parent
+if str(_service_root) not in sys.path:
+    sys.path.insert(0, str(_service_root))
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 @pytest.fixture(scope='session')
 def event_loop():

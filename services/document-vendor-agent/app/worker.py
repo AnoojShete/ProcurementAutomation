@@ -26,7 +26,10 @@ async def main():
     # instead — infra/prometheus/prometheus.yml scrapes it as its own job
     # (document-vendor-agent-worker:9100), separate from the API's
     # document-vendor-agent:8001 job.
-    start_http_server(9100)
+    try:
+        start_http_server(9100)
+    except Exception as e:
+        logging.warning(f"Metrics server on port 9100 already running or failed: {e}")
 
     await with_retry(init_db, name="Postgres init")
     await with_retry(ensure_bucket, name="MinIO bucket init")

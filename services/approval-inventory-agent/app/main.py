@@ -16,7 +16,7 @@ from app.database import init_db, get_db, async_session_factory
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
 from app.usage_scanner import run_usage_scanner
-from app.api import health, requests, inventory, inbox
+from app.api import health, requests, inventory, inbox, licenses
 from app.schemas import ErrorResponse, ErrorDetail
 
 # GAP-Auth1: import shared JWT auth dependency
@@ -168,5 +168,9 @@ app.include_router(
     inventory.router, prefix="/inventory", tags=["Inventory"], dependencies=[Depends(get_current_user)]
 )
 app.include_router(
+    licenses.router, prefix="/licenses", tags=["Licenses"], dependencies=[Depends(get_current_user)]
+)
+app.include_router(
     inbox.router, prefix="/inbox", tags=["Approver Inbox"], dependencies=[Depends(get_current_user)]
 )
+

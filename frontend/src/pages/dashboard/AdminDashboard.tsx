@@ -11,7 +11,9 @@ import { MetricCard } from "@/components/ui/MetricCard";
 import { AttentionCard, type AttentionItem } from "@/components/dashboard/AttentionCard";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { LicenseIntelligenceCard } from "@/components/dashboard/LicenseIntelligenceCard";
 import { useAuth } from "@/hooks/useAuth";
+
 import { PLATFORM_SERVICES } from "@/lib/constants";
 
 const AGENT_LABELS: Record<string, { agent: string; owns: string }> = {
@@ -85,7 +87,10 @@ export function AdminDashboard() {
     <div className="flex flex-col gap-6">
       <Greeting name={user?.email.split("@")[0] ?? "there"} subtitle="Platform-wide procurement command center." />
 
+      <LicenseIntelligenceCard />
+
       {loading ? (
+
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
           {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>

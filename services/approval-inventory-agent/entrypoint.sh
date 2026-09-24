@@ -26,9 +26,7 @@ for i in range(60):
 sys.exit(1)
 PYEOF
 
-echo "[approval-inventory-agent] running schema migration..."
-# Run as __main__ so the asyncio.run(run_all()) guard fires correctly.
-python app/migrations/migration_001_extend_schema.py
+
 
 echo "[approval-inventory-agent] starting on port 8002..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8002 --log-level info

@@ -67,20 +67,35 @@ async def get_model_routing_log(limit: int = 30, db: AsyncSession = Depends(get_
     ), {"limit": limit})).mappings().all()
     return DataResponse(data=[dict(r) for r in rows])
 
+KNOWN_CONSUMER_GROUPS = [
+    "approval-inventory-agent",
+    "contract-risk-agent",
+    "document-vendor-agent",
+    "notification-agent",
+]
+
 @router.get("/kafka-lag")
 async def get_kafka_lag():
     import httpx
+    group_lags = {g: 0 for g in KNOWN_CONSUMER_GROUPS}
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get("http://prometheus:9090/api/v1/query?query=sum(kafka_consumergroup_lag)+by+(group)")
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(
+                "http://prometheus:9090/api/v1/query",
+                params={"query": "sum by (consumergroup, group) (kafka_consumergroup_lag)"},
+            )
             if resp.status_code == 200:
                 data = resp.json()
-                results = []
                 for result in data.get("data", {}).get("result", []):
-                    group = result.get("metric", {}).get("group", "unknown")
-                    val = int(result.get("value", [0, "0"])[1])
-                    results.append({"group": group, "lag": val})
-                return DataResponse(data=results)
+                    metric = result.get("metric", {})
+                    group = metric.get("consumergroup") or metric.get("group")
+                    if group:
+                        try:
+                            val = int(float(result.get("value", [0, "0"])[1]))
+                            group_lags[group] = max(val, 0)
+                        except (ValueError, TypeError, IndexError):
+                            pass
     except Exception:
         pass
-    return DataResponse(data=[])
+    results = [{"group": g, "lag": lag} for g, lag in sorted(group_lags.items())]
+    return DataResponse(data=results)

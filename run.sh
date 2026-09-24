@@ -42,7 +42,8 @@ docker compose up -d --remove-orphans \
   approval-inventory-agent approval-inventory-agent-worker \
   contract-risk-agent contract-risk-agent-worker \
   notification-agent \
-  mlflow
+  mlflow \
+  kafka-exporter
 
 echo
 echo "--- [5/6] Recreating the gateway (nginx) ---"

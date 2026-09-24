@@ -71,8 +71,15 @@ async def route_extraction(db: AsyncSession, document_id: str, data: bytes, file
     duration_ms = (time.perf_counter() - start_time) * 1000
 
     if not fallback_triggered:
-        route_name = "docling_paddleocr" if extraction.file_type == "image" else "docling_text"
-        model_used = "paddleocr" if extraction.file_type == "image" else "docling"
+        if extraction.method == "pdf_text":
+            route_name = "docling_text"
+            model_used = "pdfplumber"
+        elif extraction.file_type == "image":
+            route_name = "docling_paddleocr"
+            model_used = "paddleocr"
+        else:
+            route_name = "docling_text"
+            model_used = "docling"
         
         result = ExtractionRoutingResult(
             route_name=route_name,
@@ -149,6 +156,18 @@ async def route_extraction(db: AsyncSession, document_id: str, data: bytes, file
             logger.warning(f"LayoutLMv3 fallback failed: {e}")
             fallback_text = extraction.text if extraction else ""
             fallback_confidence = 0.0
+
+    if not fallback_text and (filename.lower().endswith(".pdf") or (extraction and extraction.file_type == "pdf")):
+        try:
+            from app.services.ocr import _text_from_pdf_legacy, _text_quality
+            recovered_text, recovered_boxes = _text_from_pdf_legacy(data)
+            if recovered_text:
+                fallback_text = recovered_text
+                fallback_confidence = _text_quality(fallback_text)
+                if extraction:
+                    extraction.words_with_boxes = recovered_boxes
+        except Exception:
+            pass
 
     duration_ms += (time.perf_counter() - start_time) * 1000
     

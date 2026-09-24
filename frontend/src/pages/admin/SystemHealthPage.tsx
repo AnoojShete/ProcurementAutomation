@@ -88,6 +88,17 @@ export function SystemHealthPage() {
       </Card>
 
       <Card>
+        <CardHeader
+          title="SSO Usage Anomaly Model Runs"
+          subtitle="Isolation Forest execution state, license scoring deltas, and insufficient history tracking"
+        />
+        <CardBody>
+          <SsoUsageModelMonitor />
+        </CardBody>
+      </Card>
+
+
+      <Card>
         <CardHeader title="Live Activity Feed" subtitle="Recent notifications and events" />
         <CardBody>
           <ActivityFeed />
@@ -230,3 +241,81 @@ function ActivityFeed() {
     </div>
   );
 }
+
+function SsoUsageModelMonitor() {
+  const [summary, setSummary] = useState<any>(null);
+  const [licenses, setLicenses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.get<any>("/licenses/anomaly-summary").then((r) => r.data).catch(() => null),
+      api.get<{ licenses?: any[] }>("/inventory/").then((r) => r.data?.licenses || []).catch(() => []),
+    ]).then(([sum, lics]) => {
+      setSummary(sum);
+      setLicenses(lics);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <div className="text-sm text-slate-500">Loading model telemetry...</div>;
+  if (!summary) return <div className="text-sm text-slate-500">No SSO usage model data available.</div>;
+
+  const insufficientLicenses = licenses.filter(
+    (l) => l.anomaly_score === null || l.anomaly_status === "insufficient_history",
+  );
+  const scoredCount = (summary.total_licenses || 0) - (summary.insufficient_history || 0);
+
+  return (
+    <div className="flex flex-col gap-4 text-sm">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs text-slate-500">Last Scoring Run</p>
+          <p className="mt-1 font-semibold text-slate-800">
+            {summary.last_scoring_run
+              ? new Date(summary.last_scoring_run).toLocaleTimeString()
+              : "Never"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs text-slate-500">Licenses Scored</p>
+          <p className="mt-1 font-semibold text-slate-800">{scoredCount} active licenses</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs text-slate-500">Status Movements (Delta)</p>
+          <p className="mt-1 font-semibold text-emerald-600">
+            {summary.anomalous > 0 ? `${summary.anomalous} anomalous detected` : "All normal"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs text-slate-500">Insufficient History Fallback</p>
+          <p className="mt-1 font-semibold text-slate-800">{summary.insufficient_history} licenses</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between rounded-lg border border-slate-100 bg-white p-3">
+        <span className="font-medium text-slate-700">Distribution Overview:</span>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <Badge tone="danger">{summary.anomalous} Anomalous</Badge>
+          <Badge tone="warning">{summary.watch} Watch</Badge>
+          <Badge tone="success">{summary.normal} Normal</Badge>
+          <Badge tone="neutral">{summary.insufficient_history} Insufficient Data</Badge>
+        </div>
+      </div>
+
+      {insufficientLicenses.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-xs text-amber-800">
+          <p className="font-semibold">Licenses hitting Insufficient History Fallback:</p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5">
+            {insufficientLicenses.map((l) => (
+              <li key={l.id}>
+                <span className="font-medium">{l.app_name}</span> (ID: {l.id}) — insufficient SSO logins
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+

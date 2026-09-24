@@ -125,14 +125,29 @@ def _text_from_pdf_docling(data: bytes, filename: str) -> tuple[str, list]:
     return text, words_with_boxes
 
 
-def _text_from_pdf_legacy(data: bytes) -> str:
-    """Fallback: plain text layer only, no layout/table awareness."""
+def _text_from_pdf_legacy(data: bytes) -> tuple[str, list]:
+    """Fast plain text extraction using pdfplumber with word boxes."""
     text_parts = []
+    words_with_boxes = []
     with pdfplumber.open(io.BytesIO(data)) as pdf:
         for page in pdf.pages:
             page_text = page.extract_text() or ""
             text_parts.append(page_text)
-    return "\n".join(text_parts).strip()
+            page_w = page.width or 1000
+            page_h = page.height or 1000
+            try:
+                for w in (page.extract_words() or []):
+                    word_str = w.get("text", "").strip()
+                    if word_str:
+                        words_with_boxes.append({
+                            "word": word_str,
+                            "box": [w.get("x0", 0), w.get("top", 0), w.get("x1", 0), w.get("bottom", 0)],
+                            "page_w": page_w,
+                            "page_h": page_h,
+                        })
+            except Exception:
+                pass
+    return "\n".join(text_parts).strip(), words_with_boxes
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +196,7 @@ def _text_quality(text: str) -> float:
 def extract_text(data: bytes, filename: str, content_type: str = "") -> ExtractionResult:
     """Route to the correct extraction path based on file type.
 
-    PDFs:   Docling primary → pdfplumber fallback
+    PDFs:   Fast text-native check (pdfplumber, ~20ms) → Docling layout analysis fallback for scanned PDFs
     Images: PaddleOCR (subprocess)
     """
     file_type = classify_file_type(filename, content_type)
@@ -189,6 +204,21 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
     min_chars = cfg.get("min_text_native_chars", 40)
 
     if file_type == "pdf":
+        # Fast path: instant native digital text extraction via pdfplumber
+        try:
+            pdf_text, words_with_boxes = _text_from_pdf_legacy(data)
+            clean_len = len(pdf_text.replace(" ", "").replace("\n", ""))
+            quality = _text_quality(pdf_text)
+            if clean_len >= min_chars and quality >= 0.5:
+                logger.info(f"PDF has clean native text ({clean_len} chars, quality={quality}); using instant pdfplumber extraction")
+                return ExtractionResult(
+                    text=pdf_text, method="pdf_text", file_type="pdf",
+                    text_quality=quality, words_with_boxes=words_with_boxes,
+                )
+        except Exception as e:
+            logger.debug(f"Fast pdfplumber check failed: {e}")
+
+        # Fallback for scanned/layout-heavy PDFs without native text
         try:
             docling_text, words_with_boxes = _text_from_pdf_docling(data, filename)
             if len(docling_text.replace(" ", "").replace("\n", "")) >= min_chars:
@@ -203,10 +233,11 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
             )
         except Exception as e:
             logger.warning(f"Docling extraction failed ({e}); falling back to pdfplumber", exc_info=True)
-            pdf_text = _text_from_pdf_legacy(data)
+            pdf_text, words_with_boxes = _text_from_pdf_legacy(data)
             quality = 1.0 if len(pdf_text.replace(" ", "").replace("\n", "")) >= min_chars else 0.15
             return ExtractionResult(
                 text=pdf_text, method="pdf_text", file_type="pdf", text_quality=quality,
+                words_with_boxes=words_with_boxes,
             )
 
     # Image path — use PaddleOCR

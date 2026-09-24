@@ -72,14 +72,19 @@
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "targets": [
         {
-          "expr": "sum by (group) (kafka_consumergroup_lag)",
-          "legendFormat": "{{group}}",
+          "expr": "sum by (consumergroup) (kafka_consumergroup_lag)",
+          "legendFormat": "{{consumergroup}}",
           "refId": "A"
         },
         {
-          "expr": "sum by (group) (kafka_consumer_group_lag)",
-          "legendFormat": "{{group}} (alt metric)",
+          "expr": "sum by (group) (kafka_consumergroup_lag)",
+          "legendFormat": "{{group}}",
           "refId": "B"
+        },
+        {
+          "expr": "sum by (group) (kafka_consumer_group_lag)",
+          "legendFormat": "{{group}}",
+          "refId": "C"
         }
       ],
       "fieldConfig": {

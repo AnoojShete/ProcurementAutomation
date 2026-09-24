@@ -149,12 +149,31 @@ class License(Base):
     period_end: Mapped[Optional[date]] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(20), default="active")
     reclaim_cooldown_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    anomaly_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 4))
+    top_factors: Mapped[Optional[list]] = mapped_column(JSON)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # Relationships
     vendor: Mapped[Optional["Vendor"]] = relationship("Vendor", back_populates="licenses")
     usages: Mapped[List["LicenseUsage"]] = relationship("LicenseUsage", back_populates="license")
+    reclaim_history: Mapped[List["LicenseReclaimHistory"]] = relationship("LicenseReclaimHistory", back_populates="license")
+
+
+class LicenseReclaimHistory(Base):
+    """Audit and timeline of reclaim events for a license."""
+    __tablename__ = "license_reclaim_history"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    license_id: Mapped[str] = mapped_column(Uuid, ForeignKey("licenses.id"), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    by_user: Mapped[Optional[str]] = mapped_column(String(255))
+    cooldown_set_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    license: Mapped["License"] = relationship("License", back_populates="reclaim_history")
 
 
 class LicenseUsage(Base):

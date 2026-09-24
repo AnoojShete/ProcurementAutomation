@@ -101,16 +101,11 @@ class AnomalyFactor(BaseModel):
     """
     feature: str
     contribution: float
+    direction: Optional[str] = "increasing_risk"
 
 
 class UsageAnomalyResponse(BaseModel):
-    """Response for GET /licenses/{id}/usage-anomaly.
-
-    anomaly_score : 0.0 (normal) – 1.0 (maximally anomalous, IsolationForest)
-    top_factors   : top 2-3 SHAP contributors sorted by |contribution|
-    model_version : training run identifier (e.g. v20260902123456)
-    utilisation_score : raw seat-utilisation ratio (kept for human-readable context)
-    """
+    """Response for GET /licenses/{id}/usage-anomaly."""
     license_id: str
     app_name: str
     anomaly_score: float
@@ -123,7 +118,8 @@ class UsageAnomalyResponse(BaseModel):
 
 class LicenseResponse(BaseModel):
     id: str
-    vendor_id: Optional[str]
+    vendor_id: Optional[str] = None
+    vendor_name: Optional[str] = None
     app_name: str
     total_seats: int
     active_seats_30d: Optional[int] = 0
@@ -132,12 +128,42 @@ class LicenseResponse(BaseModel):
     utilisation_score: Optional[float] = 0.0
     # ── ML anomaly fields ─────────────────────────────────────────────────────
     anomaly_score: Optional[float] = None
+    anomaly_status: Optional[str] = "normal"
     top_factors: Optional[List[AnomalyFactor]] = None
     model_version: Optional[str] = None
+    last_scored_at: Optional[str] = None
+    days_since_last_login: Optional[int] = 0
     # ─────────────────────────────────────────────────────────────────────────
-    cost_per_seat: Optional[Decimal]
+    cost_per_seat: Optional[Decimal] = None
+    currency: Optional[str] = "INR"
     assigned_seats: Optional[int] = 0
-    reclaim_cooldown_until: Optional[datetime] = None
-    period_end: Optional[str]
+    reclaim_cooldown_until: Optional[str] = None
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
     status: str
     model_config = ConfigDict(from_attributes=True)
+
+
+class UsageHistoryEntry(BaseModel):
+    date: str
+    active_seats: int
+
+
+class LicenseAnomalySummary(BaseModel):
+    total_licenses: int
+    anomalous: int
+    watch: int
+    normal: int
+    insufficient_history: int
+    last_scoring_run: Optional[str] = None
+    potential_annual_savings: float
+
+
+class ReclaimHistoryEntry(BaseModel):
+    id: Optional[str] = None
+    event_type: str
+    event_at: str
+    by_user: Optional[str] = None
+    cooldown_set_until: Optional[str] = None
+    notes: Optional[str] = None
+

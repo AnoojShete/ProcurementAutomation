@@ -62,6 +62,8 @@ class UsageService:
     and async methods that interact with the database and Kafka.
     """
 
+    last_scoring_run: Optional[datetime] = datetime.now(timezone.utc)
+
     @staticmethod
     def compute_utilisation_score(total_seats: int, active_seats_30d: int) -> float:
         """Compute the utilisation score as a ratio of active to total seats.
@@ -144,6 +146,7 @@ class UsageService:
             return None
 
         now = datetime.now(timezone.utc)
+        UsageService.last_scoring_run = now
 
         active_30d_stmt = (
             select(func.count())
@@ -184,21 +187,67 @@ class UsageService:
             now=now,
         )
 
+        anomaly_score = anomaly_result.get("anomaly_score")
+        from app.config import get_anomaly_thresholds
+        watch_th, anomalous_th = get_anomaly_thresholds()
+        if anomaly_score is None:
+            anomaly_status = "insufficient_history"
+        elif anomaly_score >= anomalous_th:
+            anomaly_status = "anomalous"
+        elif anomaly_score >= watch_th:
+            anomaly_status = "watch"
+        else:
+            anomaly_status = "normal"
+
+        days_since = anomaly_result.get("days_since_last_login")
+        if days_since is None:
+            max_last_login_stmt = (
+                select(func.max(LicenseUsage.last_login_at))
+                .where(LicenseUsage.license_id == license_id)
+            )
+            max_last = (await db.execute(max_last_login_stmt)).scalar()
+            if max_last:
+                if max_last.tzinfo is None:
+                    max_last = max_last.replace(tzinfo=timezone.utc)
+                days_since = int(max(0.0, (now - max_last).total_seconds() / 86400.0))
+            else:
+                days_since = 90
+
+        from app.models import Vendor
+        vendor_name = None
+        if lic.vendor_id:
+            vend_stmt = select(Vendor).where(Vendor.id == lic.vendor_id)
+            vend = (await db.execute(vend_stmt)).scalar_one_or_none()
+            if vend:
+                vendor_name = vend.name
+
         return {
             "license_id": lic.id,
+            "id": lic.id,
             "vendor_id": lic.vendor_id,
+            "vendor_name": vendor_name,
             "app_name": lic.app_name,
             "total_seats": lic.total_seats,
+            "assigned_seats": lic.assigned_seats or 0,
             "active_seats_30d": active_30d,
             "active_seats_60d": active_60d,
             "active_seats_90d": active_90d,
             "utilisation_score": score,
-            "period_end": lic.period_end,
+            "period_start": lic.period_start.isoformat() if lic.period_start else None,
+            "period_end": lic.period_end.isoformat() if lic.period_end else None,
+            "reclaim_cooldown_until": lic.reclaim_cooldown_until.isoformat() if lic.reclaim_cooldown_until else None,
+            "last_scored_at": now.isoformat(),
+            "days_since_last_login": days_since,
             # ── Anomaly detection (ML) ─────────────────────────────────────
-            "anomaly_score": anomaly_result["anomaly_score"],
-            "top_factors": anomaly_result["top_factors"],
-            "model_version": anomaly_result["model_version"],
+            "anomaly_score": anomaly_score,
+            "anomaly_status": anomaly_status,
+            "top_factors": anomaly_result.get("top_factors", []),
+            "model_version": anomaly_result.get("model_version"),
+            "cost_per_seat": float(lic.cost_per_seat) if lic.cost_per_seat else None,
+            "currency": lic.currency or "INR",
+            "status": lic.status,
         }
+
 
     @staticmethod
     async def check_and_trigger_reclaims(db: AsyncSession, producer: KafkaEventProducer):
@@ -351,3 +400,152 @@ class UsageService:
         ]
 
         return usage_data
+
+    @staticmethod
+    async def get_usage_history(db: AsyncSession, license_id: str, days: int = 90) -> list[dict]:
+        """Return daily active user counts for the last 90 days for a specific license."""
+        stmt = select(License).where(License.id == license_id)
+        result = await db.execute(stmt)
+        lic = result.scalar_one_or_none()
+        if not lic:
+            return None
+
+        now = datetime.now(timezone.utc)
+        sso_events = _load_sso_events()
+        license_events = [ev for ev in sso_events if ev.get("app_name") == lic.app_name]
+
+        from collections import defaultdict
+        daily_users = defaultdict(set)
+        for ev in license_events:
+            ts_raw = ev.get("login_timestamp") or ev.get("ts")
+            if ts_raw:
+                try:
+                    t = datetime.fromisoformat(ts_raw)
+                    d_str = t.strftime("%Y-%m-%d")
+                    email = ev.get("user_email")
+                    if email:
+                        daily_users[d_str].add(email)
+                except Exception:
+                    pass
+
+        history = []
+        for i in range(days - 1, -1, -1):
+            day_dt = now - timedelta(days=i)
+            day_str = day_dt.strftime("%Y-%m-%d")
+            active_count = len(daily_users.get(day_str, set()))
+            history.append({"date": day_str, "active_seats": active_count})
+
+        return history
+
+    @staticmethod
+    async def get_anomaly_summary(db: AsyncSession) -> dict:
+        """Return aggregated anomaly counts, last scoring run, and potential savings."""
+        from app.config import get_anomaly_thresholds
+        watch_th, anomalous_th = get_anomaly_thresholds()
+
+        stmt = select(License).where(License.status == "active")
+        result = await db.execute(stmt)
+        licenses = result.scalars().all()
+
+        total = len(licenses)
+        anomalous = 0
+        watch = 0
+        normal = 0
+        insufficient = 0
+        potential_annual_savings = 0.0
+
+        for lic in licenses:
+            usage = await UsageService.compute_utilisation(db, lic.id)
+            if not usage or usage.get("anomaly_score") is None:
+                insufficient += 1
+            else:
+                score = usage["anomaly_score"]
+                if score >= anomalous_th:
+                    anomalous += 1
+                    cost = float(lic.cost_per_seat or 0.0)
+                    seats = lic.total_seats or 0
+                    potential_annual_savings += cost * seats
+                elif score >= watch_th:
+                    watch += 1
+                else:
+                    normal += 1
+
+        last_run = UsageService.last_scoring_run
+        return {
+            "total_licenses": total,
+            "anomalous": anomalous,
+            "watch": watch,
+            "normal": normal,
+            "insufficient_history": insufficient,
+            "last_scoring_run": last_run.isoformat() if last_run else None,
+            "potential_annual_savings": round(potential_annual_savings, 2),
+        }
+
+    @staticmethod
+    async def get_reclaim_history(db: AsyncSession, license_id: str) -> list[dict]:
+        """Return history of reclaim events for a specific license."""
+        from app.models import LicenseReclaimHistory
+        stmt = (
+            select(LicenseReclaimHistory)
+            .where(LicenseReclaimHistory.license_id == license_id)
+            .order_by(LicenseReclaimHistory.event_at.desc())
+        )
+        result = await db.execute(stmt)
+        rows = result.scalars().all()
+        return [
+            {
+                "id": str(r.id),
+                "event_type": r.event_type,
+                "event_at": r.event_at.isoformat() if r.event_at else None,
+                "by_user": r.by_user,
+                "cooldown_set_until": r.cooldown_set_until.isoformat() if r.cooldown_set_until else None,
+                "notes": r.notes,
+            }
+            for r in rows
+        ]
+
+    @staticmethod
+    async def mark_reviewed(db: AsyncSession, license_id: str, reviewer: str) -> dict:
+        """Mark a license as reviewed, logging to reclaim history and setting a 30-day review cooldown."""
+        from app.models import License, LicenseReclaimHistory, AuditLog
+        stmt = select(License).where(License.id == license_id)
+        result = await db.execute(stmt)
+        lic = result.scalar_one_or_none()
+        if not lic:
+            return None
+
+        now = datetime.now(timezone.utc)
+        cooldown = now + timedelta(days=30)
+        lic.reclaim_cooldown_until = cooldown
+        lic.updated_at = now
+
+        entry = LicenseReclaimHistory(
+            id=str(uuid.uuid4()),
+            license_id=license_id,
+            event_type="reviewed",
+            event_at=now,
+            by_user=reviewer,
+            cooldown_set_until=cooldown,
+            notes="Marked as reviewed by admin (30-day review cooldown set)",
+        )
+        db.add(entry)
+
+        audit = AuditLog(
+            id=str(uuid.uuid4()),
+            entity_type="license",
+            entity_id=license_id,
+            action="license_marked_reviewed",
+            performed_by=reviewer,
+            details={"cooldown_set_until": cooldown.isoformat()},
+            created_at=now,
+        )
+        db.add(audit)
+        await db.commit()
+        await db.refresh(lic)
+
+        return {
+            "status": "reviewed",
+            "license_id": license_id,
+            "reclaim_cooldown_until": cooldown.isoformat(),
+        }
+
