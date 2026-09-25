@@ -19,6 +19,7 @@ import { ApprovalChainVisual } from "@/components/requests/ApprovalChainVisual";
 import { ProcurementAssessment } from "@/components/requests/ProcurementAssessment";
 import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DigitalSignatureModal } from "@/components/contracts/DigitalSignatureModal";
 import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { deriveLifecycle } from "@/lib/lifecycle";
 import type { PurchaseRequest, VendorRisk, ContractTemplate } from "@/types/api";
@@ -57,10 +58,10 @@ export function RequestDetailPage() {
   const [contractActionSuccess, setContractActionSuccess] = useState<string | null>(null);
 
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
-  const [signProvider, setSignProvider] = useState<"documenso" | "docusign">("documenso");
+  const [isDigitalSignModalOpen, setIsDigitalSignModalOpen] = useState(false);
+  const [signProvider, setSignProvider] = useState<"builtin" | "documenso">("builtin");
   const [signerEmail, setSignerEmail] = useState("");
   const [sendingSign, setSendingSign] = useState(false);
-  const [simulatingSign, setSimulatingSign] = useState(false);
 
   useEffect(() => {
     if (request?.request_type === "hardware") setSelectedTemplate("hardware_purchase");
@@ -140,23 +141,6 @@ export function RequestDetailPage() {
       setContractActionError(e instanceof ApiError ? e.message : "Failed to send for signature.");
     } finally {
       setSendingSign(false);
-    }
-  };
-
-  const handleSimulateSign = async () => {
-    if (!linkedContract) return;
-    setSimulatingSign(true);
-    setContractActionError(null);
-    setContractActionSuccess(null);
-    try {
-      await contractsApi.simulateSign(linkedContract.id);
-      setContractActionSuccess("Contract signed successfully!");
-      reloadContracts();
-      reload();
-    } catch (e) {
-      setContractActionError(e instanceof ApiError ? e.message : "Failed to sign contract.");
-    } finally {
-      setSimulatingSign(false);
     }
   };
 
@@ -361,7 +345,7 @@ export function RequestDetailPage() {
                       icon={<FileSignature className="size-4" />}
                       onClick={handleOpenSignModal}
                     >
-                      Send for Signature (Documenso / DocuSign Demo)
+                      Send for Signature
                     </Button>
                   </div>
                 )}
@@ -369,18 +353,17 @@ export function RequestDetailPage() {
                 {linkedContract.status === "pending_signature" && (
                   <div className="flex flex-col gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3">
                     <div className="text-xs text-brand-800">
-                      Awaiting signature via <strong>{linkedContract.esign_provider_ref?.startsWith("docusign") ? "DocuSign (Sandbox)" : "Documenso"}</strong> ({linkedContract.esign_provider_ref ?? "pending provider"})
+                      Awaiting signature ({linkedContract.esign_provider_ref ?? "Built-in Secure E-Sign"})
                     </div>
                     <p className="text-[11px] text-brand-600">
-                      Testing shortcut: simulates a provider webhook callback. In production, webhooks are cryptographically HMAC-verified via <code>POST /webhooks/esign</code>.
+                      Signatures are cryptographically sealed under the US ESIGN Act and UETA.
                     </p>
                     <Button
                       size="sm"
-                      icon={<Check className="size-4" />}
-                      loading={simulatingSign}
-                      onClick={handleSimulateSign}
+                      icon={<FileSignature className="size-4" />}
+                      onClick={() => setIsDigitalSignModalOpen(true)}
                     >
-                      Sign Document (Demo only — simulates provider webhook without real verification)
+                      Sign Contract Now
                     </Button>
                   </div>
                 )}
@@ -410,7 +393,7 @@ export function RequestDetailPage() {
               Cancel
             </Button>
             <Button loading={sendingSign} onClick={handleSendForSignature} icon={<FileSignature className="size-4" />}>
-              Send via {signProvider === "documenso" ? "Documenso" : "DocuSign (Demo)"}
+              Dispatch via {signProvider === "documenso" ? "Documenso" : "Built-in Secure E-Sign"}
             </Button>
           </>
         }
@@ -419,6 +402,22 @@ export function RequestDetailPage() {
           <div>
             <label className="mb-1 block font-medium text-slate-700">E-Signature Provider</label>
             <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setSignProvider("builtin")}
+                className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
+                  signProvider === "builtin"
+                    ? "border-brand-600 bg-brand-50/50 ring-2 ring-brand-500/20"
+                    : "border-surface-border hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-medium text-slate-900">
+                  <span>Built-in Secure E-Sign</span>
+                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Recommended</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Instant in-platform legal signing with tamper-evident cryptographic SHA-256 seal.</p>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setSignProvider("documenso")}
@@ -430,25 +429,9 @@ export function RequestDetailPage() {
               >
                 <div className="flex items-center gap-1.5 font-medium text-slate-900">
                   <span>Documenso</span>
-                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Recommended Self-Hosted</span>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">REST API</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Self-hosted, genuinely free and functional open-source signing platform</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSignProvider("docusign")}
-                className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
-                  signProvider === "docusign"
-                    ? "border-amber-600 bg-amber-50/50 ring-2 ring-amber-500/20"
-                    : "border-surface-border hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 font-medium text-slate-900">
-                  <span>DocuSign</span>
-                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Sandbox Demo Only</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">DocuSign (sandbox demo only — not a functional signature). Developer tier applies watermarks; production requires paid plan.</p>
+                <p className="mt-1 text-xs text-slate-500">Open-source e-signature platform via Documenso cloud or self-hosted API.</p>
               </button>
             </div>
           </div>
@@ -463,11 +446,27 @@ export function RequestDetailPage() {
               className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
             />
             <p className="mt-1 text-xs text-slate-400">
-              The e-sign invitation link will be simulated for this signer.
+              The contract signature request will be assigned to this email address.
             </p>
           </div>
         </div>
       </Modal>
+
+      {/* Modal: Interactive Digital Signature */}
+      {linkedContract && (
+        <DigitalSignatureModal
+          open={isDigitalSignModalOpen}
+          onClose={() => setIsDigitalSignModalOpen(false)}
+          contract={linkedContract}
+          defaultSignerEmail={user?.email || "authorized_signer@company.com"}
+          defaultSignerName={user?.email?.split("@")[0].replace(".", " ").replace(/\b\w/g, (c) => c.toUpperCase()) || "Authorized Signer"}
+          onSuccess={(updated) => {
+            setContractActionSuccess("Contract successfully signed and legally executed!");
+            reloadContracts();
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }

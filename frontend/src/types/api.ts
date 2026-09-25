@@ -244,6 +244,21 @@ export interface OffboardResult {
 export type ContractStatus = "draft" | "pending_signature" | "signed" | string;
 export type ContractTemplate = "hardware_purchase" | "saas_subscription" | "professional_services";
 
+export interface SignatureCertificate {
+  certificate_id: string;
+  contract_id: string;
+  template_used?: string | null;
+  signer_name: string;
+  signer_email: string;
+  signed_at: string;
+  signature_seal: string;
+  legal_framework: string;
+  consent_acknowledged: boolean;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  signature_image?: string | null;
+}
+
 export interface Contract {
   id: string;
   purchase_request_id: string | null;
@@ -260,6 +275,7 @@ export interface Contract {
   esign_provider_ref: string | null;
   reconciliation_status: string | null;
   contract_text: string | null;
+  signature_certificate?: SignatureCertificate | null;
 }
 
 // --- notification-agent ---

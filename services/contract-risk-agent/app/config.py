@@ -17,10 +17,11 @@ class Settings(BaseSettings):
     service_name: str = "contract-risk-agent"
     service_port: int = 8003
     mlflow_tracking_uri: str = "http://mlflow:5000"
-    esign_provider: str = "self-hosted"
+    esign_provider: str = "builtin"
     esign_webhook_secret: str = "dev-esign-secret-change-me"
     allow_simulated_signatures: bool = True
     documenso_api_url: str | None = None
+    documenso_api_key: str | None = None
     opensign_api_url: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")

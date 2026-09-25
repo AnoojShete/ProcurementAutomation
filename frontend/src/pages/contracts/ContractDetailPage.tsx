@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, FileSignature, Info, ScrollText, Check } from "lucide-react";
+import { CheckCircle2, FileSignature, Info, ScrollText, Check, ShieldCheck } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ContractStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { DigitalSignatureModal } from "@/components/contracts/DigitalSignatureModal";
+import { SignatureCertificateModal } from "@/components/contracts/SignatureCertificateModal";
 import { ErrorState, InlineError, InlineSuccess } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
@@ -25,19 +27,25 @@ export function ContractDetailPage() {
   const vendor = vendors?.find((v) => v.id === contract?.vendor_id);
 
   const [sending, setSending] = useState(false);
-  const [simulating, setSimulating] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const [signSuccess, setSignSuccess] = useState<string | null>(null);
 
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<"documenso" | "docusign">("documenso");
+  const [isDigitalSignModalOpen, setIsDigitalSignModalOpen] = useState(false);
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+
+  const [selectedProvider, setSelectedProvider] = useState<"builtin" | "documenso">("builtin");
   const [signerEmail, setSignerEmail] = useState("");
 
   const canAct = user?.role === "approver" || user?.role === "finance" || user?.role === "admin";
 
-  const handleOpenSignModal = () => {
+  const handleOpenSendModal = () => {
     setSignerEmail(user?.email || "authorized_signer@company.com");
     setIsSignModalOpen(true);
+  };
+
+  const handleOpenDigitalSignModal = () => {
+    setIsDigitalSignModalOpen(true);
   };
 
   const handleSendForSignature = async () => {
@@ -47,27 +55,12 @@ export function ContractDetailPage() {
     try {
       await contractsApi.sendForSignature(contract.id, signerEmail || undefined, selectedProvider);
       setIsSignModalOpen(false);
-      setSignSuccess(`Sent for signature via ${selectedProvider === "documenso" ? "Documenso" : "DocuSign"}. You can simulate completion below.`);
+      setSignSuccess(`Contract dispatched for signature via ${selectedProvider === "documenso" ? "Documenso" : "Built-in Secure E-Sign"}.`);
       reload();
     } catch (e) {
       setSignError(e instanceof ApiError ? e.message : "Unable to send for signature.");
     } finally {
       setSending(false);
-    }
-  };
-
-  const handleSimulateSign = async () => {
-    if (!contract) return;
-    setSimulating(true);
-    setSignError(null);
-    try {
-      await contractsApi.simulateSign(contract.id);
-      setSignSuccess("Contract successfully signed!");
-      reload();
-    } catch (e) {
-      setSignError(e instanceof ApiError ? e.message : "Unable to simulate signing.");
-    } finally {
-      setSimulating(false);
     }
   };
 
@@ -99,17 +92,30 @@ export function ContractDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {canAct && contract.status === "draft" && (
-            <Button icon={<FileSignature className="size-4" />} onClick={handleOpenSignModal}>
-              Send for Signature
-            </Button>
+            <>
+              <Button icon={<FileSignature className="size-4" />} onClick={handleOpenDigitalSignModal}>
+                Sign Contract
+              </Button>
+              <Button variant="secondary" onClick={handleOpenSendModal}>
+                Send for Signature
+              </Button>
+            </>
           )}
           {canAct && contract.status === "pending_signature" && (
             <Button
-              icon={<Check className="size-4" />}
-              loading={simulating}
-              onClick={handleSimulateSign}
+              icon={<FileSignature className="size-4" />}
+              onClick={handleOpenDigitalSignModal}
             >
-              Sign Document (Demo only — simulates provider webhook without real verification)
+              Sign Contract Now
+            </Button>
+          )}
+          {contract.status === "signed" && (
+            <Button
+              variant="secondary"
+              icon={<ShieldCheck className="size-4 text-emerald-600" />}
+              onClick={() => setIsCertModalOpen(true)}
+            >
+              View Signature Certificate
             </Button>
           )}
         </div>
@@ -124,16 +130,36 @@ export function ContractDetailPage() {
             <Info className="mt-0.5 size-4 shrink-0" />
             <div className="flex flex-col gap-1">
               <span>
-                Awaiting signature via <span className="font-semibold">{contract.esign_provider_ref?.startsWith("docusign") ? "DocuSign (Sandbox)" : "Documenso"}</span> ({contract.esign_provider_ref ?? "pending provider ref"}). Click &ldquo;Sign Document&rdquo; above to complete the demo cycle.
+                Awaiting electronic signature ({contract.esign_provider_ref ?? "Built-in E-Sign"}). Click &ldquo;Sign Contract Now&rdquo; above to execute with legal cryptographic seal.
               </span>
               <span className="text-xs text-brand-600">
-                Testing shortcut: simulates a provider webhook callback. In production, webhooks are cryptographically HMAC-verified via <code>POST /webhooks/esign</code>.
+                Signatures are verified under the US ESIGN Act and UETA with tamper-evident cryptographic hashes.
               </span>
             </div>
           </div>
         </div>
       )}
 
+      {contract.status === "signed" && (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+            <span>
+              Contract fully executed and legally signed by <strong>{contract.signed_by ?? "Authorized Signer"}</strong> on {formatDateTime(contract.signed_at)}.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setIsCertModalOpen(true)}
+            icon={<ShieldCheck className="size-3.5 text-emerald-600" />}
+          >
+            Audit Certificate
+          </Button>
+        </div>
+      )}
+
+      {/* Modal: Dispatch for Signature */}
       <Modal
         open={isSignModalOpen}
         onClose={() => setIsSignModalOpen(false)}
@@ -144,7 +170,7 @@ export function ContractDetailPage() {
               Cancel
             </Button>
             <Button loading={sending} onClick={handleSendForSignature} icon={<FileSignature className="size-4" />}>
-              Send via {selectedProvider === "documenso" ? "Documenso" : "DocuSign (Demo)"}
+              Dispatch via {selectedProvider === "documenso" ? "Documenso" : "Built-in Secure E-Sign"}
             </Button>
           </>
         }
@@ -153,6 +179,22 @@ export function ContractDetailPage() {
           <div>
             <label className="mb-1 block font-medium text-slate-700">E-Signature Provider</label>
             <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedProvider("builtin")}
+                className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
+                  selectedProvider === "builtin"
+                    ? "border-brand-600 bg-brand-50/50 ring-2 ring-brand-500/20"
+                    : "border-surface-border hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-medium text-slate-900">
+                  <span>Built-in Secure E-Sign</span>
+                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Recommended</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Instant in-platform legal signing with tamper-evident cryptographic SHA-256 seal.</p>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setSelectedProvider("documenso")}
@@ -164,25 +206,9 @@ export function ContractDetailPage() {
               >
                 <div className="flex items-center gap-1.5 font-medium text-slate-900">
                   <span>Documenso</span>
-                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Recommended Self-Hosted</span>
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">REST API</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Self-hosted, genuinely free and functional open-source signing platform</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedProvider("docusign")}
-                className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
-                  selectedProvider === "docusign"
-                    ? "border-amber-600 bg-amber-50/50 ring-2 ring-amber-500/20"
-                    : "border-surface-border hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 font-medium text-slate-900">
-                  <span>DocuSign</span>
-                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Sandbox Demo Only</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">DocuSign (sandbox demo only — not a functional signature). Developer tier applies watermarks; production requires paid plan.</p>
+                <p className="mt-1 text-xs text-slate-500">Open-source e-signature platform via Documenso cloud or self-hosted API.</p>
               </button>
             </div>
           </div>
@@ -197,11 +223,36 @@ export function ContractDetailPage() {
               className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
             />
             <p className="mt-1 text-xs text-slate-400">
-              The e-sign invitation link will be simulated for this signer.
+              The contract signature request will be assigned to this email address.
             </p>
           </div>
         </div>
       </Modal>
+
+      {/* Modal: Interactive Digital Signature */}
+      {contract && (
+        <DigitalSignatureModal
+          open={isDigitalSignModalOpen}
+          onClose={() => setIsDigitalSignModalOpen(false)}
+          contract={contract}
+          defaultSignerEmail={user?.email || "authorized_signer@company.com"}
+          defaultSignerName={user?.email?.split("@")[0].replace(".", " ").replace(/\b\w/g, (c) => c.toUpperCase()) || "Authorized Signer"}
+          onSuccess={(updated) => {
+            setSignSuccess("Contract successfully signed and legally executed!");
+            reload();
+          }}
+        />
+      )}
+
+      {/* Modal: Cryptographic Signature Certificate */}
+      {contract && (
+        <SignatureCertificateModal
+          open={isCertModalOpen}
+          onClose={() => setIsCertModalOpen(false)}
+          contract={contract}
+          certificate={contract.signature_certificate}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card>

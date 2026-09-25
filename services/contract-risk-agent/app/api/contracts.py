@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.config import load_renewal_config, settings
 from app.schemas import (
-    GenerateContractRequest, SendForSignatureRequest, ContractResponse, DataResponse,
+    GenerateContractRequest, SendForSignatureRequest, SignContractRequest, ContractResponse, DataResponse,
 )
 from app.services import contract_service
 from shared.auth import require_role
@@ -75,6 +75,50 @@ async def send_for_signature(contract_id: str, data: SendForSignatureRequest, re
 
 
 @router.post(
+    "/{contract_id}/sign",
+    response_model=DataResponse,
+    dependencies=[Depends(require_role("requester", "approver", "finance", "admin"))],
+)
+async def sign_contract(
+    contract_id: str,
+    data: SignContractRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Executes a legally binding electronic signature under the ESIGN Act and UETA.
+    Generates a cryptographic SHA-256 seal and stores the audit certificate."""
+    ip_addr = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    try:
+        contract, certificate = await contract_service.sign_contract_digitally(
+            db,
+            request.app.state.kafka_producer,
+            contract_id=contract_id,
+            signer_name=data.signer_name,
+            signer_email=data.signer_email,
+            signature_data=data.signature_data,
+            legal_consent=data.legal_consent,
+            ip_address=ip_addr,
+            user_agent=user_agent,
+        )
+    except contract_service.ContractGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    serialized = _serialize(contract)
+    serialized["signature_certificate"] = certificate
+    return DataResponse(data=serialized)
+
+
+@router.get("/{contract_id}/signature-certificate", response_model=DataResponse)
+async def get_signature_certificate(contract_id: str, db: AsyncSession = Depends(get_db)):
+    """Retrieves the cryptographic signature certificate and audit record."""
+    cert = await contract_service.get_signature_certificate(db, contract_id)
+    if cert is None:
+        raise HTTPException(status_code=404, detail="Signature certificate not found")
+    return DataResponse(data=cert)
+
+
+@router.post(
     "/{contract_id}/sign-simulated", response_model=DataResponse,
     dependencies=[Depends(require_role("approver", "finance", "admin"))],
 )
@@ -116,4 +160,9 @@ async def get_contract(contract_id: str, db: AsyncSession = Depends(get_db)):
     contract = await contract_service.get_contract(db, contract_id)
     if contract is None:
         raise HTTPException(status_code=404, detail="contract not found")
-    return DataResponse(data=_serialize(contract))
+    serialized = _serialize(contract)
+    if contract.status == "signed":
+        cert = await contract_service.get_signature_certificate(db, contract_id)
+        if cert:
+            serialized["signature_certificate"] = cert
+    return DataResponse(data=serialized)

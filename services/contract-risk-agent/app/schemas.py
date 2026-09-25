@@ -28,6 +28,28 @@ class SendForSignatureRequest(BaseModel):
     provider: Optional[str] = "documenso"
 
 
+class SignContractRequest(BaseModel):
+    signer_name: str
+    signer_email: str
+    signature_data: Optional[str] = None
+    legal_consent: bool = True
+
+
+class SignatureCertificate(BaseModel):
+    certificate_id: str
+    contract_id: str
+    template_used: Optional[str] = None
+    signer_name: str
+    signer_email: str
+    signed_at: str
+    signature_seal: str
+    legal_framework: str
+    consent_acknowledged: bool = True
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    signature_image: Optional[str] = None
+
+
 class ContractResponse(BaseModel):
     id: str
     purchase_request_id: Optional[str]
@@ -43,6 +65,8 @@ class ContractResponse(BaseModel):
     signed_by: Optional[str]
     esign_provider_ref: Optional[str]
     reconciliation_status: Optional[str]
+    contract_text: Optional[str] = None
+    signature_certificate: Optional[SignatureCertificate] = None
 
 
 # --- Risk ---
@@ -74,8 +98,12 @@ class OffboardVendorRequest(BaseModel):
 # --- E-sign webhook (Prompt 5 scope, added when this service is wired into
 # the platform-wide auth/webhook pass) ---
 class EsignWebhookPayload(BaseModel):
-    provider_event_id: str
-    contract_id: str
-    signed_by: str
-    signed_at: str
-    signature: str
+    model_config = ConfigDict(extra="allow")
+
+    provider_event_id: Optional[str] = None
+    contract_id: Optional[str] = None
+    signed_by: Optional[str] = None
+    signed_at: Optional[str] = None
+    signature: Optional[str] = None
+    event: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None

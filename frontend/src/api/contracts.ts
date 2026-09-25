@@ -9,6 +9,17 @@ export const contractsApi = {
     api.post<Contract>("/contracts/generate", { purchase_request_id, template_name }),
   sendForSignature: (id: string, signer_email?: string, provider = "documenso") =>
     api.post<Contract>(`/contracts/${id}/send-for-signature`, { signer_email, provider }),
+  signContract: (
+    id: string,
+    data: {
+      signer_name: string;
+      signer_email: string;
+      signature_data?: string;
+      legal_consent: boolean;
+    }
+  ) => api.post<Contract>(`/contracts/${id}/sign`, data),
+  getCertificate: (id: string) =>
+    api.get<Record<string, unknown>>(`/contracts/${id}/signature-certificate`),
   simulateSign: (id: string) =>
     api.post<Contract>(`/contracts/${id}/sign-simulated`, {}),
 };

@@ -16,6 +16,9 @@ services:
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
+      APP_DOCUMENSO_API_URL: ${DOCUMENSO_API_URL:-}
+      APP_DOCUMENSO_API_KEY: ${DOCUMENSO_API_KEY:-}
+      APP_ESIGN_PROVIDER: ${ESIGN_PROVIDER:-builtin}
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,6 +46,9 @@ services:
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
+      APP_DOCUMENSO_API_URL: ${DOCUMENSO_API_URL:-}
+      APP_DOCUMENSO_API_KEY: ${DOCUMENSO_API_KEY:-}
+      APP_ESIGN_PROVIDER: ${ESIGN_PROVIDER:-builtin}
     depends_on:
       postgres:
         condition: service_healthy

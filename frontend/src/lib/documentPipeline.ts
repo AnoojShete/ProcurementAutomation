@@ -43,15 +43,19 @@ export function deriveUploadPipeline(doc: DocumentRecord | null, uploading: bool
         : failed
           ? "failed"
           : status === "classified"
-            ? doc?.needs_review
-              ? "current"
-              : "completed"
+            ? "completed"
             : "pending",
     },
     {
       key: "done",
       label: doc?.needs_review ? "Needs Review" : "Completed",
-      state: uploading ? "pending" : failed ? "blocked" : status === "classified" && !doc?.needs_review ? "completed" : "pending",
+      state: uploading
+        ? "pending"
+        : failed
+          ? "blocked"
+          : status === "classified"
+            ? "completed"
+            : "pending",
     },
   ];
   return steps;
