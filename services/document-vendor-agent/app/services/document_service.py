@@ -94,11 +94,11 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         for stage, duration_ms in stage_durations_ms.items():
             document_pipeline_stage_duration_seconds.labels(stage=stage).observe(duration_ms / 1000)
 
-        fields = envelope["extracted_fields"]
-        vendor = await db.get(Vendor, envelope["vendor_id"])
+        vendor_id = envelope.get("vendor_id")
+        vendor = await db.get(Vendor, vendor_id) if vendor_id else None
 
         doc.document_type = envelope["document_type"]
-        doc.vendor_id = envelope["vendor_id"]
+        doc.vendor_id = vendor_id
         doc.vendor_name_raw = fields.get("vendor_name_raw")
         doc.document_number = fields.get("document_number")
         doc.document_date = _safe_date(fields.get("document_date"))
@@ -132,7 +132,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
 
         document_processing_total.labels(status="classified").inc()
         extraction_confidence.observe(envelope["overall_confidence"])
-        vendor_matching_total.labels(match_type=envelope["vendor_match_type"]).inc()
+        vendor_matching_total.labels(match_type=envelope.get("vendor_match_type", "unknown")).inc()
 
         if kafka_producer is not None:
             await kafka_producer.publish_document_classified(
@@ -141,21 +141,29 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
                 overall_confidence=doc.overall_confidence, needs_review=doc.needs_review,
                 model_used=envelope.get("model_used"), fallback_triggered=envelope.get("fallback_triggered", False),
             )
-            await kafka_producer.publish_vendor_matched(
-                document_id=doc.id, vendor_id=vendor.id, vendor_name_normalized=vendor.normalized_name,
-                match_type=envelope["vendor_match_type"], match_confidence=envelope["vendor_match_confidence"],
-            )
+            if vendor is not None:
+                await kafka_producer.publish_vendor_matched(
+                    document_id=doc.id, vendor_id=vendor.id, vendor_name_normalized=vendor.normalized_name,
+                    match_type=envelope.get("vendor_match_type", "unknown"),
+                    match_confidence=envelope.get("vendor_match_confidence", 1.0),
+                )
 
         return doc
 
     except Exception as e:
         logger.error(f"process_document failed for {document_id}: {e}", exc_info=True)
-        doc.status = "failed"
-        doc.error_message = str(e)
-        doc.updated_at = datetime.now(timezone.utc)
-        await db.commit()
+        try:
+            await db.rollback()
+            failed_doc = await db.get(Document, document_id)
+            if failed_doc:
+                failed_doc.status = "failed"
+                failed_doc.error_message = str(e)
+                failed_doc.updated_at = datetime.now(timezone.utc)
+                await db.commit()
+        except Exception as update_err:
+            logger.error(f"Failed to record failure status for {document_id}: {update_err}")
         document_processing_total.labels(status="failed").inc()
-        return doc
+        return doc if 'doc' in locals() and doc is not None else None
 
 
 def _safe_date(value: Optional[str]):

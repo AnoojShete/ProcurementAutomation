@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from temporalio import workflow
@@ -29,7 +30,11 @@ class ContractRenewalWorkflow:
             fire_at = end_date - timedelta(days=alert_level)
             now = workflow.now()
             if fire_at > now:
-                await workflow.sleep(fire_at - now)
+                delay_seconds = (fire_at - now).total_seconds()
+                if hasattr(workflow, "sleep"):
+                    await workflow.sleep(delay_seconds)
+                else:
+                    await asyncio.sleep(delay_seconds)
 
             days_remaining = (end_date - workflow.now()).days
             await workflow.execute_activity(
