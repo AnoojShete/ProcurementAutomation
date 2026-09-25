@@ -190,3 +190,18 @@ binaries, so a later `npm run build` on macOS failed (missing
 `@rollup/rollup-darwin-arm64`). The container now uses an anonymous
 `/app/node_modules` volume. Verified: host build → container build → host
 build all succeed.
+
+---
+
+# System Health page crash (Sep 25)
+
+The admin System Health page went blank as soon as any document had been
+processed. `GET /admin/model-routing-log` returned the Postgres `NUMERIC`
+columns `confidence` and `duration_ms` as strings (`"1.000"`), and the page
+called `l.confidence?.toFixed(2)`, which throws on a string and unmounts
+the whole page. It only worked before because the routing log was empty.
+
+- API casts both columns to `float`.
+- Page coerces with `Number(...)` and shows `-` for null.
+- Verified in headless Chromium as admin: every section renders, 14
+  routing rows, no page errors.

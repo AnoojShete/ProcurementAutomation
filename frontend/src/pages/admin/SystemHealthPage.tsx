@@ -207,7 +207,7 @@ function RoutingLog() {
               <td className="px-4 py-2">
                 {l.fallback_triggered ? <Badge tone="danger">{l.fallback_reason || "yes"}</Badge> : "-"}
               </td>
-              <td className="px-4 py-2">{l.confidence?.toFixed(2)}</td>
+              <td className="px-4 py-2">{l.confidence == null ? "-" : Number(l.confidence).toFixed(2)}</td>
             </tr>
           ))}
           {logs.length === 0 && <tr><td colSpan={5} className="px-4 py-2 text-slate-500">No routing events yet</td></tr>}

@@ -62,7 +62,9 @@ async def update_live_mode(req: LiveModeUpdate, db: AsyncSession = Depends(get_d
 @router.get("/model-routing-log")
 async def get_model_routing_log(limit: int = 30, db: AsyncSession = Depends(get_db)):
     rows = (await db.execute(text(
-        "SELECT id, document_id, route_name, model_used, fallback_triggered, fallback_reason, confidence, duration_ms, created_at "
+        # NUMERIC columns would serialize as strings ("1.000"); cast so clients get numbers.
+        "SELECT id, document_id, route_name, model_used, fallback_triggered, fallback_reason, "
+        "confidence::float AS confidence, duration_ms::float AS duration_ms, created_at "
         "FROM model_routing_log ORDER BY created_at DESC LIMIT :limit"
     ), {"limit": limit})).mappings().all()
     return DataResponse(data=[dict(r) for r in rows])
