@@ -94,6 +94,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         for stage, duration_ms in stage_durations_ms.items():
             document_pipeline_stage_duration_seconds.labels(stage=stage).observe(duration_ms / 1000)
 
+        fields = envelope.get("extracted_fields", {})
         vendor_id = envelope.get("vendor_id")
         vendor = await db.get(Vendor, vendor_id) if vendor_id else None
 
