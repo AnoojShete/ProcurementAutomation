@@ -25,6 +25,7 @@ async def write_checkpoints(
 ) -> None:
     try:
         for stage_index, result in enumerate(agent_trail):
+            status = str(result.validation_status or "valid")[:50]
             db.add(
                 PipelineCheckpoint(
                     id=str(uuid.uuid4()),
@@ -34,7 +35,7 @@ async def write_checkpoints(
                     agent_version=result.agent_version,
                     task_id=result.task_id,
                     confidence=result.confidence,
-                    validation_status=result.validation_status,
+                    validation_status=status,
                     errors=result.errors,
                     warnings=result.warnings,
                     duration_ms=stage_durations_ms.get(result.agent_name),
@@ -43,4 +44,5 @@ async def write_checkpoints(
             )
         await db.flush()
     except Exception as e:
+        await db.rollback()
         logger.warning(f"Failed to persist pipeline checkpoints for document_id={document_id}: {e}")

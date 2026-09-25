@@ -140,7 +140,7 @@ class PipelineCheckpoint(Base):
     agent_version: Mapped[str] = mapped_column(String(20), nullable=False)
     task_id: Mapped[str] = mapped_column(Uuid, nullable=False)
     confidence: Mapped[Optional[float]] = mapped_column(Numeric(4, 3))
-    validation_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    validation_status: Mapped[str] = mapped_column(String(50), nullable=False)
     errors: Mapped[Optional[list]] = mapped_column(JSON)
     warnings: Mapped[Optional[list]] = mapped_column(JSON)
     duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))

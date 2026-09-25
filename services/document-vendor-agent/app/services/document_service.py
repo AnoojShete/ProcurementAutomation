@@ -126,10 +126,14 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
 
         await db.commit()
 
-        await checkpoint_service.write_checkpoints(
-            db, doc.id, envelope.get("_agent_trail", []), stage_durations_ms
-        )
-        await db.commit()
+        try:
+            await checkpoint_service.write_checkpoints(
+                db, doc.id, envelope.get("_agent_trail", []), stage_durations_ms
+            )
+            await db.commit()
+        except Exception as cp_err:
+            logger.warning(f"Failed to persist pipeline checkpoints non-fatally: {cp_err}")
+            await db.rollback()
 
         document_processing_total.labels(status="classified").inc()
         extraction_confidence.observe(float(doc.overall_confidence) if doc.overall_confidence is not None else 0.0)

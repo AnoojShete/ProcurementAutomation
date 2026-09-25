@@ -103,9 +103,11 @@ CREATE TABLE IF NOT EXISTS pipeline_checkpoints (
   agent_version VARCHAR(20) NOT NULL,
   task_id UUID NOT NULL,
   confidence NUMERIC(4, 3),
-  validation_status VARCHAR(20) NOT NULL DEFAULT 'valid',
+  validation_status VARCHAR(50) NOT NULL DEFAULT 'valid',
   errors JSONB,
   warnings JSONB,
   duration_ms NUMERIC(10, 2),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE pipeline_checkpoints ALTER COLUMN validation_status TYPE VARCHAR(50);
+
