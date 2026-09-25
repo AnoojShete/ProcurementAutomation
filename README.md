@@ -428,13 +428,11 @@ they're a genuinely separate, larger effort:
   fetched at startup and refreshed on a schedule (a daily Temporal
   workflow is enough), not baked into the image, or "screened against
   the sanctions list" stops meaning anything a week in.
-- **A real e-signature provider**: the webhook path (signature
-  verification, replay protection, `contract.signed` publish) is real and
-  tested; there's no live OpenSign/Documenso instance actually wired in,
-  so `POST /contracts/{id}/send-for-signature` returns a simulated
-  provider reference rather than routing to a real signing flow. The e2e
-  test simulates the provider's callback directly against the API to
-  prove the rest of the chain.
+- **E-Signature Provider Architecture & Rationale**:
+  - **Why OpenSign was not bundled as a live Docker Compose service**: The original specification considered OpenSign for self-hosted e-signing. However, OpenSign requires a heavy multi-container deployment architecture comprising the OpenSign Server, OpenSign Client, and a dedicated MongoDB instance. This would introduce ~1.5 GB of additional RAM overhead to a single-VM development environment that is already running 10+ containers (PostgreSQL, Redpanda, Redis, Temporal, 5 FastAPI microservices, background workers, and Vite frontend).
+  - **Why Documenso is the primary self-hosted choice**: Documenso was selected as the self-hosted standard because it natively leverages the platform's existing PostgreSQL database and modern TypeScript API, avoiding the operational complexity and memory footprint of introducing MongoDB.
+  - **DocuSign role and limitation**: DocuSign is integrated as an optional cloud demo option. It is strictly labeled in the UI and documentation as *DocuSign (sandbox demo only — not a functional signature)* because DocuSign developer sandbox accounts permanently watermark documents with "DocuSign Demo Document", rendering them non-functional legally. Non-watermarked execution requires a commercial paid subscription.
+  - **Production Webhook (`POST /webhooks/esign`) vs Testing Simulation (`POST /contracts/{id}/sign-simulated`)**: The production e-signature callback flow is cryptographically verified via HMAC-SHA256 signatures (`ESIGN_WEBHOOK_SECRET`) and guarded against replay attacks using the `processed_webhook_events` database table. Both unit tests and the end-to-end integration test (`tests/e2e/test_flow.py`) directly exercise `POST /webhooks/esign` with canonical HMAC signatures and assert replay rejection. The `POST /contracts/{id}/sign-simulated` endpoint exists solely as a frontend testing convenience in development environments and is automatically disabled (returning `403 Forbidden`) whenever a real provider (`DOCUMENSO_API_URL` / `OPENSIGN_API_URL`) is configured or simulated signatures are disabled.
 - **Grafana dashboards**: the provisioned starter dashboard covers
   request rate/latency/errors; Kafka consumer lag and an approval SLA-
   breach panel would need a bit more instrumentation (a lag exporter for

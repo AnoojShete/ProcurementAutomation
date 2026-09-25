@@ -79,7 +79,14 @@ async def send_for_signature(contract_id: str, data: SendForSignatureRequest, re
     dependencies=[Depends(require_role("approver", "finance", "admin"))],
 )
 async def sign_contract_simulated(contract_id: str, request: Request, db: AsyncSession = Depends(get_db)):
-    """Simulate completed e-signature callback for testing from UI."""
+    """Demo only — simulates a provider webhook without real signature verification.
+    Disabled when a real e-signature provider is configured.
+    """
+    if not settings.allow_simulated_signatures or settings.documenso_api_url or settings.opensign_api_url:
+        raise HTTPException(
+            status_code=403,
+            detail="Simulated signatures are disabled when a real e-signature provider is configured",
+        )
     try:
         contract = await contract_service.sign_contract_simulated(
             db, request.app.state.kafka_producer, contract_id

@@ -57,7 +57,7 @@ def test_full_procurement_flow():
     assert resp.status_code == 200, "Failed to generate contract"
     contract_id = resp.json()["data"]["id"]
 
-    print("8. Simulating E-Sign Webhook Callback...")
+    print("8. Testing E-Sign Webhook Callback with Signature Verification & Replay Protection...")
     payload = {
         "provider_event_id": f"evt_{time.time()}",
         "contract_id": contract_id,
@@ -67,8 +67,20 @@ def test_full_procurement_flow():
     unsigned_payload = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     payload["signature"] = hmac.new(ESIGN_SECRET.encode(), unsigned_payload.encode(), hashlib.sha256).hexdigest()
     
+    # 8a. Test invalid signature rejection (fraud check)
+    bad_payload = dict(payload, signature="invalid-signature-hash")
+    bad_resp = requests.post(f"{BASE_URL}/webhooks/esign", json=bad_payload)
+    assert bad_resp.status_code == 401, "Webhook accepted forged signature"
+
+    # 8b. Real webhook delivery with valid HMAC-SHA256 signature
     resp = requests.post(f"{BASE_URL}/webhooks/esign", json=payload)
-    assert resp.status_code == 200, "Webhook rejected"
+    assert resp.status_code == 200, f"Webhook rejected valid signature: {resp.text}"
+    assert resp.json()["data"]["status"] == "signed"
+
+    # 8c. Test replay protection with identical provider_event_id
+    replay_resp = requests.post(f"{BASE_URL}/webhooks/esign", json=payload)
+    assert replay_resp.status_code == 200
+    assert replay_resp.json()["data"]["status"] == "already_processed", "Webhook failed replay protection check"
     
     print("9. Testing mid-test Business Rule Mutation via Admin API...")
     resp = requests.post(f"{BASE_URL}/auth/login", json={"email": "admin@demo.example.com", "password": "DemoPass123!"})

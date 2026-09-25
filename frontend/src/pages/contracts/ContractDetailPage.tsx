@@ -109,7 +109,7 @@ export function ContractDetailPage() {
               loading={simulating}
               onClick={handleSimulateSign}
             >
-              Sign Document (Simulate E-Signature)
+              Sign Document (Demo only — simulates provider webhook without real verification)
             </Button>
           )}
         </div>
@@ -122,9 +122,14 @@ export function ContractDetailPage() {
         <div className="flex items-start justify-between gap-4 rounded-lg border border-brand-100 bg-brand-50 px-3.5 py-2.5 text-sm text-brand-700">
           <div className="flex items-start gap-2">
             <Info className="mt-0.5 size-4 shrink-0" />
-            <span>
-              Awaiting signature via <span className="font-semibold">{contract.esign_provider_ref?.startsWith("docusign") ? "DocuSign" : "Documenso"}</span> ({contract.esign_provider_ref ?? "pending provider ref"}). Click &ldquo;Sign Document&rdquo; above to complete the signing cycle.
-            </span>
+            <div className="flex flex-col gap-1">
+              <span>
+                Awaiting signature via <span className="font-semibold">{contract.esign_provider_ref?.startsWith("docusign") ? "DocuSign (Sandbox)" : "Documenso"}</span> ({contract.esign_provider_ref ?? "pending provider ref"}). Click &ldquo;Sign Document&rdquo; above to complete the demo cycle.
+              </span>
+              <span className="text-xs text-brand-600">
+                Testing shortcut: simulates a provider webhook callback. In production, webhooks are cryptographically HMAC-verified via <code>POST /webhooks/esign</code>.
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -139,7 +144,7 @@ export function ContractDetailPage() {
               Cancel
             </Button>
             <Button loading={sending} onClick={handleSendForSignature} icon={<FileSignature className="size-4" />}>
-              Send via {selectedProvider === "documenso" ? "Documenso" : "DocuSign"}
+              Send via {selectedProvider === "documenso" ? "Documenso" : "DocuSign (Demo)"}
             </Button>
           </>
         }
@@ -159,9 +164,9 @@ export function ContractDetailPage() {
               >
                 <div className="flex items-center gap-1.5 font-medium text-slate-900">
                   <span>Documenso</span>
-                  <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700">Recommended</span>
+                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Recommended Self-Hosted</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Open-source self-hosted signing platform</p>
+                <p className="mt-1 text-xs text-slate-500">Self-hosted, genuinely free and functional open-source signing platform</p>
               </button>
 
               <button
@@ -169,12 +174,15 @@ export function ContractDetailPage() {
                 onClick={() => setSelectedProvider("docusign")}
                 className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
                   selectedProvider === "docusign"
-                    ? "border-brand-600 bg-brand-50/50 ring-2 ring-brand-500/20"
+                    ? "border-amber-600 bg-amber-50/50 ring-2 ring-amber-500/20"
                     : "border-surface-border hover:border-slate-300"
                 }`}
               >
-                <div className="font-medium text-slate-900">DocuSign</div>
-                <p className="mt-1 text-xs text-slate-500">Enterprise cloud e-signature service</p>
+                <div className="flex items-center gap-1.5 font-medium text-slate-900">
+                  <span>DocuSign</span>
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Sandbox Demo Only</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">DocuSign (sandbox demo only — not a functional signature). Developer tier applies watermarks; production requires paid plan.</p>
               </button>
             </div>
           </div>
