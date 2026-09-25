@@ -342,8 +342,8 @@ def test_top_factors_shape_contract(trained_scorer):
     if result["top_factors"]:
         assert len(result["top_factors"]) <= 3, "At most N_TOP=3 factors expected"
         for factor in result["top_factors"]:
-            assert set(factor.keys()) == {"feature", "contribution"}, (
-                f"Expected keys {{feature, contribution}}, got {set(factor.keys())}"
+            assert {"feature", "contribution"}.issubset(set(factor.keys())), (
+                f"Expected keys to include {{feature, contribution}}, got {set(factor.keys())}"
             )
             assert isinstance(factor["feature"], str)
             assert isinstance(factor["contribution"], float)

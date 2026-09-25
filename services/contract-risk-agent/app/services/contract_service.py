@@ -144,24 +144,56 @@ async def generate_contract_for_request(
     return contract
 
 
-async def send_for_signature(db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str]) -> Contract:
+async def send_for_signature(
+    db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str], provider: str = "documenso"
+) -> Contract:
     contract = await db.get(Contract, contract_id)
     if contract is None:
         raise ContractGenerationError(f"contract {contract_id} not found")
     if contract.status != "draft":
         raise ContractGenerationError(f"contract {contract_id} is not in draft status")
 
-    provider_ref = await request_signature(contract_id, signer_email)
+    provider_ref = await request_signature(contract_id, signer_email, provider=provider)
     contract.status = "pending_signature"
     contract.esign_provider_ref = provider_ref
     contract.updated_at = datetime.now(timezone.utc)
 
     await write_audit_log(
         db, "contract", contract_id, "sent_for_signature",
-        {"esign_provider_ref": provider_ref, "signer_email": signer_email},
+        {"esign_provider_ref": provider_ref, "signer_email": signer_email, "provider": provider},
     )
     await db.commit()
     await db.refresh(contract)
+    return contract
+
+
+async def sign_contract_simulated(db: AsyncSession, kafka_producer, contract_id: str, signed_by: str = "authorized_signer@company.com") -> Contract:
+    contract = await db.get(Contract, contract_id)
+    if contract is None:
+        raise ContractGenerationError(f"contract {contract_id} not found")
+    if contract.status == "signed":
+        return contract
+
+    now = datetime.now(timezone.utc)
+    contract.status = "signed"
+    contract.signed_at = now
+    contract.signed_by = signed_by
+    contract.updated_at = now
+
+    await write_audit_log(
+        db, "contract", contract_id, "signed",
+        {"simulated": True, "signed_by": signed_by, "esign_provider_ref": contract.esign_provider_ref},
+    )
+    await db.commit()
+    await db.refresh(contract)
+
+    if kafka_producer is not None:
+        try:
+            await kafka_producer.publish_contract_signed(contract)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not publish contract_signed event: {e}")
+
     return contract
 
 

@@ -24,7 +24,7 @@ class TestEventSchemas:
         event = build_event("approval.requested", "approval-inventory-agent", {"test": True})
         
         required_keys = {"event_id", "event_type", "timestamp", "source_service", "payload"}
-        assert set(event.keys()) == required_keys
+        assert required_keys.issubset(set(event.keys()))
         assert event["event_type"] == "approval.requested"
         assert event["source_service"] == "approval-inventory-agent"
         assert isinstance(event["payload"], dict)

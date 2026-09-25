@@ -2,6 +2,8 @@
 import asyncio
 import logging
 import time
+import uuid
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Optional
 
@@ -26,22 +28,31 @@ class ExtractionRoutingResult:
 
 
 def _log_to_db(db: AsyncSession, document_id: str, result: ExtractionRoutingResult):
-    log_entry = ModelRoutingLog(
-        document_id=document_id,
-        route_name=result.route_name,
-        model_used=result.model_used,
-        fallback_triggered=result.fallback_triggered,
-        fallback_reason=result.fallback_reason,
-        confidence=result.confidence,
-        duration_ms=result.duration_ms,
-    )
-    db.add(log_entry)
-    model_routing_total.labels(
-        service="document-vendor-agent",
-        route_name=result.route_name,
-        model_used=result.model_used,
-        fallback_triggered=str(result.fallback_triggered).lower()
-    ).inc()
+    try:
+        log_entry = ModelRoutingLog(
+            id=str(uuid.uuid4()),
+            document_id=document_id,
+            route_name=result.route_name,
+            model_used=result.model_used,
+            fallback_triggered=result.fallback_triggered,
+            fallback_reason=result.fallback_reason,
+            confidence=result.confidence,
+            duration_ms=result.duration_ms,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(log_entry)
+    except Exception as e:
+        logger.warning(f"Could not persist ModelRoutingLog: {e}")
+
+    try:
+        model_routing_total.labels(
+            service="document-vendor-agent",
+            route_name=result.route_name,
+            model_used=result.model_used,
+            fallback_triggered=str(result.fallback_triggered).lower()
+        ).inc()
+    except Exception:
+        pass
 
 
 async def route_extraction(db: AsyncSession, document_id: str, data: bytes, filename: str, content_type: str = "") -> ExtractionRoutingResult:

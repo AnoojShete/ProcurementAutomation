@@ -158,6 +158,7 @@ async def _validate_rule_value(db: AsyncSession, rule: BusinessRule, new_value: 
 
 
 @admin_router.get("")
+@admin_router.get("/")
 async def get_all_business_rules(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(BusinessRule).order_by(BusinessRule.category, BusinessRule.rule_key))
     rules = list(result.scalars().all())

@@ -53,7 +53,7 @@ def get_rule(key: str, fallback: Any = None) -> Any:
 
     key_valid = key in _cache and now <= _rule_expiries.get(key, 0)
 
-    if not key_valid and now > _cache_expiry:
+    if not key_valid and (now > _cache_expiry or key not in _cache):
         rules = fetch_all_rules()
         if rules:
             _cache.update(rules)
@@ -72,9 +72,10 @@ def get_rule(key: str, fallback: Any = None) -> Any:
 
 def invalidate_rule(key: str) -> None:
     """Invalidate a specific rule key in the local cache immediately."""
-    global _cache, _rule_expiries
+    global _cache, _rule_expiries, _cache_expiry
     _cache.pop(key, None)
     _rule_expiries.pop(key, None)
+    _cache_expiry = 0.0
 
 
 def update_rule_cache(key: str, value: Any) -> None:

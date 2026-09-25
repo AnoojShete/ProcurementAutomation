@@ -4,17 +4,24 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
-from aiokafka import AIOKafkaProducer
+try:
+    from aiokafka import AIOKafkaProducer
+except ImportError:
+    AIOKafkaProducer = None
 
 logger = logging.getLogger(__name__)
 
 TOPIC_BUSINESS_RULE_UPDATED = "business_rule.updated"
 
-_producer: Optional[AIOKafkaProducer] = None
+_producer = None
 
 
 async def start_kafka_producer():
     global _producer
+    if AIOKafkaProducer is None:
+        logger.warning("aiokafka not installed; Kafka events will be simulated")
+        _producer = None
+        return
     bootstrap = os.environ.get(
         "KAFKA_BOOTSTRAP_SERVERS",
         os.environ.get("APP_KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092"),

@@ -67,7 +67,22 @@ async def generate_contract(
 async def send_for_signature(contract_id: str, data: SendForSignatureRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         contract = await contract_service.send_for_signature(
-            db, request.app.state.kafka_producer, contract_id, data.signer_email
+            db, request.app.state.kafka_producer, contract_id, data.signer_email, provider=data.provider or "documenso"
+        )
+    except contract_service.ContractGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return DataResponse(data=_serialize(contract))
+
+
+@router.post(
+    "/{contract_id}/sign-simulated", response_model=DataResponse,
+    dependencies=[Depends(require_role("approver", "finance", "admin"))],
+)
+async def sign_contract_simulated(contract_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Simulate completed e-signature callback for testing from UI."""
+    try:
+        contract = await contract_service.sign_contract_simulated(
+            db, request.app.state.kafka_producer, contract_id
         )
     except contract_service.ContractGenerationError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,6 +1,8 @@
 """Clause extraction router handling explicit primary and fallback models."""
 import logging
 import time
+import uuid
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,22 +24,31 @@ class ClauseRoutingResult:
     duration_ms: float
 
 def _log_to_db(db: AsyncSession, document_id: str, result: ClauseRoutingResult):
-    log_entry = ModelRoutingLog(
-        document_id=document_id,
-        route_name=result.route_name,
-        model_used=result.model_used,
-        fallback_triggered=result.fallback_triggered,
-        fallback_reason=result.fallback_reason,
-        confidence=result.confidence,
-        duration_ms=result.duration_ms,
-    )
-    db.add(log_entry)
-    model_routing_total.labels(
-        service="contract-risk-agent",
-        route_name=result.route_name,
-        model_used=result.model_used,
-        fallback_triggered=str(result.fallback_triggered).lower()
-    ).inc()
+    try:
+        log_entry = ModelRoutingLog(
+            id=str(uuid.uuid4()),
+            document_id=document_id,
+            route_name=result.route_name,
+            model_used=result.model_used,
+            fallback_triggered=result.fallback_triggered,
+            fallback_reason=result.fallback_reason,
+            confidence=result.confidence,
+            duration_ms=result.duration_ms,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(log_entry)
+    except Exception as e:
+        logger.warning(f"Could not persist ModelRoutingLog: {e}")
+
+    try:
+        model_routing_total.labels(
+            service="contract-risk-agent",
+            route_name=result.route_name,
+            model_used=result.model_used,
+            fallback_triggered=str(result.fallback_triggered).lower()
+        ).inc()
+    except Exception:
+        pass
 
 async def route_clause_extraction(db: AsyncSession, contract_id: str, contract_text: str) -> ClauseRoutingResult:
     """Routes clause extraction with fallback logic."""

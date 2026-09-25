@@ -13,7 +13,8 @@ into docker-compose.
 import hashlib
 
 
-async def request_signature(contract_id: str, signer_email: str | None) -> str:
-    """Returns a provider reference id for the signature request."""
-    digest = hashlib.sha256(f"esign:{contract_id}:{signer_email or ''}".encode()).hexdigest()[:16]
-    return f"esign-ref-{digest}"
+async def request_signature(contract_id: str, signer_email: str | None, provider: str = "documenso") -> str:
+    """Returns a provider reference id for the signature request (e.g. documenso-ref-... or docusign-ref-...)."""
+    p_name = (provider or "documenso").strip().lower()
+    digest = hashlib.sha256(f"esign:{p_name}:{contract_id}:{signer_email or ''}".encode()).hexdigest()[:16]
+    return f"{p_name}-ref-{digest}"
