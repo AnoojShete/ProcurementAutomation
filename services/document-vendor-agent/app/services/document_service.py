@@ -124,6 +124,15 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         doc.status = "classified"
         doc.updated_at = datetime.now(timezone.utc)
 
+        await write_audit_log(
+            db, entity_type="document", entity_id=doc.id, action="classified",
+            payload={
+                "document_type": doc.document_type, "vendor_id": doc.vendor_id,
+                "overall_confidence": doc.overall_confidence, "needs_review": doc.needs_review,
+                "is_likely_duplicate": doc.is_likely_duplicate,
+                "matched_po_id": envelope.get("matched_po_id"),
+            },
+        )
         await db.commit()
 
         await checkpoint_service.write_checkpoints(

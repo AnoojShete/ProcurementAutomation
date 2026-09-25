@@ -5,6 +5,7 @@ These models must match the actual PostgreSQL table definitions exactly.
 The shared schema is the source of truth — never modify init.sql, use
 Alembic migrations for any extensions.
 """
+import uuid
 from datetime import datetime, date
 from typing import Optional, List
 from sqlalchemy import String, Integer, Float, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric
@@ -40,13 +41,19 @@ class Contract(Base):
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
     purchase_request_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("purchase_requests.id"))
+    # Mapped because the contract.signed handler falls back to it when
+    # deciding which licenses to activate.
+    vendor_id: Mapped[Optional[str]] = mapped_column(Uuid)
 
 
 class ProcessedEvent(Base):
     """Idempotency tracking for Kafka consumer."""
     __tablename__ = "processed_kafka_events"
 
-    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    # The table has a DB-side default, but SQLAlchemy needs a Python-side one
+    # too or it refuses to flush a row with a NULL identity — which rolled back
+    # the invoice_received status update along with it.
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid.uuid4()))
     event_id: Mapped[str] = mapped_column(Uuid, unique=True, nullable=False)
     topic: Mapped[str] = mapped_column(String(255), nullable=False)
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

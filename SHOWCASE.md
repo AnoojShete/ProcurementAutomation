@@ -163,9 +163,10 @@ from one command.
 
 ### Overall
 
-- **The demo flow works end to end, live**: 18/18 automated end-to-end steps
-  pass against the running stack (including the malware-rejection check),
-  and 275 unit tests pass.
+- **The demo flow works end to end, live**: one fresh invoice passes all
+  56 checks of the lifecycle test through every agent, with a real 3-way
+  match and no database shortcuts. `make e2e` passes 17/17 and 275 unit
+  tests pass.
 - **Against the full spec**: roughly **80–85%**. The gap is mostly
   external integrations (real e-sign sending, external risk data,
   sanctions) and a handful of hardening items, not the core flow.
@@ -198,11 +199,13 @@ from one command.
 ```bash
 ./run.sh                        # full stack; several minutes the first time
 ./scripts/seed-demo-data.sh     # vendor, approved request, 5 licenses, 4 hardware SKUs
-make e2e                        # should print "18 passed, 0 failed"
+./scripts/download-models.sh    # once per machine: LayoutLMv3 (~500 MB), else the cross-check is skipped
+make e2e                        # should print "17 passed, 0 failed"
+python tests/e2e/invoice_lifecycle.py   # should print "56 passed, 0 failed"
 ```
 
 Checklist:
-- [ ] `make e2e` green.
+- [ ] `make e2e` and `invoice_lifecycle.py` green.
 - [ ] `docker compose ps clamav` shows `(healthy)`.
 - [ ] Open http://localhost:8080 and log in as each role once.
 - [ ] Upload one sample document once, because the **first upload takes ~45s**
@@ -380,10 +383,14 @@ itself off before the quota runs out.
 
 ### About testing
 
-**How do you know it works?** 275 unit tests, plus an automated
-end-to-end test that drives the real running system through 18 steps:
-login → malware upload rejected → request → approve → contract → sign → risk → email → business-rule
-change → invoice matching. We run it live rather than showing screenshots.
+**How do you know it works?** 275 unit tests, plus a lifecycle test that
+takes one freshly generated invoice through all five agents on the real
+running system, with 56 checks and no database shortcuts: login → malware
+upload rejected → quote → vendor created → request → approval → invoice →
+matched to the request → contract → e-signature → fulfilled → risk →
+emails → audit trail. We run it live rather than showing screenshots.
+Writing it turned up four bugs that unit tests had missed, including
+invoice matching never working at all.
 
 **What was the hardest bug?** A good one to tell: approvals sent right
 after a request was created were being silently lost. The workflow cleared

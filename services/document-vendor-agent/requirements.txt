@@ -62,12 +62,13 @@ opencv-python-headless==4.11.0.86
 # apply_ocr=False is always passed to the processor — see layoutlm_crosscheck.py.
 # License of ngvozdenovic/invoice_extraction: verify on HF model card before demo.
 # ---------------------------------------------------------------------------
-transformers>=4.40.0
-# The "+cpu" local builds only exist for x86_64 at this version; on
-# aarch64 (Apple Silicon Docker) the plain PyPI wheel is already CPU-only.
-torch==2.3.1+cpu ; platform_machine == "x86_64"
-torchvision==0.18.1+cpu ; platform_machine == "x86_64"
-torch==2.3.1 ; platform_machine != "x86_64"
-torchvision==0.18.1 ; platform_machine != "x86_64"
+transformers>=4.40.0,<6
+# transformers 5.x silently disables PyTorch below 2.4 ("PyTorch was not
+# found"), which switched LayoutLMv3 off with no error. 2.6 is also the
+# first torch with "+cpu" wheels for both x86_64 and aarch64. torchvision
+# has no aarch64 "+cpu" build at 0.21; its plain aarch64 wheel is CPU-only.
+torch==2.6.0+cpu
+torchvision==0.21.0+cpu ; platform_machine == "x86_64"
+torchvision==0.21.0 ; platform_machine != "x86_64"
 --extra-index-url https://download.pytorch.org/whl/cpu
 safetensors==0.4.5

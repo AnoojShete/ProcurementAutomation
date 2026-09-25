@@ -308,10 +308,20 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
         "status": "approved",
     }
 
+    # /requests/* requires a JWT; without one every search 401'd and every
+    # invoice was silently "unmatched". Sign a short-lived service token with
+    # the platform's shared secret.
+    from shared.auth.jwt_tokens import create_access_token
+    service_token = create_access_token(
+        "document-vendor-agent", "document-vendor-agent@service.internal", "service",
+    )
+
     candidates = []
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(search_url, params=params)
+            resp = await client.get(
+                search_url, params=params, headers={"Authorization": f"Bearer {service_token}"},
+            )
             if resp.status_code == 200:
                 candidates = resp.json().get("data", [])
             else:

@@ -173,6 +173,8 @@ services:
       APP_MINIO_SECURE: "false"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
       HF_HOME: /app/.cache/huggingface
+      # Signs the service token for the invoice -> PO search call.
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
     # docling-models: Docling layout/table models (~300MB).
     # hf-cache: LayoutLMv3 model (~1GB) + PaddleOCR weights.
     # Both downloaded once ever and reused across container rebuilds.

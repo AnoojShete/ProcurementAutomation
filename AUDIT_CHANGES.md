@@ -205,3 +205,32 @@ the whole page. It only worked before because the routing log was empty.
 - Page coerces with `Number(...)` and shows `-` for null.
 - Verified in headless Chromium as admin: every section renders, 14
   routing rows, no page errors.
+
+---
+
+# Invoice lifecycle test + fixes (Sep 25)
+
+New `tests/e2e/invoice_lifecycle.py` takes a freshly generated vendor's quote
+and invoice through all five agents via the gateway only (56 checks, no DB
+writes). First run: 50/55. Every failure traced to a real bug, except two
+wrong field names and one wrong status expectation in the test itself.
+
+- **3-way match impossible:** pipeline → `/requests/search` had no JWT
+  (401). Now sends a service token; worker gets `JWT_SECRET`. The bash
+  e2e's SQL-driven "matching" step was removed.
+- **Consumer crashes** in approval-inventory-agent: `ProcessedEvent.id` had
+  no Python default (rolled back `invoice_received`); `Contract.vendor_id`
+  not mapped (`contract.signed` failed, request never `fulfilled`).
+- **Checkpoint column too short** (VARCHAR(20) vs `skipped_model_unavailable`)
+  plus no rollback → documents marked `failed`, events never published.
+  Widened to 40 (model + idempotent migration); rollback added.
+- **LayoutLMv3 never ran:** torch 2.3.1 < transformers 5's minimum (2.4),
+  model not cached, float page size. torch → 2.6.0 (+cpu both arches),
+  `scripts/download-models.sh`, int() cast.
+- **Reclaim automation broken:** `.contains()` on a JSON column compiled to
+  `jsonb ~~ text`. Cast to JSONB; `.first()` instead of `scalar_one_or_none`.
+  Verified: reclaim requests created, and skipped on the next scan.
+- **Audit gap:** documents now log `uploaded` and `classified`.
+
+Verified: lifecycle 56/56, `make e2e` 17/17, Python e2e, 275 unit tests,
+frontend build.

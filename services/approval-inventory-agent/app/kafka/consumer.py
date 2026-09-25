@@ -107,7 +107,7 @@ async def _mark_processed(session, event_id: str, topic: str):
 async def _handle_contract_signed(payload: dict, event: dict):
     """Handle a contract.signed event.
     
-    Updates the associated purchase request status to 'contract_signed'
+    Marks the associated purchase request 'fulfilled'
     when the downstream contract is fully executed.
     """
     event_id = event.get("event_id")

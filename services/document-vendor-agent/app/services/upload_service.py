@@ -75,6 +75,11 @@ async def store_and_record_upload(
         updated_at=uploaded_at,
     )
     db.add(doc)
+    await write_audit_log(
+        db, entity_type="document", entity_id=document_id, action="uploaded",
+        payload={"filename": filename, "file_type": file_type, "sha256": sha256_hex(data),
+                 "uploaded_by": uploaded_by, "malware_scan": "clean"},
+    )
     await db.commit()
 
     await kafka_producer.publish_document_ingested(

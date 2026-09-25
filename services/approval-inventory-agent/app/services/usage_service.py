@@ -21,7 +21,8 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import cast, select, func
+from sqlalchemy.dialects.postgresql import JSONB
 from app.models import License, LicenseUsage, PurchaseRequest, ApprovalHistory, AuditLog
 from app.config import load_config, settings
 from app.kafka.producer import KafkaEventProducer
@@ -301,13 +302,15 @@ class UsageService:
                     select(PurchaseRequest)
                     .where(PurchaseRequest.request_type == "reclaim")
                     .where(PurchaseRequest.status.in_(["pending_approval", "pending_grace_period"]))
+                    # items is mapped as generic JSON, whose .contains() compiles
+                    # to LIKE (jsonb ~~ text: fails). Cast for jsonb @> containment.
                     .where(
-                        PurchaseRequest.items.contains(
+                        cast(PurchaseRequest.items, JSONB).contains(
                             [{"license_id": str(lic.id)}]
                         )
                     )
                 )
-                existing = (await db.execute(existing_stmt)).scalar_one_or_none()
+                existing = (await db.execute(existing_stmt)).scalars().first()
                 if existing:
                     logger.info(f"Reclaim request already pending for {lic.id}, skipping")
                     continue

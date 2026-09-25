@@ -44,3 +44,7 @@ async def write_checkpoints(
         await db.flush()
     except Exception as e:
         logger.warning(f"Failed to persist pipeline checkpoints for document_id={document_id}: {e}")
+        # The failed flush leaves the session unusable; without a rollback the
+        # caller's next commit raises and the (already committed) document is
+        # marked failed with its Kafka events never published.
+        await db.rollback()

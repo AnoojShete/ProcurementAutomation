@@ -103,12 +103,14 @@ CREATE TABLE IF NOT EXISTS pipeline_checkpoints (
   agent_version VARCHAR(20) NOT NULL,
   task_id UUID NOT NULL,
   confidence NUMERIC(4, 3),
-  validation_status VARCHAR(20) NOT NULL DEFAULT 'valid',
+  validation_status VARCHAR(40) NOT NULL DEFAULT 'valid',
   errors JSONB,
   warnings JSONB,
   duration_ms NUMERIC(10, 2),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- 20 was too short for "skipped_model_unavailable" (25); widen existing DBs too.
+ALTER TABLE pipeline_checkpoints ALTER COLUMN validation_status TYPE VARCHAR(40);
 
 -- Live-verification toggle + external API quota tracking (admin/live-mode).
 -- Also in shared/db/init.sql, but that only runs on a fresh Postgres volume;

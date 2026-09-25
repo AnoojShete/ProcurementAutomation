@@ -209,7 +209,8 @@ def run_crosscheck(
             # For PDF pages we don't have a ready image — create a blank placeholder.
             # The processor still runs on the words+boxes only; the image is needed
             # for the visual embedding but a blank image is safe here.
-            pil_image = Image.new("RGB", (max(page_width, 1), max(page_height, 1)), "white")
+            # pdfplumber page sizes are floats (A4 = 595.28 x 841.89 pt).
+            pil_image = Image.new("RGB", (max(int(page_width), 1), max(int(page_height), 1)), "white")
 
         normed_boxes = _normalize_bboxes(docling_boxes, page_width, page_height)
         words = docling_words if docling_words else ["(empty)"]

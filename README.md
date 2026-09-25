@@ -60,6 +60,8 @@ docker compose up -d contract-risk-agent contract-risk-agent-worker   # one serv
 ./scripts/test-service.sh contract-risk-agent                         # that service's pytest suite
 ./scripts/test-service.sh all                                         # every service's pytest suite
 make e2e                                                               # the full end-to-end flow (needs run.sh first)
+python tests/e2e/invoice_lifecycle.py                                  # one invoice through all 5 agents, 56 checks
+./scripts/download-models.sh                                           # one-time LayoutLMv3 download (~500 MB)
 ```
 
 `make run`, `make up`, `make down`, `make logs`, `make reset`, `make test`,
@@ -247,10 +249,18 @@ for document upload → classification status in the request wizard.
   e-sign provider's webhook (real HMAC signature) → confirms the contract
   shows signed → recomputes vendor risk → confirms a notification landed
   in Mailpit → mutates a business rule mid-run, checks its audit history,
-  resets it → 3-way invoice match moves the request to
-  `invoice_received`. 18 steps. Needs `./run.sh` to have been run first.
+  resets it. 17 steps. Needs `./run.sh` to have been run first.
   `tests/e2e/test_flow.py` is a pytest version of the core flow that also
   asserts bad-signature and replay rejection on the e-sign webhook.
+- **Invoice lifecycle test**: `python tests/e2e/invoice_lifecycle.py`
+  (needs `requests`, `reportlab`, `pillow`) generates a fresh vendor's
+  quote and invoice and takes them through all five agents with **no DB
+  shortcuts**: auth checks → ClamAV → quote classified and vendor created →
+  purchase request (identity from JWT, manager tier) → inbox → Temporal
+  approval → invoice classified → real 3-way match to the request →
+  `invoice.matched` → `invoice_received` → contract → HMAC e-sign webhook
+  (bad signature and replay rejected) → `contract.signed` → `fulfilled` →
+  risk score → notifications for every step → audit trails. 56 checks.
 
 ## Per-service notes
 
@@ -260,9 +270,9 @@ Upload endpoint stores the file directly in MinIO and
 publishes `document.ingested`. A separate worker consumes that event and
 runs the extraction pipeline as an explicit chain of agents passing a
 JSON envelope from one to the next (`app/services/pipeline.py`):
-parsing (Docling for every PDF — layout-aware, recovers table structure,
-falls back to plain pdfplumber if it errors; pytesseract OCR for
-standalone scanned images) → classification (keyword-weighted PO/invoice/
+parsing (PDFs with a text layer take a fast pdfplumber path; scanned
+PDFs go to Docling, which is layout-aware and recovers table structure;
+PaddleOCR for standalone images) → classification (keyword-weighted PO/invoice/
 quote classifier) → field extraction (regex-based: vendor, line items,
 totals, dates, document numbers) → vendor matching (rapidfuzz name
 normalization + dedup against the shared `vendors` table) → duplicate
@@ -274,7 +284,10 @@ is used for image OCR, so a C-level segfault in Paddle kills only the
 subprocess, not the worker. Processing now branches on document type
 (invoice vs quote — quotes land in a `vendor_quotes` table), and a
 LayoutLMv3 cross-check (`layoutlm_crosscheck.py`) second-opinions the
-regex extraction; every routing/fallback decision is logged to
+regex extraction. The model (~500 MB) is loaded from the local cache only,
+so an upload never waits on a download: run `./scripts/download-models.sh`
+once per machine, otherwise the cross-check is skipped
+(`skipped_model_unavailable`); every routing/fallback decision is logged to
 `model_routing_log` and visible on the admin System Health page.
 
 Governance control: vendor bank/payment-detail changes go into a
@@ -316,8 +329,9 @@ on `data/synthetic-sso-logs/`) scores each license 0–1 and explains the
 score with SHAP top factors; a background `usage_scanner` re-scores
 periodically and triggers reclaim/reinstate workflows. Spend-tier
 thresholds are read from the business-rules engine (auth-service) rather
-than hard-coded. Consumes `contract.signed` and moves the originating
-request to `contract_signed`. See the service's own
+than hard-coded. Consumes `invoice.matched` (request → `invoice_received`)
+and `contract.signed` (request → `fulfilled`, and activates the license
+for license/SaaS requests). See the service's own
 [README](services/approval-inventory-agent/README.md) for the ML details.
 
 Note the approval decision is **asynchronous**: `POST /.../approve`
@@ -489,6 +503,28 @@ were written before the audit push but sat on his branch until now.
   reads `TEMPORAL_ADDRESS`; compose still used the old variable name and
   port.
 - `scripts/seed-demo-data.sh` now seeds licenses and inventory.
+- **Found by the invoice lifecycle test (Sep 25):**
+  - 3-way invoice matching could never match: the pipeline called
+    `/requests/search` with no JWT (401, logged only as a warning), so
+    every invoice was "unmatched". Now signs a short-lived service token.
+    The old e2e step "tested" this by setting the status with SQL; it's
+    been removed in favour of `tests/e2e/invoice_lifecycle.py`.
+  - `invoice.matched` and `contract.signed` handlers crashed in
+    approval-inventory-agent (`ProcessedEvent` had no id default;
+    `Contract.vendor_id` wasn't mapped), so requests never reached
+    `invoice_received` or `fulfilled`.
+  - `pipeline_checkpoints.validation_status` was VARCHAR(20), too short
+    for `skipped_model_unavailable`; the failed insert wasn't rolled
+    back, so 9 documents were marked `failed` and their Kafka events
+    never sent.
+  - LayoutLMv3 never ran: transformers 5 disables PyTorch below 2.4 and
+    the image had 2.3.1 (torch is now 2.6.0), the model was never
+    downloaded (`scripts/download-models.sh`), and a float page size
+    crashed it once it did load.
+  - License reclaim automation failed every scan (`jsonb ~~ text` from
+    `.contains()` on a generic JSON column).
+  - Documents had no audit entries for normal upload/classification;
+    `uploaded` and `classified` are now recorded.
 - Stale tests updated: notification-agent's topic list (new
   `vendor.payment_details_flagged`), license-endpoint DB mocks, and the
   Python e2e's request amount (15,000 is now a two-approver tier under

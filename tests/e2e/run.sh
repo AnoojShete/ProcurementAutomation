@@ -160,12 +160,10 @@ RESET_RULE=$(curl -s -X POST "$GATEWAY/api/admin/business-rules/license.anomaly_
 RESET_VAL=$(echo "$RESET_RULE" | json data.current_value)
 if [ -n "$RESET_VAL" ]; then ok "rule reset successfully to $RESET_VAL"; else bad "failed to reset rule: $RESET_RULE"; fi
 
-step "Prompt 7: 3-Way Invoice Matching Updates Request to invoice_received"
-docker compose exec -T postgres psql -U "${POSTGRES_USER:-postgres}" -q <<SQL
-UPDATE purchase_requests SET status = 'invoice_received' WHERE id = '$REQUEST_ID';
-SQL
-REQ_UPDATED_STATUS=$(curl -s "$GATEWAY/api/requests/$REQUEST_ID" -H "Authorization: Bearer $APPROVER_TOKEN" | json data.status)
-if [ "$REQ_UPDATED_STATUS" = "invoice_received" ]; then ok "purchase request transitioned to invoice_received"; else bad "request status mismatch: $REQ_UPDATED_STATUS"; fi
+# The real 3-way invoice -> PO match (upload an invoice, pipeline finds the
+# approved request, invoice.matched moves it to invoice_received) is covered
+# end to end by tests/e2e/invoice_lifecycle.py. This script used to "test"
+# it by setting the status with SQL, which could never fail.
 
 echo
 echo "=================================================================="
