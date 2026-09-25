@@ -5,6 +5,14 @@ and inventory, contracts and vendor risk, and notifications — four
 services, one Postgres schema, one Kafka bus, wired together behind a
 single gateway, plus a lightweight frontend.
 
+> **ClamAV malware scanning: ADDED BACK (Sep 25).** Niraj removed ClamAV
+> on Sep 24 because it took 2–3 minutes to start. The cause was x86
+> emulation on Apple Silicon, not ClamAV itself. It now runs on a native
+> multi-arch image and is **healthy about 5 seconds after start**
+> (measured; the requirement was under 20s). Every upload is scanned
+> before it's stored, and uploads are refused (503) if ClamAV is down.
+> Details: [ClamAV: added back](#clamav-added-back-sep-25).
+
 ## Quickstart
 
 ```
@@ -61,7 +69,7 @@ and `make e2e` are shortcuts for the equivalents above.
 
 | Service | Owner | Folder | Port | Depends on |
 |---|---|---|---|---|
-| document-vendor-agent | Vaidehi | `services/document-vendor-agent/` | 8001 | Postgres, Kafka, MinIO |
+| document-vendor-agent | Vaidehi | `services/document-vendor-agent/` | 8001 | Postgres, Kafka, MinIO, ClamAV |
 | approval-inventory-agent | Niraj | `services/approval-inventory-agent/` | 8002 | Postgres, Kafka, Redis, Temporal |
 | contract-risk-agent | Anjali | `services/contract-risk-agent/` | 8003 | Postgres, Kafka, Redis, Temporal, MLflow |
 | notification-agent | Anooj | `services/notification-agent/` | 8004 | Postgres, Kafka, Mailpit |
@@ -74,7 +82,8 @@ Kafka and/or running Temporal workflows.
 
 Shared infrastructure (`docker-compose.yml`): Postgres, Redis, Redpanda
 (Kafka API), MinIO, Temporal + Temporal UI, MLflow, Prometheus, Grafana,
-Mailpit, and the Nginx gateway. Each app service lives in
+Mailpit, ClamAV (malware scanning, port 3310), kafka-exporter, and the
+Nginx gateway. Each app service lives in
 `docker-compose.override.yml`.
 
 Local UIs once the stack is up:
@@ -226,11 +235,12 @@ for document upload → classification status in the request wizard.
 - **Per-service unit tests**: `./scripts/test-service.sh <name>` (or `all`)
   runs that service's `pytest` suite inside its own built Docker image,
   with the service folder volume-mounted so it runs against current
-  source. 222 tests across the five services, plus 50 root-level tests
-  (`tests/test_rules_engine.py`, `tests/test_taxonomy.py`) — 272 total as
+  source. 225 tests across the five services, plus 50 root-level tests
+  (`tests/test_rules_engine.py`, `tests/test_taxonomy.py`) — 275 total as
   of Sep 25, all pure-logic/schema tests, no live infra required.
 - **End-to-end test**: `make e2e` (or `./tests/e2e/run.sh`) scripts the
-  real flow through the *running* gateway: log in as requester → create a
+  real flow through the *running* gateway: log in → upload the EICAR test
+  file and confirm ClamAV rejects it (422), upload a clean PDF → create a
   purchase request → log in as approver → approve it (polls, since the
   decision is applied asynchronously by a signalled Temporal workflow) →
   admin generates a contract → sends it for signature → simulates the
@@ -238,7 +248,7 @@ for document upload → classification status in the request wizard.
   shows signed → recomputes vendor risk → confirms a notification landed
   in Mailpit → mutates a business rule mid-run, checks its audit history,
   resets it → 3-way invoice match moves the request to
-  `invoice_received`. 16 steps. Needs `./run.sh` to have been run first.
+  `invoice_received`. 18 steps. Needs `./run.sh` to have been run first.
   `tests/e2e/test_flow.py` is a pytest version of the core flow that also
   asserts bad-signature and replay rejection on the e-sign webhook.
 
@@ -271,9 +281,12 @@ Governance control: vendor bank/payment-detail changes go into a
 `payment_details_pending_verification` state instead of updating live
 (dual control — the verifier is taken from the caller's JWT and must
 differ from the submitter, via `POST /vendors/{id}/verify-payment-change`,
-finance/admin only). **Uploads are no longer malware-scanned** — ClamAV
-was removed on Sep 24 because its first-boot signature download made
-startup unreliable (see [Recent changes](#recent-changes-sep-5--sep-25)).
+finance/admin only). **Every upload is malware-scanned by ClamAV** before
+it's written to MinIO: streamed over clamd's INSTREAM socket, never
+written to disk first. An infected file is rejected with 422 and
+audit-logged. If ClamAV can't be reached the upload **fails closed** with
+503; it is never silently skipped (see
+[ClamAV: added back](#clamav-added-back-sep-25)).
 
 Additionally, India-specific vendor identity checks are enforced for
 tiered vetting: GSTIN validation (format + modulo-36 check-digit + live
@@ -396,9 +409,9 @@ were written before the audit push but sat on his branch until now.
   `vendor_quotes` table); extraction/classification bug fix (Sep 25).
 - Admin API: Live Verification Mode toggle, API quota tracking with
   auto-cutoff, Kafka consumer lag.
-- **ClamAV removed entirely** (Sep 24) after several attempts to make its
-  first-boot signature download reliable. Uploads are no longer
-  malware-scanned.
+- ClamAV removed entirely (Sep 24) after several attempts to make its
+  startup reliable. **Anjali added it back on Sep 25**; see
+  [ClamAV: added back](#clamav-added-back-sep-25).
 
 **Niraj — auth-service / platform**
 - Business rules engine: `business_rules` table + Alembic migration,
@@ -428,7 +441,7 @@ were written before the audit push but sat on his branch until now.
 - notification-agent routes now require a JWT; new
   `vendor_payment_details_flagged` email template.
 - e2e test extended; `data/README.md`; ClamAV startup fixes (later
-  superseded by the removal above).
+  superseded by the removal above, and then by the re-add below).
 
 **Fixed during the merge (Anjali, Sep 25)**
 - Duplicate `@router.post("/{id}/approve")` without a role check removed.
@@ -480,6 +493,59 @@ were written before the audit push but sat on his branch until now.
   `vendor.payment_details_flagged`), license-endpoint DB mocks, and the
   Python e2e's request amount (15,000 is now a two-approver tier under
   the business rules).
+
+## ClamAV: added back (Sep 25)
+
+**Status: ADDED.** ClamAV is part of the stack again, and every document
+upload is scanned.
+
+**Why it was removed.** On Apple Silicon it took 2–3 minutes before
+uploads could be scanned. The old image (`clamav/clamav:stable_base`) has
+no ARM64 build, so compose forced `platform: linux/amd64` and it ran
+under x86 emulation. The health check also only polled every 15–30s, and
+on a fresh volume `freshclam` downloaded the signature database under
+emulation too.
+
+**What changed.**
+- Image: `clamav/clamav-debian:1.5`, the official multi-arch image (native
+  amd64 and arm64), with no `platform:` override. The signature database
+  ships inside the image, so boot never waits for a download; `freshclamd`
+  updates it in the background.
+- Health check: the image's own `clamdcheck.sh`, polled every second
+  during startup (`start_interval: 1s`), so "healthy" is reported within
+  about 1s of clamd being ready.
+- The blocking clamd socket call runs in a thread, so a scan never stalls
+  the API.
+- `document-vendor-agent` waits for `clamav: service_healthy`, and both
+  `install.sh` and `run.sh` start and health-check it.
+
+**Measured on Apple Silicon (M-series, Docker Desktop), Sep 25.** The
+requirement was under 20 seconds.
+
+| Measurement | Old setup | New setup |
+|---|---|---|
+| clamd ready (DB already on disk) | 50.4s | 3.9s (3 runs) |
+| `docker compose up clamav` → healthy, fresh volume | 2–3 min | **4.7s** |
+| `docker compose up clamav` → healthy, existing volume | — | **4.6s** |
+| Inside a full `./run.sh` (container log timestamps) | — | **5.0s** |
+| Restart → healthy | — | 4.6s |
+| Scan latency (EICAR / 13 KB clean / 2 KB PDF upload end to end) | — | 7 ms / 9 ms / ~7 ms |
+
+**Behaviour, verified live:**
+- EICAR upload → `422 upload rejected: malware detected (Eicar-Test-Signature)`.
+- Clean PDF → `201`.
+- ClamAV stopped → `503 scanning unavailable, try again`.
+- `make e2e` checks both the reject and the accept on every run.
+
+**Upload size limit: 25 MB**, the same at every layer: nginx
+(`client_max_body_size`, which previously defaulted to 1 MB and rejected
+any real scanned PDF), document-vendor-agent (`APP_MAX_UPLOAD_BYTES`, JSON
+413), and clamd's `StreamMaxLength`. Verified: 2 MB and 24 MB uploads are
+scanned and accepted (24 MB in ~1s); 30 MB → 413.
+
+**Resource cost.** clamd holds the signature database in memory, about
+1 GB RAM. If Docker Desktop is short on memory, raise its limit rather
+than removing the service.
 
 ## Known limitations / infra fixes made along the way
 
@@ -590,10 +656,6 @@ they're a genuinely separate, larger effort:
   rate/latency/errors and Kafka consumer lag (via `kafka-exporter`); an
   approval SLA-breach panel still needs a counter in
   approval-inventory-agent.
-- **Malware scanning**: ClamAV was removed (Sep 24) for startup
-  reliability. Bringing it back as an optional, non-blocking sidecar
-  (scan asynchronously, quarantine on hit) would restore the control
-  without making boot depend on a 200 MB signature download.
 - **CI**: `scripts/ci-build.sh` builds each service's Docker image on
   push; it doesn't yet run the pytest suites or `make e2e` in CI. Wiring
   `scripts/test-service.sh all` and `make e2e` in as pipeline steps (the

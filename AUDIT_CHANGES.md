@@ -149,3 +149,44 @@ in README.md → [Recent changes (Sep 5 → Sep 25)](README.md#recent-changes-se
 - Live gateway checks for each fix above, plus document upload → classified
   for invoice, quote and PO, and license scoring (2 anomalous / 2 watch /
   1 normal on seeded data).
+
+---
+
+# ClamAV: added back (Sep 25)
+
+**Status: ADDED.** ClamAV malware scanning is part of the stack again.
+
+Niraj removed ClamAV on Sep 24 because it took 2–3 minutes to start. The
+requirement for bringing it back was that it's ready in under 20 seconds.
+It measured **~5 seconds**, so it's back in.
+
+- **Root cause of the slowness:** `clamav/clamav:stable_base` has no ARM64
+  build, so compose forced `platform: linux/amd64` and it ran under x86
+  emulation on Apple Silicon (50.4s to load signatures even with the DB on
+  disk, longer on a fresh volume where `freshclam` also ran emulated). The
+  health check then only polled every 15–30s.
+- **Fix:** `clamav/clamav-debian:1.5` (official, native amd64 + arm64,
+  signature DB built in) with a `start_interval: 1s` health check.
+- **Measured:** fresh volume → healthy 4.7s; existing volume 4.6s; inside a
+  full `./run.sh` 5.0s (container log timestamps); restart 4.6s; scan
+  latency ~7 ms.
+- **Restored code:** `clamav_client.py`, scan-before-store in
+  `upload_service.py`, 422/503 handling in `documents.py`, `clamd`
+  dependency, `tests/test_clamav.py`. The scan now runs via
+  `asyncio.to_thread` so it can't block the event loop.
+- **Wiring:** `docker-compose.yml` service + `clamav-data` volume;
+  document-vendor-agent depends on `clamav: service_healthy`; `install.sh`
+  and `run.sh` start and health-check it.
+- **Upload size:** nginx had no `client_max_body_size`, so its 1 MB default
+  rejected any real scanned PDF. nginx, the API (JSON 413) and clamd are
+  now all 25 MB. Verified: 24 MB accepted and scanned in ~1s, 30 MB → 413.
+- **Verified live:** EICAR → 422; clean PDF → 201; ClamAV stopped → 503
+  (fails closed); `make e2e` 18/18 (now includes both checks); 275 unit
+  tests pass.
+
+Also in this commit: `run.sh` builds the frontend in a Linux container with
+`frontend/` mounted, which overwrote the host's `node_modules` with Linux
+binaries, so a later `npm run build` on macOS failed (missing
+`@rollup/rollup-darwin-arm64`). The container now uses an anonymous
+`/app/node_modules` volume. Verified: host build → container build → host
+build all succeed.

@@ -133,6 +133,8 @@ services:
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
+      APP_CLAMAV_HOST: clamav
+      APP_CLAMAV_PORT: "3310"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
       HF_HOME: /app/.cache/huggingface
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
@@ -144,6 +146,10 @@ services:
       redpanda:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      # Uploads fail closed (503) without ClamAV. It's healthy ~5s after
+      # start (see docker-compose.yml), so this doesn't slow boot down.
+      clamav:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]

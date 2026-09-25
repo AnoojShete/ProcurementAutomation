@@ -28,8 +28,12 @@ echo "--- [3/6] Building the frontend (React/Vite -> frontend/dist) ---"
 echo "---       Built in a throwaway node container so the host     ---"
 echo "---       doesn't need Node installed — nginx serves the      ---"
 echo "---       static dist/ output (docker-compose.override.yml).  ---"
+# The anonymous /app/node_modules volume keeps the container's Linux
+# node_modules out of the host checkout — otherwise a host `npm run build`
+# afterwards fails on macOS/Windows with missing native rollup/esbuild binaries.
 docker run --rm \
   -v "$ROOT_DIR/frontend:/app" \
+  -v /app/node_modules \
   -w /app \
   node:20-alpine \
   sh -c "npm ci && npm run build"
@@ -53,7 +57,7 @@ docker compose up -d --remove-orphans nginx --force-recreate
 
 echo
 echo "--- [6/6] Waiting for every service's healthcheck ---"
-SERVICES="postgres redis redpanda minio temporal auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
+SERVICES="postgres redis redpanda minio temporal clamav auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
 for i in $(seq 1 30); do
   unhealthy=""
   for svc in $SERVICES; do

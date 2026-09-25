@@ -127,10 +127,32 @@ services:
       test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v1/info"]
       interval: 10s
       retries: 5
+  # --- ClamAV (malware scanning for document-vendor-agent uploads) ---
+  # Native multi-arch image (amd64 + arm64). The old clamav/clamav:stable_base
+  # has no arm64 build, so on Apple Silicon it ran under x86 emulation and
+  # took ~50s to load signatures (2-3 min on a fresh volume, because
+  # freshclam also ran emulated). Natively clamd answers in ~4s.
+  # The signature DB ships inside the image, so boot never blocks on a
+  # download; freshclamd updates it in the background and clamd reloads.
+  clamav:
+    image: clamav/clamav-debian:1.5
+    ports:
+      - 3310:3310
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s   # poll every second while starting, so "healthy" lands within ~1s of clamd being ready
+
 volumes:
   pgdata:
   miniodata:
   grafana-data:
+  clamav-data:
 
 networks:
   default:

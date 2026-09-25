@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     minio_bucket: str = "documents"
     minio_secure: bool = False
 
+    clamav_host: str = "clamav"
+    clamav_port: int = 3310
+    clamav_timeout_seconds: int = 15
+    # Must not exceed clamd's StreamMaxLength (25 MB by default); a larger
+    # stream is refused by clamd and would surface as a misleading 503.
+    max_upload_bytes: int = 25 * 1024 * 1024
+
     # GSTIN live registry (gstincheck.co.in — ~20 free lookups total, not per-day).
     # Always gated by shared/live_mode quota before calling; set this only
     # when live verification is actually needed (demo day).

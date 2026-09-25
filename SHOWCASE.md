@@ -5,6 +5,12 @@ demo it, what comes next, and answers to the questions we're likely to get.
 State as of **Sep 25, 2026** (the `anjali` branch after merging `anooj2`).
 For the full technical reference see [README.md](README.md).
 
+> **ClamAV malware scanning: ADDED BACK.** Removed by Niraj on Sep 24
+> because it took 2–3 min to start; re-added by Anjali on Sep 25 on a
+> native image that's healthy in **about 5 seconds** (measured; the target
+> was under 20s). Every upload is scanned; if ClamAV is down, uploads are
+> refused rather than let through.
+
 ---
 
 ## 0. The 30-second pitch
@@ -66,14 +72,15 @@ own estimates, not a measurement.
 - **Vendor vetting (India-specific)**: GSTIN format + checksum + optional
   live registry lookup, IFSC bank-code validation, spend-based vendor
   tiers (petty < ₹5k, standard < ₹50k, full vetting above).
+- **Malware scanning (ClamAV)**: every upload is scanned before it's
+  stored. Infected files are rejected and audit-logged; if the scanner is
+  down, uploads are refused (fail closed).
 - **Controls**: duplicate-invoice detection, confidence-gated human review
   queue (below 0.8 → review), and **dual control on vendor bank-detail
   changes** (the person who submits a change can never also approve it —
   classic payment-fraud control).
 
 **Not done / next**
-- Uploads are **no longer malware-scanned** (ClamAV removed on Sep 24; its
-  first-boot download made startup unreliable).
 - `uploaded_by` still comes from the form, not the login token.
 - No screen yet for finance to approve a bank-detail change (API exists).
 
@@ -151,12 +158,14 @@ Services pick up changes through Kafka.
 Kafka event bus (15 topics), a shared response format, idempotency keys,
 one nginx gateway, Prometheus + Grafana dashboards (including Kafka lag),
 structured JSON logs, retry-on-boot for every dependency, and a role-aware
-React frontend. **20 containers** come up from one command.
+React frontend, and ClamAV for upload scanning. **21 containers** come up
+from one command.
 
 ### Overall
 
-- **The demo flow works end to end, live**: 16/16 automated end-to-end steps
-  pass against the running stack, and 272 unit tests pass.
+- **The demo flow works end to end, live**: 18/18 automated end-to-end steps
+  pass against the running stack (including the malware-rejection check),
+  and 275 unit tests pass.
 - **Against the full spec**: roughly **80–85%**. The gap is mostly
   external integrations (real e-sign sending, external risk data,
   sanctions) and a handful of hardening items, not the core flow.
@@ -172,7 +181,8 @@ React frontend. **20 containers** come up from one command.
 - **Business rules engine + admin page**, System Health page, Kafka lag: Niraj
 - **E-sign provider selection, simulated-sign guard, webhook tests**: Niraj
 - **Self-registration + breached-password check, stricter token checks**: Anooj
-- **ClamAV removed** for startup reliability: Niraj
+- **ClamAV**: removed by Niraj (Sep 24) because startup took 2–3 min;
+  **added back by Anjali (Sep 25)** on a native image that starts in ~5s
 - **Audit + fixes during the merge** (Anjali): permission holes on new
   endpoints, identity spoofing on approvals, a leaked API key, document
   uploads failing, the anomaly model never running inside Docker, a race
@@ -188,11 +198,12 @@ React frontend. **20 containers** come up from one command.
 ```bash
 ./run.sh                        # full stack; several minutes the first time
 ./scripts/seed-demo-data.sh     # vendor, approved request, 5 licenses, 4 hardware SKUs
-make e2e                        # should print "16 passed, 0 failed"
+make e2e                        # should print "18 passed, 0 failed"
 ```
 
 Checklist:
 - [ ] `make e2e` green.
+- [ ] `docker compose ps clamav` shows `(healthy)`.
 - [ ] Open http://localhost:8080 and log in as each role once.
 - [ ] Upload one sample document once, because the **first upload takes ~45s**
       while the models load. Later uploads take a few seconds.
@@ -212,6 +223,12 @@ all demo accounts is `DemoPass123!`).
 2. **Documents.** Open the upload: extracted fields, confidence per field,
    "needs review" when below 0.8. Upload the same invoice twice to show the
    **duplicate flag**.
+   *Optional, malware scan:* in a terminal, create the EICAR test file and
+   upload it. It's rejected with "malware detected (Eicar-Test-Signature)".
+   ```bash
+   printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/eicar.pdf
+   ```
+   Then upload `/tmp/eicar.pdf` from the Documents page.
 3. **Approver → Approval Inbox.** Approve it. The status flips a moment later.
    Explain that this is a Temporal workflow, which is why it's asynchronous
    and survives restarts.
@@ -244,7 +261,7 @@ walks the whole chain in about 30 seconds with green ticks.
    OpenSanctions.
 3. **Hardening found in audit**: inventory-lock release, per-level
    approver check, uploader identity from the token, finance UI for
-   bank-detail approvals, and optional async malware scanning.
+   bank-detail approvals.
 4. **Run the tests in CI.** Today CI only builds images; two stale tests
    this week would have been caught.
 5. **Tune the license-anomaly model** and validate clause extraction on
@@ -318,8 +335,15 @@ detection, spend-tier approvals, structuring detection (splitting
 purchases to stay under limits, via 90-day spend), an HMAC-signed and
 replay-protected e-sign webhook, and a full audit log.
 
-**Is there malware scanning?** Not at the moment. We removed ClamAV because
-it made startup unreliable. It's on the roadmap as an optional async scan.
+**Is there malware scanning?** Yes. ClamAV scans every upload before it's
+stored, in about 7 ms per file. Infected files are rejected (we demo this
+with EICAR, the standard harmless test virus). If the scanner is down,
+uploads are refused rather than let through unscanned ("fail closed").
+
+**Didn't you remove ClamAV?** Briefly. It took 2–3 minutes to start on our
+Macs because the old image only existed for Intel and ran under
+emulation. We switched to the official multi-arch image, which runs
+natively and is ready in about 5 seconds, so we put it back.
 
 ### About the ML
 
@@ -356,9 +380,9 @@ itself off before the quota runs out.
 
 ### About testing
 
-**How do you know it works?** 272 unit tests, plus an automated
-end-to-end test that drives the real running system through 16 steps:
-login → request → approve → contract → sign → risk → email → business-rule
+**How do you know it works?** 275 unit tests, plus an automated
+end-to-end test that drives the real running system through 18 steps:
+login → malware upload rejected → request → approve → contract → sign → risk → email → business-rule
 change → invoice matching. We run it live rather than showing screenshots.
 
 **What was the hardest bug?** A good one to tell: approvals sent right

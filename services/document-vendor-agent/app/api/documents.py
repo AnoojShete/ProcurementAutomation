@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models import Document
 from app.schemas import DataResponse, ReviewCorrectionRequest
 from app.services import document_service
-from app.services.upload_service import store_and_record_upload
+from app.services.upload_service import scan_upload, store_and_record_upload, MalwareDetectedError, ScanUnavailableError
 from shared.idempotency import get_cached_response, store_response
 
 router = APIRouter()
@@ -46,9 +47,25 @@ async def upload_document(
         cached = await get_cached_response(request.app.state.redis, "document-vendor-agent", idempotency_key)
         if cached is not None:
             return cached
-    data = await file.read()
+    # Read at most one byte past the cap so an oversized upload is caught
+    # without buffering all of it.
+    data = await file.read(settings.max_upload_bytes + 1)
     if not data:
         raise HTTPException(status_code=400, detail="uploaded file is empty")
+    if len(data) > settings.max_upload_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"file too large (max {settings.max_upload_bytes // (1024 * 1024)} MB)",
+        )
+
+    try:
+        await scan_upload(data, db, file.filename or "upload")
+    except MalwareDetectedError as e:
+        await db.commit()
+        raise HTTPException(status_code=422, detail=f"upload rejected: malware detected ({e.signature})")
+    except ScanUnavailableError:
+        await db.commit()
+        raise HTTPException(status_code=503, detail="scanning unavailable, try again")
 
     doc = await store_and_record_upload(
         db, request.app.state.kafka_producer, data, file.filename or "upload",

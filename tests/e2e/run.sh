@@ -5,7 +5,7 @@
 # approver -> approve it -> confirm a contract was generated -> send for
 # signature -> simulate the e-sign webhook -> confirm the contract is
 # signed and a risk score is attached -> confirm an email landed in
-# Mailpit. This is the one test that proves the whole product works
+# Mailpit. Also checks ClamAV rejects an EICAR upload. This is the one test that proves the whole product works
 # together, not just that each service passes its own unit tests.
 set -euo pipefail
 GATEWAY="${GATEWAY:-http://localhost:8080}"
@@ -38,6 +38,19 @@ step "Log in as requester and admin"
 REQUESTER_TOKEN=$(login requester@demo.example.com) && ok "requester token acquired" || { bad "requester login failed"; exit 1; }
 APPROVER_TOKEN=$(login approver@demo.example.com) && ok "approver token acquired" || { bad "approver login failed"; exit 1; }
 ADMIN_TOKEN=$(login admin@demo.example.com) && ok "admin token acquired" || { bad "admin login failed"; exit 1; }
+
+step "ClamAV rejects a malware upload and accepts a clean one"
+# EICAR is the industry-standard harmless antivirus test string.
+EICAR_FILE=$(mktemp)
+printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$EICAR_FILE"
+EICAR_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$GATEWAY/api/documents/upload" \
+  -H "Authorization: Bearer $REQUESTER_TOKEN" -F "file=@$EICAR_FILE;filename=eicar.pdf")
+rm -f "$EICAR_FILE"
+if [ "$EICAR_CODE" = "422" ]; then ok "EICAR upload rejected (422)"; else bad "EICAR upload not rejected (HTTP $EICAR_CODE)"; fi
+CLEAN_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$GATEWAY/api/documents/upload" \
+  -H "Authorization: Bearer $REQUESTER_TOKEN" \
+  -F "file=@$(dirname "$0")/../../data/synthetic-invoices/01_po_delltechnologiesindi_PO-2026-00002.pdf")
+if [ "$CLEAN_CODE" = "201" ] || [ "$CLEAN_CODE" = "200" ]; then ok "clean PDF accepted ($CLEAN_CODE)"; else bad "clean upload failed (HTTP $CLEAN_CODE)"; fi
 
 step "Requester creates a manager-tier purchase request"
 REQ=$(curl -s -X POST "$GATEWAY/api/requests/" -H "Authorization: Bearer $REQUESTER_TOKEN" -H "Content-Type: application/json" \
