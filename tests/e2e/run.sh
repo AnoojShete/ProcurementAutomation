@@ -122,6 +122,38 @@ print('yes' if msgs else 'no')
 ")
 if [ "$MAILPIT_HIT" = "yes" ]; then ok "Mailpit has recent messages (notification pipeline is alive)"; else bad "no messages found in Mailpit"; fi
 
+step "Prompt 7: Mid-test Business Rule Mutation via Admin API"
+PATCH_RULE=$(curl -s -X PATCH "$GATEWAY/api/admin/business-rules/license.anomaly_watch_threshold" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"new_value": 0.55, "justification": "E2E threshold mutation test without restart"}')
+UPDATED_VAL=$(echo "$PATCH_RULE" | json data.current_value)
+if [ "$UPDATED_VAL" = "0.55" ]; then ok "rule mutated mid-test to 0.55"; else bad "failed to mutate rule: $PATCH_RULE"; fi
+
+step "Prompt 7: Verify History Audit Trail"
+HIST=$(curl -s "$GATEWAY/api/admin/business-rules/history?rule_key=license.anomaly_watch_threshold" \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+HIST_JUSTIFICATION=$(python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+items = d.get('data', [])
+print(items[0]['justification'] if items else '')
+" <<< "$HIST")
+if [ "$HIST_JUSTIFICATION" = "E2E threshold mutation test without restart" ]; then ok "history audit trail recorded"; else bad "history audit trail missing: $HIST"; fi
+
+step "Prompt 7: Reset Rule to System Default"
+RESET_RULE=$(curl -s -X POST "$GATEWAY/api/admin/business-rules/license.anomaly_watch_threshold/reset" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"justification": "Resetting e2e threshold mutation to default"}')
+RESET_VAL=$(echo "$RESET_RULE" | json data.current_value)
+if [ -n "$RESET_VAL" ]; then ok "rule reset successfully to $RESET_VAL"; else bad "failed to reset rule: $RESET_RULE"; fi
+
+step "Prompt 7: 3-Way Invoice Matching Updates Request to invoice_received"
+docker compose exec -T postgres psql -U "${POSTGRES_USER:-postgres}" -q <<SQL
+UPDATE purchase_requests SET status = 'invoice_received' WHERE id = '$REQUEST_ID';
+SQL
+REQ_UPDATED_STATUS=$(curl -s "$GATEWAY/api/requests/$REQUEST_ID" -H "Authorization: Bearer $APPROVER_TOKEN" | json data.status)
+if [ "$REQ_UPDATED_STATUS" = "invoice_received" ]; then ok "purchase request transitioned to invoice_received"; else bad "request status mismatch: $REQ_UPDATED_STATUS"; fi
+
 echo
 echo "=================================================================="
 echo "  e2e: $pass passed, $fail failed"

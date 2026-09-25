@@ -56,12 +56,19 @@ class ApprovalService:
             - ₹500-₹5,000:  manager approval
             - Above ₹5,000: manager + finance approval
         """
-        tiers = load_spend_tiers()
+        from shared.rules_engine import get_rule
+        tiers = get_rule("approval.spend_tiers", fallback=None)
+        if not tiers:
+            tiers = load_spend_tiers()
         for tier in tiers:
-            if tier["max_amount"] is None or amount <= tier["max_amount"]:
-                return tier["name"], list(tier["approval_chain"])
-        # Fallback to highest tier
-        return tiers[-1]["name"], list(tiers[-1]["approval_chain"])
+            name = tier.get("tier_name") or tier.get("name")
+            chain = tier.get("required_roles") if "required_roles" in tier else tier.get("approval_chain", [])
+            max_amt = tier.get("max_amount")
+            if max_amt is None or amount <= float(max_amt):
+                return name, list(chain)
+        last_name = tiers[-1].get("tier_name") or tiers[-1].get("name")
+        last_chain = tiers[-1].get("required_roles") if "required_roles" in tiers[-1] else tiers[-1].get("approval_chain", [])
+        return last_name, list(last_chain)
 
     async def list_requests(self, limit: int = 100) -> list[PurchaseRequest]:
         """Every purchase request, most recently created first — backs the
@@ -122,7 +129,8 @@ class ApprovalService:
 
         # 2. Calculate SLA deadline
         config = load_config()
-        sla_hours = config.get("sla", {}).get("approval_timeout_hours", 48)
+        from shared.rules_engine import get_rule
+        sla_hours = int(get_rule("approval.sla_escalation_hours", fallback=config.get("sla", {}).get("approval_timeout_hours", 48)))
         sla_deadline = datetime.now(timezone.utc) + timedelta(hours=sla_hours)
 
         req_id = str(uuid.uuid4())
@@ -424,7 +432,8 @@ class ApprovalService:
                     result = await self.db.execute(stmt)
                     lic = result.scalar_one_or_none()
                     if lic:
-                        lic.reclaim_cooldown_until = now + timedelta(days=45)
+                        cooldown_days = int(get_rule("license.reclaim_cooldown_days", fallback=45))
+                        lic.reclaim_cooldown_until = now + timedelta(days=cooldown_days)
 
         audit = AuditLog(
             id=str(uuid.uuid4()),

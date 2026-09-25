@@ -12,6 +12,7 @@ from app.kafka.events import (
     build_document_classified_payload,
     build_vendor_matched_payload,
     build_vendor_payment_details_flagged_payload,
+    build_invoice_matched_payload,
 )
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ TOPIC_DOCUMENT_INGESTED = "document.ingested"
 TOPIC_DOCUMENT_CLASSIFIED = "document.classified"
 TOPIC_VENDOR_MATCHED = "vendor.matched"
 TOPIC_VENDOR_PAYMENT_DETAILS_FLAGGED = "vendor.payment_details_flagged"
+TOPIC_INVOICE_MATCHED = "invoice.matched"
 
 
 class KafkaEventProducer:
@@ -62,7 +64,7 @@ class KafkaEventProducer:
             overall_confidence=overall_confidence, needs_review=needs_review,
             model_used=model_used, fallback_triggered=fallback_triggered,
         )
-        event = build_event(TOPIC_DOCUMENT_CLASSIFIED, self.service_name, payload)
+        event = build_event(TOPIC_DOCUMENT_CLASSIFIED, self.service_name, payload, schema_version=2)
         await self.publish(TOPIC_DOCUMENT_CLASSIFIED, event)
 
     async def publish_vendor_matched(self, document_id, vendor_id, vendor_name_normalized, match_type, match_confidence):
@@ -82,3 +84,20 @@ class KafkaEventProducer:
         )
         event = build_event(TOPIC_VENDOR_PAYMENT_DETAILS_FLAGGED, self.service_name, payload)
         await self.publish(TOPIC_VENDOR_PAYMENT_DETAILS_FLAGGED, event)
+
+    async def publish_invoice_matched(
+        self, document_id, invoice_number, purchase_request_id, po_number,
+        vendor_id, invoice_total, po_total, matched_at=None
+    ):
+        payload = build_invoice_matched_payload(
+            document_id=document_id,
+            invoice_number=invoice_number,
+            purchase_request_id=purchase_request_id,
+            po_number=po_number,
+            vendor_id=vendor_id,
+            invoice_total=invoice_total,
+            po_total=po_total,
+            matched_at=matched_at,
+        )
+        event = build_event(TOPIC_INVOICE_MATCHED, self.service_name, payload)
+        await self.publish(TOPIC_INVOICE_MATCHED, event)

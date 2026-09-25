@@ -55,7 +55,9 @@ async def route_clause_extraction(db: AsyncSession, contract_id: str, contract_t
         fields_extracted = sum(1 for v in clauses.values() if v is not None)
         confidence = round(fields_extracted / 3.0, 3)
         
-        if confidence < 0.4:
+        from shared.rules_engine import get_rule
+        fallback_threshold = float(get_rule("contract.clause_extraction_fallback_threshold", fallback=0.4))
+        if confidence < fallback_threshold:
             fallback_triggered = True
             fallback_reason = "low_confidence"
             

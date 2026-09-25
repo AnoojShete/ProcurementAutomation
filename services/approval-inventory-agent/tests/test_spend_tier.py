@@ -62,3 +62,32 @@ class TestSpendTierRouting:
         assert len(chain) == 2
         assert chain[0] == "dept_manager"
         assert chain[1] == "finance_head"
+
+    def test_dynamic_spend_tiers_from_rules_engine(self):
+        """Dynamic spend tiers override defaults when configured in rules engine."""
+        from unittest.mock import patch
+
+        custom_tiers = [
+            {"tier_name": "micro", "min_amount": 0, "max_amount": 200, "required_roles": []},
+            {"tier_name": "lead", "min_amount": 200, "max_amount": 2000, "required_roles": ["team_lead"]},
+            {"tier_name": "director_approval", "min_amount": 2000, "max_amount": 20000, "required_roles": ["team_lead", "director"]},
+            {"tier_name": "executive_cfo", "min_amount": 20000, "max_amount": None, "required_roles": ["team_lead", "director", "cfo"]},
+        ]
+
+        with patch("shared.rules_engine.get_rule", return_value=custom_tiers):
+            tier, chain = ApprovalService.determine_spend_tier_static(150.0)
+            assert tier == "micro"
+            assert chain == []
+
+            tier, chain = ApprovalService.determine_spend_tier_static(1500.0)
+            assert tier == "lead"
+            assert chain == ["team_lead"]
+
+            tier, chain = ApprovalService.determine_spend_tier_static(5000.0)
+            assert tier == "director_approval"
+            assert chain == ["team_lead", "director"]
+
+            tier, chain = ApprovalService.determine_spend_tier_static(50000.0)
+            assert tier == "executive_cfo"
+            assert chain == ["team_lead", "director", "cfo"]
+

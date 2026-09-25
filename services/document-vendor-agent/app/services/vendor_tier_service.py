@@ -44,8 +44,15 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 PETTY_THRESHOLD = 5_000.0      # < this → petty
 STANDARD_THRESHOLD = 50_000.0  # < this → standard, >= this → strategic
-
 SPEND_WINDOW_DAYS = 90
+
+
+def get_tier_thresholds() -> tuple[float, float, int]:
+    from shared.rules_engine import get_rule
+    petty = float(get_rule("vendor.petty_tier_max_amount", fallback=PETTY_THRESHOLD))
+    standard = float(get_rule("vendor.standard_tier_max_amount", fallback=STANDARD_THRESHOLD))
+    window = int(get_rule("vendor.structuring_detection_window_days", fallback=SPEND_WINDOW_DAYS))
+    return petty, standard, window
 
 
 class VendorTier(str, Enum):
@@ -76,9 +83,10 @@ class TierUpgradeEvent:
 
 def classify_tier(amount: float) -> VendorTier:
     """Determine the vetting tier for a single transaction amount."""
-    if amount < PETTY_THRESHOLD:
+    petty_th, standard_th, _ = get_tier_thresholds()
+    if amount < petty_th:
         return VendorTier.PETTY
-    if amount < STANDARD_THRESHOLD:
+    if amount < standard_th:
         return VendorTier.STANDARD
     return VendorTier.STRATEGIC
 
@@ -104,7 +112,8 @@ def required_checks_for_tier(tier: VendorTier) -> list[str]:
 async def get_vendor_spend_90d(db: AsyncSession, vendor_id: str) -> float:
     """Sum of document totals for this vendor in the last 90 days.
     Only counts documents in status='classified' (fully processed)."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=SPEND_WINDOW_DAYS)
+    _, _, window_days = get_tier_thresholds()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
     result = await db.execute(
         select(func.coalesce(func.sum(Document.total), 0.0))
         .where(

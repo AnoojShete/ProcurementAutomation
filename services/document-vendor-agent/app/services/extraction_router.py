@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import ModelRoutingLog
 from app.services.ocr import extract_text, ExtractionResult
 from app.metrics import model_routing_total
+from shared.rules_engine import get_rule
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,8 @@ async def route_extraction(db: AsyncSession, document_id: str, data: bytes, file
             asyncio.to_thread(extract_text, data, filename, content_type),
             timeout=30.0
         )
-        if extraction.text_quality < 0.5:
+        fallback_threshold = float(get_rule("document.extraction_fallback_confidence_threshold", 0.5))
+        if extraction.text_quality < fallback_threshold:
             fallback_triggered = True
             fallback_reason = "low_confidence"
     except asyncio.TimeoutError:

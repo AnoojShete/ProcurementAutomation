@@ -80,6 +80,10 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         stage_durations_ms["vendor_matching_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
+        envelope = await pipeline.invoice_matching_agent(db, kafka_producer, envelope)
+        stage_durations_ms["invoice_matching_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
         envelope = await pipeline.duplicate_detection_agent(db, envelope)
         stage_durations_ms["duplicate_detection_agent"] = _elapsed_ms(t0)
 
@@ -100,16 +104,17 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         doc.document_date = _safe_date(fields.get("document_date"))
         doc.total = fields.get("total")
         doc.currency = fields.get("currency")
-        doc.extracted = {
-            "line_items": fields.get("line_items"),
-            "total": fields.get("total"),
-            "currency": fields.get("currency"),
-            "document_number": fields.get("document_number"),
-            "document_date": fields.get("document_date"),
-            # Include cross-check result if available — surfaces both pipelines
-            # side-by-side for the human reviewer when they disagree.
-            "crosscheck": envelope.get("crosscheck_result"),
-        }
+        
+        extracted_data = dict(fields)
+        extracted_data["crosscheck"] = envelope.get("crosscheck_result")
+        if envelope.get("unmatched_invoice") is not None:
+            extracted_data["unmatched_invoice"] = envelope["unmatched_invoice"]
+        if envelope.get("candidate_pos") is not None:
+            extracted_data["candidate_pos"] = envelope["candidate_pos"]
+        if envelope.get("matched_po_number") is not None:
+            extracted_data["matched_po_number"] = envelope["matched_po_number"]
+
+        doc.extracted = extracted_data
         doc.confidence = envelope["confidence_scores"]
         doc.overall_confidence = envelope["overall_confidence"]
         doc.needs_review = envelope["needs_review"]

@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 CONSUME_TOPICS = [
     "vendor.matched",     # published by document-vendor-agent
     "approval.decided",   # published by approval-inventory-agent
+    "business_rule.updated", # published by auth-service
 ]
 
 
@@ -51,6 +52,12 @@ async def start_consumer(app):
                     await _handle_vendor_matched(app, payload)
                 elif event_type == "approval.decided":
                     await _handle_approval_decided(app, payload)
+                elif event_type == "business_rule.updated":
+                    rule_key = payload.get("rule_key")
+                    if rule_key:
+                        from shared.rules_engine import invalidate_rule
+                        invalidate_rule(rule_key)
+                        logger.info(f"Invalidated local rules_engine cache for key: {rule_key}")
                 else:
                     logger.warning(f"Unknown event type on topic {msg.topic}: {event_type}")
 

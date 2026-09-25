@@ -241,7 +241,11 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
             )
 
     # Image path — use PaddleOCR
-    paddle_text = _text_from_image_paddleocr(data)
+    try:
+        paddle_text = _text_from_image_paddleocr(data)
+    except Exception as e:
+        logger.warning(f"PaddleOCR image extraction unavailable ({e}); returning low-quality fallback result")
+        paddle_text = ""
     quality = _text_quality(paddle_text)
     return ExtractionResult(
         text=paddle_text, method="paddleocr", file_type="image", text_quality=quality,

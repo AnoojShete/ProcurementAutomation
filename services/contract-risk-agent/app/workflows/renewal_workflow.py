@@ -23,8 +23,9 @@ class ContractRenewalWorkflow:
             return {"contract_id": contract_id, "status": "skipped_no_end_date"}
 
         end_date = datetime.fromisoformat(info["contract_end_date"]).replace(tzinfo=timezone.utc)
+        alert_levels = info.get("milestone_days") or ALERT_LEVELS
 
-        for alert_level in sorted(ALERT_LEVELS, reverse=True):
+        for alert_level in sorted(alert_levels, reverse=True):
             fire_at = end_date - timedelta(days=alert_level)
             now = workflow.now()
             if fire_at > now:

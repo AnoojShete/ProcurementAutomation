@@ -29,5 +29,7 @@ def overall_confidence(confidence_scores: Dict[str, float]) -> float:
 
 
 def needs_review(overall: float) -> bool:
-    threshold = load_extraction_config().get("confidence_threshold", 0.8)
+    from shared.rules_engine import get_rule
+    cfg_val = load_extraction_config().get("confidence_threshold", 0.8)
+    threshold = float(get_rule("document.confidence_review_threshold", fallback=cfg_val))
     return overall < threshold

@@ -31,7 +31,7 @@ Every message on every topic is wrapped the same way:
 | Topic | Published by | Consumed by | `payload` fields |
 |---|---|---|---|
 | `document.ingested` | document-vendor-agent | document-vendor-agent (worker) | `document_id` (uuid), `uploaded_by` (string), `file_type` (`pdf`\|`image`), `minio_path` (string), `uploaded_at` (iso8601) |
-| `document.classified` | document-vendor-agent | approval-inventory-agent, notification-agent | `document_id`, `document_type` (`po`\|`invoice`\|`quote`), `vendor_name_raw` (string), `extracted_fields` (object: `line_items[]`, `total`, `currency`, `document_number`, `document_date`), `confidence_scores` (object, field→0-1 float), `overall_confidence` (0-1 float), `needs_review` (bool) |
+| `document.classified` | document-vendor-agent | approval-inventory-agent, notification-agent | `schema_version` (int, default `2`), `document_id`, `document_type` (`po`\|`invoice`\|`quote`), `vendor_name_raw` (string), `extracted_fields` (object — see v1 vs v2 below), `confidence_scores` (object, field→0-1 float), `overall_confidence` (0-1 float), `needs_review` (bool) |
 | `vendor.matched` | document-vendor-agent | contract-risk-agent | `document_id`, `vendor_id` (uuid), `vendor_name_normalized` (string), `match_type` (`existing`\|`new`), `match_confidence` (0-1 float) |
 | `license.usage.updated` | approval-inventory-agent | notification-agent | `license_id` (uuid), `vendor_id` (uuid), `app_name` (string), `total_seats` (int), `active_seats_30d`/`60d`/`90d` (int), `utilisation_score` (0-1 float), `period_end` (iso8601), **`anomaly_score`** (0-1 float — 0 normal, 1 maximally anomalous; IsolationForest), **`top_factors`** (array of `{feature (string), contribution (float)}` sorted by \|SHAP\|; positive contribution = pushes toward anomaly, negative = toward inlier; top 2-3 features), **`model_version`** (string — training run id, e.g. `v20260902123456`). `anomaly_score`/`top_factors`/`model_version` are **additive** — consumers that ignore unknown fields remain unaffected. |
 | `approval.requested` | approval-inventory-agent | notification-agent | `request_id` (uuid), `request_type` (`hardware`\|`license`\|`saas`\|`reclaim`), `requested_by` (string), `department` (string), `amount` (number), `currency` (string, default `"INR"`), `spend_tier` (`auto`\|`manager`\|`manager+finance`), `approval_chain` (array of approver ids in order), `sla_deadline` (iso8601) |
@@ -43,6 +43,100 @@ Every message on every topic is wrapped the same way:
 | `vendor.offboarded` | contract-risk-agent | notification-agent | `vendor_id`, `offboarded_by` (string), `offboarded_at` (iso8601), `contracts_flagged` (array of contract ids flagged for final reconciliation), `data_retention_flag` (bool) |
 | `vendor.payment_details_flagged` | document-vendor-agent | notification-agent | `vendor_id`, `change_request_id` (uuid), `submitted_by` (string), `source` (`portal`\|`email_derived_document`\|`api`), `fields_changed` (array of field names, e.g. `bank_account_number`), `flagged_at` (iso8601) — never carries the raw bank/routing values, only that a change happened |
 | `notification.send` | any service (generic fallback) | notification-agent | `recipient` (string, email or user id), `channel` (`email`\|`slack`), `template_name` (string, e.g. `license_reclaim_warning`), `template_context` (object, e.g. includes `grace_period_ends_at`), `priority` (`urgent`\|`digest`), `related_entity_id` (string) |
+| `invoice.matched` | document-vendor-agent | approval-inventory-agent | `document_id` (uuid), `invoice_number` (string), `purchase_request_id` (uuid), `po_number` (string), `vendor_id` (uuid), `invoice_total` (float), `po_total` (float), `matched_at` (iso8601) |
+| `business_rule.updated` | auth-service | document-vendor-agent, approval-inventory-agent, contract-risk-agent | `rule_key` (string), `new_value` (any), `changed_by` (string), `changed_at` (iso8601) |
+
+### `document.classified` Schema Versioning (v1 vs v2)
+
+#### Schema Version 1 (Legacy / Generic):
+`schema_version: 1`
+`extracted_fields`:
+```json
+{
+  "document_number": "PO-10023",
+  "document_date": "2026-08-20",
+  "line_items": [
+    {
+      "description": "MacBook Pro M3",
+      "quantity": 2,
+      "unit_price": 200000.0,
+      "line_total": 400000.0
+    }
+  ],
+  "total": 400000.0,
+  "currency": "INR"
+}
+```
+
+#### Schema Version 2 (Type-Specific):
+`schema_version: 2`
+
+**1. Purchase Order (`document_type: "po"`):**
+```json
+{
+  "po_number": "PO-10023",
+  "requested_delivery_date": "2026-09-15",
+  "cost_center": "ENG-INFRA",
+  "total": 400000.0,
+  "currency": "INR",
+  "line_items": [
+    {
+      "item_description": "MacBook Pro M3",
+      "quantity": 2,
+      "unit_price": 200000.0,
+      "category": "hardware"
+    },
+    {
+      "item_description": "JetBrains All Products Pack",
+      "quantity": 5,
+      "unit_price": 45000.0,
+      "category": "software"
+    }
+  ]
+}
+```
+
+**2. Invoice (`document_type: "invoice"`):**
+```json
+{
+  "invoice_number": "INV-2026-089",
+  "invoice_date": "2026-08-22",
+  "due_date": "2026-09-22",
+  "payment_terms": "Net 30",
+  "total": 472000.0,
+  "currency": "INR",
+  "tax_amount": 72000.0,
+  "matched_po_number": "PO-10023",
+  "line_items": [
+    {
+      "item_description": "MacBook Pro M3",
+      "quantity": 2,
+      "unit_price": 200000.0,
+      "category": "hardware"
+    }
+  ]
+}
+```
+
+**3. Quote (`document_type: "quote"`):**
+```json
+{
+  "quote_number": "QT-9921",
+  "valid_until": "2026-09-30",
+  "total": 380000.0,
+  "currency": "INR",
+  "is_binding": false,
+  "line_items": [
+    {
+      "item_description": "Consulting & Setup",
+      "quantity": 1,
+      "unit_price": 380000.0,
+      "category": "services"
+    }
+  ]
+}
+```
+
 
 If your service publishes a topic, write a **producer** that matches this
 shape exactly. If you consume a topic, write your **consumer** to read

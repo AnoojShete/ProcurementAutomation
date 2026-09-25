@@ -21,16 +21,28 @@ settings = Settings()
 
 def get_anomaly_thresholds() -> tuple[float, float]:
     import os
-    watch = float(os.getenv("ANOMALY_WATCH_THRESHOLD", os.getenv("APP_ANOMALY_WATCH_THRESHOLD", str(settings.anomaly_watch_threshold))))
-    anomalous = float(os.getenv("ANOMALY_ANOMALOUS_THRESHOLD", os.getenv("APP_ANOMALY_ANOMALOUS_THRESHOLD", str(settings.anomaly_anomalous_threshold))))
+    from shared.rules_engine import get_rule
+    watch_fallback = float(os.getenv("ANOMALY_WATCH_THRESHOLD", os.getenv("APP_ANOMALY_WATCH_THRESHOLD", str(settings.anomaly_watch_threshold))))
+    anomalous_fallback = float(os.getenv("ANOMALY_ANOMALOUS_THRESHOLD", os.getenv("APP_ANOMALY_ANOMALOUS_THRESHOLD", str(settings.anomaly_anomalous_threshold))))
+    watch = float(get_rule("license.anomaly_watch_threshold", fallback=watch_fallback))
+    anomalous = float(get_rule("license.anomaly_anomalous_threshold", fallback=anomalous_fallback))
     return watch, anomalous
 
 
 @lru_cache
 def load_config() -> dict:
     """Load and parse the full config.yaml file."""
-    with open("config.yaml", "r") as f:
-        return yaml.safe_load(f)
+    import os
+    candidates = [
+        "config.yaml",
+        os.path.join(os.path.dirname(__file__), "..", "config.yaml"),
+        os.path.join(os.path.dirname(__file__), "config.yaml"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            with open(p, "r") as f:
+                return yaml.safe_load(f) or {}
+    return {}
 
 @lru_cache
 def load_spend_tiers() -> list[dict]:

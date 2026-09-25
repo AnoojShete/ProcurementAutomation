@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any
 
 from shared.logging.context import CorrelationContext
 
-def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None) -> dict:
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None, schema_version: int = 1) -> dict:
     corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
     return {
         "event_id": str(uuid.uuid4()),
@@ -16,7 +16,7 @@ def build_event(event_type: str, source_service: str, payload: dict, correlation
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,
-        "schema_version": 1,
+        "schema_version": schema_version,
         "payload": payload,
     }
 
@@ -79,4 +79,20 @@ def build_vendor_payment_details_flagged_payload(
         "source": source,
         "fields_changed": list(fields_changed),
         "flagged_at": _iso(flagged_at),
+    }
+
+
+def build_invoice_matched_payload(
+    document_id, invoice_number, purchase_request_id, po_number,
+    vendor_id, invoice_total, po_total, matched_at=None
+) -> dict:
+    return {
+        "document_id": str(document_id),
+        "invoice_number": invoice_number,
+        "purchase_request_id": str(purchase_request_id),
+        "po_number": po_number,
+        "vendor_id": str(vendor_id),
+        "invoice_total": float(invoice_total) if invoice_total is not None else 0.0,
+        "po_total": float(po_total) if po_total is not None else 0.0,
+        "matched_at": _iso(matched_at or datetime.now(timezone.utc)),
     }

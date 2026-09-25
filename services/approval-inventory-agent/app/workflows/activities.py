@@ -62,9 +62,10 @@ async def fetch_request_details(request_id: str) -> dict:
         if not req:
             raise ValueError(f"Request {request_id} not found")
 
-        # GAP-A5: read SLA from config.yaml, never hardcode
+        # Read SLA from rules engine, fallback to config.yaml
         config = load_config()
-        sla_hours = config.get("sla", {}).get("approval_timeout_hours", 48)
+        from shared.rules_engine import get_rule
+        sla_hours = int(get_rule("approval.sla_escalation_hours", fallback=config.get("sla", {}).get("approval_timeout_hours", 48)))
 
         return {
             "id": req.id,

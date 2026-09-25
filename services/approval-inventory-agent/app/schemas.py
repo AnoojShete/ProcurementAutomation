@@ -44,6 +44,7 @@ class ApprovalHistoryResponse(BaseModel):
 
 class PurchaseRequestResponse(BaseModel):
     id: str
+    po_number: Optional[str] = None
     # Optional rather than required: rows inserted directly via SQL (demo
     # seed scripts, the e2e test's vendor-linking step) bypass
     # create_request's validation and can leave this and other fields

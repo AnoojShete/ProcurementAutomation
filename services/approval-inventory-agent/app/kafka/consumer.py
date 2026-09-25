@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 CONSUME_TOPICS = [
     "document.classified",  # Published by document-vendor-agent
     "contract.signed",      # Published by contract-risk-agent
+    "invoice.matched",      # Published by document-vendor-agent
+    "business_rule.updated",# Published by auth-service
 ]
 
 
@@ -57,6 +59,12 @@ async def start_consumer(app):
 
                 elif event_type == "contract.signed":
                     await _handle_contract_signed(payload, event)
+
+                elif event_type == "invoice.matched":
+                    await _handle_invoice_matched(payload, event)
+
+                elif event_type == "business_rule.updated":
+                    await _handle_business_rule_updated(payload, event)
 
                 else:
                     logger.warning(f"Unknown event type on topic {msg.topic}: {event_type}")
@@ -196,6 +204,13 @@ async def _activate_license_for_request(session, req: PurchaseRequest, contract)
     """
     items = req.items or []
 
+    # Only line items tagged category 'software' should ever be eligible to produce a license record
+    if items:
+        categories = [item.get("category") for item in items if item.get("category")]
+        if categories and not any(c == "software" for c in categories):
+            logger.info(f"Skipping license activation for request {req.id}: no items with category 'software'")
+            return False
+
     # Strategy 1: items JSON may contain {"license_id": "uuid"}
     for item in items:
         license_id = item.get("license_id")
@@ -266,3 +281,42 @@ async def _fulfill_hardware_inventory(session, req: PurchaseRequest) -> None:
             f"Hardware fulfilled: released {to_release}x {sku} from reserved_quantity "
             f"(request {req.id})"
         )
+
+
+async def _handle_invoice_matched(payload: dict, event: dict):
+    """Handle an invoice.matched event from document-vendor-agent.
+    Updates the purchase_request status to 'invoice_received'.
+    """
+    purchase_request_id = payload.get("purchase_request_id")
+    if not purchase_request_id:
+        return
+
+    logger.info(f"Received invoice.matched for purchase_request {purchase_request_id}")
+    async with async_session_factory() as session:
+        try:
+            stmt = select(PurchaseRequest).where(PurchaseRequest.id == purchase_request_id)
+            result = await session.execute(stmt)
+            req = result.scalar_one_or_none()
+            if req:
+                req.status = "invoice_received"
+                logger.info(f"Purchase request {purchase_request_id} updated to 'invoice_received'")
+                event_id = event.get("event_id")
+                if event_id:
+                    await _mark_processed(session, event_id, "invoice.matched")
+                await session.commit()
+            else:
+                logger.warning(f"Purchase request {purchase_request_id} not found for invoice.matched")
+        except Exception as e:
+            logger.error(f"Error handling invoice.matched: {e}", exc_info=True)
+            await session.rollback()
+
+
+async def _handle_business_rule_updated(payload: dict, event: dict):
+    """Handle a business_rule.updated event from auth-service.
+    Invalidates the local cached rule.
+    """
+    rule_key = payload.get("rule_key")
+    if rule_key:
+        from shared.rules_engine import invalidate_rule
+        invalidate_rule(rule_key)
+        logger.info(f"Invalidated local rules_engine cache for key: {rule_key}")

@@ -12,6 +12,7 @@ import {
   ClipboardList as CL,
   Activity as AC,
   HeartPulse as HP,
+  Sliders as SL,
 } from "lucide-react";
 import type { Role } from "@/types/api";
 
@@ -67,6 +68,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Notifications", to: "/app/notifications", icon: BE },
     { label: "Audit & Activity", to: "/app/audit", icon: CL },
     { label: "System Health", to: "/app/system-health", icon: HP },
+    { label: "Business Rules", to: "/app/business-rules", icon: SL },
   ],
 };
 

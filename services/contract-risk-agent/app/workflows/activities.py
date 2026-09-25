@@ -21,6 +21,8 @@ async def fetch_contract_renewal_info(contract_id: str) -> dict | None:
         contract = await session.get(Contract, contract_id)
         if contract is None or contract.contract_end_date is None:
             return None
+        from shared.rules_engine import get_rule
+        milestones = get_rule("risk.contract_renewal_milestones_days", fallback=[60, 30, 15])
         return {
             "contract_id": contract.id,
             "vendor_id": contract.vendor_id,
@@ -28,6 +30,7 @@ async def fetch_contract_renewal_info(contract_id: str) -> dict | None:
             "notice_period_days": contract.notice_period_days,
             "contract_end_date": contract.contract_end_date.isoformat(),
             "status": contract.status,
+            "milestone_days": list(milestones) if isinstance(milestones, list) else [60, 30, 15],
         }
 
 

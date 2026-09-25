@@ -159,3 +159,19 @@ class ModelRoutingLog(Base):
     confidence: Mapped[Optional[float]] = mapped_column(Numeric(4, 3))
     duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class VendorQuote(Base):
+    __tablename__ = "vendor_quotes"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    document_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("documents.id"))
+    vendor_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendors.id"))
+    quote_number: Mapped[Optional[str]] = mapped_column(String(255))
+    valid_until: Mapped[Optional[date]] = mapped_column(Date)
+    total: Mapped[Optional[float]] = mapped_column(Numeric(14, 2))
+    currency: Mapped[Optional[str]] = mapped_column(String(10), default="INR")
+    line_items: Mapped[Optional[list]] = mapped_column(JSON)
+    is_binding: Mapped[bool] = mapped_column(Boolean, default=False)
+    raw_text: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

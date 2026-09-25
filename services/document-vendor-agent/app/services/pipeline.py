@@ -15,6 +15,8 @@ swapping the parsing agent's backend) only ever touches its own function.
 """
 import asyncio
 import logging
+import uuid
+from datetime import datetime, timezone
 from dataclasses import asdict
 from typing import Optional
 
@@ -98,8 +100,9 @@ def field_extraction_agent(envelope: dict) -> dict:
     upstream = envelope.get("_agent_trail", [])
     upstream_invalid = bool(upstream) and upstream[-1].validation_status == "invalid"
 
-    fields, field_conf = extract_fields(envelope["raw_text"])
-    envelope["extracted_fields"] = asdict(fields)
+    doc_type = envelope.get("document_type", "invoice")
+    fields, field_conf = extract_fields(envelope["raw_text"], document_type=doc_type)
+    envelope["extracted_fields"] = fields.to_dict(document_type=doc_type)
     envelope["field_confidences"] = asdict(field_conf)
     logger.info(
         f"[field_extraction_agent] document_id={envelope['document_id']} "
@@ -193,8 +196,9 @@ async def vendor_matching_agent(db: AsyncSession, kafka_producer, envelope: dict
     match = await find_or_create_vendor(db, fields.get("vendor_name_raw") or "")
     vendor = match.vendor
 
+    is_quote = envelope.get("document_type") == "quote"
     payment_fields_present = any(fields.get(f) for f in PAYMENT_FIELDS)
-    if match.match_type == "existing" and payment_fields_present:
+    if match.match_type == "existing" and payment_fields_present and not is_quote:
         await submit_payment_change(
             db, kafka_producer, vendor,
             new_bank_account=fields.get("bank_account_number"),
@@ -206,12 +210,40 @@ async def vendor_matching_agent(db: AsyncSession, kafka_producer, envelope: dict
         )
         envelope["payment_change_flagged"] = True
     elif match.match_type == "new":
-        vendor.bank_account_number = fields.get("bank_account_number")
-        vendor.routing_code = fields.get("routing_code")
-        vendor.payment_beneficiary_name = fields.get("payment_beneficiary_name")
+        if not is_quote:
+            vendor.bank_account_number = fields.get("bank_account_number")
+            vendor.routing_code = fields.get("routing_code")
+            vendor.payment_beneficiary_name = fields.get("payment_beneficiary_name")
         envelope["payment_change_flagged"] = False
     else:
         envelope["payment_change_flagged"] = False
+
+    if is_quote:
+        from app.models import VendorQuote
+        from dateutil import parser as d_parser
+        valid_until_str = fields.get("valid_until")
+        v_date = None
+        if valid_until_str:
+            try:
+                v_date = d_parser.parse(valid_until_str).date()
+            except Exception:
+                pass
+        quote = VendorQuote(
+            id=str(uuid.uuid4()),
+            document_id=envelope["document_id"],
+            vendor_id=vendor.id,
+            quote_number=fields.get("quote_number") or fields.get("document_number"),
+            valid_until=v_date,
+            total=fields.get("total"),
+            currency=fields.get("currency") or "INR",
+            line_items=fields.get("line_items") or [],
+            is_binding=False,
+            raw_text=envelope.get("raw_text"),
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(quote)
+        await db.flush()
+        logger.info(f"[vendor_matching_agent] Saved quote {quote.quote_number} to vendor_quotes table")
 
     envelope["vendor_id"] = vendor.id
     envelope["vendor_name_normalized"] = vendor.normalized_name
@@ -230,6 +262,110 @@ async def vendor_matching_agent(db: AsyncSession, kafka_producer, envelope: dict
         validation_status="needs_review" if vendor_name_missing else "valid",
         warnings=["no vendor name extracted upstream; matched against an empty name"] if vendor_name_missing else [],
     )
+    return envelope
+
+
+async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dict) -> dict:
+    """Three-way match for invoices against approved purchase requests."""
+    if envelope.get("document_type") != "invoice":
+        envelope["unmatched_invoice"] = False
+        record_agent_result(envelope, "invoice_matching_agent", next_action="skipped_non_invoice")
+        return envelope
+
+    fields = envelope.get("extracted_fields", {})
+    invoice_total = fields.get("total")
+    vendor_id = envelope.get("vendor_id")
+
+    if invoice_total is None or not vendor_id:
+        envelope["unmatched_invoice"] = True
+        envelope["needs_review_forced"] = True
+        record_agent_result(
+            envelope, "invoice_matching_agent",
+            validation_status="needs_review",
+            warnings=["cannot match PO: missing invoice total or vendor_id"],
+        )
+        return envelope
+
+    from shared.rules_engine import get_rule
+    tolerance_pct = float(get_rule("document.invoice_po_match_tolerance_pct", fallback=0.05))
+
+    amount_min = round(float(invoice_total) * (1.0 - tolerance_pct), 2)
+    amount_max = round(float(invoice_total) * (1.0 + tolerance_pct), 2)
+
+    import os
+    import httpx
+    approval_svc_url = os.environ.get("APPROVAL_INVENTORY_URL", "http://approval-inventory-agent:8002").rstrip("/")
+    search_url = f"{approval_svc_url}/requests/search"
+    params = {
+        "vendor_id": str(vendor_id),
+        "amount_min": amount_min,
+        "amount_max": amount_max,
+        "status": "approved",
+    }
+
+    candidates = []
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(search_url, params=params)
+            if resp.status_code == 200:
+                candidates = resp.json().get("data", [])
+            else:
+                logger.warning(f"[invoice_matching_agent] search endpoint returned HTTP {resp.status_code}")
+    except Exception as e:
+        logger.warning(f"[invoice_matching_agent] failed to call approval-inventory-agent search: {e}")
+
+    if len(candidates) == 1:
+        match = candidates[0]
+        po_num = match.get("po_number") or str(match["id"])
+        po_id = match.get("id")
+        envelope["matched_po_number"] = po_num
+        envelope["matched_po_id"] = po_id
+        envelope["unmatched_invoice"] = False
+        fields["matched_po_number"] = po_num
+        fields["matched_po_id"] = po_id
+
+        if kafka_producer is not None:
+            invoice_num = fields.get("invoice_number") or fields.get("document_number") or "UNKNOWN"
+            po_total = match.get("amount") or invoice_total
+            await kafka_producer.publish_invoice_matched(
+                document_id=envelope["document_id"],
+                invoice_number=invoice_num,
+                purchase_request_id=po_id,
+                po_number=po_num,
+                vendor_id=vendor_id,
+                invoice_total=invoice_total,
+                po_total=po_total,
+            )
+        logger.info(f"[invoice_matching_agent] 1 PO matched: {po_num} ({po_id})")
+        record_agent_result(envelope, "invoice_matching_agent", validation_status="valid")
+
+    elif len(candidates) == 0:
+        envelope["unmatched_invoice"] = True
+        envelope["needs_review_forced"] = True
+        envelope["matched_po_number"] = None
+        envelope["matched_po_id"] = None
+        fields["matched_po_number"] = None
+        logger.info(f"[invoice_matching_agent] Zero PO matches found for invoice total {invoice_total}")
+        record_agent_result(
+            envelope, "invoice_matching_agent",
+            validation_status="needs_review",
+            warnings=["zero approved POs matched invoice amount within tolerance"],
+        )
+
+    else:
+        envelope["unmatched_invoice"] = False
+        envelope["needs_review_forced"] = True
+        envelope["candidate_pos"] = candidates
+        envelope["matched_po_number"] = None
+        envelope["matched_po_id"] = None
+        fields["matched_po_number"] = None
+        logger.info(f"[invoice_matching_agent] Multiple ({len(candidates)}) PO matches found; requiring human review")
+        record_agent_result(
+            envelope, "invoice_matching_agent",
+            validation_status="needs_review",
+            warnings=[f"multiple candidate POs matched: {[c.get('id') for c in candidates]}"],
+        )
+
     return envelope
 
 
@@ -283,9 +419,11 @@ def confidence_agent(envelope: dict) -> dict:
         overall = min(overall, 0.5)
 
     envelope["confidence_scores"] = confidence_scores
-    envelope["overall_confidence"] = overall
     envelope["needs_review"] = (
-        needs_review(overall) or bool(envelope.get("is_duplicate")) or bool(envelope.get("needs_review_forced"))
+        needs_review(overall)
+        or bool(envelope.get("is_duplicate"))
+        or bool(envelope.get("needs_review_forced"))
+        or bool(envelope.get("unmatched_invoice"))
     )
     logger.info(
         f"[confidence_agent] document_id={envelope['document_id']} "

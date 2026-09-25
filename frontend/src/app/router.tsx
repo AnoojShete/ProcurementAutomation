@@ -26,6 +26,7 @@ const NotificationsPage = lazy(() => import("@/pages/notifications/Notifications
 const SpendAnalysisPage = lazy(() => import("@/pages/finance/SpendAnalysisPage").then((m) => ({ default: m.SpendAnalysisPage })));
 const AuditActivityPage = lazy(() => import("@/pages/admin/AuditActivityPage").then((m) => ({ default: m.AuditActivityPage })));
 const SystemHealthPage = lazy(() => import("@/pages/admin/SystemHealthPage").then((m) => ({ default: m.SystemHealthPage })));
+const BusinessRulesPage = lazy(() => import("@/pages/admin/BusinessRulesPage").then((m) => ({ default: m.BusinessRulesPage })));
 
 function Loading() {
   return (
@@ -144,6 +145,14 @@ const router = createBrowserRouter([
         element: withSuspense(
           <RoleGuard allow={["admin"]}>
             <SystemHealthPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "business-rules",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <BusinessRulesPage />
           </RoleGuard>,
         ),
       },

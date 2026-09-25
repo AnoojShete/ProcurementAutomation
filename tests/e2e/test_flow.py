@@ -70,7 +70,39 @@ def test_full_procurement_flow():
     resp = requests.post(f"{BASE_URL}/webhooks/esign", json=payload)
     assert resp.status_code == 200, "Webhook rejected"
     
-    print("E2E Validation Passed. Pipeline flows end-to-end successfully.")
+    print("9. Testing mid-test Business Rule Mutation via Admin API...")
+    resp = requests.post(f"{BASE_URL}/auth/login", json={"email": "admin@demo.example.com", "password": "DemoPass123!"})
+    assert resp.status_code == 200, "Failed to login as admin"
+    admin_token = resp.json()["data"]["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    patch_resp = requests.patch(
+        f"{BASE_URL}/admin/business-rules/license.anomaly_watch_threshold",
+        json={"new_value": 0.55, "justification": "E2E threshold mutation test without restart"},
+        headers=admin_headers,
+    )
+    assert patch_resp.status_code == 200, f"Failed to patch business rule: {patch_resp.text}"
+    assert patch_resp.json()["data"]["current_value"] == 0.55
+
+    print("10. Verifying Business Rule History Audit Trail...")
+    hist_resp = requests.get(
+        f"{BASE_URL}/admin/business-rules/history?rule_key=license.anomaly_watch_threshold",
+        headers=admin_headers,
+    )
+    assert hist_resp.status_code == 200, f"Failed to get history: {hist_resp.text}"
+    history_items = hist_resp.json()["data"]
+    assert len(history_items) > 0
+    assert history_items[0]["justification"] == "E2E threshold mutation test without restart"
+
+    print("11. Restoring Business Rule to Default...")
+    reset_resp = requests.post(
+        f"{BASE_URL}/admin/business-rules/license.anomaly_watch_threshold/reset",
+        json={"justification": "Restoring default after E2E test"},
+        headers=admin_headers,
+    )
+    assert reset_resp.status_code == 200, f"Failed to reset business rule: {reset_resp.text}"
+
+    print("E2E Validation Passed. Pipeline and Business Rules flow end-to-end successfully.")
 
 if __name__ == "__main__":
     test_full_procurement_flow()

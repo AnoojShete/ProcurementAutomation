@@ -285,6 +285,40 @@ export interface HealthResponse {
   dependencies: Record<string, "up" | "down">;
 }
 
+// --- business-rules ---
+export interface BusinessRule {
+  id: string;
+  rule_key: string;
+  category: "approval" | "budget" | "vendor_verification" | "license_usage" | "risk_compliance" | string;
+  display_name: string;
+  description: string;
+  value_type: "currency" | "integer" | "float" | "days" | "hours" | "percentage" | "boolean" | "json" | string;
+  current_value: any;
+  default_value: any;
+  min_value: number | null;
+  max_value: number | null;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface BusinessRuleHistory {
+  id: string;
+  rule_key: string;
+  old_value: any;
+  new_value: any;
+  changed_by: string;
+  changed_at: string | null;
+  justification: string;
+}
+
+export interface SpendTierItem {
+  tier_name: string;
+  min_amount: number;
+  max_amount: number | null;
+  required_approvers: string[];
+  sla_hours: number;
+}
+
 export interface ApiEnvelope<T> {
   data: T;
   meta?: Record<string, unknown>;
@@ -293,3 +327,4 @@ export interface ApiEnvelope<T> {
 export interface ApiErrorEnvelope {
   error: { code: string; message: string };
 }
+

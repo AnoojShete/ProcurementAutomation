@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas import (
@@ -63,6 +63,38 @@ async def list_requests(
         data=[PurchaseRequestResponse.model_validate(r) for r in reqs],
         meta={"count": len(reqs)},
     )
+
+
+@router.get("/search", response_model=DataResponse)
+async def search_requests(
+    vendor_id: Optional[str] = None,
+    amount_min: Optional[float] = None,
+    amount_max: Optional[float] = None,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import select
+    from app.models import PurchaseRequest
+    query = select(PurchaseRequest)
+    if vendor_id:
+        query = query.where(PurchaseRequest.vendor_id == vendor_id)
+    if status:
+        query = query.where(PurchaseRequest.status == status)
+    if amount_min is not None:
+        query = query.where(PurchaseRequest.amount >= amount_min)
+    if amount_max is not None:
+        query = query.where(PurchaseRequest.amount <= amount_max)
+
+    result = await db.execute(query)
+    reqs = list(result.scalars().all())
+    data = []
+    for r in reqs:
+        resp = PurchaseRequestResponse.model_validate(r)
+        if not resp.po_number:
+            resp.po_number = f"PO-{r.id[:8].upper()}"
+        data.append(resp)
+    return DataResponse(data=data, meta={"count": len(data)})
+
 
 @router.get("/{request_id}", response_model=DataResponse)
 async def get_request(

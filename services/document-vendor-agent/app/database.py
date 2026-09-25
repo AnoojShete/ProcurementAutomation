@@ -57,3 +57,18 @@ async def init_db():
                 statement = statement.strip()
                 if statement:
                     await conn.execute(text(statement))
+
+    MIGRATION_3_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "migrations", "0003_vendor_quotes.sql"
+    )
+    if os.path.exists(MIGRATION_3_PATH):
+        with open(MIGRATION_3_PATH) as f:
+            raw_sql = f.read()
+        sql = "\n".join(
+            line for line in raw_sql.splitlines() if not line.strip().startswith("--")
+        )
+        async with engine.begin() as conn:
+            for statement in sql.split(";"):
+                statement = statement.strip()
+                if statement:
+                    await conn.execute(text(statement))
