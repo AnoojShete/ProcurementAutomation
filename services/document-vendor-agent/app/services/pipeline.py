@@ -174,14 +174,19 @@ def layoutlm_crosscheck_agent(envelope: dict) -> dict:
                 f"result={result.agreement_rate_note}"
             )
             record_agent_result(envelope, "layoutlm_crosscheck_agent",
-                                validation_status=status)
+                                validation_status=status,
+                                next_action="skipped_model_unavailable" if not result.available else "continue")
 
     except Exception as e:
         logger.warning(f"[layoutlm_crosscheck_agent] failed (non-fatal): {e}", exc_info=True)
         envelope["crosscheck_result"] = {"available": False, "disagrees": False, "error": str(e)}
-        record_agent_result(envelope, "layoutlm_crosscheck_agent",
-                            validation_status="skipped_error",
-                            warnings=[f"crosscheck error: {e}"])
+        try:
+            record_agent_result(envelope, "layoutlm_crosscheck_agent",
+                                validation_status="skipped_error",
+                                next_action="skipped_error",
+                                warnings=[f"crosscheck error: {e}"])
+        except Exception:
+            pass
 
     return envelope
 
