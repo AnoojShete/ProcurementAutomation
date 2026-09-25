@@ -1,13 +1,19 @@
 import uuid
 from datetime import datetime, timezone
 
-def build_event(event_type: str, source_service: str, payload: dict) -> dict:
+from typing import Optional
+from shared.logging.context import CorrelationContext
+
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None) -> dict:
     """Build a Kafka event envelope per the shared contract."""
+    corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
     return {
         "event_id": str(uuid.uuid4()),
+        "correlation_id": corr_id,
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,
+        "schema_version": 1,
         "payload": payload
     }
 
@@ -46,9 +52,18 @@ def build_approval_decided_payload(
 def build_license_usage_updated_payload(
     license_id, vendor_id, app_name, total_seats,
     active_seats_30d, active_seats_60d, active_seats_90d,
-    utilisation_score, period_end
+    utilisation_score, period_end,
+    anomaly_score: float = 0.0,
+    top_factors: list | None = None,
+    model_version: str = "not_trained",
 ) -> dict:
-    """Build payload for license.usage.updated event."""
+    """Build payload for license.usage.updated event.
+
+    New fields (additive, backward-compatible):
+      anomaly_score  — 0.0 (normal) to 1.0 (maximally anomalous)
+      top_factors    — list of {feature, contribution} dicts sorted by |SHAP|
+      model_version  — training run identifier (e.g. v20260902123456)
+    """
     return {
         "license_id": str(license_id),
         "vendor_id": str(vendor_id),
@@ -58,5 +73,9 @@ def build_license_usage_updated_payload(
         "active_seats_60d": active_seats_60d,
         "active_seats_90d": active_seats_90d,
         "utilisation_score": float(utilisation_score),
-        "period_end": period_end.isoformat() if hasattr(period_end, 'isoformat') else str(period_end)
+        "period_end": period_end.isoformat() if hasattr(period_end, 'isoformat') else str(period_end),
+        # ── Anomaly detection fields ──────────────────────────────────────
+        "anomaly_score": round(float(anomaly_score), 6),
+        "top_factors": top_factors or [],
+        "model_version": model_version,
     }

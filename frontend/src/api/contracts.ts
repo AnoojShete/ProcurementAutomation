@@ -7,6 +7,8 @@ export const contractsApi = {
   renewalsDue: (withinDays = 60) => api.get<Contract[]>(`/contracts/renewals-due?within_days=${withinDays}`),
   generate: (purchase_request_id: string, template_name: ContractTemplate) =>
     api.post<Contract>("/contracts/generate", { purchase_request_id, template_name }),
-  sendForSignature: (id: string, signer_email?: string) =>
-    api.post<Contract>(`/contracts/${id}/send-for-signature`, { signer_email }),
+  sendForSignature: (id: string, signer_email?: string, provider = "documenso") =>
+    api.post<Contract>(`/contracts/${id}/send-for-signature`, { signer_email, provider }),
+  simulateSign: (id: string) =>
+    api.post<Contract>(`/contracts/${id}/sign-simulated`, {}),
 };

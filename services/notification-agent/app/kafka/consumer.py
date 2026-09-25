@@ -22,19 +22,23 @@ from app.database import async_session_factory
 from app.kafka.events import parse_envelope
 from app.services import dispatcher, directory, routing, templating
 
+from shared.infra.retry import with_retry
+from shared.logging.context import CorrelationContext
+
 logger = logging.getLogger(__name__)
 
 CONSUME_TOPICS = [
-    "document.classified",     # published by document-vendor-agent
-    "license.usage.updated",   # published by approval-inventory-agent
-    "approval.requested",      # published by approval-inventory-agent
-    "approval.decided",        # published by approval-inventory-agent
-    "contract.generated",      # published by contract-risk-agent
-    "contract.signed",         # published by contract-risk-agent
-    "contract.renewal.due",    # published by contract-risk-agent
-    "risk.score.updated",      # published by contract-risk-agent
-    "vendor.offboarded",       # published by contract-risk-agent
-    "notification.send",       # generic fallback, published by any service
+    "document.classified",              # published by document-vendor-agent
+    "vendor.payment_details_flagged",   # published by document-vendor-agent (fraud alert)
+    "license.usage.updated",            # published by approval-inventory-agent
+    "approval.requested",               # published by approval-inventory-agent
+    "approval.decided",                 # published by approval-inventory-agent
+    "contract.generated",               # published by contract-risk-agent
+    "contract.signed",                  # published by contract-risk-agent
+    "contract.renewal.due",             # published by contract-risk-agent
+    "risk.score.updated",               # published by contract-risk-agent
+    "vendor.offboarded",                # published by contract-risk-agent
+    "notification.send",                # generic fallback, published by any service
 ]
 
 
@@ -44,15 +48,22 @@ async def start_consumer(app):
         bootstrap_servers=settings.kafka_bootstrap_servers,
         group_id=settings.kafka_consumer_group,
         auto_offset_reset="earliest",
+        session_timeout_ms=60000,
+        heartbeat_interval_ms=10000,
+        max_poll_interval_ms=600000,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
     try:
-        await consumer.start()
+        await with_retry(consumer.start, name="Kafka consumer")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
         async for msg in consumer:
             try:
+                correlation_id = msg.value.get("correlation_id") if isinstance(msg.value, dict) else None
+                if correlation_id:
+                    CorrelationContext.set(correlation_id)
+                
                 event_type, payload, schema_version = parse_envelope(msg.value)
                 if schema_version != 1:
                     logger.info(f"event {event_type} has schema_version={schema_version} (handled as v1-compatible)")
@@ -201,6 +212,22 @@ async def _handle_vendor_offboarded(db, payload: dict):
     )
 
 
+async def _handle_vendor_payment_details_flagged(db, payload: dict):
+    """Fraud-prevention alert: a vendor's bank/payment details have been
+    changed. Per the prompt this is ALWAYS urgent (never digest) —
+    finance needs to verify through out-of-band channels before any
+    payments go through the updated details."""
+    recipient = await directory.resolve_recipient(db, None)
+    await dispatcher.notify(
+        db,
+        event_type="vendor.payment_details_flagged",
+        template_name="vendor_payment_details_flagged",
+        context=payload,
+        recipient=recipient,
+        related_entity_id=payload.get("vendor_id"),
+    )
+
+
 async def _handle_notification_send(db, payload: dict):
     """Generic fallback: any service can ask us to render+send an
     arbitrary template with arbitrary context. `priority` is authoritative
@@ -237,6 +264,7 @@ async def _handle_notification_send(db, payload: dict):
 
 _HANDLERS = {
     "document.classified": _handle_document_classified,
+    "vendor.payment_details_flagged": _handle_vendor_payment_details_flagged,
     "license.usage.updated": _handle_license_usage_updated,
     "approval.requested": _handle_approval_requested,
     "approval.decided": _handle_approval_decided,

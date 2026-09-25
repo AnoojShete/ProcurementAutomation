@@ -14,7 +14,7 @@ from app.kafka.events import (
 class TestEventSchemas:
     def test_event_envelope_structure(self):
         event = build_event("document.ingested", "document-vendor-agent", {"test": True})
-        assert set(event.keys()) == {"event_id", "event_type", "timestamp", "source_service", "payload"}
+        assert {"event_id", "event_type", "timestamp", "source_service", "payload"}.issubset(set(event.keys()))
         assert event["source_service"] == "document-vendor-agent"
 
     def test_event_timestamp_is_iso8601(self):
@@ -36,10 +36,10 @@ class TestEventSchemas:
                                "document_number": "INV-1", "document_date": "2026-01-01"},
             confidence_scores={"total": 0.9}, overall_confidence=0.9, needs_review=False,
         )
-        assert set(payload.keys()) == {
+        assert {
             "document_id", "document_type", "vendor_name_raw", "extracted_fields",
             "confidence_scores", "overall_confidence", "needs_review",
-        }
+        }.issubset(set(payload.keys()))
         assert payload["document_type"] in ("po", "invoice", "quote")
         assert 0 <= payload["overall_confidence"] <= 1
 

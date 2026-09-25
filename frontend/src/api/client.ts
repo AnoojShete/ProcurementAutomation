@@ -129,6 +129,8 @@ export const api = {
   get: <T,>(path: string, opts?: RequestOptions) => apiRequest<T>(path, { ...opts, method: "GET" }),
   post: <T,>(path: string, body?: unknown, opts?: RequestOptions) =>
     apiRequest<T>(path, { ...opts, method: "POST", body: body ?? {} }),
+  patch: <T,>(path: string, body?: unknown, opts?: RequestOptions) =>
+    apiRequest<T>(path, { ...opts, method: "PATCH", body: body ?? {} }),
   upload: <T,>(path: string, formData: FormData, opts?: RequestOptions) =>
     apiRequest<T>(path, { ...opts, method: "POST", body: formData }),
 };

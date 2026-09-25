@@ -2,15 +2,18 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings, digest_flush_interval_seconds
+from shared.logging.configure import configure_logging
+configure_logging(settings.service_name)
 from app.database import init_db, async_session_factory
 from app.kafka.consumer import start_consumer
 from app.services.digest_service import flush_due_digests
 from app.api import health, notifications
 from shared.http.error_handlers import register_error_handlers
+from shared.auth import get_current_user
 
 # Uvicorn only configures its own (uvicorn.*) loggers; the root logger has
 # no handler by default, so plain `logging.getLogger(__name__).info(...)`
@@ -42,9 +45,11 @@ async def _digest_flush_loop():
             logger.error(f"Digest flush loop error: {e}", exc_info=True)
 
 
+from shared.infra.retry import with_retry
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await with_retry(init_db, name="Postgres init")
 
     consumer_task = asyncio.create_task(start_consumer(app))
     digest_task = asyncio.create_task(_digest_flush_loop())
@@ -71,4 +76,7 @@ register_error_handlers(app)
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 app.include_router(health.router)
-app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+app.include_router(
+    notifications.router, prefix="/notifications", tags=["Notifications"],
+    dependencies=[Depends(get_current_user)],
+)

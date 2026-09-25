@@ -59,7 +59,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         envelope = pipeline.new_envelope(doc.id, doc.original_filename or "")
 
         t0 = time.perf_counter()
-        envelope = await pipeline.parsing_agent(envelope, data)
+        envelope = await pipeline.parsing_agent(db, envelope, data)
         stage_durations_ms["parsing_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
@@ -70,9 +70,19 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         envelope = pipeline.field_extraction_agent(envelope)
         stage_durations_ms["field_extraction_agent"] = _elapsed_ms(t0)
 
+        # LayoutLMv3 cross-check: lazy, non-blocking — if the model isn't
+        # loaded or fails, the pipeline continues and the field stays unset.
+        t0 = time.perf_counter()
+        envelope = pipeline.layoutlm_crosscheck_agent(envelope)
+        stage_durations_ms["layoutlm_crosscheck_agent"] = _elapsed_ms(t0)
+
         t0 = time.perf_counter()
         envelope = await pipeline.vendor_matching_agent(db, kafka_producer, envelope, doc.uploaded_by)
         stage_durations_ms["vendor_matching_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
+        envelope = await pipeline.invoice_matching_agent(db, kafka_producer, envelope)
+        stage_durations_ms["invoice_matching_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
         envelope = await pipeline.duplicate_detection_agent(db, envelope)
@@ -95,13 +105,17 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         doc.document_date = _safe_date(fields.get("document_date"))
         doc.total = fields.get("total")
         doc.currency = fields.get("currency")
-        doc.extracted = {
-            "line_items": fields.get("line_items"),
-            "total": fields.get("total"),
-            "currency": fields.get("currency"),
-            "document_number": fields.get("document_number"),
-            "document_date": fields.get("document_date"),
-        }
+        
+        extracted_data = dict(fields)
+        extracted_data["crosscheck"] = envelope.get("crosscheck_result")
+        if envelope.get("unmatched_invoice") is not None:
+            extracted_data["unmatched_invoice"] = envelope["unmatched_invoice"]
+        if envelope.get("candidate_pos") is not None:
+            extracted_data["candidate_pos"] = envelope["candidate_pos"]
+        if envelope.get("matched_po_number") is not None:
+            extracted_data["matched_po_number"] = envelope["matched_po_number"]
+
+        doc.extracted = extracted_data
         doc.confidence = envelope["confidence_scores"]
         doc.overall_confidence = envelope["overall_confidence"]
         doc.needs_review = envelope["needs_review"]
@@ -126,6 +140,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
                 document_id=doc.id, document_type=doc.document_type, vendor_name_raw=doc.vendor_name_raw,
                 extracted_fields=doc.extracted, confidence_scores=doc.confidence,
                 overall_confidence=doc.overall_confidence, needs_review=doc.needs_review,
+                model_used=envelope.get("model_used"), fallback_triggered=envelope.get("fallback_triggered", False),
             )
             await kafka_producer.publish_vendor_matched(
                 document_id=doc.id, vendor_id=vendor.id, vendor_name_normalized=vendor.normalized_name,
@@ -228,6 +243,7 @@ async def submit_review(db: AsyncSession, kafka_producer, document_id: str, corr
             document_id=doc.id, document_type=doc.document_type, vendor_name_raw=doc.vendor_name_raw,
             extracted_fields=doc.extracted, confidence_scores=doc.confidence,
             overall_confidence=doc.overall_confidence, needs_review=doc.needs_review,
+            model_used="human_review", fallback_triggered=False,
         )
 
     return doc

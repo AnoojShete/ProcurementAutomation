@@ -14,10 +14,9 @@ cd ProcurementAutomation
 ```
 
 That's the one script that brings up the **entire** stack from a clean
-clone: core infra → builds every service image → ClamAV (first boot pulls
-virus definitions, ~1–2 min) → every app service + its worker → the
+clone: core infra → builds every service image → every app service + its worker → the
 gateway/frontend → a health-check pass over everything. It takes several
-minutes on a clean clone (mostly image builds + ClamAV); subsequent runs
+minutes on a clean clone (mostly image builds); subsequent runs
 are much faster since Docker caches layers. If Docker Desktop (macOS/
 Windows) or the Docker daemon (Linux) isn't already running,
 `scripts/ensure-docker.sh` starts it automatically and waits for it to
@@ -31,8 +30,10 @@ re-exec it into WSL for you. Either way, enable Docker Desktop's WSL
 integration for your distro first: Settings → Resources → WSL
 Integration.
 
-Then, optionally, seed one demo vendor + an already-approved purchase
-request so there's something to click through immediately:
+Then seed demo data — one vendor, an already-approved purchase request,
+five SaaS licenses (so the Licenses / anomaly pages have something to
+score) and four hardware SKUs. **Do this before a demo**; without it the
+Licenses and Inventory pages are empty:
 
 ```
 ./scripts/seed-demo-data.sh
@@ -60,7 +61,7 @@ and `make e2e` are shortcuts for the equivalents above.
 
 | Service | Owner | Folder | Port | Depends on |
 |---|---|---|---|---|
-| document-vendor-agent | Vaidehi | `services/document-vendor-agent/` | 8001 | Postgres, Kafka, MinIO, ClamAV |
+| document-vendor-agent | Vaidehi | `services/document-vendor-agent/` | 8001 | Postgres, Kafka, MinIO |
 | approval-inventory-agent | Niraj | `services/approval-inventory-agent/` | 8002 | Postgres, Kafka, Redis, Temporal |
 | contract-risk-agent | Anjali | `services/contract-risk-agent/` | 8003 | Postgres, Kafka, Redis, Temporal, MLflow |
 | notification-agent | Anooj | `services/notification-agent/` | 8004 | Postgres, Kafka, Mailpit |
@@ -73,7 +74,7 @@ Kafka and/or running Temporal workflows.
 
 Shared infrastructure (`docker-compose.yml`): Postgres, Redis, Redpanda
 (Kafka API), MinIO, Temporal + Temporal UI, MLflow, Prometheus, Grafana,
-Mailpit, and the Nginx gateway. ClamAV and each app service live in
+Mailpit, and the Nginx gateway. Each app service lives in
 `docker-compose.override.yml`.
 
 Local UIs once the stack is up:
@@ -204,10 +205,14 @@ factors, payment-change dual-control queue), contract generation/
 send-for-signature/renewal timeline, vendor risk scoring/recompute/drift
 check/offboarding, inventory (hardware + license utilisation), a
 notification log, and a global `Cmd/Ctrl+K` search across already-loaded
-requests/vendors/contracts/documents. Anywhere the backend doesn't expose
+requests/vendors/contracts/documents. Admins also get a **Business
+Rules** page (edit spend thresholds, SLA hours, etc. live, with change
+history), a **System Health** page (live-verification toggle, API quotas,
+Kafka consumer lag, model-routing log), and a **Licenses** section (per-
+license usage trend, ML anomaly score with SHAP reasons, reclaim history).
+Anywhere the backend doesn't expose
 an API for something the UI conceptually wants (vendor creation, full-text
-search, editable business rules, an aggregated health endpoint), the
-frontend says so explicitly (disabled controls with a tooltip, an
+search), the frontend says so explicitly (disabled controls with a tooltip, an
 "unavailable" state) rather than faking it.
 
 The approve/reject buttons poll briefly after submitting rather than
@@ -221,8 +226,9 @@ for document upload → classification status in the request wizard.
 - **Per-service unit tests**: `./scripts/test-service.sh <name>` (or `all`)
   runs that service's `pytest` suite inside its own built Docker image,
   with the service folder volume-mounted so it runs against current
-  source. 117 tests across the five services as of this writing — all
-  pure-logic/schema tests, no live infra required.
+  source. 222 tests across the five services, plus 50 root-level tests
+  (`tests/test_rules_engine.py`, `tests/test_taxonomy.py`) — 272 total as
+  of Sep 25, all pure-logic/schema tests, no live infra required.
 - **End-to-end test**: `make e2e` (or `./tests/e2e/run.sh`) scripts the
   real flow through the *running* gateway: log in as requester → create a
   purchase request → log in as approver → approve it (polls, since the
@@ -230,15 +236,18 @@ for document upload → classification status in the request wizard.
   admin generates a contract → sends it for signature → simulates the
   e-sign provider's webhook (real HMAC signature) → confirms the contract
   shows signed → recomputes vendor risk → confirms a notification landed
-  in Mailpit. Needs `./run.sh` to have been run first.
+  in Mailpit → mutates a business rule mid-run, checks its audit history,
+  resets it → 3-way invoice match moves the request to
+  `invoice_received`. 16 steps. Needs `./run.sh` to have been run first.
+  `tests/e2e/test_flow.py` is a pytest version of the core flow that also
+  asserts bad-signature and replay rejection on the e-sign webhook.
 
 ## Per-service notes
 
 ### document-vendor-agent (Vaidehi) — port 8001
 
-Upload endpoint streams the file through ClamAV (fails closed — a 503 if
-ClamAV is unreachable, never a silent skip) before writing to MinIO and
-publishing `document.ingested`. A separate worker consumes that event and
+Upload endpoint stores the file directly in MinIO and
+publishes `document.ingested`. A separate worker consumes that event and
 runs the extraction pipeline as an explicit chain of agents passing a
 JSON envelope from one to the next (`app/services/pipeline.py`):
 parsing (Docling for every PDF — layout-aware, recovers table structure,
@@ -250,14 +259,33 @@ normalization + dedup against the shared `vendors` table) → duplicate
 detection (vendor + amount tolerance + date window) → confidence scoring.
 Confidence below threshold (default 0.8) routes to the review queue
 instead of auto-completing. Publishes `document.classified` and
-`vendor.matched`. See the README's Future scope note on why PaddleOCR
-isn't the image-OCR engine.
+`vendor.matched`. PaddleOCR (via `_paddle_worker.py` subprocess isolation)
+is used for image OCR, so a C-level segfault in Paddle kills only the
+subprocess, not the worker. Processing now branches on document type
+(invoice vs quote — quotes land in a `vendor_quotes` table), and a
+LayoutLMv3 cross-check (`layoutlm_crosscheck.py`) second-opinions the
+regex extraction; every routing/fallback decision is logged to
+`model_routing_log` and visible on the admin System Health page.
 
-Two governance controls: vendor bank/payment-detail changes go into a
+Governance control: vendor bank/payment-detail changes go into a
 `payment_details_pending_verification` state instead of updating live
-(dual control — the submitter can't also verify, via
-`POST /vendors/{id}/verify-payment-change`), and every upload is
-malware-scanned before storage.
+(dual control — the verifier is taken from the caller's JWT and must
+differ from the submitter, via `POST /vendors/{id}/verify-payment-change`,
+finance/admin only). **Uploads are no longer malware-scanned** — ClamAV
+was removed on Sep 24 because its first-boot signature download made
+startup unreliable (see [Recent changes](#recent-changes-sep-5--sep-25)).
+
+Additionally, India-specific vendor identity checks are enforced for
+tiered vetting: GSTIN validation (format + modulo-36 check-digit + live
+registry lookup via `GSTINCHECK_API_KEY`) and IFSC bank-code validation
+(free Razorpay API) with DB-level uniqueness constraints. Vendors are
+tiered by rolling 90-day spend (petty < ₹5k, standard < ₹50k, above that
+full vetting); a vendor with no GSTIN needs an explicit finance/admin
+attestation (`POST /vendors/{id}/confirm-no-gstin`). Live registry calls
+are off by default: an admin turns on **Live Verification Mode**
+(`PATCH /api/admin/live-mode`) and a quota table auto-disables it before
+the free tier (~20 lookups total) runs out. Put your own
+`GSTINCHECK_API_KEY` in `.env` — there is no working default.
 
 ### approval-inventory-agent (Niraj) — port 8002
 
@@ -268,8 +296,16 @@ SLA timeout, auto-escalating on timeout. Redis-backed reservation locks
 prevent double-booking hardware stock; oversubscribed hardware requests
 split into an immediate + backordered portion. A synthetic SSO-login
 generator feeds per-license utilisation scoring, auto-creating a reclaim
-request when utilisation drops below threshold. Consumes `contract.signed`
-to mark the originating request `fulfilled`.
+request when utilisation drops below threshold. On top of the simple
+utilisation ratio, an **IsolationForest** anomaly model
+(`app/ml/usage_anomaly.py`, trained by `ml/train_usage_anomaly_model.py`
+on `data/synthetic-sso-logs/`) scores each license 0–1 and explains the
+score with SHAP top factors; a background `usage_scanner` re-scores
+periodically and triggers reclaim/reinstate workflows. Spend-tier
+thresholds are read from the business-rules engine (auth-service) rather
+than hard-coded. Consumes `contract.signed` and moves the originating
+request to `contract_signed`. See the service's own
+[README](services/approval-inventory-agent/README.md) for the ML details.
 
 Note the approval decision is **asynchronous**: `POST /.../approve`
 signals the workflow and returns immediately — the actual status flip
@@ -320,8 +356,130 @@ searchable audit trail of everything sent/queued/failed.
 ### auth-service (Anooj, Prompt 5) — port 8005
 
 Own `auth_users` table (its own Alembic migration, not the shared
-schema). `POST /auth/login`, `POST /auth/refresh`, `GET /auth/me`. Demo
-users seeded on boot — see [Security & Auth](#security--auth).
+schema). `POST /auth/login`, `POST /auth/refresh`, `GET /auth/me`, and
+`POST /auth/register` (self-signup, always as `requester`; passwords must
+be 12+ chars and are checked against HaveIBeenPwned via k-anonymity, so
+signup needs internet). Demo users seeded on boot — see
+[Security & Auth](#security--auth).
+
+Also hosts the **business rules engine**: `/admin/business-rules` (admin
+only — list, edit, history) and `/internal/business-rules` (service-to-
+service, guarded by `RULES_ENGINE_INTERNAL_SECRET`, not exposed through
+nginx). `shared/rules_engine/` is the client other services use to read
+thresholds; a rule change is published to Kafka so consumers refresh.
+
+## Recent changes (Sep 5 → Sep 25)
+
+What landed between Anjali's audit push (`f2dfa3c`, Sep 5 00:22) and the
+merge of `anooj2` into `anjali` (Sep 25). 23 commits: 19 by Niraj
+(committed as "Admin"), 4 by Anooj. Three of Niraj's commits (Sep 2–3)
+were written before the audit push but sat on his branch until now.
+
+**Niraj — approval-inventory-agent**
+- IsolationForest + SHAP license-usage anomaly model, synthetic SSO-log
+  generator and dataset (~48k events), `usage_scanner` background job
+  that re-scores licenses and publishes `license.usage.updated`.
+- License reclaim / reinstate workflows (grace period, 45-day cooldown,
+  `POST /requests/{id}/decline-reclaim`).
+- New `/licenses` API (anomaly summary, usage history, reclaim history,
+  mark-reviewed) plus Licenses list/detail pages, usage trend chart and a
+  License Intelligence card on the admin dashboard.
+- Spend-tier thresholds now read from the business-rules engine;
+  `GET /requests/search`.
+
+**Niraj — document-vendor-agent**
+- GSTIN (format, checksum, live registry) and IFSC validation, spend-
+  based vendor tiers, no-GSTIN attestation, 90-day spend summary.
+- PaddleOCR reinstated via a crash-isolated subprocess; LayoutLMv3
+  cross-check of extracted fields; model-routing log.
+- Processing branches by document type (invoice vs quote → new
+  `vendor_quotes` table); extraction/classification bug fix (Sep 25).
+- Admin API: Live Verification Mode toggle, API quota tracking with
+  auto-cutoff, Kafka consumer lag.
+- **ClamAV removed entirely** (Sep 24) after several attempts to make its
+  first-boot signature download reliable. Uploads are no longer
+  malware-scanned.
+
+**Niraj — auth-service / platform**
+- Business rules engine: `business_rules` table + Alembic migration,
+  admin CRUD with history, internal read endpoint, Kafka change events,
+  `shared/rules_engine/` client, and a 950-line Business Rules admin page.
+- Faster startup: `shared/infra/retry.py` (retry Postgres/Redis/Kafka on
+  boot instead of crashing), structured JSON logging (`shared/logging/`),
+  worker heartbeat timeouts fixed.
+- `kafka-exporter` container + Prometheus scrape + Grafana lag panel;
+  System Health admin page.
+- Line-item taxonomy (`shared/taxonomy/`) with tests.
+
+**Niraj — contract-risk-agent (Anjali's service)**
+- Provider choice on send-for-signature (Documenso recommended, DocuSign
+  labelled sandbox-only). The provider call is still a stub that returns
+  a reference id; nothing is actually sent.
+- `POST /contracts/{id}/sign-simulated` (demo only, 403 when a real
+  provider is configured), clause-extraction router with regex→keyword
+  fallback logged to `model_routing_log`.
+- `tests/test_esign_webhook.py` (HMAC, replay, error cases) and e2e
+  assertions for bad-signature and replay rejection. This closes one of
+  Anjali's TODO items.
+
+**Anooj**
+- `POST /auth/register` with 12-char minimum and HaveIBeenPwned check;
+  stricter JWT claim validation in `shared/auth/middleware.py`.
+- notification-agent routes now require a JWT; new
+  `vendor_payment_details_flagged` email template.
+- e2e test extended; `data/README.md`; ClamAV startup fixes (later
+  superseded by the removal above).
+
+**Fixed during the merge (Anjali, Sep 25)**
+- Duplicate `@router.post("/{id}/approve")` without a role check removed.
+- `requested_by` / `decided_by` are now taken from the JWT, not the
+  request body. Previously any approver could record a decision under
+  someone else's name. Both fields are now optional in the request
+  schema; clients may still send them, but they're ignored.
+- `POST /vendors/{id}/confirm-no-gstin` was unauthenticated-by-role and
+  trusted a body-supplied `confirmed_by`; now finance/admin only, identity
+  from JWT.
+- `POST /licenses/{id}/mark-reviewed` always recorded
+  `admin@example.com` (wrong `get_current_user` call, error swallowed)
+  and let any user, including requesters, set a 30-day reclaim cooldown;
+  now approver/finance/admin (the roles that see the Licenses page), with
+  the real reviewer recorded.
+- `/inbox` kept its approver/finance/admin role guard (the incoming
+  branch had reverted it to any-authenticated-user).
+- A real GSTINCheck API key was hard-coded as a default in
+  `docker-compose.override.yml` and `config.py`. **Removed; the key is in
+  git history and should be rotated.**
+- `system_settings` never had its `id = 1` row, so the live-mode toggle
+  silently did nothing; the tables are now also created by the
+  document-vendor-agent migration so existing databases get them.
+- 500 responses no longer echo raw exception text to the client.
+- `torch==2.3.1+cpu` doesn't exist for Linux ARM64, so the
+  document-vendor-agent image failed to build on Apple Silicon; now
+  platform-conditional.
+- **Every document upload ended in `status=failed`**: the Sep 25
+  extraction fix dropped `envelope["overall_confidence"] = overall` from
+  `confidence_agent`. Restored, with a regression test.
+- **License anomaly scoring never ran in Docker**: the SSO log path and
+  the model artifact were resolved relative to the repo root, which
+  doesn't exist inside the image, so every license showed "not_trained".
+  The image now ships the SSO dataset and trains the IsolationForest at
+  build time (`APP_SSO_LOG_PATH`).
+- A license with no SSO history reported anomaly score 0.0 ("normal")
+  whenever the model wasn't loaded; now `insufficient_history`.
+- Approval workflow could drop an approve/reject signal that arrived
+  before the workflow reached its wait (the signal was cleared *before*
+  waiting). The business-rules HTTP call added enough latency for the
+  e2e approve step to hit this every time. Now cleared after consumption.
+- nginx sent `/api/vendors/{id}/confirm-no-gstin` and `/spend-summary` to
+  contract-risk-agent (404); now routed to document-vendor-agent.
+- Temporal UI was unreachable: the `latest` image listens on 8080 and
+  reads `TEMPORAL_ADDRESS`; compose still used the old variable name and
+  port.
+- `scripts/seed-demo-data.sh` now seeds licenses and inventory.
+- Stale tests updated: notification-agent's topic list (new
+  `vendor.payment_details_flagged`), license-endpoint DB mocks, and the
+  Python e2e's request amount (15,000 is now a two-approver tier under
+  the business rules).
 
 ## Known limitations / infra fixes made along the way
 
@@ -363,9 +521,6 @@ next:
   immediately — before `shared/db/init.sql` had even been applied. Scoped
   to core infra only; `run.sh` brings the app services up itself,
   afterward, in the right order.
-- ClamAV's published image has no native `arm64` build; pinned to
-  `platform: linux/amd64` (works via Rosetta/QEMU emulation on Apple
-  Silicon, just slower to pull the first time).
 - A Temporal signal dataclass field typed `comments: str = None` (should
   be `Optional[str]`) made the *entire* approval-decision path silently
   fail to decode — Temporal's payload converter checks annotations
@@ -399,27 +554,6 @@ Everything above is built and demoable end-to-end. A few things are
 explicitly out of scope for this pass — either because they need paid/
 rate-limited external accounts this environment doesn't have, or because
 they're a genuinely separate, larger effort:
-
-- **PaddleOCR for image OCR** (document-vendor-agent currently uses
-  Docling for PDFs — layout-aware parsing with table-structure recovery,
-  shipped — and pytesseract for standalone scanned images): PaddleOCR was
-  evaluated as pytesseract's replacement for the image path and rejected
-  for now. Its native inference engine segfaults/aborts the host process
-  on every version pairing tried (current and an older 2.9.1/2.6.2 pair),
-  on both native arm64 and emulated amd64 — three distinct crash
-  signatures, none catchable from Python since they're C-level process
-  aborts, not exceptions. Worth revisiting against a future PaddleOCR
-  release or a different deployment target (bare-metal Linux rather than
-  Docker Desktop's Apple Silicon virtualization) rather than this
-  environment.
-- **India-specific vendor identity checks**: GSTIN validation (format +
-  real modulo-36 check-digit algorithm, then a live registry lookup —
-  gstincheck.co.in's free tier is ~20 lookups total, not per day, so
-  results need permanent caching) and IFSC bank-code validation (Razorpay's
-  free, keyless API) as a stronger vendor-dedup key than name-fuzzy-
-  matching, with a DB-level unique constraint on `gstin` to close the same
-  race condition the Redis reservation lock addresses elsewhere. Needs a
-  `GSTINCHECK_API_KEY` (free signup) — IFSC needs no key.
 - **Clause extraction validated against CUAD** (the Contract Understanding
   Atticus Dataset — 510 real contracts, 13k+ expert-labeled clauses,
   CC BY 4.0, atticusprojectai.org/cuad): a real, citable benchmark instead
@@ -447,18 +581,19 @@ they're a genuinely separate, larger effort:
   fetched at startup and refreshed on a schedule (a daily Temporal
   workflow is enough), not baked into the image, or "screened against
   the sanctions list" stops meaning anything a week in.
-- **A real e-signature provider**: the webhook path (signature
-  verification, replay protection, `contract.signed` publish) is real and
-  tested; there's no live OpenSign/Documenso instance actually wired in,
-  so `POST /contracts/{id}/send-for-signature` returns a simulated
-  provider reference rather than routing to a real signing flow. The e2e
-  test simulates the provider's callback directly against the API to
-  prove the rest of the chain.
-- **Grafana dashboards**: the provisioned starter dashboard covers
-  request rate/latency/errors; Kafka consumer lag and an approval SLA-
-  breach panel would need a bit more instrumentation (a lag exporter for
-  Redpanda, a counter in approval-inventory-agent) to be real rather than
-  decorative.
+- **E-Signature Provider Architecture & Rationale**:
+  - **Why OpenSign was not bundled as a live Docker Compose service**: The original specification considered OpenSign for self-hosted e-signing. However, OpenSign requires a heavy multi-container deployment architecture comprising the OpenSign Server, OpenSign Client, and a dedicated MongoDB instance. This would introduce ~1.5 GB of additional RAM overhead to a single-VM development environment that is already running 10+ containers (PostgreSQL, Redpanda, Redis, Temporal, 5 FastAPI microservices, background workers, and Vite frontend).
+  - **Why Documenso is the primary self-hosted choice**: Documenso was selected as the self-hosted standard because it natively leverages the platform's existing PostgreSQL database and modern TypeScript API, avoiding the operational complexity and memory footprint of introducing MongoDB.
+  - **DocuSign role and limitation**: DocuSign is integrated as an optional cloud demo option. It is strictly labeled in the UI and documentation as *DocuSign (sandbox demo only — not a functional signature)* because DocuSign developer sandbox accounts permanently watermark documents with "DocuSign Demo Document", rendering them non-functional legally. Non-watermarked execution requires a commercial paid subscription.
+  - **Production Webhook (`POST /webhooks/esign`) vs Testing Simulation (`POST /contracts/{id}/sign-simulated`)**: The production e-signature callback flow is cryptographically verified via HMAC-SHA256 signatures (`ESIGN_WEBHOOK_SECRET`) and guarded against replay attacks using the `processed_webhook_events` database table. Both unit tests and the end-to-end integration test (`tests/e2e/test_flow.py`) directly exercise `POST /webhooks/esign` with canonical HMAC signatures and assert replay rejection. The `POST /contracts/{id}/sign-simulated` endpoint exists solely as a frontend testing convenience in development environments and is automatically disabled (returning `403 Forbidden`) whenever a real provider (`DOCUMENSO_API_URL` / `OPENSIGN_API_URL`) is configured or simulated signatures are disabled.
+- **Grafana dashboards**: the provisioned dashboard covers request
+  rate/latency/errors and Kafka consumer lag (via `kafka-exporter`); an
+  approval SLA-breach panel still needs a counter in
+  approval-inventory-agent.
+- **Malware scanning**: ClamAV was removed (Sep 24) for startup
+  reliability. Bringing it back as an optional, non-blocking sidecar
+  (scan asynchronously, quarantine on hit) would restore the control
+  without making boot depend on a 200 MB signature download.
 - **CI**: `scripts/ci-build.sh` builds each service's Docker image on
   push; it doesn't yet run the pytest suites or `make e2e` in CI. Wiring
   `scripts/test-service.sh all` and `make e2e` in as pipeline steps (the
@@ -476,3 +611,71 @@ platform depends on.
 - `data/synthetic-invoices/` — synthetic PO/invoice/quote PDFs for
   document-vendor-agent, generated from
   `services/document-vendor-agent/scripts/synthetic_invoice_lib.py`.
+
+## Running the whole project (end-to-end demo)
+
+### Prerequisites
+
+- **Docker Desktop** (macOS / Windows) or **Docker Engine + Compose plugin**
+  (Linux). Docker Compose v2 (`docker compose`, not `docker-compose`) is
+  required.
+- **Windows**: needs WSL2 with Docker Desktop's WSL integration enabled
+  (Settings → Resources → WSL Integration). Run from inside a WSL2
+  terminal, or use `run.ps1` / `run.bat` which re-exec into WSL.
+
+### Step-by-step
+
+```bash
+# 1. Clone the repository
+git clone <repo-url>
+cd ProcurementAutomation
+
+# 2. Bootstrap infrastructure (Postgres, Kafka/Redpanda, MinIO, etc.)
+./install.sh
+
+# 3. Bring up the full stack (all services + workers + gateway)
+docker compose up -d
+
+# 4. (Optional) Seed demo data for an immediate walkthrough
+./scripts/seed-demo-data.sh
+```
+
+Or use the all-in-one script that does everything:
+
+```bash
+./run.sh
+```
+
+### Demo UI URLs
+
+Once the stack is up, every UI you need to demo end-to-end:
+
+| What | URL | Notes |
+|---|---|---|
+| **Frontend** | http://localhost:8080/ | Main application — sign in with a [demo account](#security--auth) |
+| **Mailpit** (email inbox) | http://localhost:8025 | All notification emails land here in dev |
+| **Grafana** | http://localhost:3000 | Pre-provisioned dashboards (admin/admin) |
+| **Temporal UI** | http://localhost:8088 | Workflow visibility (approval chains, contract generation) |
+| **MinIO Console** | http://localhost:9001 | Object storage browser (minioadmin/minioadmin); :9000 is the S3 API |
+| **Prometheus** | http://localhost:9090 | Raw metrics queries |
+| **MLflow** | http://localhost:5050 | ML experiment tracking (vendor risk model) |
+
+### Service direct ports (for debugging, not for demo)
+
+| Service | Port |
+|---|---|
+| document-vendor-agent | 8001 |
+| approval-inventory-agent | 8002 |
+| contract-risk-agent | 8003 |
+| notification-agent | 8004 |
+| auth-service | 8005 |
+
+All API calls from the frontend route through the Nginx gateway at `:8080`
+via `/api/*` paths — direct service ports are only useful for debugging.
+
+### Teardown
+
+```bash
+docker compose down       # stop everything, keep data volumes
+docker compose down -v    # stop everything AND delete all data volumes
+```

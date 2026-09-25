@@ -26,8 +26,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8003/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 120s
 
   contract-risk-agent-worker:
     build:
@@ -107,6 +107,8 @@ services:
       AUTH_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-60}
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      RULES_ENGINE_INTERNAL_SECRET: ${RULES_ENGINE_INTERNAL_SECRET:-dev-rules-secret-change-me}
     depends_on:
       postgres:
         condition: service_healthy
@@ -131,17 +133,17 @@ services:
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
-      APP_CLAMAV_HOST: clamav
-      APP_CLAMAV_PORT: "3310"
+      APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
+      HF_HOME: /app/.cache/huggingface
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+    volumes:
+      - hf-cache:/app/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
       redpanda:
         condition: service_healthy
       minio:
-        condition: service_healthy
-      clamav:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
@@ -163,16 +165,14 @@ services:
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
-      APP_CLAMAV_HOST: clamav
-      APP_CLAMAV_PORT: "3310"
-    # Docling downloads its layout/table models (~a few hundred MB) from
-    # Hugging Face on first use, which took ~75s in testing — long enough to
-    # trip the Kafka consumer's heartbeat and force a rebalance (recoverable,
-    # but noisy). Persisting the cache means that cost is paid once ever,
-    # not on every container restart, and the worker keeps working offline
-    # after that first run.
+      APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
+      HF_HOME: /app/.cache/huggingface
+    # docling-models: Docling layout/table models (~300MB).
+    # hf-cache: LayoutLMv3 model (~1GB) + PaddleOCR weights.
+    # Both downloaded once ever and reused across container rebuilds.
     volumes:
       - docling-models:/root/.cache/huggingface
+      - hf-cache:/app/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
@@ -182,22 +182,6 @@ services:
         condition: service_healthy
       document-vendor-agent:
         condition: service_healthy
-
-  # --- ClamAV (malware scanning, document-vendor-agent governance control) ---
-  # First boot runs freshclam to pull virus definitions, which can take a
-  # couple of minutes — hence the generous start_period. document-vendor-agent's
-  # upload endpoint fails closed with 503 if ClamAV is ever unreachable.
-  clamav:
-    image: clamav/clamav:stable_base
-    platform: linux/amd64  # no native arm64 build published; emulated via Rosetta/QEMU on Apple Silicon
-    ports:
-      - "3310:3310"
-    healthcheck:
-      test: ["CMD", "sh", "-c", "clamdcheck.sh"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 120s
 
   # --- notification-agent (Anooj) ---
   notification-agent:
@@ -260,3 +244,7 @@ services:
 volumes:
   mlflow-data:
   docling-models:
+  # HF model cache for LayoutLMv3 (ngvozdenovic/invoice_extraction ~1GB).
+  # Shared between the API and worker containers so the model is downloaded
+  # exactly once, whichever container starts first.
+  hf-cache:

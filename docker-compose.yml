@@ -82,6 +82,16 @@ services:
     ports:
       - 8080:80
 
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    command: ["--kafka.server=redpanda:9092"]
+    ports:
+      - "9308:9308"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
   temporal:
     image: temporalio/auto-setup:1.21
     # Without these, auto-setup defaults to DB=cassandra and refuses to
@@ -101,8 +111,11 @@ services:
 
   temporal-ui:
     image: temporalio/ui:latest
+    # Current UI images listen on 8080 by default and read TEMPORAL_ADDRESS;
+    # TEMPORAL_GRPC_ENDPOINT is the pre-2.x name and is ignored.
     environment:
-      - TEMPORAL_GRPC_ENDPOINT=temporal:7233
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_UI_PORT=8088
     ports:
       - 8088:8088
 
@@ -114,7 +127,6 @@ services:
       test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v1/info"]
       interval: 10s
       retries: 5
-
 volumes:
   pgdata:
   miniodata:

@@ -12,3 +12,5 @@ topics:
   - vendor.offboarded
   - vendor.payment_details_flagged
   - notification.send
+  - invoice.matched
+  - business_rule.updated

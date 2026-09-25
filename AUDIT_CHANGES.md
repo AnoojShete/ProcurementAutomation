@@ -84,3 +84,68 @@ included in this commit) for what's tracked as remaining work.
   document-review crash fix), not just re-running the existing test suites.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+---
+
+# Audit pass 2 — merge of `anooj2` into `anjali` (Sep 25)
+
+`origin/anooj2` (23 commits since the pass above: 19 Niraj, 4 Anooj) was
+merged into `anjali` and the same process repeated: full `./run.sh` from the
+merged tree, every pytest suite, both e2e suites, and live checks through the
+gateway for each fix. The full list, and a summary of what teammates changed, is
+in README.md → [Recent changes (Sep 5 → Sep 25)](README.md#recent-changes-sep-5--sep-25).
+
+## Security fixes
+
+- Removed a duplicate `@router.post("/{id}/approve")` that had no role check.
+- `requested_by` (create request) and `decided_by` (approve / reject /
+  decline-reclaim) now come from the JWT; body values are ignored.
+  Verified live: a requester posting `requested_by: "ceo@company.com"` is
+  stored as `requester@demo.example.com`.
+- `POST /vendors/{id}/confirm-no-gstin`: finance/admin only, attester from
+  JWT (was: any user, body-supplied name). Verified live: requester → 403,
+  spoofed `confirmed_by` ignored.
+- `POST /licenses/{id}/mark-reviewed`: approver/finance/admin only, real
+  reviewer recorded (was: any user; always logged `admin@example.com`).
+  Verified live: requester → 403.
+- `/inbox` role guard kept through the merge (the incoming branch had it as
+  any-authenticated-user). Verified live: requester → 403.
+- Hard-coded GSTINCheck API key removed from `docker-compose.override.yml`
+  and `document-vendor-agent/app/config.py`. **The key is in git history —
+  rotate it.**
+- Internal business-rules secret compared with `hmac.compare_digest`.
+- 500 responses in approval `requests.py` no longer echo exception text.
+
+## Correctness fixes
+
+- Document pipeline: every upload failed (`overall_confidence` dropped from
+  the envelope in the Sep 25 commit). Restored and covered by a regression test.
+- License anomaly model never ran in Docker (SSO log and model artifact
+  paths pointed outside the image). Dataset now copied into the image and
+  the model trained at build time.
+- License with no history scored 0.0 "normal" instead of
+  `insufficient_history` when the model wasn't loaded.
+- Approval workflow dropped signals that arrived before it reached its
+  wait; approvals sent right after request creation were silently lost.
+- `system_settings` row never inserted, so the Live Verification toggle was
+  a no-op; tables now also created by the service migration so existing
+  DBs get them.
+
+## Infra fixes
+
+- document-vendor-agent didn't build on Apple Silicon (`torch==2.3.1+cpu`
+  is x86-only); now platform-conditional.
+- Temporal UI unreachable (image moved to port 8080 / `TEMPORAL_ADDRESS`).
+- nginx routes `confirm-no-gstin` and `spend-summary` to document-vendor-agent.
+- `seed-demo-data.sh` seeds licenses + inventory.
+- MinIO console URL corrected to :9001 in README and `run.sh`.
+
+## Verification performed
+
+- `./run.sh` from the merged tree: all services healthy.
+- Unit tests: 272 passed, 2 skipped (222 service + 50 root-level).
+- `make e2e`: 16/16. `tests/e2e/test_flow.py`: passed.
+- Frontend `npm run build` (includes `tsc --noEmit`): clean.
+- Live gateway checks for each fix above, plus document upload → classified
+  for invoice, quote and PO, and license scoring (2 anomalous / 2 watch /
+  1 normal on seeded data).

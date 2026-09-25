@@ -44,6 +44,8 @@ ALTER TABLE licenses ADD COLUMN IF NOT EXISTS period_start DATE;
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS period_end DATE;
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
 ALTER TABLE licenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS assigned_seats INTEGER DEFAULT 0;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS reclaim_cooldown_until TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS license_usage (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -76,3 +78,18 @@ CREATE TABLE IF NOT EXISTS inventory (
 -- writes performed_by/details.
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS performed_by VARCHAR(255);
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS details JSONB;
+
+CREATE TABLE IF NOT EXISTS license_reclaim_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  license_id UUID NOT NULL REFERENCES licenses(id),
+  event_type VARCHAR(50) NOT NULL,
+  event_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  by_user VARCHAR(255),
+  cooldown_set_until TIMESTAMPTZ,
+  notes TEXT
+);
+
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS last_scored_at TIMESTAMPTZ;
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS anomaly_score NUMERIC(5, 4);
+ALTER TABLE licenses ADD COLUMN IF NOT EXISTS top_factors JSONB;
+

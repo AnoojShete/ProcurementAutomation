@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import load_duplicate_detection_config
 from app.models import Document
+from shared.rules_engine import get_rule
 
 
 @dataclass
@@ -29,9 +30,9 @@ async def check_duplicate_invoice(
         return DuplicateCheckResult(is_duplicate=False)
 
     cfg = load_duplicate_detection_config()
-    amount_tolerance_pct = cfg.get("amount_tolerance_pct", 0.01)
-    date_window_days = cfg.get("date_window_days", 5)
-    doc_number_threshold = cfg.get("document_number_fuzzy_threshold", 85)
+    amount_tolerance_pct = float(get_rule("vendor.duplicate_invoice_amount_tolerance_pct", cfg.get("amount_tolerance_pct", 0.01)))
+    date_window_days = int(get_rule("vendor.duplicate_invoice_days_window", cfg.get("date_window_days", 5)))
+    doc_number_threshold = int(get_rule("vendor.duplicate_invoice_number_fuzzy_threshold", cfg.get("document_number_fuzzy_threshold", 85)))
 
     parsed_date: Optional[date] = None
     if document_date_str:

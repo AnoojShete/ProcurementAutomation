@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Ban, CheckCircle2, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, XCircle, ScrollText, FileSignature, Check } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,7 @@ import { vendorsApi } from "@/api/vendors";
 import { contractsApi } from "@/api/contracts";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { StatusBadge, ContractStatusBadge } from "@/components/ui/Badge";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { InlineError, InlineSuccess, InlineInfo } from "@/components/ui/ErrorState";
@@ -20,7 +21,7 @@ import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { deriveLifecycle } from "@/lib/lifecycle";
-import type { PurchaseRequest, VendorRisk } from "@/types/api";
+import type { PurchaseRequest, VendorRisk, ContractTemplate } from "@/types/api";
 import { ApiError } from "@/api/client";
 import { Link } from "react-router-dom";
 
@@ -46,8 +47,26 @@ export function RequestDetailPage() {
       .finally(() => setVendorRiskLoading(false));
   }, [request?.vendor_id]);
 
-  const { data: contracts } = useApi(() => contractsApi.list(200), []);
+  const { data: contracts, reload: reloadContracts } = useApi(() => contractsApi.list(200), []);
   const linkedContract = contracts?.find((c) => c.purchase_request_id === request?.id) ?? null;
+
+  // Contract & E-sign states
+  const [selectedTemplate, setSelectedTemplate] = useState<ContractTemplate>("hardware_purchase");
+  const [generatingContract, setGeneratingContract] = useState(false);
+  const [contractActionError, setContractActionError] = useState<string | null>(null);
+  const [contractActionSuccess, setContractActionSuccess] = useState<string | null>(null);
+
+  const [isSignModalOpen, setIsSignModalOpen] = useState(false);
+  const [signProvider, setSignProvider] = useState<"documenso" | "docusign">("documenso");
+  const [signerEmail, setSignerEmail] = useState("");
+  const [sendingSign, setSendingSign] = useState(false);
+  const [simulatingSign, setSimulatingSign] = useState(false);
+
+  useEffect(() => {
+    if (request?.request_type === "hardware") setSelectedTemplate("hardware_purchase");
+    else if (request?.request_type === "license" || request?.request_type === "saas") setSelectedTemplate("saas_subscription");
+    else setSelectedTemplate("professional_services");
+  }, [request?.request_type]);
 
   const { state: pollState, run: runPoll } = usePolling<PurchaseRequest>();
   const [decisionError, setDecisionError] = useState<string | null>(null);
@@ -82,6 +101,62 @@ export function RequestDetailPage() {
       setDecisionError(e instanceof ApiError ? e.message : "Unable to submit decision.");
     } finally {
       setActing(false);
+    }
+  };
+
+  const handleGenerateContract = async () => {
+    if (!request) return;
+    setGeneratingContract(true);
+    setContractActionError(null);
+    setContractActionSuccess(null);
+    try {
+      await contractsApi.generate(request.id, selectedTemplate);
+      setContractActionSuccess("Contract generated successfully!");
+      reloadContracts();
+      reload();
+    } catch (e) {
+      setContractActionError(e instanceof ApiError ? e.message : "Failed to generate contract.");
+    } finally {
+      setGeneratingContract(false);
+    }
+  };
+
+  const handleOpenSignModal = () => {
+    setSignerEmail(request?.requested_by || user?.email || "authorized_signer@company.com");
+    setIsSignModalOpen(true);
+  };
+
+  const handleSendForSignature = async () => {
+    if (!linkedContract) return;
+    setSendingSign(true);
+    setContractActionError(null);
+    setContractActionSuccess(null);
+    try {
+      await contractsApi.sendForSignature(linkedContract.id, signerEmail || undefined, signProvider);
+      setIsSignModalOpen(false);
+      setContractActionSuccess(`Sent for signature via ${signProvider === "documenso" ? "Documenso" : "DocuSign"}.`);
+      reloadContracts();
+    } catch (e) {
+      setContractActionError(e instanceof ApiError ? e.message : "Failed to send for signature.");
+    } finally {
+      setSendingSign(false);
+    }
+  };
+
+  const handleSimulateSign = async () => {
+    if (!linkedContract) return;
+    setSimulatingSign(true);
+    setContractActionError(null);
+    setContractActionSuccess(null);
+    try {
+      await contractsApi.simulateSign(linkedContract.id);
+      setContractActionSuccess("Contract signed successfully!");
+      reloadContracts();
+      reload();
+    } catch (e) {
+      setContractActionError(e instanceof ApiError ? e.message : "Failed to sign contract.");
+    } finally {
+      setSimulatingSign(false);
     }
   };
 
@@ -233,21 +308,166 @@ export function RequestDetailPage() {
             </CardBody>
           </Card>
 
+          {contractActionSuccess && <InlineSuccess message={contractActionSuccess} />}
+          {contractActionError && <InlineError message={contractActionError} />}
+
+          {request.status === "approved" && !linkedContract && (
+            <Card>
+              <CardHeader
+                title="Contract Generation"
+                subtitle="Request is approved — generate the agreement for e-signing"
+              />
+              <CardBody className="flex flex-col gap-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-700">Contract Template</label>
+                  <select
+                    value={selectedTemplate}
+                    onChange={(e) => setSelectedTemplate(e.target.value as ContractTemplate)}
+                    className="mt-1 w-full rounded-lg border border-surface-border px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+                  >
+                    <option value="hardware_purchase">Hardware Purchase Agreement</option>
+                    <option value="saas_subscription">SaaS Subscription Agreement</option>
+                    <option value="professional_services">Professional Services Agreement</option>
+                  </select>
+                </div>
+                <Button
+                  loading={generatingContract}
+                  onClick={handleGenerateContract}
+                  icon={<ScrollText className="size-4" />}
+                >
+                  Generate Contract
+                </Button>
+              </CardBody>
+            </Card>
+          )}
+
           {linkedContract && (
             <Card>
               <CardHeader
-                title="Contract"
+                title="Contract & E-Signature"
                 action={<ContractStatusBadge status={linkedContract.status} />}
               />
-              <CardBody>
+              <CardBody className="flex flex-col gap-3 text-sm">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>Template: <strong className="text-slate-700">{titleCase(linkedContract.template_used)}</strong></span>
+                  <span className="font-mono">{linkedContract.id.slice(0, 8)}</span>
+                </div>
+
+                {linkedContract.status === "draft" && (
+                  <div className="flex flex-col gap-2 rounded-lg border border-surface-border bg-surface-subtle p-3">
+                    <p className="text-xs text-slate-600">Contract is generated. Select an e-signature provider:</p>
+                    <Button
+                      size="sm"
+                      icon={<FileSignature className="size-4" />}
+                      onClick={handleOpenSignModal}
+                    >
+                      Send for Signature (Documenso / DocuSign Demo)
+                    </Button>
+                  </div>
+                )}
+
+                {linkedContract.status === "pending_signature" && (
+                  <div className="flex flex-col gap-2 rounded-lg border border-brand-100 bg-brand-50 p-3">
+                    <div className="text-xs text-brand-800">
+                      Awaiting signature via <strong>{linkedContract.esign_provider_ref?.startsWith("docusign") ? "DocuSign (Sandbox)" : "Documenso"}</strong> ({linkedContract.esign_provider_ref ?? "pending provider"})
+                    </div>
+                    <p className="text-[11px] text-brand-600">
+                      Testing shortcut: simulates a provider webhook callback. In production, webhooks are cryptographically HMAC-verified via <code>POST /webhooks/esign</code>.
+                    </p>
+                    <Button
+                      size="sm"
+                      icon={<Check className="size-4" />}
+                      loading={simulatingSign}
+                      onClick={handleSimulateSign}
+                    >
+                      Sign Document (Demo only — simulates provider webhook without real verification)
+                    </Button>
+                  </div>
+                )}
+
+                {linkedContract.status === "signed" && (
+                  <div className="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
+                    ✓ Contract fully executed by {linkedContract.signed_by ?? "Authorized Signer"} on {formatDateTime(linkedContract.signed_at)}
+                  </div>
+                )}
+
                 <Button variant="secondary" size="sm" onClick={() => navigate(`/app/contracts/${linkedContract.id}`)}>
-                  View contract
+                  View full contract details →
                 </Button>
               </CardBody>
             </Card>
           )}
         </div>
       </div>
+
+      <Modal
+        open={isSignModalOpen}
+        onClose={() => setIsSignModalOpen(false)}
+        title="Send Contract for Signature"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsSignModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={sendingSign} onClick={handleSendForSignature} icon={<FileSignature className="size-4" />}>
+              Send via {signProvider === "documenso" ? "Documenso" : "DocuSign (Demo)"}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4 text-sm">
+          <div>
+            <label className="mb-1 block font-medium text-slate-700">E-Signature Provider</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setSignProvider("documenso")}
+                className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
+                  signProvider === "documenso"
+                    ? "border-brand-600 bg-brand-50/50 ring-2 ring-brand-500/20"
+                    : "border-surface-border hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-medium text-slate-900">
+                  <span>Documenso</span>
+                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Recommended Self-Hosted</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Self-hosted, genuinely free and functional open-source signing platform</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSignProvider("docusign")}
+                className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
+                  signProvider === "docusign"
+                    ? "border-amber-600 bg-amber-50/50 ring-2 ring-amber-500/20"
+                    : "border-surface-border hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-medium text-slate-900">
+                  <span>DocuSign</span>
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Sandbox Demo Only</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">DocuSign (sandbox demo only — not a functional signature). Developer tier applies watermarks; production requires paid plan.</p>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-medium text-slate-700">Signer Email Address</label>
+            <input
+              type="email"
+              value={signerEmail}
+              onChange={(e) => setSignerEmail(e.target.value)}
+              placeholder="signer@company.com"
+              className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              The e-sign invitation link will be simulated for this signer.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

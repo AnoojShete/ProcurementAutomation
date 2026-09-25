@@ -34,13 +34,30 @@ class Document(Base):
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
 
 
+class Contract(Base):
+    """Read-only stub: used for contract.signed event processing."""
+    __tablename__ = "contracts"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    purchase_request_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("purchase_requests.id"))
+
+
+class ProcessedEvent(Base):
+    """Idempotency tracking for Kafka consumer."""
+    __tablename__ = "processed_kafka_events"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    event_id: Mapped[str] = mapped_column(Uuid, unique=True, nullable=False)
+    topic: Mapped[str] = mapped_column(String(255), nullable=False)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
 class Vendor(Base):
     """Vendor/supplier in the procurement system."""
     __tablename__ = "vendors"
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    name_normalized: Mapped[Optional[str]] = mapped_column(String(255))
+    normalized_name: Mapped[Optional[str]] = mapped_column(String(255))
     contact_email: Mapped[Optional[str]] = mapped_column(String(255))
     contact_phone: Mapped[Optional[str]] = mapped_column(String(50))
     address: Mapped[Optional[str]] = mapped_column(Text)
@@ -125,17 +142,38 @@ class License(Base):
     vendor_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendors.id"))
     app_name: Mapped[str] = mapped_column(String(255), nullable=False)
     total_seats: Mapped[int] = mapped_column(Integer, nullable=False)
+    assigned_seats: Mapped[int] = mapped_column(Integer, default=0)
     cost_per_seat: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     period_start: Mapped[Optional[date]] = mapped_column(Date)
     period_end: Mapped[Optional[date]] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(20), default="active")
+    reclaim_cooldown_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    anomaly_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 4))
+    top_factors: Mapped[Optional[list]] = mapped_column(JSON)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # Relationships
     vendor: Mapped[Optional["Vendor"]] = relationship("Vendor", back_populates="licenses")
     usages: Mapped[List["LicenseUsage"]] = relationship("LicenseUsage", back_populates="license")
+    reclaim_history: Mapped[List["LicenseReclaimHistory"]] = relationship("LicenseReclaimHistory", back_populates="license")
+
+
+class LicenseReclaimHistory(Base):
+    """Audit and timeline of reclaim events for a license."""
+    __tablename__ = "license_reclaim_history"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    license_id: Mapped[str] = mapped_column(Uuid, ForeignKey("licenses.id"), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    by_user: Mapped[Optional[str]] = mapped_column(String(255))
+    cooldown_set_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    license: Mapped["License"] = relationship("License", back_populates="reclaim_history")
 
 
 class LicenseUsage(Base):

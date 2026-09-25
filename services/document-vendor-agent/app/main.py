@@ -4,9 +4,11 @@ from fastapi import Depends, FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
+from shared.logging.configure import configure_logging
+configure_logging(settings.service_name)
 from app.database import init_db, get_db
 from app.kafka.producer import KafkaEventProducer
-from app.api import health, documents, vendors
+from app.api import health, documents, vendors, admin
 from app.models import AuditLog
 from app.services.storage import ensure_bucket
 from shared.http.error_handlers import register_error_handlers
@@ -14,13 +16,15 @@ from shared.auth import get_current_user
 from shared.audit import build_audit_router
 
 
+from shared.infra.retry import with_retry
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
-    await ensure_bucket()
+    await with_retry(init_db, name="Postgres init")
+    await with_retry(ensure_bucket, name="MinIO bucket init")
 
     app.state.kafka_producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
-    await app.state.kafka_producer.start()
+    await with_retry(app.state.kafka_producer.start, name="Kafka producer")
 
     # Note: the extraction pipeline itself runs in a SEPARATE worker
     # process (app/worker.py, its own container) that consumes
@@ -60,3 +64,4 @@ app.include_router(
 app.include_router(
     vendors.router, prefix="/vendors", tags=["Vendors"], dependencies=[Depends(get_current_user)]
 )
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])

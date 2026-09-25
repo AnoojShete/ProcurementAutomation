@@ -21,8 +21,12 @@ sla:
 
 # License utilisation thresholds
 utilisation:
-  reclaim_threshold: 0.3    # Below 30% usage triggers reclaim
+  reclaim_threshold: 0.3    # Legacy flat-score threshold (kept for reference)
   warning_threshold: 0.5    # Below 50% usage triggers warning
+  # ML anomaly threshold: anomaly_score above this triggers a reclaim request.
+  # Score is in [0, 1] where 1 = maximally anomalous (IsolationForest, SHAP-explained).
+  # 0.6 catches clear decline/drop-off patterns without being tripped by weekend dips.
+  anomaly_threshold: 0.6
   measurement_periods:      # Days to look back
     - 30
     - 60

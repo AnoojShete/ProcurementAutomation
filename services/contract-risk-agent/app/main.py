@@ -6,6 +6,8 @@ import redis.asyncio as redis
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
+from shared.logging.configure import configure_logging
+configure_logging(settings.service_name)
 from app.database import init_db, get_db
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
@@ -16,14 +18,17 @@ from shared.auth import get_current_user
 from shared.audit import build_audit_router
 
 
+from shared.infra.retry import with_retry
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await with_retry(init_db, name="Postgres init")
 
     app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    await with_retry(app.state.redis.ping, name="Redis ping")
 
     app.state.kafka_producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
-    await app.state.kafka_producer.start()
+    await with_retry(app.state.kafka_producer.start, name="Kafka producer")
 
     consumer_task = asyncio.create_task(start_consumer(app))
 

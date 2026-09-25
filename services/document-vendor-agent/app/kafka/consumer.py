@@ -11,10 +11,14 @@ from app.config import settings
 from app.database import async_session_factory
 from app.services.document_service import process_document
 
+from shared.infra.retry import with_retry
+from shared.logging.context import CorrelationContext
+
 logger = logging.getLogger(__name__)
 
 CONSUME_TOPICS = [
     "document.ingested",  # published by this service's own API process
+    "business_rule.updated",# published by auth-service
 ]
 
 
@@ -24,21 +28,33 @@ async def start_consumer(kafka_producer):
         bootstrap_servers=settings.kafka_bootstrap_servers,
         group_id=settings.kafka_consumer_group,
         auto_offset_reset="earliest",
+        session_timeout_ms=60000,
+        heartbeat_interval_ms=10000,
+        max_poll_interval_ms=600000,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
     try:
-        await consumer.start()
+        await with_retry(consumer.start, name="Kafka consumer")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
         async for msg in consumer:
             try:
                 event = msg.value
+                correlation_id = event.get("correlation_id")
+                if correlation_id:
+                    CorrelationContext.set(correlation_id)
                 event_type = event.get("event_type")
                 payload = event.get("payload", {})
 
                 if event_type == "document.ingested":
                     await _handle_document_ingested(kafka_producer, payload)
+                elif event_type == "business_rule.updated":
+                    rule_key = payload.get("rule_key")
+                    if rule_key:
+                        from shared.rules_engine import invalidate_rule
+                        invalidate_rule(rule_key)
+                        logger.info(f"Invalidated local rules_engine cache for key: {rule_key}")
                 else:
                     logger.warning(f"Unknown event type on topic {msg.topic}: {event_type}")
 

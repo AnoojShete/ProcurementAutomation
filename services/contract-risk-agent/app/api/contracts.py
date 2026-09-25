@@ -67,7 +67,29 @@ async def generate_contract(
 async def send_for_signature(contract_id: str, data: SendForSignatureRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         contract = await contract_service.send_for_signature(
-            db, request.app.state.kafka_producer, contract_id, data.signer_email
+            db, request.app.state.kafka_producer, contract_id, data.signer_email, provider=data.provider or "documenso"
+        )
+    except contract_service.ContractGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return DataResponse(data=_serialize(contract))
+
+
+@router.post(
+    "/{contract_id}/sign-simulated", response_model=DataResponse,
+    dependencies=[Depends(require_role("approver", "finance", "admin"))],
+)
+async def sign_contract_simulated(contract_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Demo only — simulates a provider webhook without real signature verification.
+    Disabled when a real e-signature provider is configured.
+    """
+    if not settings.allow_simulated_signatures or settings.documenso_api_url or settings.opensign_api_url:
+        raise HTTPException(
+            status_code=403,
+            detail="Simulated signatures are disabled when a real e-signature provider is configured",
+        )
+    try:
+        contract = await contract_service.sign_contract_simulated(
+            db, request.app.state.kafka_producer, contract_id
         )
     except contract_service.ContractGenerationError as e:
         raise HTTPException(status_code=400, detail=str(e))

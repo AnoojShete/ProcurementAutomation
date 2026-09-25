@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Document
 from app.schemas import DataResponse, ReviewCorrectionRequest
 from app.services import document_service
-from app.services.upload_service import scan_upload, store_and_record_upload, MalwareDetectedError, ScanUnavailableError
+from app.services.upload_service import store_and_record_upload
+from shared.idempotency import get_cached_response, store_response
 
 router = APIRouter()
 
@@ -38,26 +39,25 @@ async def upload_document(
     request: Request,
     file: UploadFile = File(...),
     uploaded_by: str = Form("unknown"),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
 ):
+    if idempotency_key:
+        cached = await get_cached_response(request.app.state.redis, "document-vendor-agent", idempotency_key)
+        if cached is not None:
+            return cached
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="uploaded file is empty")
-
-    try:
-        await scan_upload(data, db, file.filename or "upload")
-    except MalwareDetectedError as e:
-        await db.commit()
-        raise HTTPException(status_code=422, detail=f"upload rejected: malware detected ({e.signature})")
-    except ScanUnavailableError:
-        await db.commit()
-        raise HTTPException(status_code=503, detail="scanning unavailable, try again")
 
     doc = await store_and_record_upload(
         db, request.app.state.kafka_producer, data, file.filename or "upload",
         file.content_type or "application/octet-stream", uploaded_by,
     )
-    return DataResponse(data={"document_id": doc.id, "status": doc.status})
+    result = DataResponse(data={"document_id": doc.id, "status": doc.status})
+    if idempotency_key:
+        await store_response(request.app.state.redis, "document-vendor-agent", idempotency_key, result.model_dump(mode="json"))
+    return result
 
 
 @router.get("/", response_model=DataResponse)

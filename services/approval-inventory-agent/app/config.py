@@ -12,16 +12,37 @@ class Settings(BaseSettings):
     temporal_task_queue: str = "approval-task-queue"
     service_name: str = "approval-inventory-agent"
     service_port: int = 8002
+    anomaly_watch_threshold: float = 0.5
+    anomaly_anomalous_threshold: float = 0.75
 
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()
 
+def get_anomaly_thresholds() -> tuple[float, float]:
+    import os
+    from shared.rules_engine import get_rule
+    watch_fallback = float(os.getenv("ANOMALY_WATCH_THRESHOLD", os.getenv("APP_ANOMALY_WATCH_THRESHOLD", str(settings.anomaly_watch_threshold))))
+    anomalous_fallback = float(os.getenv("ANOMALY_ANOMALOUS_THRESHOLD", os.getenv("APP_ANOMALY_ANOMALOUS_THRESHOLD", str(settings.anomaly_anomalous_threshold))))
+    watch = float(get_rule("license.anomaly_watch_threshold", fallback=watch_fallback))
+    anomalous = float(get_rule("license.anomaly_anomalous_threshold", fallback=anomalous_fallback))
+    return watch, anomalous
+
+
 @lru_cache
 def load_config() -> dict:
     """Load and parse the full config.yaml file."""
-    with open("config.yaml", "r") as f:
-        return yaml.safe_load(f)
+    import os
+    candidates = [
+        "config.yaml",
+        os.path.join(os.path.dirname(__file__), "..", "config.yaml"),
+        os.path.join(os.path.dirname(__file__), "config.yaml"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            with open(p, "r") as f:
+                return yaml.safe_load(f) or {}
+    return {}
 
 @lru_cache
 def load_spend_tiers() -> list[dict]:

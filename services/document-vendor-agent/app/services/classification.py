@@ -33,9 +33,28 @@ class ClassificationResult:
     document_type: str
     confidence: float
     scores: Dict[str, float]
+    needs_review: bool = False
 
 
-def classify_document(text: str) -> ClassificationResult:
+import os
+import joblib
+
+_MODEL = None
+_MODEL_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "ml", "artifacts", "classifier.joblib"
+)
+
+def _load_model():
+    global _MODEL
+    if _MODEL is None and os.path.exists(_MODEL_PATH):
+        try:
+            _MODEL = joblib.load(_MODEL_PATH)
+        except Exception as e:
+            print(f"Failed to load model: {e}")
+    return _MODEL
+
+
+def _classify_with_keywords(text: str) -> ClassificationResult:
     lowered = text.lower()
     raw_scores = {}
     for doc_type, patterns in _KEYWORDS.items():
@@ -47,7 +66,7 @@ def classify_document(text: str) -> ClassificationResult:
         # No keyword signal at all (e.g. badly garbled OCR) — default to
         # invoice (the most common document this pipeline sees) but with
         # low confidence so it lands in the review queue.
-        return ClassificationResult(document_type="invoice", confidence=0.3, scores=raw_scores)
+        return ClassificationResult(document_type="invoice", confidence=0.3, scores=raw_scores, needs_review=True)
 
     best_type = max(raw_scores, key=raw_scores.get)
     best_score = raw_scores[best_type]
@@ -56,4 +75,32 @@ def classify_document(text: str) -> ClassificationResult:
     runner_up = others[0] if others else 0
     margin = (best_score - runner_up) / best_score if best_score else 0
     confidence = round(min(1.0, 0.55 + 0.45 * margin), 3)
-    return ClassificationResult(document_type=best_type, confidence=confidence, scores=raw_scores)
+    return ClassificationResult(document_type=best_type, confidence=confidence, scores=raw_scores, needs_review=True)
+
+
+def classify_document(text: str) -> ClassificationResult:
+    model = _load_model()
+    if model:
+        try:
+            # Predict probabilities
+            probas = model.predict_proba([text])[0]
+            classes = model.classes_
+            
+            best_idx = probas.argmax()
+            best_type = classes[best_idx]
+            confidence = float(probas[best_idx])
+            
+            scores = {cls: float(prob) for cls, prob in zip(classes, probas)}
+            
+            if confidence >= 0.6:
+                return ClassificationResult(
+                    document_type=best_type,
+                    confidence=confidence,
+                    scores=scores,
+                    needs_review=False
+                )
+        except Exception as e:
+            print(f"Model prediction failed: {e}")
+            
+    # Fallback
+    return _classify_with_keywords(text)

@@ -1,3 +1,6 @@
+import uuid
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,14 +8,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import User
 from app.schemas import (
-    LoginRequest, RefreshRequest, TokenResponse, AccessTokenResponse, UserResponse, DataResponse,
+    LoginRequest, RegisterRequest, RefreshRequest, TokenResponse, AccessTokenResponse, UserResponse, DataResponse,
 )
-from app.security import verify_password
+from app.security import hash_password, is_password_breached, verify_password
 from shared.auth.jwt_tokens import create_access_token, create_refresh_token, decode_token, TokenError
 from shared.auth.config import JWT_EXPIRY_MINUTES
 from shared.auth.middleware import get_current_user, CurrentUser
 
 router = APIRouter()
+
+
+@router.post("/register", response_model=DataResponse, status_code=201)
+async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    if len(data.password) < 12:
+        raise HTTPException(status_code=400, detail="password must be at least 12 characters")
+    try:
+        breached = await is_password_breached(data.password)
+    except Exception:
+        raise HTTPException(status_code=503, detail="password breach service unavailable")
+    if breached:
+        raise HTTPException(status_code=400, detail="password has appeared in a known data breach")
+    existing = (await db.execute(select(User).where(User.email == data.email))).scalars().first()
+    if existing:
+        raise HTTPException(status_code=409, detail="email is already registered")
+    user = User(
+        id=str(uuid.uuid4()), email=data.email, hashed_password=hash_password(data.password),
+        role="requester", created_at=datetime.now(timezone.utc),
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return DataResponse(data=UserResponse.model_validate(user))
 
 
 @router.post("/login", response_model=DataResponse)

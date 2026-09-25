@@ -12,6 +12,7 @@ import {
   ClipboardList as CL,
   Activity as AC,
   HeartPulse as HP,
+  Sliders as SL,
 } from "lucide-react";
 import type { Role } from "@/types/api";
 
@@ -38,6 +39,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   approver: [
     dashboard("/app"),
     { label: "Approval Inbox", to: "/app/approvals", icon: IN },
+    { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Requests", to: "/app/requests", icon: FT },
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Vendors", to: "/app/vendors", icon: BU },
@@ -46,6 +48,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   finance: [
     dashboard("/app"),
     { label: "Approval Queue", to: "/app/approvals", icon: IN },
+    { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Spend Analysis", to: "/app/spend", icon: AC },
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Contracts", to: "/app/contracts", icon: SC },
@@ -54,6 +57,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   ],
   admin: [
     { label: "Overview", to: "/app", icon: LD, end: true },
+    { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Requests", to: "/app/requests", icon: FT },
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Vendors", to: "/app/vendors", icon: BU },
@@ -64,6 +68,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Notifications", to: "/app/notifications", icon: BE },
     { label: "Audit & Activity", to: "/app/audit", icon: CL },
     { label: "System Health", to: "/app/system-health", icon: HP },
+    { label: "Business Rules", to: "/app/business-rules", icon: SL },
   ],
 };
 

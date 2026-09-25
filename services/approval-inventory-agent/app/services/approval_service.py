@@ -56,12 +56,19 @@ class ApprovalService:
             - ₹500-₹5,000:  manager approval
             - Above ₹5,000: manager + finance approval
         """
-        tiers = load_spend_tiers()
+        from shared.rules_engine import get_rule
+        tiers = get_rule("approval.spend_tiers", fallback=None)
+        if not tiers:
+            tiers = load_spend_tiers()
         for tier in tiers:
-            if tier["max_amount"] is None or amount <= tier["max_amount"]:
-                return tier["name"], list(tier["approval_chain"])
-        # Fallback to highest tier
-        return tiers[-1]["name"], list(tiers[-1]["approval_chain"])
+            name = tier.get("tier_name") or tier.get("name")
+            chain = tier.get("required_roles") if "required_roles" in tier else tier.get("approval_chain", [])
+            max_amt = tier.get("max_amount")
+            if max_amt is None or amount <= float(max_amt):
+                return name, list(chain)
+        last_name = tiers[-1].get("tier_name") or tiers[-1].get("name")
+        last_chain = tiers[-1].get("required_roles") if "required_roles" in tiers[-1] else tiers[-1].get("approval_chain", [])
+        return last_name, list(last_chain)
 
     async def list_requests(self, limit: int = 100) -> list[PurchaseRequest]:
         """Every purchase request, most recently created first — backs the
@@ -98,11 +105,32 @@ class ApprovalService:
         7. Otherwise, start Temporal approval workflow
         """
         # 1. Determine spend tier
-        tier_name, approval_chain = self.determine_spend_tier(data.amount)
+        if data.request_type == "reinstate":
+            tier_name = "manager"
+            approval_chain = ["dept_manager"]
+            license_id = None
+            if data.items:
+                for item in data.items:
+                    if "license_id" in item:
+                        license_id = item["license_id"]
+                        break
+            if license_id:
+                from app.models import License
+                stmt = select(License).where(License.id == license_id)
+                result = await self.db.execute(stmt)
+                lic = result.scalar_one_or_none()
+                if lic:
+                    available_seats = lic.total_seats - lic.assigned_seats
+                    if available_seats <= 0:
+                        data.request_type = "license"
+                        tier_name, approval_chain = self.determine_spend_tier(data.amount)
+        else:
+            tier_name, approval_chain = self.determine_spend_tier(data.amount)
 
         # 2. Calculate SLA deadline
         config = load_config()
-        sla_hours = config.get("sla", {}).get("approval_timeout_hours", 48)
+        from shared.rules_engine import get_rule
+        sla_hours = int(get_rule("approval.sla_escalation_hours", fallback=config.get("sla", {}).get("approval_timeout_hours", 48)))
         sla_deadline = datetime.now(timezone.utc) + timedelta(hours=sla_hours)
 
         req_id = str(uuid.uuid4())
@@ -165,11 +193,20 @@ class ApprovalService:
         if is_backordered and data.request_type == "hardware":
             immediate_req, backorder_req = await split_backorder(self.db, req, total_available)
             if immediate_req:
-                req = immediate_req
-            elif backorder_req:
-                req = backorder_req
+                req = immediate_req  # The immediate portion goes through approval flow
 
-        # 5. Publish approval.requested Kafka event
+            # GAP-A8 fix: also publish approval.requested for the backordered portion
+            # so notification-agent and other services know about it.
+            if backorder_req:
+                try:
+                    await self.producer.publish_approval_requested(backorder_req)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(
+                        f"Failed to publish approval.requested for backorder {backorder_req.id}: {e}"
+                    )
+
+        # 5. Publish approval.requested Kafka event for the immediate / main request
         try:
             await self.producer.publish_approval_requested(req)
         except Exception as e:
@@ -357,3 +394,56 @@ class ApprovalService:
             )
         except Exception:
             pass
+
+    async def decline_reclaim(self, request_id: str, requested_by: str) -> PurchaseRequest:
+        from app.models import License
+        req = await self.get_request_with_history(request_id)
+        if not req:
+            raise ValueError("Request not found")
+        if req.request_type != "reclaim":
+            raise ValueError("Only reclaim requests can be declined via this endpoint")
+        if req.status != "pending_grace_period":
+            raise ValueError("Reclaim request is no longer in grace period")
+
+        now = datetime.now(timezone.utc)
+        req.status = "cancelled"
+        
+        try:
+            from temporalio.client import Client
+            temporal_client = await Client.connect(
+                settings.temporal_host, namespace=settings.temporal_namespace
+            )
+            handle = temporal_client.get_workflow_handle(f"approval-{request_id}")
+            await handle.signal(
+                "approval_signal",
+                {
+                    "decision": "cancelled",
+                    "decided_by": requested_by,
+                    "comments": "Declined by user during grace period",
+                },
+            )
+        except Exception:
+            pass
+            
+        if req.items:
+            for item in req.items:
+                if "license_id" in item:
+                    stmt = select(License).where(License.id == item["license_id"])
+                    result = await self.db.execute(stmt)
+                    lic = result.scalar_one_or_none()
+                    if lic:
+                        cooldown_days = int(get_rule("license.reclaim_cooldown_days", fallback=45))
+                        lic.reclaim_cooldown_until = now + timedelta(days=cooldown_days)
+
+        audit = AuditLog(
+            id=str(uuid.uuid4()),
+            entity_type="purchase_request",
+            entity_id=req.id,
+            action="reclaim_declined",
+            performed_by=requested_by,
+            details={"reason": "Declined by user during grace period"},
+        )
+        self.db.add(audit)
+        await self.db.commit()
+        await self.db.refresh(req)
+        return req

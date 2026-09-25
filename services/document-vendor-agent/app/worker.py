@@ -16,6 +16,8 @@ from app.kafka.consumer import start_consumer
 from app.services.storage import ensure_bucket
 
 
+from shared.infra.retry import with_retry
+
 async def main():
     # This process (not the API container) is where app/services/pipeline.py
     # actually runs, so the custom metrics in app/metrics.py only ever get
@@ -24,13 +26,16 @@ async def main():
     # instead — infra/prometheus/prometheus.yml scrapes it as its own job
     # (document-vendor-agent-worker:9100), separate from the API's
     # document-vendor-agent:8001 job.
-    start_http_server(9100)
+    try:
+        start_http_server(9100)
+    except Exception as e:
+        logging.warning(f"Metrics server on port 9100 already running or failed: {e}")
 
-    await init_db()
-    await ensure_bucket()
+    await with_retry(init_db, name="Postgres init")
+    await with_retry(ensure_bucket, name="MinIO bucket init")
 
     producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
-    await producer.start()
+    await with_retry(producer.start, name="Kafka producer")
     try:
         await start_consumer(producer)
     finally:

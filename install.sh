@@ -44,35 +44,47 @@ echo "Bringing up core services..."
 # defined in docker-compose.override.yml, before shared/db/init.sql has
 # even been applied below. run.sh brings the app services up itself,
 # afterward, in the right order (see its comments for why).
-CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit"
-docker compose up -d $CORE_SERVICES
+#
+# --remove-orphans: cleans up containers left over from renamed/removed
+# services that otherwise hold stale Docker-network references and cause
+# "network <id> not found" errors on the next `up`.
+CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit kafka-exporter"
 
-echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO). This may take a minute..."
-set +e
-MAX=60
+# If any containers are already running with stale network references
+# (e.g. containers kept alive between runs), tear them down first so they
+# don't block the fresh `up` with "network not found" errors.
+docker compose down --remove-orphans 2>/dev/null || true
+
+docker compose up -d --remove-orphans $CORE_SERVICES
+
+echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO). This may take a few minutes on first run..."
+MAX=120
 for i in $(seq 1 $MAX); do
   healthy_count=0
-  # check postgres
+  pg_status="unknown"
+  rd_status="unknown"
+  min_status="unknown"
+
   pg_cont=$(docker compose ps -q postgres 2>/dev/null || true)
   if [ -n "$pg_cont" ]; then
-    status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $pg_cont 2>/dev/null || true)
-    if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+    pg_status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $pg_cont 2>/dev/null || echo "unknown")
+    if [ "$pg_status" = "healthy" ] || [ "$pg_status" = "running" ]; then
       healthy_count=$((healthy_count+1))
     fi
   fi
-  # check redpanda
+
   rd_cont=$(docker compose ps -q redpanda 2>/dev/null || true)
   if [ -n "$rd_cont" ]; then
-    status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $rd_cont 2>/dev/null || true)
-    if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+    rd_status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $rd_cont 2>/dev/null || echo "unknown")
+    if [ "$rd_status" = "healthy" ] || [ "$rd_status" = "running" ]; then
       healthy_count=$((healthy_count+1))
     fi
   fi
-  # check minio
+
   min_cont=$(docker compose ps -q minio 2>/dev/null || true)
   if [ -n "$min_cont" ]; then
-    status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $min_cont 2>/dev/null || true)
-    if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+    min_status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $min_cont 2>/dev/null || echo "unknown")
+    if [ "$min_status" = "healthy" ] || [ "$min_status" = "running" ]; then
       healthy_count=$((healthy_count+1))
     fi
   fi
@@ -81,10 +93,30 @@ for i in $(seq 1 $MAX); do
     echo "Core services are up."
     break
   fi
+
+  if [ "$i" -eq "$MAX" ]; then
+    echo "ERROR: Core services failed to become healthy within $((MAX * 5)) seconds." >&2
+    echo "  postgres: $pg_status" >&2
+    echo "  redpanda: $rd_status" >&2
+    echo "  minio: $min_status" >&2
+    
+    # Print the detailed healthcheck log for the failing service(s)
+    for svc in postgres redpanda minio; do
+      cont=$(docker compose ps -q $svc 2>/dev/null || true)
+      if [ -n "$cont" ]; then
+        status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $cont 2>/dev/null || echo "unknown")
+        if [ "$status" != "healthy" ] && [ "$status" != "running" ]; then
+           echo "--- $svc Healthcheck Log ---" >&2
+           docker inspect --format='{{json .State.Health}}' $cont 2>/dev/null | grep -o '"Output":"[^"]*"' | tail -n 1 >&2 || true
+        fi
+      fi
+    done
+    exit 1
+  fi
+
   echo "Waiting for services to become healthy... ($i/$MAX)"
   sleep 5
 done
-set -e
 
 echo "Running DB init SQL if available..."
 if [ -f shared/db/init.sql ]; then
@@ -103,7 +135,7 @@ if [ -f shared/kafka-topics.yaml ]; then
   # Attempt to create each topic using Redpanda's rpk tool inside the redpanda container
   if docker compose ps -q redpanda >/dev/null 2>&1; then
     echo "Creating topics via redpanda rpk (best-effort)"
-    topics=$(grep -oE '^[[:space:]]*-\s*[^[:space:]]+' shared/kafka-topics.yaml | sed 's/^-//; s/^\s*//') || true
+    topics=$(grep -oE '^[[:space:]]*-\s*[^[:space:]]+' shared/kafka-topics.yaml | awk '{print $2}') || true
     for t in $topics; do
       echo "Creating topic: $t"
       docker compose exec -T redpanda rpk topic create "$t" --brokers redpanda:9092 || true
@@ -123,8 +155,7 @@ else
   # Try using containerized mc on the compose network
   NETNAME="${NETWORK_NAME:-it-procurement-network}"
   echo "Attempting to create MinIO bucket using containerized mc on network $NETNAME"
-  docker run --rm --network "$NETNAME" minio/mc:latest alias set local http://minio:9000 "${MINIO_ROOT_USER:-minioadmin}" "${MINIO_ROOT_PASSWORD:-minioadmin}" || true
-  docker run --rm --network "$NETNAME" minio/mc:latest mb --ignore-existing local/it-procurement || true
+  docker run --rm --network "$NETNAME" --entrypoint /bin/sh minio/mc:latest -c "mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} && mc mb --ignore-existing myminio/it-procurement" || true
 fi
 
 echo "Summary URLs:

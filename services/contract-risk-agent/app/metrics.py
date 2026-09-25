@@ -21,3 +21,9 @@ risk_assessment_total = Counter(
     "Vendor risk assessments completed",
     ["risk_band"],
 )
+
+model_routing_total = Counter(
+    "model_routing_total",
+    "Model routing decisions",
+    ["service", "route_name", "model_used", "fallback_triggered"],
+)

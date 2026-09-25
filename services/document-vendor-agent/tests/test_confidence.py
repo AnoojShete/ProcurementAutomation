@@ -21,3 +21,23 @@ class TestConfidence:
 
     def test_does_not_need_review_above_threshold(self):
         assert needs_review(0.95) is False
+
+
+class TestConfidenceAgentEnvelope:
+    def test_confidence_agent_sets_overall_confidence(self):
+        """document_service reads envelope["overall_confidence"] after the
+        pipeline; dropping it made every upload end in status=failed."""
+        from app.services.pipeline import confidence_agent
+
+        envelope = {
+            "document_id": "doc-1",
+            "classification_confidence": 0.9,
+            "field_confidences": {
+                "vendor_name": 0.9, "document_number": 0.9, "document_date": 0.9,
+                "total": 0.9, "line_items": 0.9,
+            },
+            "text_quality": 1.0,
+        }
+        out = confidence_agent(envelope)
+        assert out["overall_confidence"] == overall_confidence(out["confidence_scores"])
+        assert out["needs_review"] is False

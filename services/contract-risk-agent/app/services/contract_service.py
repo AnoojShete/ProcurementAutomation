@@ -96,10 +96,9 @@ async def generate_contract_for_request(
         },
     )
 
-    # Extract clauses back out of the generated text — same code path used
-    # for contracts uploaded/imported from elsewhere, so it's exercised and
-    # tested against real prose, not just trusted because we wrote it.
-    clauses = extract_clauses(contract_text)
+    from app.services.clause_router import route_clause_extraction
+    router_result = await route_clause_extraction(db, contract_id, contract_text)
+    clauses = router_result.clauses.copy() if isinstance(router_result.clauses, dict) else router_result.clauses.__dict__
 
     contract = Contract(
         id=contract_id,
@@ -128,7 +127,11 @@ async def generate_contract_for_request(
     await start_renewal_workflow(contract_id)
 
     if kafka_producer is not None:
-        await kafka_producer.publish_contract_generated(contract)
+        await kafka_producer.publish_contract_generated(
+            contract,
+            model_used=router_result.model_used,
+            fallback_triggered=router_result.fallback_triggered
+        )
         if pr.vendor_id:
             await kafka_producer.publish_notification(
                 recipient=pr.requested_by,
@@ -141,24 +144,56 @@ async def generate_contract_for_request(
     return contract
 
 
-async def send_for_signature(db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str]) -> Contract:
+async def send_for_signature(
+    db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str], provider: str = "documenso"
+) -> Contract:
     contract = await db.get(Contract, contract_id)
     if contract is None:
         raise ContractGenerationError(f"contract {contract_id} not found")
     if contract.status != "draft":
         raise ContractGenerationError(f"contract {contract_id} is not in draft status")
 
-    provider_ref = await request_signature(contract_id, signer_email)
+    provider_ref = await request_signature(contract_id, signer_email, provider=provider)
     contract.status = "pending_signature"
     contract.esign_provider_ref = provider_ref
     contract.updated_at = datetime.now(timezone.utc)
 
     await write_audit_log(
         db, "contract", contract_id, "sent_for_signature",
-        {"esign_provider_ref": provider_ref, "signer_email": signer_email},
+        {"esign_provider_ref": provider_ref, "signer_email": signer_email, "provider": provider},
     )
     await db.commit()
     await db.refresh(contract)
+    return contract
+
+
+async def sign_contract_simulated(db: AsyncSession, kafka_producer, contract_id: str, signed_by: str = "authorized_signer@company.com") -> Contract:
+    contract = await db.get(Contract, contract_id)
+    if contract is None:
+        raise ContractGenerationError(f"contract {contract_id} not found")
+    if contract.status == "signed":
+        return contract
+
+    now = datetime.now(timezone.utc)
+    contract.status = "signed"
+    contract.signed_at = now
+    contract.signed_by = signed_by
+    contract.updated_at = now
+
+    await write_audit_log(
+        db, "contract", contract_id, "signed",
+        {"simulated": True, "signed_by": signed_by, "esign_provider_ref": contract.esign_provider_ref},
+    )
+    await db.commit()
+    await db.refresh(contract)
+
+    if kafka_producer is not None:
+        try:
+            await kafka_producer.publish_contract_signed(contract)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not publish contract_signed event: {e}")
+
     return contract
 
 
