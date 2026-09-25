@@ -424,6 +424,7 @@ def confidence_agent(envelope: dict) -> dict:
         overall = min(overall, 0.5)
 
     envelope["confidence_scores"] = confidence_scores
+    envelope["overall_confidence"] = overall
     envelope["needs_review"] = (
         needs_review(overall)
         or bool(envelope.get("is_duplicate"))

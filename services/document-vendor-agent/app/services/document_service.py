@@ -98,7 +98,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         vendor_id = envelope.get("vendor_id")
         vendor = await db.get(Vendor, vendor_id) if vendor_id else None
 
-        doc.document_type = envelope["document_type"]
+        doc.document_type = envelope.get("document_type", "invoice")
         doc.vendor_id = vendor_id
         doc.vendor_name_raw = fields.get("vendor_name_raw")
         doc.document_number = fields.get("document_number")
@@ -116,9 +116,9 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
             extracted_data["matched_po_number"] = envelope["matched_po_number"]
 
         doc.extracted = extracted_data
-        doc.confidence = envelope["confidence_scores"]
-        doc.overall_confidence = envelope["overall_confidence"]
-        doc.needs_review = envelope["needs_review"]
+        doc.confidence = envelope.get("confidence_scores", {})
+        doc.overall_confidence = envelope.get("overall_confidence", 0.0)
+        doc.needs_review = bool(envelope.get("needs_review", False))
         doc.is_likely_duplicate = bool(envelope.get("is_duplicate"))
         doc.duplicate_of_document_id = envelope.get("duplicate_of_document_id")
         doc.status = "classified"
@@ -132,7 +132,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         await db.commit()
 
         document_processing_total.labels(status="classified").inc()
-        extraction_confidence.observe(envelope["overall_confidence"])
+        extraction_confidence.observe(float(doc.overall_confidence) if doc.overall_confidence is not None else 0.0)
         vendor_matching_total.labels(match_type=envelope.get("vendor_match_type", "unknown")).inc()
 
         if kafka_producer is not None:
