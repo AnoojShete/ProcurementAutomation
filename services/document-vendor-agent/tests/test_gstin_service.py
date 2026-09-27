@@ -178,3 +178,37 @@ class TestGSTINLiveModeGating:
 
         assert result.status == GSTINStatus.INVALID
         assert not live_called, "Live API should never be called for a malformed GSTIN"
+
+
+class TestApiKeyNeverLogged:
+    """The provider takes the key in the URL path and httpx puts the URL in
+    its error text; before the fix the key went straight into the logs and
+    into the stored error message."""
+
+    @pytest.mark.asyncio
+    async def test_http_error_is_redacted(self, monkeypatch, caplog):
+        import httpx
+        from app.services import gstin_service
+        key = "SECRETKEY1234567890"
+        url = f"https://sheet.gstincheck.co.in/check/{key}/29AABCT1332L1ZA"
+        req = httpx.Request("GET", url)
+        err = httpx.HTTPStatusError("403 Forbidden for url " + url, request=req, response=httpx.Response(403, request=req))
+        monkeypatch.setattr(gstin_service.settings, "gstincheck_api_key", key, raising=False)
+        monkeypatch.setattr(gstin_service, "_fetch_gstin_live", AsyncMock(side_effect=err))
+        monkeypatch.setattr("shared.live_mode.checker.is_live_mode_enabled", lambda: True)
+        monkeypatch.setattr("shared.live_mode.checker.check_and_reserve_quota", lambda _k: True)
+        with caplog.at_level("ERROR"):
+            await gstin_service.verify_gstin("29AABCT1332L1ZA")
+        assert key not in caplog.text and "***" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_network_error_is_redacted_in_result(self, monkeypatch):
+        from app.services import gstin_service
+        key = "SECRETKEY1234567890"
+        monkeypatch.setattr(gstin_service.settings, "gstincheck_api_key", key, raising=False)
+        monkeypatch.setattr(gstin_service, "_fetch_gstin_live",
+                            AsyncMock(side_effect=RuntimeError(f"connect failed for /check/{key}/X")))
+        monkeypatch.setattr("shared.live_mode.checker.is_live_mode_enabled", lambda: True)
+        monkeypatch.setattr("shared.live_mode.checker.check_and_reserve_quota", lambda _k: True)
+        result = await gstin_service.verify_gstin("29AABCT1332L1ZA")
+        assert key not in (result.error or "")

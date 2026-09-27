@@ -33,7 +33,7 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" role="presentation">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-slate-900/30" onClick={onClose} aria-hidden="true" />
       <div
         ref={ref}
         role="dialog"
@@ -41,14 +41,14 @@ export function Modal({
         aria-labelledby="modal-title"
         tabIndex={-1}
         className={cn(
-          "relative z-10 w-full rounded-xl bg-white shadow-popover animate-slide-up focus:outline-none",
+          "relative z-10 w-full rounded-md border border-surface-border bg-white shadow-popover animate-slide-up focus:outline-none",
           size === "sm" && "max-w-sm",
           size === "md" && "max-w-lg",
           size === "lg" && "max-w-2xl",
         )}
       >
-        <div className="flex items-center justify-between border-b border-surface-border px-5 py-4">
-          <h2 id="modal-title" className="text-base font-semibold text-slate-900">
+        <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
+          <h2 id="modal-title" className="text-sm font-semibold text-slate-900">
             {title}
           </h2>
           <button
@@ -59,8 +59,8 @@ export function Modal({
             <X className="size-4" />
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-surface-border px-5 py-4">{footer}</div>}
+        <div className="max-h-[70vh] overflow-y-auto p-4">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t border-surface-border bg-surface-subtle px-4 py-3">{footer}</div>}
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 import yaml
 from functools import lru_cache
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from shared.runtime_env import is_development
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://procurement:procurement123@postgres:5432/procurement_db"
@@ -14,6 +17,9 @@ class Settings(BaseSettings):
     service_port: int = 8002
     anomaly_watch_threshold: float = 0.5
     anomaly_anomalous_threshold: float = 0.75
+    # Demo-only fault-injection endpoints under /ops/showcase. On in
+    # development (APP_ENV) unless APP_SHOWCASE_MODE says otherwise.
+    showcase_mode: bool = Field(default_factory=is_development)
 
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
 

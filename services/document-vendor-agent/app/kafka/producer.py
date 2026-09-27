@@ -6,6 +6,7 @@ wrapped in the standard envelope from shared/schemas/events.md.
 import json
 import logging
 from aiokafka import AIOKafkaProducer
+from shared.kafka_security import kafka_auth_kwargs
 from app.kafka.events import (
     build_event,
     build_document_ingested_payload,
@@ -30,6 +31,7 @@ class KafkaEventProducer:
             bootstrap_servers=bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             acks="all",
+            **kafka_auth_kwargs(),
         )
         self.service_name = "document-vendor-agent"
 
@@ -41,8 +43,8 @@ class KafkaEventProducer:
         await self.producer.stop()
         logger.info("Kafka producer stopped")
 
-    async def publish(self, topic: str, event: dict):
-        await self.producer.send_and_wait(topic, event)
+    async def publish(self, topic: str, event: dict, key: str | None = None):
+        await self.producer.send_and_wait(topic, event, key=key.encode("utf-8") if key else None)
         logger.info(f"Published event {event.get('event_type')} to {topic}")
 
     async def publish_document_ingested(self, document_id, uploaded_by, file_type, minio_path, uploaded_at):
@@ -51,7 +53,9 @@ class KafkaEventProducer:
             minio_path=minio_path, uploaded_at=uploaded_at,
         )
         event = build_event(TOPIC_DOCUMENT_INGESTED, self.service_name, payload)
-        await self.publish(TOPIC_DOCUMENT_INGESTED, event)
+        # Keyed by document id so a batch of uploads spreads across the
+        # topic's partitions instead of all landing on one worker.
+        await self.publish(TOPIC_DOCUMENT_INGESTED, event, key=str(document_id))
 
     async def publish_document_classified(
         self, document_id, document_type, vendor_name_raw, extracted_fields,

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Ban, CheckCircle2, XCircle, ScrollText, FileSignature, Check } from "lucide-react";
+import { Ban, CheckCircle2, XCircle, ScrollText, FileSignature, Check, ShieldAlert } from "lucide-react";
+import { authorityApi } from "@/api/controls";
+import { InvoiceLedgerCard } from "@/components/controls/InvoiceLedgerCard";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -77,6 +79,13 @@ export function RequestDetailPage() {
   const canDecide =
     request?.status === "pending_approval" &&
     (user?.role === "approver" || user?.role === "finance" || user?.role === "admin");
+  // Server-side authority rules (level assignment, limits, separation of
+  // duties) — shown up front instead of as a failed click.
+  const { data: authority } = useApi(
+    () => (canDecide && request ? authorityApi.check(request.id) : Promise.resolve({ data: null })),
+    [canDecide, request?.id, request?.current_approver_index],
+  );
+  const approveBlocked = authority != null && !authority.allowed;
 
   const decide = async (decision: "approve" | "reject") => {
     if (!request || !user) return;
@@ -86,13 +95,16 @@ export function RequestDetailPage() {
       if (decision === "approve") await requestsApi.approve(request.id, user.email, comments || undefined);
       else await requestsApi.reject(request.id, user.email, comments || undefined);
 
+      const startIndex = request.current_approver_index;
       const settled = await runPoll(() => requestsApi.get(request.id).then((r) => r.data), {
-        isSettled: (r) => r.status !== "pending_approval",
+        // Settled when the request leaves approval, or moves to the next
+        // level of a multi-level chain.
+        isSettled: (r) => r.status !== "pending_approval" || r.current_approver_index !== startIndex,
         maxAttempts: 10,
         intervalMs: 700,
       });
       if (settled) {
-        setDecisionDone(settled.status === "approved" ? "approved" : "rejected");
+        setDecisionDone(settled.status === "rejected" ? "rejected" : "approved");
         reload();
       } else {
         setDecisionError("The decision was submitted but hasn't settled yet — reload in a moment to check its status.");
@@ -221,7 +233,13 @@ export function RequestDetailPage() {
             >
               Reject
             </Button>
-            <Button icon={<CheckCircle2 className="size-4" />} loading={acting || pollState === "polling"} onClick={() => decide("approve")}>
+            <Button
+              icon={<CheckCircle2 className="size-4" />}
+              loading={acting || pollState === "polling"}
+              disabled={approveBlocked}
+              title={approveBlocked ? authority?.reason : undefined}
+              onClick={() => decide("approve")}
+            >
               Approve
             </Button>
             <Button variant="ghost" disabled title="Not available — the backend supports approve/reject decisions only today.">
@@ -236,6 +254,17 @@ export function RequestDetailPage() {
         <InlineInfo message="Processing decision — this is applied by a background workflow and settles within a few seconds." />
       )}
       {decisionDone && <InlineSuccess message={`Request ${decisionDone}.`} />}
+      {canDecide && approveBlocked && (
+        <div className="flex items-start gap-2 rounded-md border border-surface-border bg-surface-subtle px-3 py-2 text-13 text-slate-700">
+          <ShieldAlert className="mt-0.5 size-4 shrink-0 text-slate-500" />
+          <span>
+            <span className="font-medium">You can't approve this request.</span> {authority?.reason}
+          </span>
+        </div>
+      )}
+      {canDecide && authority?.allowed && authority.via_delegation && (
+        <InlineInfo message={`You're approving on behalf of ${authority.via_delegation} (delegation).`} />
+      )}
       {decisionError && <InlineError message={decisionError} />}
 
       <Card>
@@ -285,6 +314,9 @@ export function RequestDetailPage() {
 
         <div className="flex flex-col gap-6">
           <ProcurementAssessment request={request} vendorRisk={vendorRisk} vendorRiskLoading={vendorRiskLoading} />
+          {["approved", "fulfilled", "partially_invoiced", "invoice_received"].includes(request.status ?? "") && (
+            <InvoiceLedgerCard requestId={request.id} currency={request.currency ?? "INR"} />
+          )}
 
           {canDecide && (
             <Card>

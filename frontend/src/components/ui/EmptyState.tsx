@@ -15,10 +15,8 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 rounded-lg py-12 text-center">
-      <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-surface-muted text-slate-400">
-        <Icon className="size-5" />
-      </div>
-      <p className="text-sm font-medium text-slate-700">{title}</p>
+      <Icon className="mb-1 size-6 text-slate-400" strokeWidth={1.5} />
+      <p className="text-sm font-semibold text-slate-800">{title}</p>
       {description && <p className="max-w-sm text-sm text-slate-500">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>

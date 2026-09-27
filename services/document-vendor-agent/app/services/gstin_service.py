@@ -147,6 +147,12 @@ def validate_gstin_offline(gstin: str) -> tuple[bool, str]:
 
 _GSTIN_API_BASE = "https://sheet.gstincheck.co.in/check"
 
+
+def _redact(message: str, api_key: str) -> str:
+    """The provider takes the API key in the URL path, and httpx puts the
+    URL in its exception text — never let it reach logs or stored errors."""
+    return message.replace(api_key, "***") if api_key else message
+
 async def _fetch_gstin_live(gstin: str, api_key: str) -> dict:
     """Call the live GSTIN registry API. Raises httpx exceptions on failure."""
     url = f"{_GSTIN_API_BASE}/{api_key}/{gstin.upper()}"
@@ -233,15 +239,16 @@ async def verify_gstin(gstin: str, db=None) -> GSTINResult:
         return result
 
     except httpx.HTTPStatusError as e:
-        logger.error(f"GSTIN live API HTTP error for {upper}: {e}")
+        logger.error(f"GSTIN live API HTTP error for {upper}: {_redact(str(e), api_key)}")
         # API error ≠ GSTIN invalid — don't reject the vendor
         return GSTINResult(gstin=upper, status=GSTINStatus.PENDING, data_source="offline",
                            error=f"live API returned {e.response.status_code}")
 
     except (httpx.RequestError, Exception) as e:
-        logger.error(f"GSTIN live API unreachable for {upper}: {e}")
+        message = _redact(str(e), api_key)
+        logger.error(f"GSTIN live API unreachable for {upper}: {message}")
         return GSTINResult(gstin=upper, status=GSTINStatus.PENDING, data_source="offline",
-                           error=f"live API unreachable: {e}")
+                           error=f"live API unreachable: {message}")
 
 
 # ---------------------------------------------------------------------------

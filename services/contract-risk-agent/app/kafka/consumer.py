@@ -9,15 +9,21 @@ import asyncio
 import logging
 
 from aiokafka import AIOKafkaConsumer
+from shared.kafka_security import kafka_auth_kwargs
 from app.config import settings
 from app.database import async_session_factory
-from app.services.contract_service import generate_contract_for_request
+from app.services.contract_service import ContractGenerationError, generate_contract_for_request
+from app.models import Contract
+from sqlalchemy import select
+from shared.eventing import deliver, PermanentEventError
 from app.services.risk_service import score_vendor
 
 from shared.infra.retry import with_retry
 from shared.logging.context import CorrelationContext
 
 logger = logging.getLogger(__name__)
+
+CONSUMER_NAME = "contract-risk-agent"
 
 CONSUME_TOPICS = [
     "vendor.matched",     # published by document-vendor-agent
@@ -36,6 +42,7 @@ async def start_consumer(app):
         heartbeat_interval_ms=10000,
         max_poll_interval_ms=600000,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        **kafka_auth_kwargs(),
     )
 
     try:
@@ -43,35 +50,40 @@ async def start_consumer(app):
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
         async for msg in consumer:
-            try:
-                event = msg.value
-                correlation_id = event.get("correlation_id")
-                if correlation_id:
-                    CorrelationContext.set(correlation_id)
-                event_type = event.get("event_type")
-                payload = event.get("payload", {})
-
-                if event_type == "vendor.matched":
-                    await _handle_vendor_matched(app, payload)
-                elif event_type == "approval.decided":
-                    await _handle_approval_decided(app, payload)
-                elif event_type == "business_rule.updated":
-                    rule_key = payload.get("rule_key")
-                    if rule_key:
-                        from shared.rules_engine import invalidate_rule
-                        invalidate_rule(rule_key)
-                        logger.info(f"Invalidated local rules_engine cache for key: {rule_key}")
-                else:
-                    logger.warning(f"Unknown event type on topic {msg.topic}: {event_type}")
-
-            except Exception as e:
-                logger.error(f"Error processing message: {e}", exc_info=True)
+            event = msg.value
+            correlation_id = event.get("correlation_id")
+            if correlation_id:
+                CorrelationContext.set(correlation_id)
+            # Retries, then dead-letters to event_dlq instead of dropping it.
+            await deliver(
+                async_session_factory, CONSUMER_NAME, msg.topic, event,
+                lambda event=event, topic=msg.topic: dispatch(app, topic, event),
+            )
 
     except asyncio.CancelledError:
         logger.info("Kafka consumer loop cancelled")
     finally:
         await consumer.stop()
         logger.info("Kafka consumer stopped")
+
+
+async def dispatch(app, topic: str, event: dict) -> None:
+    """Routes one event; raises on failure so deliver() retries or
+    dead-letters it. Also used to replay DLQ entries."""
+    event_type = event.get("event_type")
+    payload = event.get("payload", {})
+    if event_type == "vendor.matched":
+        await _handle_vendor_matched(app, payload)
+    elif event_type == "approval.decided":
+        await _handle_approval_decided(app, payload)
+    elif event_type == "business_rule.updated":
+        rule_key = payload.get("rule_key")
+        if rule_key:
+            from shared.rules_engine import invalidate_rule
+            invalidate_rule(rule_key)
+            logger.info(f"Invalidated local rules_engine cache for key: {rule_key}")
+    else:
+        logger.warning(f"Unknown event type on topic {topic}: {event_type}")
 
 
 async def _handle_vendor_matched(app, payload: dict):
@@ -86,13 +98,21 @@ async def _handle_vendor_matched(app, payload: dict):
 
 
 async def _handle_approval_decided(app, payload: dict):
-    """An approved purchase request is ready for a contract."""
+    """An approved purchase request is ready for a contract. Idempotent: a
+    redelivered approval.decided must not produce a second contract."""
     if payload.get("decision") != "approved":
         return
     request_id = payload.get("request_id")
-    logger.info(f"Request approved, generating contract: request_id={request_id}")
     async with async_session_factory() as db:
+        existing = (
+            await db.execute(select(Contract.id).where(Contract.purchase_request_id == request_id).limit(1))
+        ).first()
+        if existing:
+            logger.info(f"Request {request_id} already has contract {existing[0]}; skipping generation")
+            return
+        logger.info(f"Request approved, generating contract: request_id={request_id}")
         try:
             await generate_contract_for_request(db, app.state.kafka_producer, request_id, template_name=None)
-        except Exception as e:
-            logger.error(f"Could not auto-generate contract for {request_id}: {e}")
+        except ContractGenerationError as e:
+            # e.g. the request doesn't exist — retrying can't fix it.
+            raise PermanentEventError(str(e)) from e

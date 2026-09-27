@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from temporalio import workflow
@@ -29,7 +30,10 @@ class ContractRenewalWorkflow:
             fire_at = end_date - timedelta(days=alert_level)
             now = workflow.now()
             if fire_at > now:
-                await workflow.sleep(fire_at - now)
+                # asyncio.sleep inside a workflow is Temporal's durable timer
+                # (temporalio 1.6 has no workflow.sleep — calling it crashed
+                # every renewal workflow, so no reminder was ever sent).
+                await asyncio.sleep((fire_at - now).total_seconds())
 
             days_remaining = (end_date - workflow.now()).days
             await workflow.execute_activity(

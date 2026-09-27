@@ -1,4 +1,3 @@
-import { Sparkles } from "lucide-react";
 import { RiskBadge } from "@/components/ui/Badge";
 import { titleCase } from "@/lib/format";
 import type { PurchaseRequest, VendorRisk } from "@/types/api";
@@ -28,12 +27,11 @@ export function ProcurementAssessment({
   const chain = request.approval_chain ?? [];
 
   return (
-    <div className="rounded-xl border border-intel-100 bg-gradient-to-br from-intel-50 to-white p-4">
-      <div className="mb-1 flex items-center gap-2">
-        <Sparkles className="size-4 text-intel-600" />
-        <h3 className="text-sm font-semibold text-intel-700">AI Procurement Assessment</h3>
+    <div className="rounded-md border border-surface-border bg-white">
+      <div className="border-b border-surface-border px-4 py-2.5">
+        <h3 className="text-sm font-semibold text-slate-900">Procurement checks</h3>
       </div>
-      <div className="divide-y divide-intel-100/70">
+      <div className="divide-y divide-surface-border px-4">
         <AssessmentRow label="Vendor risk">
           {!request.vendor_id ? (
             <Unavailable reason="No vendor linked to this request" />

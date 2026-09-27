@@ -10,10 +10,17 @@ export interface CurrentUser {
   role: Role;
 }
 
+/** An account as the admin Users page sees it. */
+export interface AccountUser extends CurrentUser {
+  is_active: boolean;
+  email_verified_at: string | null;
+  created_at: string | null;
+  last_login_at: string | null;
+}
+
 // --- auth-service ---
 export interface TokenResponse {
   access_token: string;
-  refresh_token: string;
   token_type: "bearer";
   expires_in_minutes: number;
 }
@@ -185,6 +192,36 @@ export interface DocumentRecord {
   error_message: string | null;
 }
 
+export type BatchUploadResult =
+  | { filename: string; document_id: string; status: string; error?: undefined }
+  | { filename: string; error: string; document_id?: undefined };
+
+export interface OrderAttentionItem {
+  request_id: string;
+  kind: "approval_overdue" | "signature_stalled" | "delivery_overdue" | "status_mismatch" | "backordered";
+  severity: "high" | "medium" | "low";
+  message: string;
+}
+
+export interface OrderSummary {
+  id: string;
+  generated_at: string;
+  window_start: string;
+  trigger: string;
+  counts: {
+    pending_approval: number;
+    approval_overdue: number;
+    awaiting_signature: number;
+    awaiting_delivery: number;
+    delivery_overdue: number;
+    backordered: number;
+  };
+  changes: { new_requests: number; approved: number; invoices_received: number; rejected: number };
+  open_order_value: number | null;
+  attention: OrderAttentionItem[];
+  summary_text: string;
+}
+
 export interface ReviewCorrectionBody {
   reviewed_by: string;
   vendor_name: string;
@@ -202,6 +239,12 @@ export interface VendorPaymentChange {
   verified_by: string | null;
   verified_at: string | null;
   verification_channel: string | null;
+  document_id?: string | null;
+  previous_account_last4?: string | null;
+  new_account_last4?: string | null;
+  new_routing_code?: string | null;
+  new_beneficiary_name?: string | null;
+  vendor_name?: string;
 }
 
 // --- contract-risk-agent: vendors/risk ---
@@ -328,3 +371,136 @@ export interface ApiErrorEnvelope {
   error: { code: string; message: string };
 }
 
+
+// --- event backbone (shared/eventing) ---
+export interface OutboxServiceStats {
+  pending: number;
+  oldest_pending: string | null;
+  sent_last_hour: number;
+  last_error: string | null;
+}
+export interface EventingStatus {
+  outbox: Record<string, OutboxServiceStats>;
+  dlq: Record<string, Record<string, number>>;
+  showcase_mode: boolean;
+}
+export interface DlqEntry {
+  id: string;
+  consumer: string;
+  topic: string;
+  event_id: string | null;
+  event: { event_type?: string; payload?: Record<string, unknown>; source_service?: string };
+  error: string;
+  attempts: number;
+  failed_at: string;
+  status: "open" | "replayed" | "discarded";
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution: string | null;
+}
+export interface ReconcileResult {
+  request_id: string;
+  contract_id: string;
+  outcome: string;
+}
+
+// --- approval authority ---
+export interface AuthorityCheck {
+  allowed: boolean;
+  code: string;
+  reason: string;
+  level?: string | null;
+  via_delegation?: string | null;
+  limit?: number | null;
+}
+export interface ApproverAssignment {
+  id: string;
+  level: string;
+  user_email: string;
+  max_amount: number | null;
+  active: boolean;
+  created_by: string | null;
+  created_at: string | null;
+}
+export interface ApprovalDelegation {
+  id: string;
+  level: string;
+  delegator_email: string;
+  delegate_email: string;
+  valid_from: string;
+  valid_until: string;
+  reason: string | null;
+  created_by: string | null;
+  active: boolean;
+  revoked_at: string | null;
+}
+
+// --- invoice ledger ---
+export type InvoiceMatchStatus = "matched" | "partial" | "variance" | "ambiguous" | "no_match";
+export interface InvoiceMatchResult {
+  status: InvoiceMatchStatus;
+  request_id: string | null;
+  amount: number;
+  allocations: { line_no: number | null; description: string; quantity: number | null; amount: number }[];
+  issues: string[];
+  remaining_before: number | null;
+  remaining_after: number | null;
+  candidates: { request_id: string; status: string; remaining: number; issues: string[] }[];
+}
+export interface InvoiceMatchRow {
+  document_id: string;
+  vendor_id: string | null;
+  vendor_name: string | null;
+  purchase_request_id: string | null;
+  invoice_number: string | null;
+  status: InvoiceMatchStatus;
+  amount: number | null;
+  payment_hold: boolean;
+  hold_reason: string | null;
+  issues: string[];
+  created_at: string;
+}
+export interface RequestLedger {
+  request_id: string;
+  status: string;
+  amount: number;
+  invoiced_amount: number;
+  remaining_amount: number;
+  lines: { line_no: number; description: string; quantity: number; unit_price: number; invoiced_quantity: number }[];
+  invoices: {
+    document_id: string;
+    invoice_number: string | null;
+    status: InvoiceMatchStatus;
+    amount: number | null;
+    payment_hold: boolean;
+    hold_reason: string | null;
+    created_at: string;
+  }[];
+}
+
+// --- learning from corrections ---
+export interface VendorLearning {
+  vendor_id: string;
+  vendor_name: string;
+  reviews: number;
+  clean: number;
+  threshold: number;
+  mode: "default" | "relaxed" | "strict";
+  hints: { field: string; label: string; support: number; active: boolean }[];
+}
+export interface LearningStats {
+  base_threshold: number;
+  min_support: number;
+  min_reviews_for_calibration: number;
+  vendors: VendorLearning[];
+  corrections_by_field: { field: string; count: number }[];
+  daily: { day: string; documents: number; needs_review: number; learned: number }[];
+}
+export interface LookalikeScenario {
+  document_id: string;
+  impersonated_vendor: string;
+  impersonated_vendor_id: string;
+  lookalike_name: string;
+  invoice_number: string;
+  bank_account_last4: string;
+}

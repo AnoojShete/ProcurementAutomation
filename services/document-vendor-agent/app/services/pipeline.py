@@ -14,7 +14,10 @@ are explicit and independently testable, and so a new stage (e.g.
 swapping the parsing agent's backend) only ever touches its own function.
 """
 import asyncio
+import re
 import logging
+from shared.rules_engine import get_rule
+from app.services.audit import write_audit_log
 import uuid
 from datetime import datetime, timezone
 from dataclasses import asdict
@@ -198,30 +201,71 @@ async def vendor_matching_agent(db: AsyncSession, kafka_producer, envelope: dict
     into the dual-control pending-verification queue instead of updating
     the live record directly."""
     fields = envelope["extracted_fields"]
+    if not (fields.get("vendor_name_raw") or "").strip():
+        # No vendor name to go on: leave the document without a vendor for
+        # a reviewer to set, rather than filing it under a catch-all
+        # "Unknown Vendor" that then gets risk-scored and matched against.
+        envelope.update(vendor_id=None, vendor_name_normalized=None, vendor_match_type="none",
+                        vendor_match_confidence=0.0, payment_change_flagged=False,
+                        payment_hold=False, payment_hold_reason=None, needs_review_forced=True)
+        logger.info(f"[vendor_matching_agent] document_id={envelope['document_id']} no vendor name extracted")
+        record_agent_result(envelope, "vendor_matching_agent", confidence=0.0, validation_status="needs_review",
+                            warnings=["no vendor name found in the document"])
+        return envelope
     match = await find_or_create_vendor(db, fields.get("vendor_name_raw") or "")
     vendor = match.vendor
 
     is_quote = envelope.get("document_type") == "quote"
     payment_fields_present = any(fields.get(f) for f in PAYMENT_FIELDS)
-    if match.match_type == "existing" and payment_fields_present and not is_quote:
-        await submit_payment_change(
+    envelope["payment_change_flagged"] = False
+    if payment_fields_present and not is_quote:
+        # Bank details from a document are never trusted directly — not for
+        # an existing vendor (a change) and not for a vendor seen for the
+        # first time either. Both go to the dual-control verification queue;
+        # a first-seen vendor has no live details until someone verifies.
+        change = await submit_payment_change(
             db, kafka_producer, vendor,
             new_bank_account=fields.get("bank_account_number"),
             new_routing=fields.get("routing_code"),
             new_beneficiary=fields.get("payment_beneficiary_name"),
             submitted_by=uploaded_by or "document-vendor-agent:worker",
-            source="document",
+            source="document" if match.match_type == "existing" else "document_first_seen",
             document_id=envelope["document_id"],
         )
-        envelope["payment_change_flagged"] = True
-    elif match.match_type == "new":
-        if not is_quote:
-            vendor.bank_account_number = fields.get("bank_account_number")
-            vendor.routing_code = fields.get("routing_code")
-            vendor.payment_beneficiary_name = fields.get("payment_beneficiary_name")
-        envelope["payment_change_flagged"] = False
-    else:
-        envelope["payment_change_flagged"] = False
+        envelope["payment_change_flagged"] = change is not None
+
+    # Lookalike vendor: a new vendor whose name is close to — but not close
+    # enough to match — an existing one ("Del1 Technologies" vs "Dell
+    # Technologies"). Combined with bank details, that's the classic
+    # invoice-redirection setup.
+    lookalike = None
+    lookalike_min = float(get_rule("vendor.lookalike_min_similarity", fallback=70))
+    if match.match_type == "new" and match.closest_existing is not None and match.closest_score >= lookalike_min:
+        lookalike = {
+            "vendor_id": str(match.closest_existing.id),
+            "vendor_name": match.closest_existing.name,
+            "similarity": round(match.closest_score / 100, 3),
+            "bank_details_differ": bool(payment_fields_present and (
+                fields.get("bank_account_number") != match.closest_existing.bank_account_number
+            )),
+        }
+        envelope["lookalike_vendor"] = lookalike
+        envelope["needs_review_forced"] = True
+        await write_audit_log(
+            db, entity_type="vendor", entity_id=vendor.id, action="lookalike_vendor_detected",
+            payload={"document_id": envelope["document_id"], "new_vendor_name": vendor.name, **lookalike},
+        )
+
+    # Payment hold: an invoice isn't payable while its vendor's bank
+    # details are unverified, or while the vendor looks like an impostor.
+    hold_reasons = []
+    if envelope.get("document_type") == "invoice":
+        if vendor.payment_details_pending_verification:
+            hold_reasons.append("vendor bank details awaiting verification")
+        if lookalike:
+            hold_reasons.append(f"vendor name resembles existing vendor '{lookalike['vendor_name']}'")
+    envelope["payment_hold"] = bool(hold_reasons)
+    envelope["payment_hold_reason"] = "; ".join(hold_reasons) or None
 
     if is_quote:
         from app.models import VendorQuote
@@ -261,17 +305,41 @@ async def vendor_matching_agent(db: AsyncSession, kafka_producer, envelope: dict
     vendor_name_missing = not (fields.get("vendor_name_raw") or "").strip()
     if vendor_name_missing:
         envelope["needs_review_forced"] = True
+    warnings = ["no vendor name extracted upstream; matched against an empty name"] if vendor_name_missing else []
+    if lookalike:
+        warnings.append(f"lookalike of existing vendor {lookalike['vendor_name']} ({lookalike['similarity']:.0%})")
     record_agent_result(
         envelope, "vendor_matching_agent",
         confidence=match.match_confidence,
-        validation_status="needs_review" if vendor_name_missing else "valid",
-        warnings=["no vendor name extracted upstream; matched against an empty name"] if vendor_name_missing else [],
+        validation_status="needs_review" if (vendor_name_missing or lookalike) else "valid",
+        warnings=warnings,
     )
     return envelope
 
 
+class LedgerUnavailableError(Exception):
+    """The invoice ledger couldn't be reached (or failed on its side).
+    Not caught here: process_document puts the whole document back in the
+    queue (its partial results rolled back) instead of filing the invoice
+    as "unmatched" and never looking at it again once the ledger is back."""
+
+
+_PO_REF = re.compile(r"\b(?:PO|Purchase\s+Order)\s*(?:Ref(?:erence)?|No\.?|Number|#)?\s*[:#]?\s*(PO-[0-9A-F]{8})\b", re.IGNORECASE)
+
+
+def find_po_reference(text: str) -> Optional[str]:
+    """The platform's own PO number ("PO-9E085E38") if the invoice quotes it."""
+    m = _PO_REF.search(text or "")
+    return m.group(1).upper() if m else None
+
+
 async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dict) -> dict:
-    """Three-way match for invoices against approved purchase requests."""
+    """Three-way match through approval-inventory-agent's invoice ledger
+    (POST /invoices/match): line quantities and unit prices against what is
+    still left to invoice on the vendor's approved/fulfilled requests, with
+    overbilling always flagged. The ledger books the match and moves the
+    request in its own transaction; invoice.matched is then emitted for
+    downstream consumers."""
     if envelope.get("document_type") != "invoice":
         envelope["unmatched_invoice"] = False
         record_agent_result(envelope, "invoice_matching_agent", next_action="skipped_non_invoice")
@@ -291,96 +359,96 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
         )
         return envelope
 
-    from shared.rules_engine import get_rule
-    tolerance_pct = float(get_rule("document.invoice_po_match_tolerance_pct", fallback=0.05))
-
-    amount_min = round(float(invoice_total) * (1.0 - tolerance_pct), 2)
-    amount_max = round(float(invoice_total) * (1.0 + tolerance_pct), 2)
-
     import os
     import httpx
-    approval_svc_url = os.environ.get("APPROVAL_INVENTORY_URL", "http://approval-inventory-agent:8002").rstrip("/")
-    search_url = f"{approval_svc_url}/requests/search"
-    params = {
-        "vendor_id": str(vendor_id),
-        "amount_min": amount_min,
-        "amount_max": amount_max,
-        "status": "approved",
-    }
-
-    # /requests/* requires a JWT; without one every search 401'd and every
-    # invoice was silently "unmatched". Sign a short-lived service token with
-    # the platform's shared secret.
     from shared.auth.jwt_tokens import create_access_token
+
+    approval_svc_url = os.environ.get("APPROVAL_INVENTORY_URL", "http://approval-inventory-agent:8002").rstrip("/")
     service_token = create_access_token(
         "document-vendor-agent", "document-vendor-agent@service.internal", "service",
     )
-
-    candidates = []
+    invoice_num = fields.get("invoice_number") or fields.get("document_number")
+    body = {
+        "document_id": str(envelope["document_id"]),
+        "vendor_id": str(vendor_id),
+        "invoice_number": invoice_num,
+        "total": float(invoice_total),
+        "lines": [
+            {"description": li.get("description") or "", "quantity": li["quantity"], "unit_price": li["unit_price"]}
+            for li in (fields.get("line_items") or [])
+            if li.get("quantity") and li.get("unit_price") is not None
+        ],
+        "payment_hold": bool(envelope.get("payment_hold")),
+        "hold_reason": envelope.get("payment_hold_reason"),
+        "po_reference": find_po_reference(envelope.get("raw_text") or ""),
+    }
+    result = None
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(
-                search_url, params=params, headers={"Authorization": f"Bearer {service_token}"},
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"{approval_svc_url}/invoices/match", json=body,
+                headers={"Authorization": f"Bearer {service_token}"},
             )
-            if resp.status_code == 200:
-                candidates = resp.json().get("data", [])
-            else:
-                logger.warning(f"[invoice_matching_agent] search endpoint returned HTTP {resp.status_code}")
-    except Exception as e:
-        logger.warning(f"[invoice_matching_agent] failed to call approval-inventory-agent search: {e}")
+    except httpx.HTTPError as e:
+        # Couldn't reach it (down, restarting, timed out): retry later.
+        raise LedgerUnavailableError(f"invoice ledger unreachable: {e}") from e
+    if resp.status_code >= 500:
+        raise LedgerUnavailableError(f"invoice ledger returned HTTP {resp.status_code}")
+    if resp.status_code == 200:
+        result = resp.json().get("data")
+    else:
+        # A 4xx won't change on retry: send the invoice to review.
+        logger.warning(f"[invoice_matching_agent] ledger rejected the request: HTTP {resp.status_code}: {resp.text[:200]}")
 
-    if len(candidates) == 1:
-        match = candidates[0]
-        po_num = match.get("po_number") or str(match["id"])
-        po_id = match.get("id")
-        envelope["matched_po_number"] = po_num
-        envelope["matched_po_id"] = po_id
-        envelope["unmatched_invoice"] = False
-        fields["matched_po_number"] = po_num
-        fields["matched_po_id"] = po_id
-
-        if kafka_producer is not None:
-            invoice_num = fields.get("invoice_number") or fields.get("document_number") or "UNKNOWN"
-            po_total = match.get("amount") or invoice_total
-            await kafka_producer.publish_invoice_matched(
-                document_id=envelope["document_id"],
-                invoice_number=invoice_num,
-                purchase_request_id=po_id,
-                po_number=po_num,
-                vendor_id=vendor_id,
-                invoice_total=invoice_total,
-                po_total=po_total,
-            )
-        logger.info(f"[invoice_matching_agent] 1 PO matched: {po_num} ({po_id})")
-        record_agent_result(envelope, "invoice_matching_agent", validation_status="valid")
-
-    elif len(candidates) == 0:
+    envelope["matched_po_number"] = None
+    envelope["matched_po_id"] = None
+    fields["matched_po_number"] = None
+    if result is None:
         envelope["unmatched_invoice"] = True
         envelope["needs_review_forced"] = True
-        envelope["matched_po_number"] = None
-        envelope["matched_po_id"] = None
-        fields["matched_po_number"] = None
-        logger.info(f"[invoice_matching_agent] Zero PO matches found for invoice total {invoice_total}")
-        record_agent_result(
-            envelope, "invoice_matching_agent",
-            validation_status="needs_review",
-            warnings=["zero approved POs matched invoice amount within tolerance"],
-        )
+        record_agent_result(envelope, "invoice_matching_agent", validation_status="needs_review",
+                            warnings=["invoice ledger rejected the match request"])
+        return envelope
 
-    else:
+    status = result.get("status")
+    envelope["invoice_match"] = {
+        "status": status, "purchase_request_id": result.get("request_id"), "issues": result.get("issues", []),
+        "remaining_before": result.get("remaining_before"), "remaining_after": result.get("remaining_after"),
+        "allocations": result.get("allocations", []),
+    }
+    if status in ("matched", "partial"):
+        po_id = result["request_id"]
+        po_num = f"PO-{po_id[:8].upper()}"
+        envelope.update(matched_po_number=po_num, matched_po_id=po_id, unmatched_invoice=False)
+        fields["matched_po_number"] = po_num
+        fields["matched_po_id"] = po_id
+        if kafka_producer is not None:
+            await kafka_producer.publish_invoice_matched(
+                document_id=envelope["document_id"], invoice_number=invoice_num or "UNKNOWN",
+                purchase_request_id=po_id, po_number=po_num, vendor_id=vendor_id,
+                invoice_total=invoice_total, po_total=result.get("remaining_before") or invoice_total,
+            )
+        logger.info(f"[invoice_matching_agent] {status}: {po_num} ({po_id}), remaining {result.get('remaining_after')}")
+        record_agent_result(envelope, "invoice_matching_agent", validation_status="valid")
+    elif status == "ambiguous":
         envelope["unmatched_invoice"] = False
         envelope["needs_review_forced"] = True
-        envelope["candidate_pos"] = candidates
-        envelope["matched_po_number"] = None
-        envelope["matched_po_id"] = None
-        fields["matched_po_number"] = None
-        logger.info(f"[invoice_matching_agent] Multiple ({len(candidates)}) PO matches found; requiring human review")
-        record_agent_result(
-            envelope, "invoice_matching_agent",
-            validation_status="needs_review",
-            warnings=[f"multiple candidate POs matched: {[c.get('id') for c in candidates]}"],
-        )
-
+        envelope["candidate_pos"] = result.get("candidates", [])
+        record_agent_result(envelope, "invoice_matching_agent", validation_status="needs_review",
+                            warnings=result.get("issues", []))
+    elif status == "variance":
+        # Looks like a known PO but doesn't fit it: overbilled price or
+        # quantity, or more than is left to invoice. Never auto-accepted.
+        envelope["unmatched_invoice"] = False
+        envelope["needs_review_forced"] = True
+        envelope["invoice_variance"] = result.get("issues", [])
+        record_agent_result(envelope, "invoice_matching_agent", validation_status="needs_review",
+                            warnings=result.get("issues", []))
+    else:
+        envelope["unmatched_invoice"] = True
+        envelope["needs_review_forced"] = True
+        record_agent_result(envelope, "invoice_matching_agent", validation_status="needs_review",
+                            warnings=result.get("issues", []) or ["no purchase request matched"])
     return envelope
 
 
@@ -395,6 +463,15 @@ async def duplicate_detection_agent(db: AsyncSession, envelope: dict) -> dict:
         return envelope
 
     fields = envelope["extracted_fields"]
+    if envelope.get("vendor_id"):
+        # Several documents are processed at once. Without this, two copies
+        # of the same invoice processed side by side each look for a
+        # duplicate before the other is saved, and neither is flagged. The
+        # lock is per vendor and held until this document's results commit,
+        # so the second copy checks after the first is visible.
+        from sqlalchemy import text as _sql
+        await db.execute(_sql("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+                         {"k": f"duplicate-check:{envelope['vendor_id']}"})
     result = await check_duplicate_invoice(
         db, vendor_id=envelope["vendor_id"], total=fields.get("total"),
         document_date_str=fields.get("document_date"), document_number=fields.get("document_number"),
@@ -435,8 +512,9 @@ def confidence_agent(envelope: dict) -> dict:
 
     envelope["confidence_scores"] = confidence_scores
     envelope["overall_confidence"] = overall
+    calibrated = (envelope.get("review_threshold") or {}).get("threshold")
     envelope["needs_review"] = (
-        needs_review(overall)
+        needs_review(overall, calibrated)
         or bool(envelope.get("is_duplicate"))
         or bool(envelope.get("needs_review_forced"))
         or bool(envelope.get("unmatched_invoice"))

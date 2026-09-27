@@ -4,12 +4,13 @@ import type { IconType } from "@/lib/roleNav";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "brand";
 
-const iconToneClasses: Record<Tone, string> = {
-  neutral: "bg-slate-100 text-slate-600",
-  success: "bg-success-50 text-success-600",
-  warning: "bg-warning-50 text-warning-600",
-  danger: "bg-danger-50 text-danger-600",
-  brand: "bg-brand-50 text-brand-700",
+// Only states that need a second look get colour; the rest stay neutral.
+const valueToneClasses: Record<Tone, string> = {
+  neutral: "text-slate-900",
+  success: "text-slate-900",
+  warning: "text-warning-700",
+  danger: "text-danger-600",
+  brand: "text-slate-900",
 };
 
 export function MetricCard({
@@ -32,20 +33,18 @@ export function MetricCard({
     <Comp
       onClick={onClick}
       className={cn(
-        "flex items-start justify-between gap-3 rounded-xl border border-surface-border bg-white p-4 text-left shadow-card",
-        onClick && "cursor-pointer transition-shadow hover:shadow-popover",
+        "flex min-w-0 flex-col rounded-md border border-surface-border bg-white px-4 py-3 text-left",
+        onClick && "cursor-pointer transition-colors hover:border-slate-400",
       )}
     >
-      <div className="min-w-0">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
-        <div className="mt-1.5 text-2xl font-semibold tabular text-slate-900">{value}</div>
-        {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
+      <div className="flex items-center gap-1.5 text-13 text-slate-600">
+        {Icon && <Icon className="size-3.5 shrink-0 text-slate-400" strokeWidth={1.75} />}
+        <span className="truncate">{label}</span>
       </div>
-      {Icon && (
-        <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", iconToneClasses[tone])}>
-          <Icon className="size-[18px]" />
-        </div>
-      )}
+      <div className={cn("mt-1 text-2xl font-semibold leading-8 tabular", value === 0 ? "text-slate-900" : valueToneClasses[tone])}>
+        {value}
+      </div>
+      {hint && <div className="mt-0.5 truncate text-xs text-slate-500">{hint}</div>}
     </Comp>
   );
 }

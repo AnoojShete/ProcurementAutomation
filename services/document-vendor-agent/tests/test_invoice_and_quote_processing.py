@@ -18,110 +18,105 @@ from app.services.pipeline import (
 
 @pytest.mark.asyncio
 class TestInvoiceThreeWayMatching:
-    async def test_exactly_one_match_emits_event(self):
-        envelope = {
-            "document_id": "doc-inv-1",
-            "document_type": "invoice",
-            "vendor_id": "vendor-123",
+    """invoice_matching_agent delegates to approval-inventory-agent's invoice
+    ledger (POST /invoices/match) and maps its verdict onto the envelope."""
+
+    @staticmethod
+    def _envelope(total, lines=None, hold=False):
+        return {
+            "document_id": "doc-inv-1", "document_type": "invoice", "vendor_id": "vendor-123",
             "extracted_fields": {
-                "total": 1000.0,
-                "invoice_number": "INV-2026-001",
-                "document_number": "INV-2026-001",
+                "total": total, "invoice_number": "INV-2026-001", "document_number": "INV-2026-001",
+                "line_items": lines or [],
             },
+            "payment_hold": hold, "payment_hold_reason": "vendor bank details awaiting verification" if hold else None,
             "agent_results": {},
         }
 
-        mock_db = AsyncMock()
-        mock_producer = AsyncMock()
-        mock_producer.publish_invoice_matched = AsyncMock()
+    @staticmethod
+    def _ledger(result):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"data": result}
+        return patch("httpx.AsyncClient.post", return_value=resp)
 
-        candidate = {
-            "id": "po-456",
-            "po_number": "PO-2026-999",
-            "amount": 1000.0,
-            "status": "approved",
-        }
+    async def test_matched_books_and_emits_event(self):
+        producer = AsyncMock()
+        result = {"status": "matched", "request_id": "11111111-2222-3333-4444-555555555555",
+                  "issues": [], "remaining_before": 1000.0, "remaining_after": 0.0, "allocations": []}
+        lines = [{"description": "Laptop", "quantity": 1, "unit_price": 847.46}]
+        with self._ledger(result) as post:
+            env = await invoice_matching_agent(AsyncMock(), producer, self._envelope(1000.0, lines, hold=True))
 
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": [candidate]}
+        body = post.call_args.kwargs["json"]
+        assert body["lines"] == [{"description": "Laptop", "quantity": 1, "unit_price": 847.46}]
+        assert body["payment_hold"] is True
+        assert env["matched_po_id"] == result["request_id"]
+        assert env["matched_po_number"] == "PO-11111111"
+        assert env["unmatched_invoice"] is False
+        assert env.get("needs_review_forced") is not True
+        producer.publish_invoice_matched.assert_awaited_once()
+        assert producer.publish_invoice_matched.call_args.kwargs["purchase_request_id"] == result["request_id"]
 
-        with patch("httpx.AsyncClient.get", return_value=mock_resp):
-            result = await invoice_matching_agent(mock_db, mock_producer, envelope)
+    async def test_partial_invoice_is_a_match(self):
+        producer = AsyncMock()
+        result = {"status": "partial", "request_id": "11111111-2222-3333-4444-555555555555",
+                  "issues": [], "remaining_before": 2000.0, "remaining_after": 1000.0, "allocations": []}
+        with self._ledger(result):
+            env = await invoice_matching_agent(AsyncMock(), producer, self._envelope(1000.0))
+        assert env["unmatched_invoice"] is False
+        assert env["invoice_match"]["remaining_after"] == 1000.0
+        producer.publish_invoice_matched.assert_awaited_once()
 
-        assert result["matched_po_id"] == "po-456"
-        assert result["matched_po_number"] == "PO-2026-999"
-        assert result["unmatched_invoice"] is False
-        assert result.get("needs_review_forced") is not True
-
-        mock_producer.publish_invoice_matched.assert_awaited_once_with(
-            document_id="doc-inv-1",
-            invoice_number="INV-2026-001",
-            purchase_request_id="po-456",
-            po_number="PO-2026-999",
-            vendor_id="vendor-123",
-            invoice_total=1000.0,
-            po_total=1000.0,
-        )
+    async def test_overbilled_invoice_goes_to_review_and_is_not_booked(self):
+        producer = AsyncMock()
+        issue = "'Laptop': unit price 900.00 is above the agreed 847.46"
+        result = {"status": "variance", "request_id": "po-1", "issues": [issue], "allocations": []}
+        with self._ledger(result):
+            env = await invoice_matching_agent(AsyncMock(), producer, self._envelope(1062.0))
+        assert env["needs_review_forced"] is True
+        assert env["invoice_variance"] == [issue]
+        assert env["matched_po_id"] is None
+        producer.publish_invoice_matched.assert_not_called()
 
     async def test_zero_matches_routes_to_human_review_unmatched_invoice(self):
-        envelope = {
-            "document_id": "doc-inv-2",
-            "document_type": "invoice",
-            "vendor_id": "vendor-123",
-            "extracted_fields": {
-                "total": 5500.0,
-                "invoice_number": "INV-2026-002",
-            },
-            "agent_results": {},
-        }
+        producer = AsyncMock()
+        with self._ledger({"status": "no_match", "issues": ["no purchase request fits"]}):
+            env = await invoice_matching_agent(AsyncMock(), producer, self._envelope(5500.0))
+        assert env["matched_po_id"] is None
+        assert env["unmatched_invoice"] is True
+        assert env["needs_review_forced"] is True
+        producer.publish_invoice_matched.assert_not_called()
 
-        mock_db = AsyncMock()
-        mock_producer = AsyncMock()
+    async def test_ambiguous_forces_human_review_and_lists_candidates(self):
+        producer = AsyncMock()
+        candidates = [{"request_id": "po-1"}, {"request_id": "po-2"}]
+        with self._ledger({"status": "ambiguous", "candidates": candidates, "issues": ["2 could take it"]}):
+            env = await invoice_matching_agent(AsyncMock(), producer, self._envelope(2000.0))
+        assert env["needs_review_forced"] is True
+        assert env["candidate_pos"] == candidates
+        producer.publish_invoice_matched.assert_not_called()
 
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": []}
+    async def test_ledger_down_is_retried_not_filed_as_unmatched(self):
+        from app.services.pipeline import LedgerUnavailableError
+        producer = AsyncMock()
+        with patch("httpx.AsyncClient.post", side_effect=httpx.ConnectError("down")):
+            with pytest.raises(LedgerUnavailableError):
+                await invoice_matching_agent(AsyncMock(), producer, self._envelope(1000.0))
+        producer.publish_invoice_matched.assert_not_called()
 
-        with patch("httpx.AsyncClient.get", return_value=mock_resp):
-            result = await invoice_matching_agent(mock_db, mock_producer, envelope)
+    async def test_ledger_server_error_is_retried(self):
+        from app.services.pipeline import LedgerUnavailableError
+        resp = MagicMock(status_code=503, text="unavailable")
+        with patch("httpx.AsyncClient.post", return_value=resp):
+            with pytest.raises(LedgerUnavailableError):
+                await invoice_matching_agent(AsyncMock(), AsyncMock(), self._envelope(1000.0))
 
-        assert result["matched_po_id"] is None
-        assert result["unmatched_invoice"] is True
-        assert result["needs_review_forced"] is True
-        mock_producer.publish_invoice_matched.assert_not_called()
-
-    async def test_multiple_matches_forces_human_review_and_lists_candidates(self):
-        envelope = {
-            "document_id": "doc-inv-3",
-            "document_type": "invoice",
-            "vendor_id": "vendor-123",
-            "extracted_fields": {
-                "total": 2000.0,
-                "invoice_number": "INV-2026-003",
-            },
-            "agent_results": {},
-        }
-
-        mock_db = AsyncMock()
-        mock_producer = AsyncMock()
-
-        candidates = [
-            {"id": "po-1", "po_number": "PO-1", "amount": 2000.0},
-            {"id": "po-2", "po_number": "PO-2", "amount": 2000.0},
-        ]
-
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"data": candidates}
-
-        with patch("httpx.AsyncClient.get", return_value=mock_resp):
-            result = await invoice_matching_agent(mock_db, mock_producer, envelope)
-
-        assert result["matched_po_id"] is None
-        assert result["needs_review_forced"] is True
-        assert len(result["candidate_pos"]) == 2
-        mock_producer.publish_invoice_matched.assert_not_called()
+    async def test_ledger_rejecting_the_request_goes_to_review(self):
+        resp = MagicMock(status_code=422, text="bad payload")
+        with patch("httpx.AsyncClient.post", return_value=resp):
+            env = await invoice_matching_agent(AsyncMock(), AsyncMock(), self._envelope(1000.0))
+        assert env["needs_review_forced"] is True and env["unmatched_invoice"] is True
 
 
 @pytest.mark.asyncio
@@ -187,3 +182,10 @@ class TestQuoteProcessing:
         assert saved_quote.quote_number == "Q-8888"
         assert saved_quote.total == 125000.0
         assert saved_quote.is_binding is False
+
+
+def test_po_reference_extraction():
+    from app.services.pipeline import find_po_reference
+    assert find_po_reference("Bill To: Acme\nPO Reference: PO-9e085e38\nTotal: 10") == "PO-9E085E38"
+    assert find_po_reference("Purchase Order #: PO-049F69BD") == "PO-049F69BD"
+    assert find_po_reference("Invoice Number: INV-2026-001") is None

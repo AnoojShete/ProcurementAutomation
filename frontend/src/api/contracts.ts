@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api, downloadFile } from "./client";
 import type { Contract, ContractTemplate } from "@/types/api";
 
 export const contractsApi = {
@@ -9,6 +9,9 @@ export const contractsApi = {
     api.post<Contract>("/contracts/generate", { purchase_request_id, template_name }),
   sendForSignature: (id: string, signer_email?: string, provider = "documenso") =>
     api.post<Contract>(`/contracts/${id}/send-for-signature`, { signer_email, provider }),
+  downloadDocument: (id: string) => downloadFile(`/contracts/${id}/document`, `contract-${id.slice(0, 8)}.pdf`),
+  downloadSigned: (id: string) =>
+    downloadFile(`/contracts/${id}/signed-document`, `contract-${id.slice(0, 8)}-signed.pdf`),
   simulateSign: (id: string) =>
     api.post<Contract>(`/contracts/${id}/sign-simulated`, {}),
 };

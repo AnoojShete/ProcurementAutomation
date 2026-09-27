@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -7,7 +7,8 @@ from app.schemas import (
     GenerateContractRequest, SendForSignatureRequest, ContractResponse, DataResponse,
 )
 from app.services import contract_service
-from shared.auth import require_role
+from app.services.esign_client import EsignProviderError
+from shared.auth import CurrentUser, get_current_user, require_role
 from shared.idempotency import get_cached_response, store_response
 
 router = APIRouter()
@@ -41,9 +42,10 @@ async def generate_contract(
     request: Request,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
 ):
     if idempotency_key:
-        cached = await get_cached_response(request.app.state.redis, settings.service_name, idempotency_key)
+        cached = await get_cached_response(request.app.state.redis, settings.service_name, idempotency_key, scope=user.id)
         if cached is not None:
             return cached
 
@@ -56,7 +58,7 @@ async def generate_contract(
 
     result = DataResponse(data=_serialize(contract))
     if idempotency_key:
-        await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"))
+        await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"), scope=user.id)
     return result
 
 
@@ -109,6 +111,39 @@ async def renewals_due(within_days: int | None = None, db: AsyncSession = Depend
         within_days = max(load_renewal_config().get("alert_levels", [60]))
     contracts = await contract_service.get_renewals_due(db, within_days)
     return DataResponse(data=[_serialize(c) for c in contracts], meta={"within_days": within_days})
+
+
+def _pdf_response(pdf: bytes, filename: str) -> Response:
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"},
+    )
+
+
+@router.get("/{contract_id}/document")
+async def download_contract_document(contract_id: str, db: AsyncSession = Depends(get_db)):
+    """The generated contract as a PDF (unsigned working copy)."""
+    contract = await contract_service.get_contract(db, contract_id)
+    if contract is None:
+        raise HTTPException(status_code=404, detail="contract not found")
+    pdf = await contract_service.render_document(db, contract)
+    return _pdf_response(pdf, contract_service.document_filename(contract, signed=False))
+
+
+@router.get("/{contract_id}/signed-document")
+async def download_signed_contract(contract_id: str, db: AsyncSession = Depends(get_db)):
+    """The executed contract, available once signing has completed."""
+    contract = await contract_service.get_contract(db, contract_id)
+    if contract is None:
+        raise HTTPException(status_code=404, detail="contract not found")
+    try:
+        pdf = await contract_service.render_signed_document(db, contract)
+    except contract_service.ContractNotSignedError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except EsignProviderError as e:
+        raise HTTPException(status_code=502, detail=f"could not fetch the signed copy from the provider: {e}")
+    return _pdf_response(pdf, contract_service.document_filename(contract, signed=True))
 
 
 @router.get("/{contract_id}", response_model=DataResponse)

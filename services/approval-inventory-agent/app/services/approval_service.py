@@ -70,15 +70,14 @@ class ApprovalService:
         last_chain = tiers[-1].get("required_roles") if "required_roles" in tiers[-1] else tiers[-1].get("approval_chain", [])
         return last_name, list(last_chain)
 
-    async def list_requests(self, limit: int = 100) -> list[PurchaseRequest]:
-        """Every purchase request, most recently created first — backs the
-        tracking dashboard."""
-        stmt = (
-            select(PurchaseRequest)
-            .options(selectinload(PurchaseRequest.approval_history))
-            .order_by(PurchaseRequest.created_at.desc().nulls_last())
-            .limit(limit)
-        )
+    async def list_requests(self, limit: int = 100, requested_by: str | None = None) -> list[PurchaseRequest]:
+        """Purchase requests (all, or only `requested_by`'s), most recently
+        created first — backs the tracking dashboard."""
+        stmt = select(PurchaseRequest).options(selectinload(PurchaseRequest.approval_history))
+        if requested_by is not None:
+            from sqlalchemy import func
+            stmt = stmt.where(func.lower(PurchaseRequest.requested_by) == requested_by.lower())
+        stmt = stmt.order_by(PurchaseRequest.created_at.desc().nulls_last()).limit(limit)
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
@@ -308,6 +307,13 @@ class ApprovalService:
         if idx >= len(chain):
             raise ValueError("Approval chain already completed")
 
+        # 1b. Authority + separation of duties (app/services/approval_authority.py):
+        # right level, within limit, not your own request, one person per level.
+        from app.services.approval_authority import AuthorityError, check_request_authority
+        authority = await check_request_authority(self.db, req, action.decided_by, decision)
+        if not authority.allowed:
+            raise AuthorityError(authority)
+
         # 2. Signal the Temporal workflow to process this decision
         try:
             from temporalio.client import Client
@@ -322,6 +328,8 @@ class ApprovalService:
                     "decision": decision,
                     "decided_by": action.decided_by,
                     "comments": action.comments,
+                    # Authority was checked for this level only.
+                    "level_index": idx,
                 },
             )
         except Exception as e:
@@ -397,6 +405,7 @@ class ApprovalService:
 
     async def decline_reclaim(self, request_id: str, requested_by: str) -> PurchaseRequest:
         from app.models import License
+        from shared.rules_engine import get_rule
         req = await self.get_request_with_history(request_id)
         if not req:
             raise ValueError("Request not found")

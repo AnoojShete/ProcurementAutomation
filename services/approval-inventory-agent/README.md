@@ -1,184 +1,96 @@
-# Approval & Inventory Intelligence Agent
+# approval-inventory-agent (port 8002)
 
-This service handles purchase approvals, inventory locking, and license utilisation
-tracking as part of the IT procurement platform. License reclaim decisions are driven
-by a trained IsolationForest anomaly model with SHAP-attributed explanations.
+Purchase requests and approvals, inventory, license utilisation and
+reclaim, the invoice ledger, and the order monitor. Owner: Niraj
+(controls added by Anjali, Sep 26). Every route except `/health` and
+`/metrics` needs a JWT; role checks are in `app/api/*.py`.
 
-## Endpoints
+## Endpoints (behind the gateway at `/api/...`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check endpoint |
-| POST | `/requests` | Create a new purchase/reclaim request |
-| GET | `/requests/{request_id}` | Get request details and approval history |
-| POST | `/requests/{request_id}/approve` | Approver approves a request |
-| POST | `/requests/{request_id}/reject` | Approver rejects a request |
-| GET | `/inventory` | Hardware + license inventory (with `anomaly_score` per license) |
-| GET | `/inventory/licenses/{license_id}/usage-anomaly` | ML anomaly score + SHAP top factors |
-| GET | `/inbox/{approver_id}` | Pending approvals routed to this approver |
-| GET | `/metrics` | Prometheus metrics |
+| Prefix | Routes | Notes |
+|---|---|---|
+| `/requests` | `POST /`, `GET /`, `GET /search`, `GET /{id}`, `POST /{id}/approve`, `POST /{id}/reject`, `POST /{id}/decline-reclaim`, `GET /audit` | Requesters see only their own; identity comes from the JWT. Approve/reject signal a Temporal workflow, so the status changes a moment later. |
+| `/inbox` | `GET /{approver_id}` | Takes an approver *role* from the approval chain (e.g. `dept_manager`), approver/finance/admin only. |
+| `/inventory` | `GET /`, plus the license routes below | Hardware + licenses, with each license's stored anomaly score. |
+| `/licenses` | `GET /anomaly-summary`, `GET /{id}/usage-history`, `GET /{id}/reclaim-history`, `GET /{id}/usage-anomaly`, `POST /{id}/mark-reviewed` | Same handlers are also mounted under `/inventory/licenses`. |
+| `/authority` | `GET /`, `GET /check/{request_id}`, `POST/DELETE /assignments`, `POST/DELETE /delegations` | Who may approve which level, up to what amount; separation of duties. |
+| `/invoices` | `POST /match`, `GET /ledger/{request_id}`, `GET /matches`, `POST /release-holds/{vendor_id}` | Three-way match ledger. Booking and releasing holds need the pipeline's service token; staff get dry-run. |
+| `/orders` | `GET /summary/latest`, `GET /summary`, `POST /summary/run` | Order monitor summaries (staff/service only). |
+| `/ops` | `GET /eventing`, `GET /dlq`, `POST /dlq/{id}/replay`, `POST /dlq/{id}/discard`, `POST /reconcile`, `POST /showcase/inject-out-of-order-event` | Outbox/DLQ state and repair; the showcase route only exists with showcase mode on. |
 
-## Kafka Events Published
+## Kafka
 
-| Topic | When |
-|-------|------|
-| `approval.requested` | Every new purchase/reclaim request |
-| `approval.decided` | Every approve/reject/escalation decision |
-| `license.usage.updated` | Every scan cycle — now includes `anomaly_score`, `top_factors`, `model_version` |
+Publishes `approval.requested`, `approval.decided`, `license.usage.updated`,
+`notification.send`, `order.summary.generated`.
+Consumes `document.classified` (logged), `invoice.matched` (request →
+`invoice_received` / `partially_invoiced`), `contract.signed` (request →
+`fulfilled`, license activated), `business_rule.updated` (cache refresh).
+Consumers run through `shared/eventing.deliver` (retry, then `event_dlq`).
+Payloads: `shared/schemas/events.md`.
 
-## Kafka Events Consumed
+## Approvals
 
-| Topic | Source | Action |
-|-------|--------|--------|
-| `document.classified` | document-vendor-agent | Logged for audit |
-| `contract.signed` | contract-risk-agent | Mark purchase_request `fulfilled`; activate license row |
+Spend tiers come from the business-rules engine (`approval.spend_tiers`,
+editable on the admin Business Rules page); `config.yaml` is only the
+fallback (≤ ₹500 auto, ≤ ₹5,000 manager, above that manager + finance).
+Each request runs a Temporal `ApprovalWorkflow` that waits for a decision
+per level and escalates after the SLA (`approval.sla_escalation_hours`,
+fallback 48 h). A decision is only accepted from someone assigned to that
+level (`approver_assignments`, or a delegation) who didn't raise the
+request and hasn't approved another level of it
+(`app/services/approval_authority.py`).
 
-**Note:** `license.usage.updated` is **published** by this service, not consumed.
-Consuming your own output would be an infinite loop. The input to the usage pipeline
-is raw SSO login data (see **License Utilisation Pipeline** below), not the Kafka event.
+## License usage anomaly model
 
----
+An IsolationForest (unsupervised) scores each license 0–1 from 9 features
+computed from SSO login events; SHAP gives the top contributing features.
 
-## Usage Anomaly Detection (ML)
-
-### Why ML instead of a flat threshold?
-
-The old approach flagged any license below 30 % utilisation. This created false positives
-for licenses with normal weekend quiet — a team that logs in heavily Monday–Friday but
-not at all Saturday/Sunday would look "underutilised" on a Sunday scan.
-
-The IsolationForest model is trained **unsupervised** on 9 engineered features per license.
-It learns that weekend dips, moderate seasonal variation, and steady-high weekday usage
-are all **inlier** patterns. Genuine decline (gradual drop-off, sudden abandonment) becomes
-an anomaly because it is isolated quickly by the ensemble of random trees.
-
-### Features
-
-| Feature | Description |
-|---------|-------------|
-| `active_seats_7d` | Distinct active users in last 7 days |
-| `active_seats_30d` | Distinct active users in last 30 days |
-| `active_seats_90d` | Distinct active users in last 90 days |
+| Feature | Meaning |
+|---|---|
+| `active_seats_7d` / `_30d` / `_90d` | Distinct active users in the window |
 | `utilisation_ratio` | `active_seats_30d / total_seats` |
-| `dod_rate_change` | Mean day-over-day Δ in daily logins (30d window) |
-| `wow_rate_change` | Mean week-over-week Δ in weekly totals (90d window) |
-| `variance_daily_logins` | Variance of daily login count over 90 days |
-| `days_since_last_login` | Days since any seat last logged in |
-| `weekend_ratio` | Fraction of logins on Sat/Sun — the model learns this is normal |
+| `dod_rate_change` | Mean day-over-day change in daily logins (30 d) |
+| `wow_rate_change` | Mean week-over-week change (90 d) |
+| `variance_daily_logins` | Variance of daily logins (90 d) |
+| `days_since_last_login` | Days since any seat logged in |
+| `weekend_ratio` | Share of logins on Sat/Sun |
 
-### Score interpretation
+Scores above `config.yaml → utilisation.anomaly_threshold` (0.6) create a
+reclaim request with a grace period; declining a reclaim sets a cooldown
+(`license.reclaim_cooldown_days`, default 45). A license with no SSO
+history reports `insufficient_history`, not 0.
 
-| `anomaly_score` | Interpretation |
-|-----------------|----------------|
-| 0.0 – 0.4 | Normal usage — no action |
-| 0.4 – 0.6 | Mildly unusual — logged but no reclaim |
-| > 0.6 | Anomalous → automatic reclaim request created |
+`app/usage_scanner.py` re-scores every `APP_USAGE_SCAN_INTERVAL_SECONDS`
+(default 3600) and publishes `license.usage.updated`.
 
-Threshold is configurable: `config.yaml → utilisation.anomaly_threshold` (default 0.6).
-
-### SHAP explainability
-
-Every `anomaly_score` is accompanied by `top_factors` — the top 2–3 SHAP contributors
-computed by `shap.TreeExplainer`:
-
-```json
-{
-  "anomaly_score": 0.78,
-  "top_factors": [
-    {"feature": "dod_rate_change",       "contribution":  0.31},
-    {"feature": "days_since_last_login", "contribution":  0.18},
-    {"feature": "active_seats_30d",      "contribution": -0.09}
-  ]
-}
-```
-
-Positive `contribution` → feature pushes toward anomaly.  
-Negative `contribution` → feature pushes toward inlier / normal.
-
-This matches the `{feature, contribution}` shape already used by `risk.score.updated`.
-
-### Training the model
-
-```bash
-# 1. Generate 60-90 days of daily history (4 usage patterns)
-python scripts/generate_sso_logs.py
-# Output: data/synthetic-sso-logs/sso_login_events.json
-
-# 2. Engineer per-license features
-cd services/approval-inventory-agent
-python ml/generate_usage_dataset.py
-# Output: ml/artifacts/usage_features.csv
-
-# 3. Train IsolationForest and log to MLflow
-python ml/train_usage_anomaly_model.py
-# Output: ml/artifacts/model.joblib
-#         ml/artifacts/model_version.txt
-#         ml/artifacts/baseline_distribution.json
-# MLflow: experiment 'usage_anomaly_detector' at http://mlflow:5000
-```
-
-### MLflow runs
-
-MLflow experiment: **`usage_anomaly_detector`**  
-Tracking UI: [http://localhost:5000](http://localhost:5000) (or `APP_MLFLOW_TRACKING_URI` env var)
-
-Each run logs:
-- **Params**: `n_estimators`, `contamination`, `max_samples`, `features`, `n_licenses_trained`
-- **Metrics**: `mean_anomaly_score`, `max_anomaly_score`, `shap_available`
-- **Artifacts**: `model.joblib`, `baseline_distribution.json`
-
-The vendor risk model (`contract-risk-agent`) uses the same MLflow server under the
-**`vendor_risk_classifier`** experiment.
-
----
-
-## License Utilisation Pipeline
-
-```
-scripts/generate_sso_logs.py          (4 patterns, 60-90 days daily history)
-      ↓  writes
-data/synthetic-sso-logs/sso_login_events.json
-      ↓  read by (every hour)
-app/usage_scanner.py
-      ↓
-app/services/usage_service.py
-      ├─→ license_usage table (DB upsert)
-      ├─→ app/ml/usage_anomaly.py  (IsolationForest + SHAP)
-      │        ↓
-      │   anomaly_score + top_factors
-      ├─→ license.usage.updated (Kafka, with anomaly fields)
-      └─→ reclaim PurchaseRequest (if anomaly_score > 0.6)
-```
-
----
-
-## How to Run in Isolation
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml up approval-inventory-agent --build
-```
-
-## How to Run Tests
+**Data and training.** The image ships
+`data/synthetic-sso-logs/sso_login_events.json` (7,986 events, 5 licenses,
+90 days) and trains the model at build time. That file was produced by
+this service's `scripts/generate_sso_logs.py`. The repo-root
+`scripts/generate_sso_logs.py` is a different, 8-license / 4-pattern
+generator that is **not** what's committed (see
+`data/synthetic-sso-logs/README.md`).
 
 ```bash
 cd services/approval-inventory-agent
-python -m pytest tests/ -v
+python ml/generate_usage_dataset.py       # → ml/artifacts/usage_features.csv
+python ml/train_usage_anomaly_model.py    # → ml/artifacts/model.joblib (+ MLflow run)
 ```
 
-| Test file | Coverage |
-|-----------|----------|
-| `test_spend_tier.py` | 8 boundary tests for tier routing |
-| `test_redis_lock.py` | 5 tests including race-condition simulation |
-| `test_usage_reclaim.py` | 6 tests for legacy flat-threshold logic (kept) |
-| `test_event_schemas.py` | 6 tests validating Kafka event shapes |
-| `test_contract_signed.py` | 5 tests for contract.signed handler |
-| `test_usage_anomaly.py` | **5 tests** — steady/drop-off/weekend-dip proof + shape contract |
+MLflow experiment `usage_anomaly_detector`: http://localhost:5050 (the
+container listens on 5000 inside the Docker network).
 
-## Configuration
+On the seeded data the ranking is questionable (a license at 76 %
+utilisation scores as anomalous) — tracked in TODO.md.
 
-Spend tiers and approval chains are configurable via `config.yaml`. The current logic defines:
-- Auto-approve: <= ₹500
-- Manager approval: > ₹500 and <= ₹5000
-- Manager + Finance approval: > ₹5000
+## Tests
 
-Anomaly threshold: `config.yaml → utilisation.anomaly_threshold` (default 0.6)
+```bash
+./scripts/test-service.sh approval-inventory-agent   # from the repo root
+```
+
+Covers spend tiers, Redis locks, reclaim logic, event schemas, the
+anomaly model, license endpoints, approval authority, lifecycle
+enforcement, the invoice ledger, the order monitor, metrics, approval
+security, reclaim decline, and a guard against Temporal APIs missing from
+temporalio 1.6.

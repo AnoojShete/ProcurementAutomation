@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, FileSignature, Info, ScrollText, Check } from "lucide-react";
+import { CheckCircle2, Clock, Download, FileCheck2, FileSignature } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,7 +47,7 @@ export function ContractDetailPage() {
     try {
       await contractsApi.sendForSignature(contract.id, signerEmail || undefined, selectedProvider);
       setIsSignModalOpen(false);
-      setSignSuccess(`Sent for signature via ${selectedProvider === "documenso" ? "Documenso" : "DocuSign"}. You can simulate completion below.`);
+      setSignSuccess(`Sent to ${signerEmail} for signature.`);
       reload();
     } catch (e) {
       setSignError(e instanceof ApiError ? e.message : "Unable to send for signature.");
@@ -62,12 +62,27 @@ export function ContractDetailPage() {
     setSignError(null);
     try {
       await contractsApi.simulateSign(contract.id);
-      setSignSuccess("Contract successfully signed!");
+      setSignSuccess("Contract signed. The signed copy is ready to download.");
       reload();
     } catch (e) {
       setSignError(e instanceof ApiError ? e.message : "Unable to simulate signing.");
     } finally {
       setSimulating(false);
+    }
+  };
+
+  const [downloading, setDownloading] = useState<"document" | "signed" | null>(null);
+  const download = async (kind: "document" | "signed") => {
+    if (!contract) return;
+    setDownloading(kind);
+    setSignError(null);
+    try {
+      if (kind === "signed") await contractsApi.downloadSigned(contract.id);
+      else await contractsApi.downloadDocument(contract.id);
+    } catch (e) {
+      setSignError(e instanceof ApiError ? e.message : "Download failed.");
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -86,30 +101,38 @@ export function ContractDetailPage() {
   if (loading) return <Skeleton className="h-96" />;
   if (error || !contract) return <ErrorState message={error ?? "Contract not found."} onRetry={reload} />;
 
+  const isDocumensoLive = contract.esign_provider_ref?.startsWith("documenso-doc-");
+  const providerName = contract.esign_provider_ref?.startsWith("docusign") ? "DocuSign (sandbox)" : "Documenso";
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <ScrollText className="size-5 text-slate-400" />
-            <h1 className="text-xl font-semibold text-slate-900">{vendor?.name ?? "Contract"} — {titleCase(contract.template_used)}</h1>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-lg font-semibold text-slate-900">
+              {vendor?.name ?? "Contract"} · {titleCase(contract.template_used)}
+            </h2>
             <ContractStatusBadge status={contract.status} />
           </div>
-          <p className="mt-1 font-mono text-xs text-slate-400">{contract.id}</p>
+          <p className="mt-0.5 font-mono text-xs text-slate-500">{contract.id}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {canAct && contract.status === "draft" && (
-            <Button icon={<FileSignature className="size-4" />} onClick={handleOpenSignModal}>
-              Send for Signature
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            icon={<Download className="size-4" />}
+            loading={downloading === "document"}
+            onClick={() => download("document")}
+          >
+            {contract.status === "signed" ? "Original PDF" : "Download PDF"}
+          </Button>
+          {contract.status === "signed" && (
+            <Button icon={<FileCheck2 className="size-4" />} loading={downloading === "signed"} onClick={() => download("signed")}>
+              Download signed copy
             </Button>
           )}
-          {canAct && contract.status === "pending_signature" && (
-            <Button
-              icon={<Check className="size-4" />}
-              loading={simulating}
-              onClick={handleSimulateSign}
-            >
-              Sign Document (Demo only — simulates provider webhook without real verification)
+          {canAct && contract.status === "draft" && (
+            <Button icon={<FileSignature className="size-4" />} onClick={handleOpenSignModal}>
+              Send for signature
             </Button>
           )}
         </div>
@@ -119,95 +142,103 @@ export function ContractDetailPage() {
       {signSuccess && <InlineSuccess message={signSuccess} />}
 
       {contract.status === "pending_signature" && (
-        <div className="flex items-start justify-between gap-4 rounded-lg border border-brand-100 bg-brand-50 px-3.5 py-2.5 text-sm text-brand-700">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning-500/40 bg-warning-50 px-4 py-2.5 text-13 text-slate-800">
           <div className="flex items-start gap-2">
-            <Info className="mt-0.5 size-4 shrink-0" />
-            <div className="flex flex-col gap-1">
-              <span>
-                Awaiting signature via <span className="font-semibold">{contract.esign_provider_ref?.startsWith("docusign") ? "DocuSign (Sandbox)" : "Documenso"}</span> ({contract.esign_provider_ref ?? "pending provider ref"}). Click &ldquo;Sign Document&rdquo; above to complete the demo cycle.
-              </span>
-              <span className="text-xs text-brand-600">
-                Testing shortcut: simulates a provider webhook callback. In production, webhooks are cryptographically HMAC-verified via <code>POST /webhooks/esign</code>.
-              </span>
-            </div>
+            <Clock className="mt-0.5 size-4 shrink-0 text-warning-600" />
+            <span>
+              Waiting for the signer in {providerName}
+              {contract.esign_provider_ref && (
+                <span className="ml-1 font-mono text-xs text-slate-500">({contract.esign_provider_ref})</span>
+              )}
+              .{" "}
+              {isDocumensoLive
+                ? "The contract updates automatically when Documenso reports it completed."
+                : "No live provider is configured, so signing is simulated in this environment."}
+            </span>
           </div>
+          {canAct && !isDocumensoLive && (
+            <Button size="sm" variant="secondary" loading={simulating} onClick={handleSimulateSign}>
+              Simulate signature
+            </Button>
+          )}
+        </div>
+      )}
+
+      {contract.status === "signed" && (
+        <div className="flex items-start gap-2 rounded-md border border-success-500/30 bg-success-50 px-4 py-2.5 text-13 text-slate-800">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-600" />
+          <span>
+            Signed by <span className="font-medium">{contract.signed_by ?? "the signer"}</span> on{" "}
+            {formatDateTime(contract.signed_at)}. The signed copy includes a certificate of completion with the
+            signing audit trail.
+          </span>
         </div>
       )}
 
       <Modal
         open={isSignModalOpen}
         onClose={() => setIsSignModalOpen(false)}
-        title="Send Contract for Signature"
+        title="Send for signature"
         footer={
           <>
             <Button variant="secondary" onClick={() => setIsSignModalOpen(false)}>
               Cancel
             </Button>
-            <Button loading={sending} onClick={handleSendForSignature} icon={<FileSignature className="size-4" />}>
-              Send via {selectedProvider === "documenso" ? "Documenso" : "DocuSign (Demo)"}
+            <Button loading={sending} onClick={handleSendForSignature} disabled={!signerEmail}>
+              Send
             </Button>
           </>
         }
       >
         <div className="flex flex-col gap-4 text-sm">
           <div>
-            <label className="mb-1 block font-medium text-slate-700">E-Signature Provider</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedProvider("documenso")}
-                className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
-                  selectedProvider === "documenso"
-                    ? "border-brand-600 bg-brand-50/50 ring-2 ring-brand-500/20"
-                    : "border-surface-border hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 font-medium text-slate-900">
-                  <span>Documenso</span>
-                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Recommended Self-Hosted</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Self-hosted, genuinely free and functional open-source signing platform</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedProvider("docusign")}
-                className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
-                  selectedProvider === "docusign"
-                    ? "border-amber-600 bg-amber-50/50 ring-2 ring-amber-500/20"
-                    : "border-surface-border hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 font-medium text-slate-900">
-                  <span>DocuSign</span>
-                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Sandbox Demo Only</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">DocuSign (sandbox demo only — not a functional signature). Developer tier applies watermarks; production requires paid plan.</p>
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block font-medium text-slate-700">Signer Email Address</label>
+            <label htmlFor="signer-email" className="mb-1 block font-medium text-slate-800">
+              Signer email
+            </label>
             <input
+              id="signer-email"
               type="email"
               value={signerEmail}
               onChange={(e) => setSignerEmail(e.target.value)}
               placeholder="signer@company.com"
-              className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+              className="field"
             />
-            <p className="mt-1 text-xs text-slate-400">
-              The e-sign invitation link will be simulated for this signer.
-            </p>
           </div>
+          <fieldset>
+            <legend className="mb-1 font-medium text-slate-800">Provider</legend>
+            <div className="divide-y divide-surface-border rounded-md border border-surface-border">
+              {(
+                [
+                  ["documenso", "Documenso", "Self-hosted e-signature. Emails the signer a signing link when a Documenso instance is configured."],
+                  ["docusign", "DocuSign (sandbox)", "Demo only. Nothing is sent; completion is simulated."],
+                ] as const
+              ).map(([value, name, desc]) => (
+                <label key={value} className="flex cursor-pointer items-start gap-2.5 px-3 py-2.5 hover:bg-surface-subtle">
+                  <input
+                    type="radio"
+                    name="provider"
+                    value={value}
+                    checked={selectedProvider === value}
+                    onChange={() => setSelectedProvider(value)}
+                    className="mt-0.5 accent-brand-500"
+                  />
+                  <span>
+                    <span className="block font-medium text-slate-900">{name}</span>
+                    <span className="block text-xs text-slate-500">{desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <p className="text-xs text-slate-500">The signer receives the contract as a PDF, the same file as “Download PDF”.</p>
         </div>
       </Modal>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
-          <CardHeader title="Contract Details" />
+          <CardHeader title="Details" />
           <CardBody>
-            <dl className="flex flex-col gap-3 text-sm">
+            <dl className="flex flex-col gap-2.5 text-13">
               <Row label="Vendor" value={vendor?.name ?? "—"} />
               <Row label="Template" value={titleCase(contract.template_used)} />
               <Row label="Version" value={String(contract.version ?? 1)} />
@@ -223,10 +254,10 @@ export function ContractDetailPage() {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader title="Contract Preview" subtitle="Generated text, with clause extraction run on the output" />
+          <CardHeader title="Contract text" subtitle="As generated from the template; clause extraction runs on this text" />
           <CardBody>
             {contract.contract_text ? (
-              <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg bg-surface-subtle p-4 font-mono text-xs leading-relaxed text-slate-700">
+              <pre className="max-h-[28rem] overflow-y-auto whitespace-pre-wrap rounded-md border border-surface-border bg-surface-subtle p-3 font-mono text-xs leading-relaxed text-slate-800">
                 {contract.contract_text}
               </pre>
             ) : (
@@ -262,9 +293,9 @@ export function ContractDetailPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <dt className="text-slate-400">{label}</dt>
-      <dd className="font-medium text-slate-800">{value}</dd>
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="truncate text-right text-slate-900">{value}</dd>
     </div>
   );
 }

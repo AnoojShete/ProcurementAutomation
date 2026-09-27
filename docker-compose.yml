@@ -39,11 +39,35 @@ services:
       - --advertise-kafka-addr
       - redpanda:9092
     ports:
-      - 9092:9092
+      - 127.0.0.1:9092:9092
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster info || exit 1"]
+      # Admin API, so it keeps working once Kafka requires a login.
+      test: ["CMD-SHELL", "rpk cluster health | grep -Eq 'Healthy:[[:space:]]+true' || exit 1"]
       interval: 10s
       retries: 12
+
+  # One-shot: Kafka users, topics and per-service permissions, then switch
+  # authentication on (infra/redpanda/bootstrap.sh, acls.conf). Every app
+  # service waits for this to finish.
+  redpanda-init:
+    image: redpandadata/redpanda:latest
+    entrypoint: ["bash", "/bootstrap/bootstrap.sh"]
+    volumes:
+      - ./infra/redpanda/bootstrap.sh:/bootstrap/bootstrap.sh:ro
+      - ./infra/redpanda/acls.conf:/bootstrap/acls.conf:ro
+      - ./shared/kafka-topics.yaml:/bootstrap/kafka-topics.yaml:ro
+    environment:
+      KAFKA_ADMIN_PASSWORD: ${KAFKA_ADMIN_PASSWORD:-dev-kafka-admin}
+      KAFKA_PASSWORD_DOCUMENT_VENDOR_AGENT: ${KAFKA_PASSWORD_DOCUMENT_VENDOR_AGENT:-dev-kafka-document-vendor-agent}
+      KAFKA_PASSWORD_APPROVAL_INVENTORY_AGENT: ${KAFKA_PASSWORD_APPROVAL_INVENTORY_AGENT:-dev-kafka-approval-inventory-agent}
+      KAFKA_PASSWORD_CONTRACT_RISK_AGENT: ${KAFKA_PASSWORD_CONTRACT_RISK_AGENT:-dev-kafka-contract-risk-agent}
+      KAFKA_PASSWORD_NOTIFICATION_AGENT: ${KAFKA_PASSWORD_NOTIFICATION_AGENT:-dev-kafka-notification-agent}
+      KAFKA_PASSWORD_AUTH_SERVICE: ${KAFKA_PASSWORD_AUTH_SERVICE:-dev-kafka-auth-service}
+      KAFKA_PASSWORD_KAFKA_EXPORTER: ${KAFKA_PASSWORD_KAFKA_EXPORTER:-dev-kafka-kafka-exporter}
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: "no"
 
   minio:
     image: minio/minio:latest
@@ -52,8 +76,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - 9000:9000
-      - 9001:9001
+      - 127.0.0.1:9000:9000
+      - 127.0.0.1:9001:9001
     volumes:
       - miniodata:/data
     healthcheck:
@@ -66,12 +90,11 @@ services:
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - 9090:9090
-
+      - 127.0.0.1:9090:9090
   grafana:
     image: grafana/grafana:latest
     ports:
-      - 3000:3000
+      - 127.0.0.1:3000:3000
     volumes:
       - grafana-data:/var/lib/grafana
 
@@ -84,12 +107,17 @@ services:
 
   kafka-exporter:
     image: danielqsj/kafka-exporter:latest
-    command: ["--kafka.server=redpanda:9092"]
+    command:
+      - --kafka.server=redpanda:9092
+      - --sasl.enabled
+      - --sasl.mechanism=scram-sha256
+      - --sasl.username=kafka-exporter
+      - --sasl.password=${KAFKA_PASSWORD_KAFKA_EXPORTER:-dev-kafka-kafka-exporter}
     ports:
-      - "9308:9308"
+      - "127.0.0.1:9308:9308"
     depends_on:
-      redpanda:
-        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   temporal:
@@ -107,8 +135,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - 7233:7233
-
+      - 127.0.0.1:7233:7233
   temporal-ui:
     image: temporalio/ui:latest
     # Current UI images listen on 8080 by default and read TEMPORAL_ADDRESS;
@@ -117,12 +144,11 @@ services:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_UI_PORT=8088
     ports:
-      - 8088:8088
-
+      - 127.0.0.1:8088:8088
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - 8025:8025
+      - 127.0.0.1:8025:8025
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v1/info"]
       interval: 10s
@@ -137,7 +163,7 @@ services:
   clamav:
     image: clamav/clamav-debian:1.5
     ports:
-      - 3310:3310
+      - 127.0.0.1:3310:3310
     volumes:
       - clamav-data:/var/lib/clamav
     healthcheck:

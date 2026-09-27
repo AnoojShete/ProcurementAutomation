@@ -24,10 +24,14 @@ object store:
 |---|---|---|
 | document-vendor-agent | `documents`, MinIO `documents` bucket | Uploaded invoices/POs (may contain real vendor banking details in production use) |
 | document-vendor-agent | `vendors` | Vendor names, GSTIN, normalised identifiers |
-| document-vendor-agent | `vendor_payment_changes` | Change audit trail — which payment fields changed (field names only, never raw values) |
+| document-vendor-agent | `vendor_payment_change_requests` | Proposed bank-detail changes awaiting dual-control verification (masked in the API for non-finance roles) |
 | approval-inventory-agent | `purchase_requests` | Requester names, department, spend amounts |
 | contract-risk-agent | `contracts` | Generated contract text (may include vendor/buyer details) |
 | notification-agent | `notification_log` | Recipient email addresses, email subjects/bodies |
+| auth-service | `auth_users` | Email addresses and argon2id password hashes (never plain text) |
+| auth-service | `auth_tokens` | SHA-256 hashes of email-link tokens (not the tokens) |
+| auth-service | `auth_login_attempts` | Email addresses that recently failed to log in, including addresses with no account; cleared on success |
+| shared | `audit_log` | Who did what; account events never include passwords or tokens |
 
 ## Retention policy
 
@@ -40,11 +44,12 @@ applies:
 2. **Production recommendation**: if this platform were deployed with real
    data, implement:
    - Automated purge of `notification_log` rows older than 90 days
+   - Purge of used/expired `auth_tokens` and stale `auth_login_attempts` rows
    - Automated purge of `notification_digest_queue` flushed rows older than
      30 days
    - MinIO lifecycle rules to expire uploaded documents after the configured
      retention period
-   - Anonymisation or deletion of `vendor_payment_changes` audit records
+   - Anonymisation or deletion of `vendor_payment_change_requests` records
      after the legal retention window (typically 7 years for financial
      records in India per the Companies Act)
 

@@ -49,6 +49,10 @@ class VendorMatchResult:
     vendor: Vendor
     match_type: str  # "existing" | "new"
     match_confidence: float
+    # For a new vendor: the most similar existing vendor and its 0-100
+    # score, so callers can spot lookalike names (e.g. "Del1 Technologies").
+    closest_existing: Optional[Vendor] = None
+    closest_score: float = 0.0
 
 
 async def find_or_create_vendor(db: AsyncSession, raw_vendor_name: str) -> VendorMatchResult:
@@ -80,4 +84,7 @@ async def find_or_create_vendor(db: AsyncSession, raw_vendor_name: str) -> Vendo
     )
     db.add(new_vendor)
     await db.flush()
-    return VendorMatchResult(vendor=new_vendor, match_type="new", match_confidence=1.0)
+    return VendorMatchResult(
+        vendor=new_vendor, match_type="new", match_confidence=1.0,
+        closest_existing=best_vendor, closest_score=best_score,
+    )

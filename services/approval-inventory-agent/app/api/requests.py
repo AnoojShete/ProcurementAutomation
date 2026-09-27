@@ -11,7 +11,12 @@ from app.schemas import (
 from app.config import settings
 from app.schemas import CreatePurchaseRequest, ApprovalAction, PurchaseRequestResponse, DataResponse, ErrorResponse, ErrorDetail
 from app.services.approval_service import ApprovalService
-from shared.auth import CurrentUser, require_role
+from shared.auth import CurrentUser, get_current_user, require_role
+
+# Roles that work across everyone's requests; "service" is the internal
+# token document-vendor-agent uses.
+STAFF_ROLES = frozenset({"approver", "finance", "admin", "service"})
+from app.services.approval_authority import AuthorityError
 from shared.idempotency import get_cached_response, store_response
 
 logger = logging.getLogger(__name__)
@@ -45,7 +50,7 @@ async def create_request(
     # could file requests (and pass SoD checks) as someone else.
     data = data.model_copy(update={"requested_by": user.email})
     if idempotency_key:
-        cached = await get_cached_response(request.app.state.redis, settings.service_name, idempotency_key)
+        cached = await get_cached_response(request.app.state.redis, settings.service_name, idempotency_key, scope=user.id)
         if cached is not None:
             return cached
     try:
@@ -57,23 +62,27 @@ async def create_request(
         logger.exception("create_request failed")
         return _error("INTERNAL_ERROR", "Failed to create purchase request", 500)
     if idempotency_key:
-        await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"))
+        await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"), scope=user.id)
     return result
 
 @router.get("/", response_model=DataResponse)
 async def list_requests(
     limit: int = 100,
-    approval_svc: ApprovalService = Depends(get_approval_service)
+    approval_svc: ApprovalService = Depends(get_approval_service),
+    user: CurrentUser = Depends(get_current_user),
 ):
-    """All purchase requests, most recent first — backs the tracking dashboard."""
-    reqs = await approval_svc.list_requests(limit=limit)
+    """Purchase requests, most recent first — backs the tracking dashboard.
+    Requesters see only their own; approvers/finance/admin see all."""
+    owner = None if user.role in STAFF_ROLES else user.email
+    reqs = await approval_svc.list_requests(limit=limit, requested_by=owner)
     return DataResponse(
         data=[PurchaseRequestResponse.model_validate(r) for r in reqs],
         meta={"count": len(reqs)},
     )
 
 
-@router.get("/search", response_model=DataResponse)
+@router.get("/search", response_model=DataResponse,
+            dependencies=[Depends(require_role("service", "approver", "finance", "admin"))])
 async def search_requests(
     vendor_id: Optional[str] = None,
     amount_min: Optional[float] = None,
@@ -107,10 +116,12 @@ async def search_requests(
 @router.get("/{request_id}", response_model=DataResponse)
 async def get_request(
     request_id: str,
-    approval_svc: ApprovalService = Depends(get_approval_service)
+    approval_svc: ApprovalService = Depends(get_approval_service),
+    user: CurrentUser = Depends(get_current_user),
 ):
     req = await approval_svc.get_request_with_history(request_id)
-    if not req:
+    # Someone else's request looks exactly like a missing one to a requester.
+    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
         return _error("NOT_FOUND", f"Request {request_id} not found", 404)
     return DataResponse(data=PurchaseRequestResponse.model_validate(req))
 
@@ -126,6 +137,8 @@ async def approve_request(
     try:
         req = await approval_svc.process_decision(request_id, "approved", action)
         return DataResponse(data=PurchaseRequestResponse.model_validate(req))
+    except AuthorityError as e:
+        return _error(e.decision.code, str(e), 403)
     except ValueError as e:
         return _error("VALIDATION_ERROR", str(e), 400)
     except Exception:
@@ -144,6 +157,8 @@ async def reject_request(
     try:
         req = await approval_svc.process_decision(request_id, "rejected", action)
         return DataResponse(data=PurchaseRequestResponse.model_validate(req))
+    except AuthorityError as e:
+        return _error(e.decision.code, str(e), 403)
     except ValueError as e:
         return _error("VALIDATION_ERROR", str(e), 400)
     except Exception:

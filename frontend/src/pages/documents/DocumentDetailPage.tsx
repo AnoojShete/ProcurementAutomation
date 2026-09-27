@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, Copy, FileWarning, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, FileWarning } from "lucide-react";
+import { DocumentControls } from "@/components/controls/DocumentControls";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +29,8 @@ export function DocumentDetailPage() {
   const [vendorName, setVendorName] = useState("");
   const [documentType, setDocumentType] = useState<DocumentType>("invoice");
   const [total, setTotal] = useState("");
+  const [docNumber, setDocNumber] = useState("");
+  const [docDate, setDocDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -37,6 +40,8 @@ export function DocumentDetailPage() {
     setVendorName(doc.vendor_name_raw ?? "");
     setDocumentType((doc.document_type as DocumentType) ?? "invoice");
     setTotal(doc.extracted_fields?.total != null ? String(doc.extracted_fields.total) : "");
+    setDocNumber(String(doc.extracted_fields?.invoice_number ?? doc.extracted_fields?.document_number ?? ""));
+    setDocDate(String(doc.extracted_fields?.invoice_date ?? doc.extracted_fields?.document_date ?? ""));
   }, [doc]);
 
   const save = async (mode: "confirm" | "correct") => {
@@ -45,7 +50,15 @@ export function DocumentDetailPage() {
     setSaveError(null);
     setSaveSuccess(null);
     try {
-      const extracted = { ...(doc.extracted_fields ?? {}), total: total ? Number(total) : null };
+      const extracted: Record<string, unknown> = { ...(doc.extracted_fields ?? {}), total: total ? Number(total) : null };
+      if (docNumber) {
+        extracted.document_number = docNumber;
+        if (documentType === "invoice") extracted.invoice_number = docNumber;
+      }
+      if (docDate) {
+        extracted.document_date = docDate;
+        if (documentType === "invoice") extracted.invoice_date = docDate;
+      }
       await documentsApi.submitReview(doc.id, {
         reviewed_by: user.email,
         vendor_name: vendorName,
@@ -79,6 +92,8 @@ export function DocumentDetailPage() {
         <h1 className="text-xl font-semibold text-slate-900">{doc.original_filename ?? "Document"}</h1>
         <DocumentStatusBadge status={doc.status} needsReview={doc.needs_review} />
       </div>
+
+      <DocumentControls extracted={doc.extracted_fields ?? {}} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: file placeholder — no preview endpoint exists in the current API */}
@@ -121,13 +136,12 @@ export function DocumentDetailPage() {
             <FieldRow label="Total" confidence={confidences.total}>
               <input type="number" value={total} onChange={(e) => setTotal(e.target.value)} className="w-full rounded-lg border border-surface-border px-3 py-1.5 text-sm focus:border-brand-500" />
             </FieldRow>
-            {doc.extracted_fields?.document_number != null && (
-              <FieldRow
-                label="Document Number"
-                confidence={confidences.document_number}
-                readOnlyValue={String(doc.extracted_fields.document_number)}
-              />
-            )}
+            <FieldRow label="Document Number" confidence={confidences.document_number}>
+              <input value={docNumber} onChange={(e) => setDocNumber(e.target.value)} className="field" />
+            </FieldRow>
+            <FieldRow label="Document Date" confidence={confidences.document_date}>
+              <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} className="field" />
+            </FieldRow>
             {saveError && <InlineError message={saveError} />}
             {saveSuccess && <InlineSuccess message={saveSuccess} />}
             <div className="flex gap-2 pt-2">
@@ -145,11 +159,7 @@ export function DocumentDetailPage() {
       {/* AI processing panel */}
       <Card>
         <CardHeader
-          title={
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="size-4 text-intel-600" /> Document Intelligence
-            </span>
-          }
+          title="Extraction results"
         />
         <CardBody>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

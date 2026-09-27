@@ -23,6 +23,7 @@ Agreement metric:
   between the two pipelines. Available on /metrics.
 """
 import logging
+import threading
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
@@ -51,6 +52,9 @@ def _inc(label: str):
 # ---------------------------------------------------------------------------
 
 _MODEL_LOAD_ATTEMPTED = False
+# The pipeline runs this stage in worker threads, several documents at a
+# time; the lock keeps them from each loading the ~1 GB model at once.
+_MODEL_LOAD_LOCK = threading.Lock()
 _PROCESSOR = None
 _MODEL = None
 _LABEL_MAP: dict = {}
@@ -59,6 +63,11 @@ _LABEL_MAP: dict = {}
 def _load_model() -> bool:
     """Try to load the LayoutLMv3 model. Returns True on success, False on
     any failure (logged as WARNING so the pipeline can continue)."""
+    with _MODEL_LOAD_LOCK:
+        return _load_model_locked()
+
+
+def _load_model_locked() -> bool:
     global _MODEL_LOAD_ATTEMPTED, _PROCESSOR, _MODEL, _LABEL_MAP
     if _MODEL_LOAD_ATTEMPTED:
         return _MODEL is not None

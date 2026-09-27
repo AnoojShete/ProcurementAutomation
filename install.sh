@@ -48,7 +48,7 @@ echo "Bringing up core services..."
 # --remove-orphans: cleans up containers left over from renamed/removed
 # services that otherwise hold stale Docker-network references and cause
 # "network <id> not found" errors on the next `up`.
-CORE_SERVICES="postgres redis redpanda minio prometheus grafana temporal temporal-ui mailpit kafka-exporter clamav"
+CORE_SERVICES="postgres redis redpanda redpanda-init minio prometheus grafana temporal temporal-ui mailpit kafka-exporter clamav"
 
 # If any containers are already running with stale network references
 # (e.g. containers kept alive between runs), tear them down first so they
@@ -130,20 +130,12 @@ if [ -f shared/db/init.sql ]; then
   fi
 fi
 
-echo "Creating Kafka topics listed in shared/kafka-topics.yaml (best-effort)..."
-if [ -f shared/kafka-topics.yaml ]; then
-  # Attempt to create each topic using Redpanda's rpk tool inside the redpanda container
-  if docker compose ps -q redpanda >/dev/null 2>&1; then
-    echo "Creating topics via redpanda rpk (best-effort)"
-    topics=$(grep -oE '^[[:space:]]*-\s*[^[:space:]]+' shared/kafka-topics.yaml | awk '{print $2}') || true
-    for t in $topics; do
-      echo "Creating topic: $t"
-      docker compose exec -T redpanda rpk topic create "$t" --brokers redpanda:9092 || true
-    done
-  else
-    echo "Redpanda container not found; skipping automatic topic creation."
-  fi
-fi
+# Kafka topics, users and permissions are created by the one-shot
+# `redpanda-init` service (infra/redpanda/bootstrap.sh), started above with
+# the core services; it also switches Kafka authentication on, after which
+# anonymous `rpk topic create` would be refused anyway.
+echo "Kafka security bootstrap:"
+docker compose logs --no-log-prefix redpanda-init 2>/dev/null | tail -3 || true
 
 echo "Ensure MinIO bucket exists (use mc client if installed)"
 if command -v mc >/dev/null 2>&1; then

@@ -97,8 +97,21 @@ def main():
     adm_t = login("admin")["access_token"]
     me = requests.get(f"{GW}/auth/me", headers=H(req_t["access_token"]))
     check("GET /auth/me -> requester", me.status_code == 200 and me.json()["data"]["role"] == "requester", me.text[:120])
-    ref = requests.post(f"{GW}/auth/refresh", json={"refresh_token": req_t["refresh_token"]})
+    # Session cookie flow, as a browser does it: login sets an httpOnly
+    # refresh cookie + a readable CSRF cookie; refresh needs both.
+    browser = requests.Session()
+    lr = browser.post(f"{GW}/auth/login", json={"email": "requester@demo.example.com", "password": PASSWORD})
+    check("login returns no refresh token in the body", "refresh_token" not in lr.json()["data"], lr.text[:120])
+    refresh_cookie = next((c for c in browser.cookies if c.name == "refresh_token"), None)
+    check("refresh token is an httpOnly cookie scoped to /api/auth",
+          refresh_cookie is not None and refresh_cookie.has_nonstandard_attr("HttpOnly") and refresh_cookie.path == "/api/auth",
+          str(refresh_cookie))
+    forged = browser.post(f"{GW}/auth/refresh")
+    check("refresh without CSRF header -> 403", forged.status_code == 403, str(forged.status_code))
+    ref = browser.post(f"{GW}/auth/refresh", headers={"X-CSRF-Token": browser.cookies.get("csrf_token")})
     check("POST /auth/refresh -> new access token", ref.status_code == 200 and ref.json()["data"].get("access_token"), ref.text[:120])
+    out = browser.post(f"{GW}/auth/logout", headers={"X-CSRF-Token": browser.cookies.get("csrf_token")})
+    check("logout clears the session", out.status_code == 200 and not any(c.name == "refresh_token" for c in browser.cookies), out.text[:120])
     bad = requests.post(f"{GW}/auth/login", json={"email": "requester@demo.example.com", "password": "wrong"})
     check("wrong password -> 401", bad.status_code == 401, str(bad.status_code))
     check("no token on /requests/ -> 401", requests.get(f"{GW}/requests/").status_code == 401)
@@ -146,8 +159,22 @@ def main():
     hist = pr.get("history") or pr.get("approval_history") or []
     check("decision recorded as approver's email", any(h.get("decided_by") == "approver@demo.example.com" for h in hist), hist)
 
+    # Separation of duties: admin is an assigned approver, but not for their own request.
+    r = requests.post(f"{GW}/requests/", headers=H(adm_t), json={
+        "request_type": "saas", "requested_by": "ignored", "department": "IT", "amount": 3000.0,
+        "currency": "INR", "items": [{"description": "SoD check", "quantity": 1, "unit_price": 3000.0}],
+    })
+    own_id = (r.json().get("data") or {}).get("id")
+    r = requests.post(f"{GW}/requests/{own_id}/approve", headers=H(adm_t), json={})
+    check("admin cannot approve own request -> 403", r.status_code == 403, f"{r.status_code} {r.text[:120]}")
+    requests.post(f"{GW}/requests/{own_id}/reject", headers=H(adm_t), json={"comments": "e2e cleanup"})
+
     # ── document-vendor-agent: invoice -> PO match ───────────────────────
     step("document-vendor-agent — invoice + 3-way match")
+    # Real invoices quote the buyer's PO number; the ledger uses it to pick
+    # the right request when a vendor has several identical open ones.
+    bill_to = next(i for i, line in enumerate(inv_lines) if line.startswith("Bill To"))
+    inv_lines.insert(bill_to + 1, f"PO Reference: PO-{pr_id[:8].upper()}")
     inv_id = upload(rt, f"invoice_{run}.pdf", build_pdf_bytes(inv_lines))
     d = poll(lambda: get_doc(rt, inv_id), lambda x: x["status"] not in ("pending", "processing"), timeout=120)
     check("invoice processed -> classified", d["status"] == "classified", d["status"])
@@ -163,6 +190,11 @@ def main():
     pr = poll(lambda: requests.get(f"{GW}/requests/{pr_id}", headers=H(app_t)).json()["data"],
               lambda x: x["status"] == "invoice_received", timeout=20)
     check("invoice.matched -> request invoice_received", pr["status"] == "invoice_received", pr["status"])
+    ledger = requests.get(f"{GW}/invoices/ledger/{pr_id}", headers=H(app_t)).json().get("data") or {}
+    check("invoice ledger booked the invoice (nothing left to invoice)",
+          ledger.get("remaining_amount", 1) <= 0.01 and any(i["document_id"] == inv_id for i in ledger.get("invoices", [])),
+          {k: ledger.get(k) for k in ("amount", "invoiced_amount", "remaining_amount")})
+    check("invoice ledger matched line by line", any(l["invoiced_quantity"] == 2 for l in ledger.get("lines", [])), ledger.get("lines"))
 
     # ── contract-risk-agent ──────────────────────────────────────────────
     step("contract-risk-agent — contract, e-sign, risk")
@@ -187,9 +219,11 @@ def main():
         check("replayed webhook is a no-op 2xx", r2.status_code in (200, 202), f"{r2.status_code} {r2.text[:100]}")
         c = requests.get(f"{GW}/contracts/{cid}", headers=H(adm_t)).json()["data"]
         check("contract status signed", c["status"] == "signed", c["status"])
-        pr = poll(lambda: requests.get(f"{GW}/requests/{pr_id}", headers=H(app_t)).json()["data"],
-                  lambda x: x["status"] == "fulfilled", timeout=20)
-        check("contract.signed -> request fulfilled", pr["status"] == "fulfilled", pr["status"])
+        # The invoice already arrived, so signing must not move the request
+        # back from invoice_received to fulfilled (shared/lifecycle.py).
+        time.sleep(3)
+        pr = requests.get(f"{GW}/requests/{pr_id}", headers=H(app_t)).json()["data"]
+        check("contract.signed after invoice keeps request invoice_received", pr["status"] == "invoice_received", pr["status"])
     r = requests.post(f"{GW}/vendors/{vendor_id}/risk/recompute", headers=H(fin_t))
     check("finance recomputes vendor risk -> 200", r.status_code == 200, r.text[:150])
     risk = requests.get(f"{GW}/vendors/{vendor_id}/risk", headers=H(adm_t)).json().get("data") or {}

@@ -8,15 +8,20 @@ import json
 import asyncio
 import logging
 from aiokafka import AIOKafkaConsumer
+from shared.kafka_security import kafka_auth_kwargs
 from sqlalchemy import select
 from app.config import settings
 from app.database import async_session_factory
-from app.models import PurchaseRequest, Contract, License, ProcessedEvent, Inventory
+from app.models import PurchaseRequest, Contract, License, Inventory
 
+from shared.eventing import deliver, PermanentEventError
 from shared.infra.retry import with_retry
+from shared.lifecycle import already_past, can_transition
 from shared.logging.context import CorrelationContext
 
 logger = logging.getLogger(__name__)
+
+CONSUMER_NAME = "approval-inventory-agent"
 
 # Topics this service consumes (from shared/kafka-topics.yaml)
 CONSUME_TOPICS = [
@@ -42,6 +47,7 @@ async def start_consumer(app):
         heartbeat_interval_ms=10000,
         max_poll_interval_ms=600000,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        **kafka_auth_kwargs(),
     )
 
     try:
@@ -49,37 +55,39 @@ async def start_consumer(app):
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
         async for msg in consumer:
-            try:
-                event = msg.value
-                correlation_id = event.get("correlation_id")
-                if correlation_id:
-                    CorrelationContext.set(correlation_id)
-                event_type = event.get("event_type")
-                payload = event.get("payload", {})
-
-                if event_type == "document.classified":
-                    await _handle_document_classified(payload, event)
-
-                elif event_type == "contract.signed":
-                    await _handle_contract_signed(payload, event)
-
-                elif event_type == "invoice.matched":
-                    await _handle_invoice_matched(payload, event)
-
-                elif event_type == "business_rule.updated":
-                    await _handle_business_rule_updated(payload, event)
-
-                else:
-                    logger.warning(f"Unknown event type on topic {msg.topic}: {event_type}")
-
-            except Exception as e:
-                logger.error(f"Error processing message: {e}", exc_info=True)
+            event = msg.value
+            correlation_id = event.get("correlation_id")
+            if correlation_id:
+                CorrelationContext.set(correlation_id)
+            # Retries, then dead-letters to event_dlq instead of dropping
+            # the event (shared/eventing/inbox.py).
+            await deliver(
+                async_session_factory, CONSUMER_NAME, msg.topic, event,
+                lambda event=event, topic=msg.topic: dispatch(topic, event),
+            )
 
     except asyncio.CancelledError:
         logger.info("Kafka consumer loop cancelled")
     finally:
         await consumer.stop()
         logger.info("Kafka consumer stopped")
+
+
+async def dispatch(topic: str, event: dict) -> None:
+    """Routes one event to its handler. Raises on failure so deliver() can
+    retry / dead-letter it; also used to replay DLQ entries."""
+    event_type = event.get("event_type")
+    payload = event.get("payload", {})
+    if event_type == "document.classified":
+        await _handle_document_classified(payload, event)
+    elif event_type == "contract.signed":
+        await _handle_contract_signed(payload, event)
+    elif event_type == "invoice.matched":
+        await _handle_invoice_matched(payload, event)
+    elif event_type == "business_rule.updated":
+        await _handle_business_rule_updated(payload, event)
+    else:
+        logger.warning(f"Unknown event type on topic {topic}: {event_type}")
 
 
 async def _handle_document_classified(payload: dict, event: dict):
@@ -99,98 +107,85 @@ async def _handle_document_classified(payload: dict, event: dict):
     )
 
 
-async def _mark_processed(session, event_id: str, topic: str):
-    from datetime import datetime, timezone
-    stmt = ProcessedEvent(event_id=event_id, topic=topic, processed_at=datetime.now(timezone.utc))
-    session.add(stmt)
-
 async def _handle_contract_signed(payload: dict, event: dict):
-    """Handle a contract.signed event.
-    
-    Marks the associated purchase request 'fulfilled'
-    when the downstream contract is fully executed.
-    """
-    event_id = event.get("event_id")
+    """Marks the purchase request 'fulfilled' once its contract is signed.
+    Raises on failure so the event is retried / dead-lettered rather than
+    lost (which is how requests used to get stuck at 'approved')."""
     contract_id = payload.get("contract_id")
-    signed_by = payload.get("signed_by")
-    signed_at = payload.get("signed_at")
-
-    logger.info(f"Contract signed: id={contract_id}, by={signed_by} at {signed_at}")
-
+    logger.info(f"Contract signed: id={contract_id}, by={payload.get('signed_by')} at {payload.get('signed_at')}")
+    if not contract_id:
+        raise PermanentEventError("contract.signed payload has no contract_id")
     async with async_session_factory() as session:
-        try:
-            # 1. Look up the contract to find the associated purchase_request_id
-            stmt = select(Contract).where(Contract.id == contract_id)
-            result = await session.execute(stmt)
-            contract = result.scalar_one_or_none()
+        outcome = await apply_contract_signed(session, contract_id)
+        await session.commit()
+    logger.info(f"contract.signed for {contract_id}: {outcome}")
 
-            if not contract or not contract.purchase_request_id:
-                logger.info(
-                    f"No purchase request linked to contract {contract_id} — nothing to update"
-                )
-                # Still mark as processed so we don't retry forever
-                if event_id:
-                    await _mark_processed(session, event_id, "contract.signed")
-                    await session.commit()
-                return
 
-            purchase_request_id = contract.purchase_request_id
+FULFILMENT_MARKER = "contract_fulfilment_applied"
 
-            # 2. Fetch the purchase request to inspect its type and items
-            req_stmt = select(PurchaseRequest).where(
-                PurchaseRequest.id == purchase_request_id
-            )
-            req_result = await session.execute(req_stmt)
-            req = req_result.scalar_one_or_none()
 
-            if not req:
-                logger.warning(
-                    f"Purchase request {purchase_request_id} not found "
-                    f"for contract {contract_id}"
-                )
-                if event_id:
-                    await _mark_processed(session, event_id, "contract.signed")
-                    await session.commit()
-                return
+async def apply_contract_signed(session, contract_id: str, source: str = "contract.signed") -> str:
+    """The effect of a signed contract on its purchase request, shared by
+    the Kafka handler and the reconciler. Caller commits.
 
-            # 3. Mark the purchase request as fulfilled
-            req.status = "fulfilled"
-            logger.info(
-                f"Purchase request {purchase_request_id} marked 'fulfilled' "
-                f"after contract {contract_id} signed"
-            )
+    Two parts, each applied at most once:
+      - status: approved -> fulfilled. If an invoice already moved the
+        request further (partially_invoiced / invoice_received), the status
+        stays where it is — the lifecycle never goes backwards.
+      - fulfilment: license activation / hardware stock release. Tracked by
+        an audit_log marker rather than by status, so it still happens when
+        the invoice beat the signature, and never twice.
+    """
+    from datetime import datetime, timezone
+    import uuid as _uuid
+    from app.models import AuditLog
 
-            # 4. Activate the license if this is a license or saas procurement
-            if req.request_type in ("license", "saas"):
-                activated = await _activate_license_for_request(session, req, contract)
-                if activated:
-                    logger.info(
-                        f"License activated for {req.request_type} request "
-                        f"{purchase_request_id}"
-                    )
-                else:
-                    logger.warning(
-                        f"No license found to activate for {req.request_type} "
-                        f"request {purchase_request_id}"
-                    )
+    contract = (await session.execute(select(Contract).where(Contract.id == contract_id))).scalar_one_or_none()
+    if contract is None:
+        # The contract row is written before contract.signed is published,
+        # so a missing row is worth a retry (replica lag, ordering).
+        raise LookupError(f"contract {contract_id} not found")
+    if not contract.purchase_request_id:
+        return "no_request"
 
-            # GAP-A7: handle hardware fulfillment — decrement reserved_quantity
-            # to reflect physical delivery/allocation.
-            elif req.request_type == "hardware":
-                await _fulfill_hardware_inventory(session, req)
+    req = (
+        await session.execute(select(PurchaseRequest).where(PurchaseRequest.id == contract.purchase_request_id))
+    ).scalar_one_or_none()
+    if req is None:
+        raise PermanentEventError(f"purchase request {contract.purchase_request_id} for contract {contract_id} not found")
 
-            # 5. Mark as processed in the SAME transaction
-            if event_id:
-                await _mark_processed(session, event_id, "contract.signed")
+    moved_on = already_past(req.status, "fulfilled")
+    if not moved_on and not can_transition(req.status, "fulfilled"):
+        raise PermanentEventError(
+            f"contract {contract_id} signed but request {req.id} is '{req.status}' — cannot fulfil"
+        )
 
-            await session.commit()
+    fulfilled_before = (
+        await session.execute(
+            select(AuditLog.id).where(AuditLog.entity_id == req.id, AuditLog.action == FULFILMENT_MARKER).limit(1)
+        )
+    ).first() is not None
 
-        except Exception as e:
-            logger.error(
-                f"Failed to process contract.signed for contract {contract_id}: {e}",
-                exc_info=True
-            )
-            await session.rollback()
+    outcome = []
+    now = datetime.now(timezone.utc)
+    if not moved_on and req.status != "fulfilled":
+        req.status = "fulfilled"
+        req.updated_at = now
+        outcome.append("fulfilled")
+    if not fulfilled_before:
+        if req.request_type in ("license", "saas"):
+            if not await _activate_license_for_request(session, req, contract):
+                logger.warning(f"No license found to activate for {req.request_type} request {req.id}")
+        elif req.request_type == "hardware":
+            await _fulfill_hardware_inventory(session, req)
+        session.add(AuditLog(
+            id=str(_uuid.uuid4()), entity_type="purchase_request", entity_id=req.id, action=FULFILMENT_MARKER,
+            performed_by=source, created_at=now, details={"contract_id": str(contract_id), "status": req.status},
+        ))
+        outcome.append("fulfilment_applied")
+    result = "+".join(outcome) or f"already_{req.status}"
+    logger.info(f"contract.signed effect for request {req.id} ({source}): {result}")
+    return result
 
 
 async def _activate_license_for_request(session, req: PurchaseRequest, contract) -> bool:
@@ -287,31 +282,39 @@ async def _fulfill_hardware_inventory(session, req: PurchaseRequest) -> None:
 
 
 async def _handle_invoice_matched(payload: dict, event: dict):
-    """Handle an invoice.matched event from document-vendor-agent.
-    Updates the purchase_request status to 'invoice_received'.
-    """
+    """invoice.matched from document-vendor-agent. The invoice ledger
+    (POST /requests/match-invoice, app/services/invoice_ledger.py) already
+    allocated the invoice and moved the request inside its own
+    transaction; this handler only covers events from producers that
+    predate the ledger, and never forces an illegal transition."""
     purchase_request_id = payload.get("purchase_request_id")
+    document_id = payload.get("document_id")
     if not purchase_request_id:
-        return
+        raise PermanentEventError("invoice.matched payload has no purchase_request_id")
 
-    logger.info(f"Received invoice.matched for purchase_request {purchase_request_id}")
+    from sqlalchemy import text
     async with async_session_factory() as session:
-        try:
-            stmt = select(PurchaseRequest).where(PurchaseRequest.id == purchase_request_id)
-            result = await session.execute(stmt)
-            req = result.scalar_one_or_none()
-            if req:
-                req.status = "invoice_received"
-                logger.info(f"Purchase request {purchase_request_id} updated to 'invoice_received'")
-                event_id = event.get("event_id")
-                if event_id:
-                    await _mark_processed(session, event_id, "invoice.matched")
-                await session.commit()
-            else:
-                logger.warning(f"Purchase request {purchase_request_id} not found for invoice.matched")
-        except Exception as e:
-            logger.error(f"Error handling invoice.matched: {e}", exc_info=True)
-            await session.rollback()
+        booked = (
+            await session.execute(
+                text("SELECT 1 FROM invoice_allocations WHERE document_id = :d LIMIT 1"), {"d": document_id}
+            )
+        ).first() if document_id else None
+        if booked:
+            logger.info(f"invoice.matched for {purchase_request_id}: already booked by the ledger")
+            return
+
+        req = (
+            await session.execute(select(PurchaseRequest).where(PurchaseRequest.id == purchase_request_id))
+        ).scalar_one_or_none()
+        if req is None:
+            raise PermanentEventError(f"purchase request {purchase_request_id} not found")
+        if not can_transition(req.status, "invoice_received"):
+            raise PermanentEventError(
+                f"invoice matched to request {purchase_request_id} in status '{req.status}'"
+            )
+        req.status = "invoice_received"
+        await session.commit()
+        logger.info(f"Purchase request {purchase_request_id} updated to 'invoice_received'")
 
 
 async def _handle_business_rule_updated(payload: dict, event: dict):

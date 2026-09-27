@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, AlertTriangle, KeyRound } from "lucide-react";
+import { ArrowRight, AlertTriangle } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { licensesApi } from "@/api/licenses";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -26,18 +26,15 @@ export function LicenseIntelligenceCard() {
     Date.now() - new Date(summary.last_scoring_run).getTime() > 25 * 3600 * 1000;
 
   return (
-    <Card className="border-brand-100 bg-gradient-to-br from-white to-brand-50/20 shadow-sm">
+    <Card>
       <CardHeader
         title={
-          <div className="flex items-center gap-2 text-brand-900">
-            <KeyRound className="size-5 text-brand-600" />
-            <span>License Intelligence</span>
-          </div>
+          <span>License usage</span>
         }
-        subtitle="Automated SSO usage anomaly tracking & seat reclamation potential"
+        subtitle="Seat utilisation from SSO logins, and seats that can be reclaimed"
       />
-      <CardBody className="flex flex-col gap-5 pt-0">
-        <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-100 bg-white p-4 shadow-xs sm:grid-cols-4">
+      <CardBody className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-4 rounded-md border border-surface-border p-3 sm:grid-cols-4">
           <div className="flex items-center gap-2.5">
             <span className="flex size-3 rounded-full bg-rose-500 ring-4 ring-rose-100" />
             <div>

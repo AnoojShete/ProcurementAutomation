@@ -4,7 +4,7 @@ is auth-service's own concern, not the shared procurement schema)."""
 from datetime import datetime
 from typing import Optional, Any
 
-from sqlalchemy import String, DateTime, Numeric
+from sqlalchemy import Boolean, DateTime, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -23,6 +23,14 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # migrations/versions/0003_account_lifecycle.py
+    email_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Copied into every refresh token as "tv"; bumping it ends every
+    # existing session at its next refresh.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    password_changed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class BusinessRule(Base):

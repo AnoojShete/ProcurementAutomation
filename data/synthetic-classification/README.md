@@ -18,5 +18,13 @@ The following Hugging Face datasets are compatible and can be loaded via the `da
 ## Structure
 
 - `classification_training_data.csv`: A CSV containing `text` and `label` columns.
-- The `generate_classification_dataset.py` script in `scripts/` can be used to regenerate this data with additional variance.
+- `services/document-vendor-agent/scripts/generate_classification_dataset.py` regenerates it.
+
+## Is it used?
+
+Not at runtime yet. `services/document-vendor-agent/ml/train_classifier.py`
+trains a model to `ml/artifacts/classifier.joblib`, and
+`app/services/classification.py` uses that model when the file exists —
+but no trained model is committed or built into the image, so the pipeline
+always uses the keyword classifier. Tracked in TODO.md.
 

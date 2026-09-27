@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { DocumentRecord, ReviewCorrectionBody } from "@/types/api";
+import type { BatchUploadResult, DocumentRecord, ReviewCorrectionBody } from "@/types/api";
 
 export const documentsApi = {
   list: (limit = 200) => api.get<DocumentRecord[]>(`/documents/?limit=${limit}`),
@@ -10,6 +10,13 @@ export const documentsApi = {
     fd.append("file", file);
     fd.append("uploaded_by", uploadedBy);
     return api.upload<{ document_id: string; status: string }>("/documents/upload", fd);
+  },
+  /** Several files in one request; the response has one result per file.
+   * A batch where every file was rejected comes back as a 422 ApiError. */
+  uploadBatch: (files: File[]) => {
+    const fd = new FormData();
+    files.forEach((f) => fd.append("files", f));
+    return api.upload<BatchUploadResult[]>("/documents/upload/batch", fd);
   },
   submitReview: (id: string, body: ReviewCorrectionBody) =>
     api.post<DocumentRecord>(`/documents/${id}/review`, body),

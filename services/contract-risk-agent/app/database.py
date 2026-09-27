@@ -16,3 +16,6 @@ async def init_db():
     extended by this service's own Alembic migrations (see migrations/)."""
     async with engine.begin() as conn:
         pass
+    # Shared event backbone tables (outbox / inbox / DLQ).
+    from shared.eventing import ensure_schema
+    await ensure_schema(engine)

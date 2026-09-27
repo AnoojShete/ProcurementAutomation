@@ -7,19 +7,27 @@ Run by the background worker (app/worker.py) in response to a
 document.ingested event; also exposed directly for GET/POST endpoints
 that read or correct a document's extraction result.
 """
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Document, Vendor
 from app.services import storage
 from app.services import pipeline
 from app.services import checkpoints as checkpoint_service
+from app.services import learning
+from app.services.ocr import DocumentUnreadableError
+from app.services.pipeline import LedgerUnavailableError
+
+# Expected, temporary failures of something the pipeline depends on.
+TRANSIENT_ERRORS = (LedgerUnavailableError, ConnectionError, TimeoutError, OSError)
 from app.services.audit import write_audit_log
+from shared.eventing import staged
 from app.services.vendor_matching import find_or_create_vendor
 from app.metrics import (
     document_processing_total,
@@ -43,6 +51,9 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
 
     doc.status = "processing"
     await db.flush()
+    # Anything the pipeline stages publishes lands in the outbox and
+    # commits with the document's results — or not at all.
+    pipeline_producer = staged(kafka_producer, db)
 
     try:
         data = await storage.download_bytes(doc.minio_path)
@@ -63,25 +74,33 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         stage_durations_ms["parsing_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
-        envelope = pipeline.classification_agent(envelope)
+        # The CPU-bound stages run in threads so the worker's other
+        # in-flight documents (and its Kafka heartbeat) keep moving.
+        envelope = await asyncio.to_thread(pipeline.classification_agent, envelope)
         stage_durations_ms["classification_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
-        envelope = pipeline.field_extraction_agent(envelope)
+        envelope = await asyncio.to_thread(pipeline.field_extraction_agent, envelope)
         stage_durations_ms["field_extraction_agent"] = _elapsed_ms(t0)
 
         # LayoutLMv3 cross-check: lazy, non-blocking — if the model isn't
         # loaded or fails, the pipeline continues and the field stays unset.
         t0 = time.perf_counter()
-        envelope = pipeline.layoutlm_crosscheck_agent(envelope)
+        envelope = await asyncio.to_thread(pipeline.layoutlm_crosscheck_agent, envelope)
         stage_durations_ms["layoutlm_crosscheck_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
-        envelope = await pipeline.vendor_matching_agent(db, kafka_producer, envelope, doc.uploaded_by)
+        envelope = await pipeline.vendor_matching_agent(db, pipeline_producer, envelope, doc.uploaded_by)
         stage_durations_ms["vendor_matching_agent"] = _elapsed_ms(t0)
 
+        # Learned per-vendor labels fix fields before they're used to match
+        # the invoice and to decide whether it needs review.
         t0 = time.perf_counter()
-        envelope = await pipeline.invoice_matching_agent(db, kafka_producer, envelope)
+        envelope = await learning.vendor_learning_agent(db, envelope)
+        stage_durations_ms["vendor_learning_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
+        envelope = await pipeline.invoice_matching_agent(db, pipeline_producer, envelope)
         stage_durations_ms["invoice_matching_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
@@ -96,7 +115,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
             document_pipeline_stage_duration_seconds.labels(stage=stage).observe(duration_ms / 1000)
 
         fields = envelope["extracted_fields"]
-        vendor = await db.get(Vendor, envelope["vendor_id"])
+        vendor = await db.get(Vendor, envelope["vendor_id"]) if envelope["vendor_id"] else None
 
         doc.document_type = envelope["document_type"]
         doc.vendor_id = envelope["vendor_id"]
@@ -114,14 +133,22 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
             extracted_data["candidate_pos"] = envelope["candidate_pos"]
         if envelope.get("matched_po_number") is not None:
             extracted_data["matched_po_number"] = envelope["matched_po_number"]
+        for key in ("invoice_match", "invoice_variance", "lookalike_vendor", "learned_fields", "review_threshold"):
+            if envelope.get(key) is not None:
+                extracted_data[key] = envelope[key]
+        if envelope.get("document_type") == "invoice":
+            extracted_data["payment_hold"] = bool(envelope.get("payment_hold"))
+            extracted_data["payment_hold_reason"] = envelope.get("payment_hold_reason")
 
         doc.extracted = extracted_data
+        doc.raw_text = envelope.get("raw_text")
         doc.confidence = envelope["confidence_scores"]
         doc.overall_confidence = envelope["overall_confidence"]
         doc.needs_review = envelope["needs_review"]
         doc.is_likely_duplicate = bool(envelope.get("is_duplicate"))
         doc.duplicate_of_document_id = envelope.get("duplicate_of_document_id")
         doc.status = "classified"
+        doc.error_message = None  # clear any "retrying" note from an earlier attempt
         doc.updated_at = datetime.now(timezone.utc)
 
         await write_audit_log(
@@ -133,6 +160,20 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
                 "matched_po_id": envelope.get("matched_po_id"),
             },
         )
+        # Results and their events commit together (outbox).
+        outbox = staged(kafka_producer, db)
+        if outbox is not None:
+            await outbox.publish_document_classified(
+                document_id=doc.id, document_type=doc.document_type, vendor_name_raw=doc.vendor_name_raw,
+                extracted_fields=doc.extracted, confidence_scores=doc.confidence,
+                overall_confidence=doc.overall_confidence, needs_review=doc.needs_review,
+                model_used=envelope.get("model_used"), fallback_triggered=envelope.get("fallback_triggered", False),
+            )
+            if vendor is not None:
+                await outbox.publish_vendor_matched(
+                    document_id=doc.id, vendor_id=vendor.id, vendor_name_normalized=vendor.normalized_name,
+                    match_type=envelope["vendor_match_type"], match_confidence=envelope["vendor_match_confidence"],
+                )
         await db.commit()
 
         await checkpoint_service.write_checkpoints(
@@ -144,28 +185,45 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         extraction_confidence.observe(envelope["overall_confidence"])
         vendor_matching_total.labels(match_type=envelope["vendor_match_type"]).inc()
 
-        if kafka_producer is not None:
-            await kafka_producer.publish_document_classified(
-                document_id=doc.id, document_type=doc.document_type, vendor_name_raw=doc.vendor_name_raw,
-                extracted_fields=doc.extracted, confidence_scores=doc.confidence,
-                overall_confidence=doc.overall_confidence, needs_review=doc.needs_review,
-                model_used=envelope.get("model_used"), fallback_triggered=envelope.get("fallback_triggered", False),
-            )
-            await kafka_producer.publish_vendor_matched(
-                document_id=doc.id, vendor_id=vendor.id, vendor_name_normalized=vendor.normalized_name,
-                match_type=envelope["vendor_match_type"], match_confidence=envelope["vendor_match_confidence"],
-            )
-
         return doc
+
+    except DocumentUnreadableError as e:
+        # The file itself is the problem: fail now, with a message the
+        # uploader can act on. Retrying wouldn't change anything.
+        logger.info(f"process_document: {document_id} unreadable: {e}")
+        return await _record_failure(db, document_id, str(e))
 
     except Exception as e:
-        logger.error(f"process_document failed for {document_id}: {e}", exc_info=True)
-        doc.status = "failed"
-        doc.error_message = str(e)
+        # Our side failed (storage, database, a service down): keep the
+        # document and retry — the worker's sweep re-queues it. After
+        # MAX_ATTEMPTS the sweep marks it failed with a clear message.
+        # A known outage is a warning; anything unexpected keeps its stack.
+        if isinstance(e, TRANSIENT_ERRORS):
+            logger.warning(f"process_document {document_id}: {e} — will retry")
+        else:
+            logger.error(f"process_document failed for {document_id}, will retry: {e}", exc_info=True)
+        await db.rollback()
+        doc = await db.get(Document, document_id)
+        doc.status = "pending"
+        doc.error_message = f"Temporary problem, retrying (attempt {doc.processing_attempts}): {type(e).__name__}"
         doc.updated_at = datetime.now(timezone.utc)
         await db.commit()
-        document_processing_total.labels(status="failed").inc()
+        document_processing_total.labels(status="retry").inc()
         return doc
+
+
+async def _record_failure(db: AsyncSession, document_id: str, message: str) -> Document:
+    # Drop everything the pipeline wrote before failing (new vendor rows,
+    # payment-change requests, staged events) — only the failure is kept.
+    await db.rollback()
+    doc = await db.get(Document, document_id)
+    doc.status = "failed"
+    doc.error_message = message
+    doc.updated_at = datetime.now(timezone.utc)
+    await write_audit_log(db, entity_type="document", entity_id=doc.id, action="failed", payload={"reason": message})
+    await db.commit()
+    document_processing_total.labels(status="failed").inc()
+    return doc
 
 
 def _safe_date(value: Optional[str]):
@@ -182,17 +240,21 @@ async def get_document(db: AsyncSession, document_id: str) -> Optional[Document]
     return await db.get(Document, document_id)
 
 
-async def list_all_documents(db: AsyncSession, limit: int = 100) -> List[Document]:
-    """Every document regardless of status, most recently uploaded first —
-    backs the tracking dashboard."""
-    result = await db.execute(select(Document).order_by(Document.uploaded_at.desc().nulls_last()).limit(limit))
+async def list_all_documents(db: AsyncSession, limit: int = 100, uploaded_by: Optional[str] = None) -> List[Document]:
+    """Every document regardless of status (or only `uploaded_by`'s), most
+    recently uploaded first — backs the tracking dashboard."""
+    stmt = select(Document)
+    if uploaded_by is not None:
+        stmt = stmt.where(func.lower(Document.uploaded_by) == uploaded_by.lower())
+    result = await db.execute(stmt.order_by(Document.uploaded_at.desc().nulls_last()).limit(limit))
     return list(result.scalars().all())
 
 
-async def list_review_queue(db: AsyncSession, limit: int = 50) -> List[Document]:
-    result = await db.execute(
-        select(Document).where(Document.needs_review == True).order_by(Document.created_at.desc()).limit(limit)  # noqa: E712
-    )
+async def list_review_queue(db: AsyncSession, limit: int = 50, uploaded_by: Optional[str] = None) -> List[Document]:
+    stmt = select(Document).where(Document.needs_review == True)  # noqa: E712
+    if uploaded_by is not None:
+        stmt = stmt.where(func.lower(Document.uploaded_by) == uploaded_by.lower())
+    result = await db.execute(stmt.order_by(Document.created_at.desc()).limit(limit))
     return list(result.scalars().all())
 
 
@@ -209,6 +271,7 @@ async def submit_review(db: AsyncSession, kafka_producer, document_id: str, corr
         doc.document_type = correction.document_type
 
     extracted = dict(doc.extracted or {})
+    before = dict(extracted)
     confidence = dict(doc.confidence or {})
 
     if correction.vendor_name:
@@ -238,6 +301,13 @@ async def submit_review(db: AsyncSession, kafka_producer, document_id: str, corr
     doc.reviewed_by = correction.reviewed_by
     doc.reviewed_at = datetime.now(timezone.utc)
     doc.updated_at = datetime.now(timezone.utc)
+
+    # Keep the correction as a labelled example (app/services/learning.py).
+    learning_result = await learning.record_review(
+        db, doc, before, correction.extracted_fields or {}, correction.reviewed_by,
+    )
+    extracted["review_learning"] = learning_result
+    doc.extracted = extracted
 
     await db.commit()
 

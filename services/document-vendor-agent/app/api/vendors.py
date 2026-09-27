@@ -10,13 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.models import Vendor, VendorPaymentChangeRequest
+from app.models import Document, Vendor, VendorPaymentChangeRequest
 from app.schemas import DataResponse, VerifyPaymentChangeRequest
 from app.services.vendor_payment_service import verify_payment_change, SameSubmitterError
 from app.services.vendor_tier_service import (
     get_vendor_spend_90d, check_and_upgrade_tier, confirm_no_gstin,
 )
 from shared.auth import CurrentUser, require_role
+
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -55,7 +58,18 @@ def _serialize_change(change: VendorPaymentChangeRequest) -> dict:
         "verified_by": change.verified_by,
         "verified_at": change.verified_at.isoformat() if change.verified_at else None,
         "verification_channel": change.verification_channel,
+        "document_id": change.document_id,
+        # Masked: enough for a verifier to read back on a call-back, never
+        # the full number in an API response.
+        "previous_account_last4": _last4(change.previous_bank_account_number),
+        "new_account_last4": _last4(change.new_bank_account_number),
+        "new_routing_code": change.new_routing_code,
+        "new_beneficiary_name": change.new_beneficiary_name,
     }
+
+
+def _last4(value: Optional[str]) -> Optional[str]:
+    return f"••••{value[-4:]}" if value else None
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +157,8 @@ async def confirm_no_gstin_endpoint(
 # GET /vendors/{vendor_id}/payment-changes
 # ---------------------------------------------------------------------------
 
-@router.get("/{vendor_id}/payment-changes", response_model=DataResponse)
+@router.get("/{vendor_id}/payment-changes", response_model=DataResponse,
+            dependencies=[Depends(require_role("finance", "admin"))])
 async def list_payment_changes(vendor_id: str, db: AsyncSession = Depends(get_db)):
     vendor = await db.get(Vendor, vendor_id)
     if vendor is None:
@@ -191,4 +206,51 @@ async def verify_payment_change_endpoint(
         raise HTTPException(status_code=403, detail=str(e))
 
     await db.commit()
-    return DataResponse(data=_serialize_change(change))
+    released = 0
+    if change.status == "verified" and not vendor.payment_details_pending_verification:
+        released = await release_payment_holds(db, vendor_id)
+    return DataResponse(data=_serialize_change(change), meta={"payment_holds_released": released})
+
+
+async def release_payment_holds(db: AsyncSession, vendor_id: str) -> int:
+    """Once a vendor's bank details are verified, its held invoices become
+    payable: clear the hold on the documents and in the invoice ledger."""
+    from sqlalchemy import text as sql_text
+    docs = (
+        await db.execute(select(Document).where(Document.vendor_id == vendor_id, Document.document_type == "invoice"))
+    ).scalars().all()
+    released = 0
+    for doc in docs:
+        extracted = dict(doc.extracted or {})
+        if extracted.get("payment_hold"):
+            extracted["payment_hold"] = False
+            extracted["payment_hold_released_at"] = datetime.now(timezone.utc).isoformat()
+            doc.extracted = extracted
+            released += 1
+    await db.commit()
+    import os
+    import httpx
+    from shared.auth.jwt_tokens import create_access_token
+    url = os.environ.get("APPROVAL_INVENTORY_URL", "http://approval-inventory-agent:8002").rstrip("/")
+    token = create_access_token("document-vendor-agent", "document-vendor-agent@service.internal", "service")
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(f"{url}/invoices/release-holds/{vendor_id}", headers={"Authorization": f"Bearer {token}"})
+    except Exception as e:
+        logger.warning(f"Could not release ledger payment holds for vendor {vendor_id}: {e}")
+    return released
+
+
+@router.get("/payment-changes/pending", response_model=DataResponse,
+            dependencies=[Depends(require_role("finance", "admin"))])
+async def list_pending_payment_changes(db: AsyncSession = Depends(get_db)):
+    """Verification queue across all vendors (finance works through this)."""
+    rows = (
+        await db.execute(
+            select(VendorPaymentChangeRequest, Vendor.name)
+            .join(Vendor, Vendor.id == VendorPaymentChangeRequest.vendor_id)
+            .where(VendorPaymentChangeRequest.status == "pending")
+            .order_by(VendorPaymentChangeRequest.created_at.desc())
+        )
+    ).all()
+    return DataResponse(data=[{**_serialize_change(c), "vendor_name": name} for c, name in rows])

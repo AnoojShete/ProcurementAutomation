@@ -1,427 +1,238 @@
-# IT Procurement Intelligence Platform — Showcase Guide
+# IT Procurement Intelligence Platform — Showcase
 
-The presentation-facing summary: what's built, how finished it is, how to
-demo it, what comes next, and answers to the questions we're likely to get.
-State as of **Sep 25, 2026** (the `anjali` branch after merging `anooj2`).
-For the full technical reference see [README.md](README.md).
+For someone evaluating the project: what it does, what makes it
+technically solid, how to demo it, and honest answers to likely
+questions. State as of **Sep 27, 2026**. Setup and reference:
+[README.md](README.md). Open items: [TODO.md](TODO.md).
 
-> **ClamAV malware scanning: ADDED BACK.** Removed by Niraj on Sep 24
-> because it took 2–3 min to start; re-added by Anjali on Sep 25 on a
-> native image that's healthy in **about 5 seconds** (measured; the target
-> was under 20s). Every upload is scanned; if ClamAV is down, uploads are
-> refused rather than let through.
+## The pitch
 
----
-
-## 0. The 30-second pitch
-
-IT procurement is mostly manual glue work: someone reads an invoice, types
-it into a system, chases an approver on email, drafts a contract from a
-template, checks whether the vendor is trustworthy, and a year later nobody
-notices half the SaaS seats are unused.
-
-We built **five cooperating AI agents** that each own one part of that
-lifecycle and talk to each other through events, so a document uploaded at
-one end flows through approval, contracting, risk scoring and notifications
-without a human copying data between systems. Humans only step in where
-judgment is needed: low-confidence extractions, approvals, signatures and
-flagged risks.
+IT procurement is manual glue work: someone reads an invoice and types it
+in, chases an approver, drafts a contract, checks whether the vendor is
+trustworthy, and a year later nobody notices half the SaaS seats are
+unused. We built five cooperating services ("agents"), each owning one
+part of that lifecycle and reacting to each other's events, so a document
+uploaded at one end flows through approval, contracting, risk scoring and
+notifications without anyone copying data between systems. People step in
+where judgement is needed: low-confidence extractions, approvals,
+signatures, flagged payments.
 
 ```
  upload invoice/PO/quote ─► document-vendor-agent ─┐
-                                                    │  Kafka events
- purchase request ───────► approval-inventory-agent ├──────────────► notification-agent ─► email
-                                                    │
+ purchase request ───────► approval-inventory-agent ├── Kafka events ──► notification-agent ─► email
  approved request ───────► contract-risk-agent ─────┘
-                           (contract, e-sign, vendor risk)
-
- auth-service: login, roles, business rules  ·  one gateway (nginx) · one React frontend
+ auth-service: accounts, roles, business rules · one nginx gateway · one React app
 ```
 
----
+## What each agent does
 
-## 1. What's built — per agent
+**document-vendor-agent** (Vaidehi, with Niraj). Uploads are virus-scanned
+(ClamAV) and type-checked by content, stored in MinIO, and processed by a
+worker: text extraction (pdfplumber / Docling / PaddleOCR) in a separate,
+time-limited process → keyword classification (PO / invoice / quote) →
+field extraction → optional LayoutLMv3 cross-check → vendor matching and
+India-specific vetting (GSTIN checksum + optional live lookup, IFSC) →
+invoice ledger match → duplicate check → confidence scoring, with
+low-confidence documents sent to a review queue. It learns vendor-specific
+field labels from reviewers' corrections.
 
-| # | Agent | Owner | Core job | Estimate |
-|---|---|---|---|---|
-| 1 | document-vendor-agent | Vaidehi (+ Niraj) | Read documents, classify, extract, match/vet vendors | **~85%** |
-| 2 | approval-inventory-agent | Niraj | Spend-tier approvals, inventory, license intelligence | **~90%** |
-| 3 | contract-risk-agent | Anjali | Contracts, e-signature, vendor risk ML | **~60%** |
-| 4 | notification-agent | Anooj | Event-driven email | **~90%** |
-| 5 | auth-service | Anooj (+ Niraj) | JWT auth, roles, business-rules engine | **~95%** |
+**approval-inventory-agent** (Niraj). Spend-tier routing (auto / manager /
+manager + finance, thresholds editable live), a Temporal workflow per
+request with SLA escalation, an approval authority matrix with separation
+of duties, inventory with backorder splits, and license intelligence: an
+IsolationForest scores each SaaS license's usage, SHAP explains why, and
+anomalous licenses get a reclaim request with a grace period. It also
+keeps the invoice ledger (line-level three-way match) and an hourly order
+summary.
 
-Percentages are against the **full** spec each agent was given, including
-stretch goals that need paid or rate-limited external services. They're our
-own estimates, not a measurement.
+**contract-risk-agent** (Anjali). Contracts from templates (text and PDF),
+clause extraction, e-signature through an HMAC-signed, replay-protected
+webhook (or Documenso when configured), signed-copy download, renewal
+reminders, a RandomForest vendor-risk model tracked in MLflow with
+per-vendor explanations and a weekly drift check, and vendor offboarding
+that flags contracts for reconciliation instead of deleting anything.
 
-### Agent 1 — document-vendor-agent (~85%)
+**notification-agent** (Anooj). Listens to 11 event types, renders a
+template per event (strict, so a missing field fails loudly), sends urgent
+mail immediately and batches the rest into digests, and keeps a searchable
+log. Delivers to Mailpit, the local mail catcher.
 
-**Built**
-- Upload → object storage (MinIO) → a **six-stage agent pipeline**, each
-  stage passing a JSON "envelope" to the next: parsing → classification →
-  field extraction → vendor matching → duplicate detection → confidence scoring.
-- **Parsing**: Docling (layout-aware PDF parsing that keeps tables intact)
-  with a pdfplumber fallback; **PaddleOCR** for scanned images, run in a
-  separate subprocess so a native crash can't take the worker down.
-- **LayoutLMv3 cross-check**: a document-understanding model second-guesses
-  the extracted fields; every model choice and fallback is logged
-  (`model_routing_log`, visible on the System Health page).
-- **Doc-type aware**: invoices, POs and quotes each take their own path
-  (quotes go to a `vendor_quotes` table; invoices are 3-way matched against
-  approved POs).
-- **Vendor vetting (India-specific)**: GSTIN format + checksum + optional
-  live registry lookup, IFSC bank-code validation, spend-based vendor
-  tiers (petty < ₹5k, standard < ₹50k, full vetting above).
-- **Malware scanning (ClamAV)**: every upload is scanned before it's
-  stored. Infected files are rejected and audit-logged; if the scanner is
-  down, uploads are refused (fail closed).
-- **Controls**: duplicate-invoice detection, confidence-gated human review
-  queue (below 0.8 → review), and **dual control on vendor bank-detail
-  changes** (the person who submits a change can never also approve it —
-  classic payment-fraud control).
+**auth-service** (Anooj; accounts by Anjali). Sign-up with email
+confirmation, login, logout and "sign out everywhere", forgot / reset /
+change password, admin user management, four roles, and a business-rules
+engine: 28 tunable rules (spend tiers, SLA hours, confidence and anomaly
+thresholds…) edited live with a change history.
 
-**Not done / next**
-- `uploaded_by` still comes from the form, not the login token.
-- No screen yet for finance to approve a bank-detail change (API exists).
+## What makes it technically strong
 
-### Agent 2 — approval-inventory-agent (~90%)
+**Reliable event handling.** Events are written to an outbox table in the
+same database transaction as the change they describe, then relayed to
+Kafka, so a crash can't commit a change and lose its event. Consumers
+retry, then park failures in a dead-letter table that can be replayed.
+Purchase-request status changes go through a state machine (a late
+"invoice matched" can't resurrect a rejected request), and a reconciler
+repairs requests left inconsistent.
 
-**Built**
-- **Spend-tier routing**: ≤ ₹500 auto-approved, ₹500–5,000 needs a manager,
-  > ₹5,000 needs manager + finance. Thresholds live in the business-rules
-  engine and can be edited live by an admin.
-- A **Temporal workflow per request**: waits for each approver, escalates
-  automatically if the SLA (48h) is breached.
-- **Inventory**: Redis locks prevent double-booking stock; short stock
-  splits into "fulfil now" + "backorder".
-- **License intelligence (ML)**: reads SSO login logs, and an
-  **IsolationForest** anomaly model scores each SaaS license 0–1, with
-  **SHAP** explaining the top reasons ("days since last login",
-  "utilisation ratio"...). Anomalous licenses trigger a **reclaim**
-  workflow with a 7-day grace period and a 45-day cooldown; users can
-  decline. The Licenses page shows scores, trends and estimated savings.
+**A document pipeline built for bad input.** Tested with corrupt, empty,
+blank, oversized, renamed (ZIP/PNG as `.pdf`) and deliberately slow-to-parse
+files, duplicates, and outages of Kafka, the worker and the ledger. Each
+ends in a clear state with a readable message; a stuck document is swept
+and retried with growing delays; a slow file can't block the worker
+because extraction runs in a killable child process.
 
-**Not done / next**
-- The inventory lock isn't released after a successful reservation (only
-  on a 5-minute timeout), and the approval step doesn't yet check that the
-  approver is the one assigned to that level.
-- The anomaly model's ranking needs tuning (see Q&A: "Is the ML any good?").
+**Fraud controls a finance team would recognise.** Dual control on bank
+details (the person who uploads a change can't verify it); first-seen bank
+details and lookalike vendor names ("At1asslan" for Atlassian) put the
+invoice on payment hold; line-level three-way matching with 1 %
+tolerances; duplicate-invoice detection; separation of duties on
+approvals; everything audit-logged.
 
-### Agent 3 — contract-risk-agent (~60%)
+**Security.** Passwords hashed with argon2id; email links single-use,
+expiring and stored only as hashes; no way to tell from the answers
+whether an address has an account; lockout after repeated wrong passwords;
+per-IP rate limits at the gateway; refresh token in an httpOnly cookie with
+CSRF protection; identity always taken from the login token, never the
+request body; role checks on every endpoint; each service logs in to
+Kafka with its own account and may only use its own topics; uploads
+virus-scanned and failing closed; published default secrets refused
+outside development; every port but the gateway bound to localhost.
 
-**Built**
-- Contract generation from templates (hardware / SaaS / services), then
-  **clause extraction** on the generated text (renewal type, notice period,
-  end date) with a regex → keyword fallback router.
-- Renewal reminders via a long-running Temporal timer.
-- **E-signature**: choice of provider in the UI (Documenso recommended,
-  DocuSign sandbox), and a real **HMAC-signed, replay-protected webhook**
-  that marks the contract signed. Covered by unit and e2e tests.
-- **Vendor risk ML**: scikit-learn RandomForest trained on a documented
-  synthetic dataset, tracked in **MLflow**, returns a Low/Medium/High band
-  with per-vendor contributing factors; a weekly **drift monitor** (PSI)
-  flags when live scores stop looking like training data.
-- Vendor offboarding: revokes access, flags contracts for human
-  reconciliation, never deletes records.
+**Testing.** Measured on a fresh clone on Sep 27: 409 service unit tests
++ 116 root tests; end-to-end scripts against the running system —
+`make e2e` 17/17, account flows 42/42 (reading real emails from Mailpit),
+and an invoice lifecycle through all five agents with no database
+shortcuts, 63/63 with the LayoutLMv3 model downloaded. Security fixes
+were checked by reverting each one and confirming a test fails. Writing
+these tests found real bugs (invoice matching never worked; approvals
+could be lost in a race; account emails and the e-sign webhook broke on a
+fresh install).
 
-**Not done / next**: this is our biggest gap.
-- The call *to* the e-sign provider is still simulated (we generate a
-  reference id). The webhook coming back is real.
-- Real external risk data (OpenCorporates, SEC EDGAR, ISO certs, SSL
-  grade), sanctions screening (OFAC / OpenSanctions), and validating clause
-  extraction against the CUAD benchmark.
-- Renewal reminders count from the contract end date, not the notice deadline.
+**Observability.** Prometheus metrics on every service, a provisioned
+Grafana dashboard (rates, latency, errors, Kafka lag), JSON logs, Temporal
+UI for workflow history, MLflow for model runs.
 
-### Agent 4 — notification-agent (~90%)
+## Honest status
 
-**Built**: listens to 11 event types, renders an email template per event
-(strict mode, so a missing field fails loudly rather than sending a blank
-email), sends urgent emails immediately and batches the rest into digests,
-and keeps a searchable log. Includes a fraud alert when vendor bank details change.
+- **Broken right now:** processing an invoice from a vendor seen for the
+  first time — a database constraint added on Sep 26 rejects the ledger
+  booking (TODO.md P0). Quotes, POs and invoices from known vendors are
+  unaffected.
+- **Simulated / partial:** e-signatures are simulated unless Documenso is
+  configured (the Documenso client has only been tested against mocks);
+  notification emails go to Mailpit only; the ML document classifier
+  isn't trained, so classification is keyword-based; images don't OCR on
+  Apple Silicon; all ML runs on synthetic data.
+- **Not a production deployment:** CI only builds images, no resource
+  limits, several images unpinned, dependency upgrades pending on the
+  upload path.
 
-**Next**: a real email provider instead of Mailpit (the dev inbox); a cap
-on retries for digests that keep failing.
+## Demo script
 
-### Agent 5 — auth-service (~95%)
-
-**Built**: JWT access + refresh tokens, 4 roles (requester, approver,
-finance, admin), self-registration with a 12-character minimum and a
-breached-password check, and the **business-rules engine**: 27 tunable
-rules (spend tiers, SLA hours, confidence thresholds, anomaly thresholds,
-renewal milestones...) editable on an admin page with full change history.
-Services pick up changes through Kafka.
-
-**Next**: password reset, account deactivation, HTTP-level auth tests.
-
-### The platform glue (~100% for what the demo needs)
-
-Kafka event bus (15 topics), a shared response format, idempotency keys,
-one nginx gateway, Prometheus + Grafana dashboards (including Kafka lag),
-structured JSON logs, retry-on-boot for every dependency, and a role-aware
-React frontend, and ClamAV for upload scanning. **21 containers** come up
-from one command.
-
-### Overall
-
-- **The demo flow works end to end, live**: one fresh invoice passes all
-  56 checks of the lifecycle test through every agent, with a real 3-way
-  match and no database shortcuts. `make e2e` passes 17/17 and 275 unit
-  tests pass.
-- **Against the full spec**: roughly **80–85%**. The gap is mostly
-  external integrations (real e-sign sending, external risk data,
-  sanctions) and a handful of hardening items, not the core flow.
-
----
-
-## 2. What changed since the last review (Sep 5 → Sep 25)
-
-- **License intelligence** (IsolationForest + SHAP, Licenses pages, reclaim
-  and reinstate workflows): Niraj
-- **GSTIN / IFSC vendor vetting, PaddleOCR, LayoutLMv3, doc-type-specific
-  processing, 3-way invoice matching**: Niraj
-- **Business rules engine + admin page**, System Health page, Kafka lag: Niraj
-- **E-sign provider selection, simulated-sign guard, webhook tests**: Niraj
-- **Self-registration + breached-password check, stricter token checks**: Anooj
-- **ClamAV**: removed by Niraj (Sep 24) because startup took 2–3 min;
-  **added back by Anjali (Sep 25)** on a native image that starts in ~5s
-- **Audit + fixes during the merge** (Anjali): permission holes on new
-  endpoints, identity spoofing on approvals, a leaked API key, document
-  uploads failing, the anomaly model never running inside Docker, a race
-  that could silently lose approvals, and the Apple Silicon build failure.
-  Details: [AUDIT_CHANGES.md](AUDIT_CHANGES.md).
-
----
-
-## 3. Demo script
-
-### Before the demo (do this the evening before, and again 30 min before)
+### Before the demo
 
 ```bash
-./run.sh                        # full stack; several minutes the first time
-./scripts/seed-demo-data.sh     # vendor, approved request, 5 licenses, 4 hardware SKUs
-./scripts/download-models.sh    # once per machine: LayoutLMv3 (~500 MB), else the cross-check is skipped
-make e2e                        # should print "17 passed, 0 failed"
-python tests/e2e/invoice_lifecycle.py   # should print "56 passed, 0 failed"
+./run.sh
+./scripts/seed-demo-data.sh
+./scripts/download-models.sh             # once per machine
+make e2e                                 # expect 17 passed, 0 failed
+python tests/e2e/invoice_lifecycle.py    # expect 63 passed (wait a minute after make e2e)
 ```
 
-Checklist:
-- [ ] `make e2e` and `invoice_lifecycle.py` green.
-- [ ] `docker compose ps clamav` shows `(healthy)`.
-- [ ] Open http://localhost:8080 and log in as each role once.
-- [ ] Upload one sample document once, because the **first upload takes ~45s**
-      while the models load. Later uploads take a few seconds.
-- [ ] Licenses page shows scores (not "insufficient history").
-- [ ] Port 3000 must be free for Grafana (stop any other dev server using it).
-- [ ] Keep Mailpit (http://localhost:8025) open in a tab.
+- [ ] `docker compose ps clamav` shows healthy.
+- [ ] Log in as each role once; upload one document (the first one is
+      slow while models load, ~45 s).
+- [ ] Licenses page shows 2 anomalous / 2 watch / 1 normal.
+- [ ] Keep Mailpit (http://localhost:8025) open.
+- [ ] Until the P0 is fixed, don't demo an invoice from a brand-new vendor
+      (including the Controls → Payment protection lookalike scenario).
 
-### Live walkthrough (~10 min)
+### Walkthrough (~10 min)
 
-Every login button is on the login page (one click per role; password for
-all demo accounts is `DemoPass123!`).
-
-1. **Requester → New Request.** Walk the 5-step wizard. Attach
+1. **Sign up** at `/signup` with a new address, open the confirmation
+   email in Mailpit, confirm, sign in. Show "Forgot password?" and the
+   lockout message after five wrong passwords.
+2. **Requester → New Request.** The 5-step wizard; attach
    `data/synthetic-invoices/02_quote_delltechnologiesindi_QT-2026-00003.pdf`
-   and point out the live pipeline status, detected type = *quote*, per-field
-   confidence. Submit for about ₹2,500 (manager tier).
-2. **Documents.** Open the upload: extracted fields, confidence per field,
-   "needs review" when below 0.8. Upload the same invoice twice to show the
-   **duplicate flag**.
-   *Optional, malware scan:* in a terminal, create the EICAR test file and
-   upload it. It's rejected with "malware detected (Eicar-Test-Signature)".
-   ```bash
-   printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/eicar.pdf
-   ```
-   Then upload `/tmp/eicar.pdf` from the Documents page.
-3. **Approver → Approval Inbox.** Approve it. The status flips a moment later.
-   Explain that this is a Temporal workflow, which is why it's asynchronous
-   and survives restarts.
-4. **Admin → Contracts.** Generate a contract from the approved request →
-   send for signature (Documenso) → sign. Show extracted clauses.
-5. **Risk.** Recompute the vendor's risk and show the band + top factors.
-6. **Licenses** (admin or finance). The anomaly summary shows 2 anomalous,
-   2 watch, 1 normal and **~₹3.4L potential annual savings**. Open JetBrains
-   (120 seats, ~35 used): score, SHAP reasons, usage trend.
-7. **Business Rules** (admin). Change the manager tier limit and show the
-   history entry. This is how the business tunes the agents without a deploy.
-8. **System Health** (admin). Live-verification toggle with API quota
-   protection, model-routing log, Kafka lag.
-9. **Mailpit.** Show the emails each step produced.
-10. **Grafana** (http://localhost:3000). Request rate, latency, errors per
-    service. **Temporal UI** (http://localhost:8088) shows the approval
-    workflow history.
+   and point out live pipeline status, detected type *quote*, per-field
+   confidence. Submit about ₹2,500 (manager tier).
+3. **Documents.** Extracted fields and confidence; upload the same file
+   again to show the duplicate flag. Optional: upload the EICAR test file
+   (`printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/eicar.pdf`)
+   — rejected as malware.
+4. **Approver → Approval Inbox.** Approve; the status flips a moment later
+   (Temporal workflow).
+5. **Admin → Contracts.** Generate from the approved request, send for
+   signature, sign, download the signed copy.
+6. **Risk.** Recompute the vendor's risk: band and top factors.
+7. **Licenses.** 2 anomalous, 2 watch, 1 normal, about ₹3.4 lakh potential
+   annual savings; open one for SHAP reasons and the usage trend.
+8. **Admin → Business Rules** (change a tier limit, show history),
+   **Users** (promote the account from step 1), **System Health**.
+9. **Mailpit, Grafana** (http://localhost:3000), **Temporal UI**
+   (http://localhost:8088).
 
-If something breaks live, `make e2e` in a terminal is the fallback. It
-walks the whole chain in about 30 seconds with green ticks.
+### Controls page (~6 min, admin)
 
----
+1. **Event reliability**: send an out-of-order "invoice matched" for an
+   unapproved request → lands in the dead-letter table with the reason;
+   the outbox shows nothing waiting.
+2. **Approval authority**: "approve my own request" → blocked (separation
+   of duties).
+3. **Invoice matching**: simulate an invoice 2 % over the agreed unit
+   price → held for review.
+4. **Learning**: three invoices from one vendor; correct the total on two,
+   the third arrives pre-filled from the learned label. (Uses the ledger —
+   check it after the P0 fix.)
+5. **Payment protection** (lookalike vendor): after the P0 fix.
 
-## 4. What's next (priority order)
+If something breaks live, `make e2e` walks the whole chain in about 30
+seconds.
 
-1. **Real e-signature sending** (Documenso API), so the whole contract
-   loop is real, not just the callback.
-2. **External vendor-risk data + sanctions screening**, replacing the
-   synthetic risk features with OpenCorporates / SEC EDGAR / SSL Labs /
-   OpenSanctions.
-3. **Hardening found in audit**: inventory-lock release, per-level
-   approver check, uploader identity from the token, finance UI for
-   bank-detail approvals.
-4. **Run the tests in CI.** Today CI only builds images; two stale tests
-   this week would have been caught.
-5. **Tune the license-anomaly model** and validate clause extraction on
-   CUAD, so both come with measured accuracy.
-6. **Production basics**: resource limits, pinned image versions, a real
-   email provider, password reset.
+## Likely questions
 
----
+**What makes it "agentic" rather than microservices?** Each agent owns a
+goal and decides on its own — classify this document, send it for review,
+route a request, start a license reclaim, flag a risky vendor — and they
+coordinate through events rather than a central script, handing off to a
+person when confidence is low.
 
-## 5. Likely questions — and short answers
+**Where is ML used?** Document understanding (Docling layout parsing,
+PaddleOCR, LayoutLMv3 cross-check), license-usage anomaly detection
+(IsolationForest + SHAP), vendor risk (RandomForest + drift check), fuzzy
+vendor matching. Document classification is keyword-based today. Rules do
+what must be predictable: approval tiers, dual control.
 
-### About the idea
+**Why not an LLM for everything?** Cost, speed, determinism and
+auditability; a small model with SHAP reasons or a rule with a change
+history is easier to defend to an auditor.
 
-**What makes this "agentic" rather than just microservices?**
-Each agent owns a goal and makes decisions on its own: classify this
-document, decide whether it needs a human, route this request to the right
-approvers, decide a license is being wasted and start a reclaim, decide a
-vendor is high risk and alert someone. They coordinate by reacting to each
-other's events, not through a central script, and they hand off to a human
-when their confidence is low.
+**Why Kafka / Temporal / one Postgres?** Kafka so agents don't call each
+other and can be down independently; Temporal because approvals and
+renewals run for days with timers and retries; one Postgres to keep a
+4-person project simple, with each service owning its tables and
+migrations (the trade-off is coupling — the current P0 is exactly that).
 
-**Where is AI/ML actually used?**
-1. Document understanding: Docling layout parsing, PaddleOCR, LayoutLMv3
-   field cross-check, classification.
-2. License-usage anomaly detection (IsolationForest + SHAP explanations).
-3. Vendor risk scoring (RandomForest), with drift monitoring (PSI).
-4. Fuzzy vendor matching (rapidfuzz) and duplicate detection.
-Rules still do the things that must be predictable, such as approval tiers
-and dual control.
+**How are passwords and logins protected?** argon2id hashing, lockout,
+rate limits, email confirmation, single-use expiring reset links, a
+refresh cookie JavaScript can't read, sessions ended everywhere on a
+password change. We can show the database holds only hashes.
 
-**Why not just use an LLM for everything?**
-Cost, speed, determinism and auditability. Procurement decisions need to
-be explainable and repeatable; a small model with SHAP reasons or a rule
-with a change history is easier to defend to an auditor than a prompt.
-LLM-based extraction is a sensible future addition for messy documents.
+**Can anything on the network fake an event?** Not without that service's
+Kafka password: the broker enforces per-service permissions, and a test
+keeps the permission table in sync with the code.
 
-### About the architecture
+**Is the ML any good?** It works mechanically and explains itself, but it's
+trained on synthetic data and not measured on real data; one license at
+76 % utilisation currently scores as anomalous, which needs tuning.
 
-**Why Kafka?** Agents shouldn't call each other directly. With events, any
-agent can be down or slow without breaking the others, new consumers can
-be added without changing producers, and every event is a record of what
-happened.
+**Is it production-ready?** No. It's a working, tested prototype with
+production patterns. Before production: fix the P0, run tests in CI,
+resource limits, pinned images, dependency upgrades, real email for
+notifications, real e-sign integration.
 
-**Why Temporal?** Approvals and renewal reminders run for days or months.
-Temporal keeps that state durable across restarts and handles timers, SLA
-escalations and retries for us. Without it we'd be writing our own cron
-jobs and state machines.
+## URLs and logins
 
-**Why one shared Postgres?** It keeps the project simple for a 4-person
-team, and each service still owns its own tables and migrations. The
-trade-off is tighter coupling. In production we'd split databases per service.
-
-**What happens if a service goes down?** The others keep running. Events
-wait in Kafka until it comes back, Temporal resumes workflows where they
-stopped, and every service retries its dependencies on boot.
-
-**How does it scale?** Services are stateless behind the gateway, workers
-can be replicated (Kafka consumer groups split the load), and heavy ML runs
-in separate worker containers.
-
-### About security
-
-**How does auth work?** Log in → short-lived JWT (60 min) + refresh token.
-Every service checks the token and role on every request; the frontend's
-role checks are only for convenience. Identity for audit fields (who
-requested, who approved) is taken from the token, never from the request
-body.
-
-**What stops fraud?** Dual control on bank-detail changes, duplicate-invoice
-detection, spend-tier approvals, structuring detection (splitting
-purchases to stay under limits, via 90-day spend), an HMAC-signed and
-replay-protected e-sign webhook, and a full audit log.
-
-**Is there malware scanning?** Yes. ClamAV scans every upload before it's
-stored, in about 7 ms per file. Infected files are rejected (we demo this
-with EICAR, the standard harmless test virus). If the scanner is down,
-uploads are refused rather than let through unscanned ("fail closed").
-
-**Didn't you remove ClamAV?** Briefly. It took 2–3 minutes to start on our
-Macs because the old image only existed for Intel and ran under
-emulation. We switched to the official multi-arch image, which runs
-natively and is ready in about 5 seconds, so we put it back.
-
-### About the ML
-
-**Why IsolationForest for license usage?** We don't have labelled
-"wasted license" data. IsolationForest is unsupervised: it learns what
-normal usage looks like and flags outliers. SHAP tells the admin *why*
-each license was flagged.
-
-**Is the ML any good?** Honest answer: it's trained on synthetic data, so
-we can show it works mechanically and explains itself, but we haven't
-measured accuracy on real data. For example, one license at 76%
-utilisation currently scores as anomalous because of its day-to-day login
-pattern. Tuning is on the next-steps list.
-
-**Why synthetic data?** Real procurement, SSO and vendor-risk data is
-confidential. Every dataset's provenance is documented in `data/`, and the
-pipelines are built so real data can be plugged in without code changes.
-
-**What's drift monitoring?** Every week we compare this week's risk-score
-distribution to the training distribution (Population Stability Index).
-A large shift means the model may be out of date. It raises a flag but
-never retrains on its own.
-
-### About India-specific checks
-
-**What's GSTIN / IFSC?** GSTIN is the 15-character GST tax registration
-number; we check its format and checksum, and optionally look it up in the
-live registry. IFSC identifies a bank branch; we validate it against
-Razorpay's free API. Both are stronger vendor identifiers than a fuzzy name match.
-
-**Why is live GSTIN lookup off by default?** The free API allows about 20
-lookups in total. An admin enables "Live Verification Mode", and it switches
-itself off before the quota runs out.
-
-### About testing
-
-**How do you know it works?** 275 unit tests, plus a lifecycle test that
-takes one freshly generated invoice through all five agents on the real
-running system, with 56 checks and no database shortcuts: login → malware
-upload rejected → quote → vendor created → request → approval → invoice →
-matched to the request → contract → e-signature → fulfilled → risk →
-emails → audit trail. We run it live rather than showing screenshots.
-Writing it turned up four bugs that unit tests had missed, including
-invoice matching never working at all.
-
-**What was the hardest bug?** A good one to tell: approvals sent right
-after a request was created were being silently lost. The workflow cleared
-its "decision received" flag *after* the decision had already arrived.
-It only showed up once a new business-rules lookup made the workflow
-slightly slower to start, which is typical of timing bugs in distributed systems.
-
-### Questions to be careful with
-
-- **"Does it send real e-signatures?"** Not yet. The signing callback is
-  real and secured; the outgoing request is simulated.
-- **"Is the risk score based on real data?"** No, it uses synthetic
-  features today. Real sources are next on the list.
-- **"Is it production-ready?"** It's a working, tested prototype with
-  production patterns (auth, observability, durable workflows, audit logs).
-  Before production it still needs CI test gates, resource limits, a real
-  email provider and the hardening items in section 4.
-
----
-
-## 6. Useful URLs and logins
-
-| What | URL |
-|---|---|
-| App | http://localhost:8080 |
-| Mailpit (emails) | http://localhost:8025 |
-| Grafana | http://localhost:3000 (admin / admin) |
-| Temporal UI | http://localhost:8088 |
-| MLflow | http://localhost:5050 |
-| MinIO console | http://localhost:9001 (minioadmin / minioadmin) |
-| Prometheus | http://localhost:9090 |
-
-Demo accounts (password `DemoPass123!`): `requester@`, `approver@`,
-`finance@`, `admin@demo.example.com`.
+App http://localhost:8080 · Mailpit :8025 · Grafana :3000 (admin/admin) ·
+Temporal UI :8088 · MLflow :5050 · MinIO console :9001
+(minioadmin/minioadmin) · Prometheus :9090. Demo accounts, password
+`DemoPass123!`: `requester@`, `approver@`, `finance@`, `admin@demo.example.com`.

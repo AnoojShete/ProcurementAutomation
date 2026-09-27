@@ -110,6 +110,11 @@ class Document(Base):
     reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[Optional[str]] = mapped_column(Text)
+    # Added by migration 0004: the text the pipeline read, kept so reviewer
+    # corrections can be located in it (app/services/learning.py).
+    raw_text: Mapped[Optional[str]] = mapped_column(Text)
+    # Added by migration 0005: pipeline starts so far (retry limit).
+    processing_attempts: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

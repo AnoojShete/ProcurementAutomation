@@ -6,6 +6,7 @@ wrapped in the standard envelope from shared/schemas/events.md.
 import json
 import logging
 from aiokafka import AIOKafkaProducer
+from shared.kafka_security import kafka_auth_kwargs
 from app.kafka.events import (
     build_event,
     build_contract_generated_payload,
@@ -32,6 +33,7 @@ class KafkaEventProducer:
             bootstrap_servers=bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             acks="all",
+            **kafka_auth_kwargs(),
         )
         self.service_name = "contract-risk-agent"
 

@@ -1,3 +1,6 @@
+import asyncio
+
+import redis.asyncio as redis
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -6,13 +9,14 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.config import settings
 from shared.logging.configure import configure_logging
 configure_logging(settings.service_name)
-from app.database import init_db, get_db
+from app.database import async_session_factory, init_db, get_db
 from app.kafka.producer import KafkaEventProducer
-from app.api import health, documents, vendors, admin
+from app.api import health, documents, vendors, admin, showcase
 from app.models import AuditLog
 from app.services.storage import ensure_bucket
 from shared.http.error_handlers import register_error_handlers
 from shared.auth import get_current_user
+from shared.eventing import kafka_sender, run_relay
 from shared.audit import build_audit_router
 
 
@@ -23,6 +27,11 @@ async def lifespan(app: FastAPI):
     await with_retry(init_db, name="Postgres init")
     await with_retry(ensure_bucket, name="MinIO bucket init")
 
+    # Upload idempotency (Idempotency-Key) caches responses here. Without
+    # it, any upload that sent the header failed with a 500.
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    await with_retry(app.state.redis.ping, name="Redis ping")
+
     app.state.kafka_producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
     await with_retry(app.state.kafka_producer.start, name="Kafka producer")
 
@@ -32,9 +41,21 @@ async def lifespan(app: FastAPI):
     # request path (scan/store/publish) fast and independently scalable
     # from OCR/extraction work.
 
+    # Publishes events committed to the outbox (upload -> document.ingested).
+    relay_task = asyncio.create_task(run_relay(
+        async_session_factory, app.state.kafka_producer.service_name,
+        kafka_sender(app.state.kafka_producer.producer),
+    ))
+
     yield
 
+    relay_task.cancel()
+    try:
+        await relay_task
+    except asyncio.CancelledError:
+        pass
     await app.state.kafka_producer.stop()
+    await app.state.redis.aclose()
 
 
 app = FastAPI(
@@ -65,3 +86,4 @@ app.include_router(
     vendors.router, prefix="/vendors", tags=["Vendors"], dependencies=[Depends(get_current_user)]
 )
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(showcase.router, prefix="/documents/showcase", tags=["Showcase"])

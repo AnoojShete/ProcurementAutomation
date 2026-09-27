@@ -13,6 +13,8 @@ import {
   Activity as AC,
   HeartPulse as HP,
   Sliders as SL,
+  ShieldCheck as SC2,
+  Users as US,
 } from "lucide-react";
 import type { Role } from "@/types/api";
 
@@ -53,6 +55,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Contracts", to: "/app/contracts", icon: SC },
     { label: "Risk", to: "/app/risk", icon: SH },
+    { label: "Controls", to: "/app/controls", icon: SC2 },
     { label: "Notifications", to: "/app/notifications", icon: BE },
   ],
   admin: [
@@ -66,6 +69,8 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Contracts", to: "/app/contracts", icon: SC },
     { label: "Risk", to: "/app/risk", icon: SH },
     { label: "Notifications", to: "/app/notifications", icon: BE },
+    { label: "Controls", to: "/app/controls", icon: SC2 },
+    { label: "Users", to: "/app/users", icon: US },
     { label: "Audit & Activity", to: "/app/audit", icon: CL },
     { label: "System Health", to: "/app/system-health", icon: HP },
     { label: "Business Rules", to: "/app/business-rules", icon: SL },

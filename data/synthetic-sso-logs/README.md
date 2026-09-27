@@ -1,19 +1,33 @@
-# Synthetic SSO Login Events — Data Generation Guide
+# Synthetic SSO Login Events
 
-## Overview
+## What's committed (and used)
 
-`data/synthetic-sso-logs/sso_login_events.json` is produced by
-`scripts/generate_sso_logs.py`. It provides 60–90 days of per-seat, per-day
-SSO login history across eight software licenses. The IsolationForest anomaly
-detector in `services/approval-inventory-agent/ml/` is trained on features
-derived from this data.
+`sso_login_events.json` holds **7,986 login events for 5 licenses**
+(Microsoft 365 E3, Slack Enterprise, JetBrains All Products Pack, Docker
+Pro, Notion Team; about 1,600 each) over 90 days (Jun 27 – Sep 24, 2026).
+It was produced by `services/approval-inventory-agent/scripts/generate_sso_logs.py`
+(seeded, `random.seed(42)`). The approval-inventory-agent image copies it,
+trains the IsolationForest at build time, and the usage scanner reads it.
 
-All randomness is seeded (`random.Random(42)`) so the output is **fully
-reproducible** across runs and CI environments.
+Each event:
 
----
+```json
+{"user_email": "user1@company.com", "app_name": "Microsoft 365 E3",
+ "login_timestamp": "2026-06-27T07:19:32.570324", "session_duration_minutes": 409}
+```
 
-## Event Schema
+`app_name` must match a license's `app_name` for that license to be scored
+(`./scripts/seed-demo-data.sh` seeds these five).
+
+## The other generator (not what's committed)
+
+The rest of this file documents the repo-root `scripts/generate_sso_logs.py`,
+a richer generator with 8 licenses and 4 usage patterns. **Its output is not
+the committed file**; running it overwrites `sso_login_events.json` with a
+different license set, and the seeded licenses would then have no history.
+Reconciling the two generators is tracked in TODO.md.
+
+## Event schema (root generator)
 
 Each event is a JSON object:
 
@@ -81,15 +95,8 @@ python scripts/generate_sso_logs.py
 # Output: data/synthetic-sso-logs/sso_login_events.json
 ```
 
-The generator prints a summary table:
-
-```
-  Microsoft 365 E3               pattern=normal_steady      events=  5,234
-  Slack Business+                pattern=normal_steady      events=  6,012
-  Zoom Pro                       pattern=gradual_decline    events=  2,891
-  ...
-Wrote 28,XXX events to data/synthetic-sso-logs/sso_login_events.json
-```
+The generator prints one line per license (pattern and event count) and the
+total written.
 
 ---
 

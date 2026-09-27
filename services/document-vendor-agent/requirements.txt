@@ -1,12 +1,12 @@
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
 pydantic==2.7.4
-pydantic-settings==2.14.1
+pydantic-settings==2.14.2
 sqlalchemy[asyncio]==2.0.31
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
 aiokafka==0.10.0
-pyjwt==2.8.0
+pyjwt==2.15.0
 pyyaml==6.0.1
 prometheus-fastapi-instrumentator==7.0.0
 prometheus-client==0.20.0
@@ -15,7 +15,7 @@ python-dateutil==2.9.0.post0
 pytest==8.2.2
 pytest-asyncio==0.23.7
 aiofiles==24.1.0
-python-multipart==0.0.9
+python-multipart==0.0.32
 minio==7.2.7
 clamd==1.0.2
 pdfplumber==0.11.4
@@ -72,3 +72,4 @@ torchvision==0.21.0+cpu ; platform_machine == "x86_64"
 torchvision==0.21.0 ; platform_machine != "x86_64"
 --extra-index-url https://download.pytorch.org/whl/cpu
 safetensors==0.4.5
+redis[hiredis]==5.0.7

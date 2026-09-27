@@ -10,7 +10,9 @@ from datetime import datetime, date
 from typing import Optional, List
 from sqlalchemy import String, Integer, Float, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, validates
+
+from shared.lifecycle import check_transition
 
 # init.sql declares every id/FK column as native Postgres UUID, not text —
 # without this, Postgres rejects `uuid_column = $1::varchar` with
@@ -116,6 +118,13 @@ class PurchaseRequest(Base):
         "ApprovalHistory", back_populates="purchase_request",
         cascade="all, delete-orphan", lazy="selectin"
     )
+
+    @validates("status")
+    def _validate_status(self, _key, new_status):
+        # Every status write — API, Temporal activity, Kafka handler,
+        # reconciler — must be a legal transition (shared/lifecycle.py).
+        check_transition(self.status, new_status)
+        return new_status
 
 
 class ApprovalHistory(Base):

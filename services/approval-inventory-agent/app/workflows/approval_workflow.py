@@ -21,6 +21,16 @@ class ApprovalSignal:
     # with a `None` default fails to decode a signal sent without
     # comments, since None doesn't match `str`.
     comments: Optional[str] = None
+    # The approval level (index into the chain) this decision was
+    # authorised for. A decision that arrives when the workflow has moved
+    # on — a double-click, or two approvers at once — must not be applied
+    # to the next level, or one person could approve two levels. None for
+    # signals sent before this field existed (still honoured).
+    level_index: Optional[int] = None
+
+
+def signal_applies(signal: "ApprovalSignal", level_index: int) -> bool:
+    return signal.level_index is None or signal.level_index == level_index
 
 @workflow.defn
 class ApprovalWorkflow:
@@ -178,13 +188,28 @@ class ApprovalWorkflow:
             # arrived while the activities above were still running — e.g.
             # an approve sent moments after the request was created.
 
-            # Wait for signal or SLA timeout
-            try:
-                await workflow.wait_condition(
-                    lambda: self._approval_signal is not None,
-                    timeout=timedelta(hours=sla_hours)
+            # Wait for a decision meant for THIS level, or the SLA timeout.
+            # A stale decision (authorised for an earlier level) is dropped
+            # and the wait resumes.
+            timed_out = False
+            while True:
+                try:
+                    await workflow.wait_condition(
+                        lambda: self._approval_signal is not None,
+                        timeout=timedelta(hours=sla_hours)
+                    )
+                except asyncio.TimeoutError:
+                    timed_out = True
+                    break
+                if signal_applies(self._approval_signal, i):
+                    break
+                workflow.logger.warning(
+                    f"Discarding decision by {self._approval_signal.decided_by} authorised for level "
+                    f"{self._approval_signal.level_index}; workflow is at level {i}"
                 )
-            except asyncio.TimeoutError:
+                self._approval_signal = None
+
+            if timed_out:
                 # SLA breached — escalate or reject if last
                 terminated = await self._handle_escalation(
                     request_id, approver_id, decision_level, i, len(approval_chain)
@@ -192,7 +217,7 @@ class ApprovalWorkflow:
                 if terminated:
                     return {"request_id": request_id, "status": "rejected"}
                 continue  # Move to next approver
-            
+
             signal = self._approval_signal
             self._approval_signal = None
 

@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import uuid
+from shared.kafka_security import kafka_auth_kwargs
 from datetime import datetime, timezone
 from typing import Any, Optional
 try:
@@ -30,6 +31,7 @@ async def start_kafka_producer():
         _producer = AIOKafkaProducer(
             bootstrap_servers=bootstrap,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+            **kafka_auth_kwargs(),
         )
         await _producer.start()
         logger.info(f"Kafka producer started on {bootstrap}")

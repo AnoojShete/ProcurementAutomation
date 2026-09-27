@@ -9,7 +9,7 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import ModelRoutingLog
-from app.services.ocr import extract_text, ExtractionResult
+from app.services.ocr import DocumentUnreadableError, ExtractionResult, extract_text_isolated
 from app.metrics import model_routing_total
 from shared.rules_engine import get_rule
 
@@ -55,151 +55,108 @@ def _log_to_db(db: AsyncSession, document_id: str, result: ExtractionRoutingResu
         pass
 
 
+def _extraction_timeout() -> int:
+    from app.config import load_extraction_config
+    return int(load_extraction_config().get("timeout_seconds", 120))
+
+
+def _layoutlm_image_fallback(data: bytes, extraction: ExtractionResult) -> tuple[str, float]:
+    """Second opinion for a poorly-OCR'd *image*: LayoutLMv3 reads vendor,
+    invoice number and total straight off the picture. Blocking (model
+    inference) — run it in a thread. Returns ("", 0.0) if unavailable."""
+    from app.services.layoutlm_crosscheck import _load_model, _normalize_bboxes, _tokens_to_field
+    from app.services import layoutlm_crosscheck as lm
+    from PIL import Image
+    import io as _io
+    import torch
+
+    if not _load_model():
+        return "", 0.0
+    pil_image = Image.open(_io.BytesIO(data)).convert("RGB")
+    words = extraction.words_with_boxes or []
+    word_strings = [w["word"] for w in words] or ["placeholder"]
+    word_boxes = [w.get("box", [0, 0, 0, 0]) for w in words] or [[0, 0, 1000, 1000]]
+    page_w = words[0].get("page_w", 1000) if words else 1000
+    page_h = words[0].get("page_h", 1000) if words else 1000
+    normed_boxes = _normalize_bboxes(word_boxes, page_w, page_h) or [[0, 0, 0, 0]]
+    n = min(len(word_strings), len(normed_boxes), 512)
+    word_strings, normed_boxes = word_strings[:n], normed_boxes[:n]
+    encoding = lm._PROCESSOR(pil_image, word_strings, boxes=normed_boxes, return_tensors="pt",
+                             truncation=True, max_length=512)
+    with torch.no_grad():
+        predictions = lm._MODEL(**encoding).logits.argmax(-1).squeeze().tolist()
+    if isinstance(predictions, int):
+        predictions = [predictions]
+    word_ids = encoding.word_ids(batch_index=0)
+    labels = ["O"] * len(word_strings)
+    for token_idx, word_idx in enumerate(word_ids or []):
+        if word_idx is not None and token_idx < len(predictions):
+            label = lm._LABEL_MAP.get(predictions[token_idx], "O")
+            if label != "O":
+                labels[word_idx] = label
+    vendor = _tokens_to_field(word_strings, labels, "VENDOR")
+    number = _tokens_to_field(word_strings, labels, "INVOICE_NUM")
+    total = _tokens_to_field(word_strings, labels, "TOTAL")
+    return f"Vendor: {vendor or ''}\nInvoice: {number or ''}\nTotal: {total or ''}", 0.4
+
+
 async def route_extraction(db: AsyncSession, document_id: str, data: bytes, filename: str, content_type: str = "") -> ExtractionRoutingResult:
-    """Routes document extraction with fallback logic."""
+    """Extract text in an isolated, time-limited process
+    (ocr.extract_text_isolated). If the file can't be read in time, or at
+    all, raises DocumentUnreadableError with a message for the uploader —
+    the document fails cleanly instead of hanging the worker. For a
+    low-quality *image* OCR result, asks LayoutLMv3 for a second reading.
+
+    Nothing here runs parsing work on the event loop: other documents
+    and the Kafka heartbeat keep going while a slow file is read."""
     start_time = time.perf_counter()
-    
-    extraction = None
-    fallback_triggered = False
-    fallback_reason = None
-    
-    try:
-        extraction = await asyncio.wait_for(
-            asyncio.to_thread(extract_text, data, filename, content_type),
-            timeout=30.0
-        )
-        fallback_threshold = float(get_rule("document.extraction_fallback_confidence_threshold", 0.5))
-        if extraction.text_quality < fallback_threshold:
-            fallback_triggered = True
-            fallback_reason = "low_confidence"
-    except asyncio.TimeoutError:
-        logger.warning(f"[extraction_router] extract_text timed out for doc {document_id}")
-        fallback_triggered = True
-        fallback_reason = "timeout"
-    except Exception as e:
-        logger.warning(f"[extraction_router] extract_text failed for doc {document_id}: {e}", exc_info=True)
-        fallback_triggered = True
-        fallback_reason = "exception"
-
+    extraction = await asyncio.to_thread(extract_text_isolated, data, filename, content_type, _extraction_timeout())
     duration_ms = (time.perf_counter() - start_time) * 1000
+    if not any(ch.isalnum() for ch in extraction.text or "") and extraction.file_type != "image":
+        # A PDF with no text at all (blank, or a scan with no text layer the
+        # OCR could read): nothing downstream can work with it.
+        raise DocumentUnreadableError(
+            "We couldn't find any text in this document — it may be blank, or a scan too faint to read. "
+            "Upload a clearer copy."
+        )
 
-    if not fallback_triggered:
+    fallback_threshold = float(get_rule("document.extraction_fallback_confidence_threshold", 0.5))
+    if extraction.text_quality >= fallback_threshold or extraction.file_type != "image":
         if extraction.method == "pdf_text":
-            route_name = "docling_text"
-            model_used = "pdfplumber"
+            route_name, model_used = "docling_text", "pdfplumber"
         elif extraction.file_type == "image":
-            route_name = "docling_paddleocr"
-            model_used = "paddleocr"
+            route_name, model_used = "docling_paddleocr", "paddleocr"
         else:
-            route_name = "docling_text"
-            model_used = "docling"
-        
+            route_name, model_used = "docling_text", "docling"
         result = ExtractionRoutingResult(
-            route_name=route_name,
-            model_used=model_used,
-            fallback_triggered=False,
-            fallback_reason=None,
-            confidence=extraction.text_quality,
-            extraction_result=extraction,
-            duration_ms=duration_ms
+            route_name=route_name, model_used=model_used, fallback_triggered=False, fallback_reason=None,
+            confidence=extraction.text_quality, extraction_result=extraction, duration_ms=duration_ms,
         )
         _log_to_db(db, document_id, result)
         return result
 
-    # Fallback to LayoutLMv3
-    from app.services.layoutlm_crosscheck import _load_model, _PROCESSOR, _MODEL, _LABEL_MAP, _tokens_to_field
-    from PIL import Image
-    import io as _io
-    import torch
-    
+    # Low-quality OCR of an image: second reading with LayoutLMv3.
     start_time = time.perf_counter()
-    fallback_text = ""
-    fallback_confidence = 0.0
-    
-    if _load_model():
-        try:
-            pil_image = Image.open(_io.BytesIO(data)).convert("RGB")
-            
-            words = extraction.words_with_boxes if extraction else []
-            word_strings = [w["word"] for w in words] if words else ["placeholder"]
-            word_boxes = [w.get("box", [0, 0, 0, 0]) for w in words] if words else [[0, 0, 1000, 1000]]
-            page_w = words[0].get("page_w", 1000) if words else 1000
-            page_h = words[0].get("page_h", 1000) if words else 1000
-            
-            from app.services.layoutlm_crosscheck import _normalize_bboxes
-            normed_boxes = _normalize_bboxes(word_boxes, page_w, page_h)
-            if not normed_boxes:
-                normed_boxes = [[0, 0, 0, 0]]
-                word_strings = [""]
-            
-            min_len = min(len(word_strings), len(normed_boxes), 512)
-            word_strings = word_strings[:min_len]
-            normed_boxes = normed_boxes[:min_len]
-            
-            encoding = _PROCESSOR(
-                pil_image, word_strings, boxes=normed_boxes,
-                return_tensors="pt", truncation=True, max_length=512,
-            )
-            with torch.no_grad():
-                outputs = _MODEL(**encoding)
-            
-            logits = outputs.logits
-            predictions = logits.argmax(-1).squeeze().tolist()
-            if isinstance(predictions, int):
-                predictions = [predictions]
-                
-            token_ids = encoding["input_ids"].squeeze().tolist()
-            word_ids = encoding.word_ids(batch_index=0) if hasattr(encoding, "word_ids") else list(range(len(predictions)))
-
-            word_labels = ["O"] * len(word_strings)
-            for token_idx, word_idx in enumerate(word_ids or []):
-                if word_idx is not None and token_idx < len(predictions):
-                    label_id = predictions[token_idx]
-                    label_str = _LABEL_MAP.get(label_id, "O")
-                    if label_str != "O":
-                        word_labels[word_idx] = label_str
-
-            lm_vendor = _tokens_to_field(word_strings, word_labels, "VENDOR")
-            lm_invoice_num = _tokens_to_field(word_strings, word_labels, "INVOICE_NUM")
-            lm_total_str = _tokens_to_field(word_strings, word_labels, "TOTAL")
-            
-            fallback_text = f"Vendor: {lm_vendor or ''}\nInvoice: {lm_invoice_num or ''}\nTotal: {lm_total_str or ''}"
-            fallback_confidence = 0.4
-        except Exception as e:
-            logger.warning(f"LayoutLMv3 fallback failed: {e}")
-            fallback_text = extraction.text if extraction else ""
-            fallback_confidence = 0.0
-
-    if not fallback_text and (filename.lower().endswith(".pdf") or (extraction and extraction.file_type == "pdf")):
-        try:
-            from app.services.ocr import _text_from_pdf_legacy, _text_quality
-            recovered_text, recovered_boxes = _text_from_pdf_legacy(data)
-            if recovered_text:
-                fallback_text = recovered_text
-                fallback_confidence = _text_quality(fallback_text)
-                if extraction:
-                    extraction.words_with_boxes = recovered_boxes
-        except Exception:
-            pass
-
+    try:
+        fallback_text, fallback_confidence = await asyncio.to_thread(_layoutlm_image_fallback, data, extraction)
+    except Exception as e:
+        logger.warning(f"LayoutLMv3 fallback failed for {document_id}: {e}")
+        fallback_text, fallback_confidence = "", 0.0
+    if not fallback_text:
+        fallback_text, fallback_confidence = extraction.text, extraction.text_quality
+    if not any(ch.isalnum() for ch in fallback_text or ""):
+        raise DocumentUnreadableError(
+            "We couldn't read any text in this image — it may be blank or too blurry. Upload a clearer scan."
+        )
     duration_ms += (time.perf_counter() - start_time) * 1000
-    
-    fallback_extraction = ExtractionResult(
-        text=fallback_text,
-        method="layoutlmv3_fallback",
-        file_type=extraction.file_type if extraction else "unknown",
-        text_quality=fallback_confidence,
-        words_with_boxes=extraction.words_with_boxes if extraction else None
-    )
-
     result = ExtractionRoutingResult(
-        route_name="layoutlmv3_fallback",
-        model_used="layoutlmv3",
-        fallback_triggered=True,
-        fallback_reason=fallback_reason,
-        confidence=fallback_confidence,
-        extraction_result=fallback_extraction,
-        duration_ms=duration_ms
+        route_name="layoutlmv3_fallback", model_used="layoutlmv3", fallback_triggered=True,
+        fallback_reason="low_confidence", confidence=fallback_confidence,
+        extraction_result=ExtractionResult(
+            text=fallback_text, method="layoutlmv3_fallback", file_type=extraction.file_type,
+            text_quality=fallback_confidence, words_with_boxes=extraction.words_with_boxes,
+        ),
+        duration_ms=duration_ms,
     )
     _log_to_db(db, document_id, result)
     return result

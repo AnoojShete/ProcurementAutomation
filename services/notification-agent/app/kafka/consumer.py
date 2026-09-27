@@ -16,6 +16,7 @@ import asyncio
 import logging
 
 from aiokafka import AIOKafkaConsumer
+from shared.kafka_security import kafka_auth_kwargs
 
 from app.config import settings
 from app.database import async_session_factory
@@ -52,6 +53,7 @@ async def start_consumer(app):
         heartbeat_interval_ms=10000,
         max_poll_interval_ms=600000,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        **kafka_auth_kwargs(),
     )
 
     try:

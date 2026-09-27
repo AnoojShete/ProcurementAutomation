@@ -32,6 +32,7 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
@@ -85,6 +86,13 @@ def _docling_converter():
     return DocumentConverter()
 
 
+# Docling's converter isn't documented as thread-safe, and several
+# documents now run through extraction concurrently — only one uses the
+# shared converter at a time. The fast pdfplumber path and PaddleOCR (its
+# own subprocess) aren't affected.
+_DOCLING_LOCK = threading.Lock()
+
+
 def _text_from_pdf_docling(data: bytes, filename: str) -> tuple[str, list]:
     """Returns (markdown_text, words_with_boxes).
 
@@ -94,10 +102,11 @@ def _text_from_pdf_docling(data: bytes, filename: str) -> tuple[str, list]:
     in page-pixel coordinates.
     """
     from docling.datamodel.base_models import DocumentStream
-    converter = _docling_converter()
-    result = converter.convert(
-        DocumentStream(name=filename or "document.pdf", stream=io.BytesIO(data))
-    )
+    with _DOCLING_LOCK:
+        converter = _docling_converter()
+        result = converter.convert(
+            DocumentStream(name=filename or "document.pdf", stream=io.BytesIO(data))
+        )
     doc = result.document
     text = doc.export_to_markdown().strip()
 
@@ -218,6 +227,17 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
         except Exception as e:
             logger.debug(f"Fast pdfplumber check failed: {e}")
 
+        # No text layer and no images either (e.g. a blank page): there is
+        # nothing for OCR to read, so skip Docling's model load (~60 s cold).
+        try:
+            with pdfplumber.open(io.BytesIO(data)) as pdf:
+                has_images = any(page.images for page in pdf.pages)
+            if not has_images:
+                logger.info("PDF has no text layer and no images; nothing to OCR")
+                return ExtractionResult(text="", method="pdf_text", file_type="pdf", text_quality=0.0)
+        except Exception as e:
+            logger.debug(f"PDF image check failed ({e}); trying Docling")
+
         # Fallback for scanned/layout-heavy PDFs without native text
         try:
             docling_text, words_with_boxes = _text_from_pdf_docling(data, filename)
@@ -249,4 +269,43 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
     quality = _text_quality(paddle_text)
     return ExtractionResult(
         text=paddle_text, method="paddleocr", file_type="image", text_quality=quality,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Isolated extraction with a hard time limit (used by the pipeline)
+# ---------------------------------------------------------------------------
+
+class DocumentUnreadableError(Exception):
+    """The document can't be read. The message is shown to the uploader."""
+
+
+_APP_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def extract_text_isolated(data: bytes, filename: str, content_type: str, timeout_seconds: int) -> ExtractionResult:
+    """extract_text() in a child process that is killed after
+    `timeout_seconds`. Blocking — call it from a thread."""
+    import json
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "app.services._extract_worker", filename or "document", content_type or ""],
+            input=data, capture_output=True, timeout=timeout_seconds, cwd=_APP_ROOT,
+        )
+    except subprocess.TimeoutExpired:
+        raise DocumentUnreadableError(
+            f"Couldn't read this document within {timeout_seconds} seconds — it may be damaged or unusually "
+            f"complex (for example very large embedded images). Try re-exporting or re-scanning it."
+        )
+    if proc.returncode != 0:
+        detail = proc.stderr.decode("utf-8", errors="replace").strip().splitlines()
+        logger.warning(f"extraction subprocess failed for {filename!r}: {detail[-1] if detail else proc.returncode}")
+        raise DocumentUnreadableError(
+            "This file couldn't be read as a PDF or image — it looks damaged or incomplete. "
+            "Try re-exporting or re-scanning it."
+        )
+    out = json.loads(proc.stdout.decode("utf-8"))
+    return ExtractionResult(
+        text=out["text"], method=out["method"], file_type=out["file_type"],
+        text_quality=out["text_quality"], words_with_boxes=out.get("words_with_boxes") or [],
     )

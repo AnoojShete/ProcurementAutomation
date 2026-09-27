@@ -45,6 +45,7 @@ Every message on every topic is wrapped the same way:
 | `notification.send` | any service (generic fallback) | notification-agent | `recipient` (string, email or user id), `channel` (`email`\|`slack`), `template_name` (string, e.g. `license_reclaim_warning`), `template_context` (object, e.g. includes `grace_period_ends_at`), `priority` (`urgent`\|`digest`), `related_entity_id` (string) |
 | `invoice.matched` | document-vendor-agent | approval-inventory-agent | `document_id` (uuid), `invoice_number` (string), `purchase_request_id` (uuid), `po_number` (string), `vendor_id` (uuid), `invoice_total` (float), `po_total` (float), `matched_at` (iso8601) |
 | `business_rule.updated` | auth-service | document-vendor-agent, approval-inventory-agent, contract-risk-agent | `rule_key` (string), `new_value` (any), `changed_by` (string), `changed_at` (iso8601) |
+| `order.summary.generated` | approval-inventory-agent (order monitor, hourly by default) | assistant/chatbot (planned) | `summary_id` (uuid), `generated_at` / `window_start` (iso8601), `counts` (object: `pending_approval`, `approval_overdue`, `awaiting_signature`, `awaiting_delivery`, `delivery_overdue`, `backordered`), `changes` since `window_start` (object: `new_requests`, `approved`, `invoices_received`, `rejected`), `open_order_value` (number), `attention` (array of `{request_id, kind, severity, message}`), `summary_text` (string, plain-English summary) |
 
 ### `document.classified` Schema Versioning (v1 vs v2)
 
@@ -142,6 +143,15 @@ If your service publishes a topic, write a **producer** that matches this
 shape exactly. If you consume a topic, write your **consumer** to read
 exactly these keys — don't guess at field names from the architecture
 diagram, use this table.
+
+## Delivery guarantees (Sep 26)
+
+Events staged through `shared/eventing/outbox.py` are committed in the
+same transaction as the change they describe and relayed afterwards, so
+delivery is **at-least-once**: consumers must be idempotent (dedupe on
+`event_id`; `shared/eventing/inbox.py` does this for wrapped consumers).
+`invoice.matched` is emitted only after approval-inventory-agent's invoice
+ledger has booked the invoice; the consumer treats it as confirmation.
 
 ## REST response envelope
 

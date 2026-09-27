@@ -13,7 +13,6 @@ import {
   Search,
   Filter,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { businessRulesApi, type HistoryFilterParams } from "@/api/businessRules";
@@ -257,23 +256,12 @@ export function BusinessRulesPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Top Banner: Link to Live Verification Mode */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-gradient-to-r from-brand-50 to-intel-50 px-5 py-4 text-brand-900 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white shadow-sm">
-            <Sparkles className="size-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Live Registry Verification Mode</p>
-            <p className="text-xs text-slate-600">
-              Looking to toggle real registry calls? Manage Live Verification Mode & quotas in System Health →
-            </p>
-          </div>
-        </div>
-        <Link
-          to="/app/system-health"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-sm ring-1 ring-inset ring-brand-300 hover:bg-brand-50 hover:text-brand-900 transition-colors"
-        >
-          Manage Live Mode in System Health
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-brand-500/30 bg-brand-50 px-4 py-2.5 text-sm">
+        <p className="text-slate-800">
+          Live GSTIN/IFSC registry calls and their quota are managed on the System Health page.
+        </p>
+        <Link to="/app/system-health" className="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline">
+          Open System Health
           <ArrowRight className="size-3.5" />
         </Link>
       </div>

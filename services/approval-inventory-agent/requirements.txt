@@ -6,14 +6,14 @@ sqlalchemy[asyncio]==2.0.31
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
 redis[hiredis]==5.0.7
-pyjwt==2.8.0
+pyjwt==2.15.0
 aiokafka==0.10.0
 temporalio==1.6.0
 pyyaml==6.0.1
 prometheus-fastapi-instrumentator==7.0.0
 prometheus-client==0.20.0
 httpx==0.27.0
-pyjwt[crypto]==2.8.0
+pyjwt[crypto]==2.15.0
 # ── ML / anomaly detection ────────────────────────────────────────────────────
 scikit-learn==1.5.1
 pandas==2.2.2

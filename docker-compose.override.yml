@@ -7,16 +7,24 @@ services:
       context: .
       dockerfile: services/contract-risk-agent/Dockerfile
     ports:
-      - "8003:8003"
+      - "127.0.0.1:8003:8003"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: contract-risk-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_CONTRACT_RISK_AGENT:-dev-kafka-contract-risk-agent}
       APP_TEMPORAL_HOST: temporal:7233
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       APP_ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -36,14 +44,22 @@ services:
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: contract-risk-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_CONTRACT_RISK_AGENT:-dev-kafka-contract-risk-agent}
       APP_TEMPORAL_HOST: temporal:7233
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       APP_ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       temporal:
@@ -57,14 +73,22 @@ services:
       context: .
       dockerfile: services/approval-inventory-agent/Dockerfile
     ports:
-      - "8002:8002"
+      - "127.0.0.1:8002:8002"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: approval-inventory-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_APPROVAL_INVENTORY_AGENT:-dev-kafka-approval-inventory-agent}
       APP_TEMPORAL_HOST: temporal:7233
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -84,11 +108,19 @@ services:
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: approval-inventory-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_APPROVAL_INVENTORY_AGENT:-dev-kafka-approval-inventory-agent}
       APP_TEMPORAL_HOST: temporal:7233
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       temporal:
@@ -102,15 +134,39 @@ services:
       context: .
       dockerfile: services/auth-service/Dockerfile
     ports:
-      - "8005:8005"
+      - "127.0.0.1:8005:8005"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       AUTH_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-60}
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: auth-service
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_AUTH_SERVICE:-dev-kafka-auth-service}
       RULES_ENGINE_INTERNAL_SECRET: ${RULES_ENGINE_INTERNAL_SECRET:-dev-rules-secret-change-me}
+      # Account emails (shared/mailer.py). Defaults: Mailpit. Set these in
+      # .env for real delivery — see .env.example.
+      EMAIL_MODE: ${EMAIL_MODE:-dev}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Procurement Platform <noreply@procurement.local>}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      AUTH_LOCKOUT_THRESHOLD: ${AUTH_LOCKOUT_THRESHOLD:-5}
+      AUTH_LOCKOUT_WINDOW_MINUTES: ${AUTH_LOCKOUT_WINDOW_MINUTES:-15}
+      AUTH_LOCKOUT_MINUTES: ${AUTH_LOCKOUT_MINUTES:-15}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8005/health || exit 1"]
@@ -124,10 +180,17 @@ services:
       context: .
       dockerfile: services/document-vendor-agent/Dockerfile
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_REDIS_URL: redis://redis:6379/0
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: document-vendor-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_DOCUMENT_VENDOR_AGENT:-dev-kafka-document-vendor-agent}
       APP_MINIO_ENDPOINT: minio:9000
       APP_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -137,10 +200,18 @@ services:
       APP_CLAMAV_PORT: "3310"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
       HF_HOME: /app/.cache/huggingface
+      # Models are pre-downloaded (scripts/download-models.sh); never call
+      # huggingface.co while processing documents.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
     volumes:
       - hf-cache:/app/.cache/huggingface
     depends_on:
+      redis:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -164,8 +235,14 @@ services:
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: document-vendor-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_DOCUMENT_VENDOR_AGENT:-dev-kafka-document-vendor-agent}
       APP_MINIO_ENDPOINT: minio:9000
       APP_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -173,6 +250,10 @@ services:
       APP_MINIO_SECURE: "false"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
       HF_HOME: /app/.cache/huggingface
+      # Models are pre-downloaded (scripts/download-models.sh); never call
+      # huggingface.co while processing documents.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
       # Signs the service token for the invoice -> PO search call.
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
     # docling-models: Docling layout/table models (~300MB).
@@ -182,6 +263,8 @@ services:
       - docling-models:/root/.cache/huggingface
       - hf-cache:/app/.cache/huggingface
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -197,14 +280,22 @@ services:
       context: .
       dockerfile: services/notification-agent/Dockerfile
     ports:
-      - "8004:8004"
+      - "127.0.0.1:8004:8004"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: notification-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_NOTIFICATION_AGENT:-dev-kafka-notification-agent}
       APP_SMTP_HOST: mailpit
       APP_SMTP_PORT: "1025"
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -245,7 +336,7 @@ services:
     image: ghcr.io/mlflow/mlflow:v2.14.3
     command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "/mlruns", "--default-artifact-root", "/mlruns"]
     ports:
-      - "5050:5000"
+      - "127.0.0.1:5050:5000"
     volumes:
       - mlflow-data:/mlruns
 

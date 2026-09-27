@@ -8,7 +8,7 @@ ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT_DIR"
 
 echo "Downloading LayoutLMv3 (ngvozdenovic/invoice_extraction) into the hf-cache volume..."
-docker compose run --rm --no-deps -T document-vendor-agent-worker python -c "
+docker compose run --rm --no-deps -T -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 document-vendor-agent-worker python -c "
 from transformers import LayoutLMv3Processor, LayoutLMv3ForTokenClassification
 m = 'ngvozdenovic/invoice_extraction'
 LayoutLMv3Processor.from_pretrained(m, apply_ocr=False)

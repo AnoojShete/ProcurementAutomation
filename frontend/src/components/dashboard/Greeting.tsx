@@ -1,17 +1,18 @@
-function timeOfDayGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
+import { useAuth } from "@/hooks/useAuth";
+import { ROLE_LABELS } from "@/lib/roleNav";
 
-export function Greeting({ name, subtitle }: { name: string; subtitle: string }) {
+/** Page intro for dashboards: what this view covers, and whose view it is.
+ * (The page title itself is already in the top bar.) */
+export function Greeting({ subtitle }: { name?: string; subtitle: string }) {
+  const { user } = useAuth();
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-slate-900">
-        {timeOfDayGreeting()}, {name}
-      </h1>
-      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+    <div className="flex flex-wrap items-end justify-between gap-2 border-b border-surface-border pb-3">
+      <p className="text-sm text-slate-600">{subtitle}</p>
+      <p className="text-xs text-slate-500">
+        {user ? `${ROLE_LABELS[user.role]} view · ` : ""}
+        {today}
+      </p>
     </div>
   );
 }

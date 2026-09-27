@@ -8,12 +8,14 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import load_config
-from app.models import Contract, PurchaseRequest, Vendor
+from app.models import AuditLog, Contract, PurchaseRequest, Vendor
 from app.services.clause_extraction import extract_clauses
-from app.services.esign_client import request_signature
+from app.services.contract_pdf import AuditEntry, ContractPdfInput, _title_case, render_contract_pdf
+from app.services.esign_client import EsignProviderError, download_signed_pdf, request_signature
 from app.services.audit import write_audit_log
 from app.services.temporal_client import start_renewal_workflow
 from app.metrics import contract_generation_total
+from shared.eventing import staged
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
 _jinja_env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=select_autoescape(disabled_extensions=("j2",)))
@@ -120,20 +122,17 @@ async def generate_contract_for_request(
         db, "contract", contract_id, "generated",
         {"purchase_request_id": purchase_request_id, "template_used": template_name},
     )
-    await db.commit()
-    await db.refresh(contract)
-    contract_generation_total.labels(status="generated").inc()
-
-    await start_renewal_workflow(contract_id)
-
-    if kafka_producer is not None:
-        await kafka_producer.publish_contract_generated(
+    # Events go into the outbox in the same transaction as the contract, so
+    # a crash after commit can't lose them (shared/eventing/outbox.py).
+    outbox = staged(kafka_producer, db)
+    if outbox is not None:
+        await outbox.publish_contract_generated(
             contract,
             model_used=router_result.model_used,
             fallback_triggered=router_result.fallback_triggered
         )
         if pr.vendor_id:
-            await kafka_producer.publish_notification(
+            await outbox.publish_notification(
                 recipient=pr.requested_by,
                 channel="email",
                 template_name="contract_ready_for_signature",
@@ -141,6 +140,11 @@ async def generate_contract_for_request(
                 priority="digest",
                 related_entity_id=contract_id,
             )
+    await db.commit()
+    await db.refresh(contract)
+    contract_generation_total.labels(status="generated").inc()
+
+    await start_renewal_workflow(contract_id)
     return contract
 
 
@@ -153,7 +157,14 @@ async def send_for_signature(
     if contract.status != "draft":
         raise ContractGenerationError(f"contract {contract_id} is not in draft status")
 
-    provider_ref = await request_signature(contract_id, signer_email, provider=provider)
+    pdf_input = await build_pdf_input(db, contract)
+    try:
+        provider_ref = await request_signature(
+            contract_id, signer_email, provider=provider,
+            pdf=render_contract_pdf(pdf_input), title=f"{_agreement_title(contract)} — {pdf_input.vendor_name}",
+        )
+    except EsignProviderError as e:
+        raise ContractGenerationError(str(e)) from e
     contract.status = "pending_signature"
     contract.esign_provider_ref = provider_ref
     contract.updated_at = datetime.now(timezone.utc)
@@ -167,12 +178,16 @@ async def send_for_signature(
     return contract
 
 
-async def sign_contract_simulated(db: AsyncSession, kafka_producer, contract_id: str, signed_by: str = "authorized_signer@company.com") -> Contract:
+async def sign_contract_simulated(db: AsyncSession, kafka_producer, contract_id: str, signed_by: Optional[str] = None) -> Contract:
     contract = await db.get(Contract, contract_id)
     if contract is None:
         raise ContractGenerationError(f"contract {contract_id} not found")
     if contract.status == "signed":
         return contract
+    if signed_by is None:
+        # Whoever the contract was sent to, so the signed copy names them.
+        sent = await _latest_audit_payload(db, contract_id, "sent_for_signature")
+        signed_by = (sent or {}).get("signer_email") or "authorized_signer@company.com"
 
     now = datetime.now(timezone.utc)
     contract.status = "signed"
@@ -184,16 +199,11 @@ async def sign_contract_simulated(db: AsyncSession, kafka_producer, contract_id:
         db, "contract", contract_id, "signed",
         {"simulated": True, "signed_by": signed_by, "esign_provider_ref": contract.esign_provider_ref},
     )
+    outbox = staged(kafka_producer, db)
+    if outbox is not None:
+        await outbox.publish_contract_signed(contract)
     await db.commit()
     await db.refresh(contract)
-
-    if kafka_producer is not None:
-        try:
-            await kafka_producer.publish_contract_signed(contract)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"Could not publish contract_signed event: {e}")
-
     return contract
 
 
@@ -219,3 +229,91 @@ async def get_renewals_due(db: AsyncSession, within_days: int) -> list[Contract]
         )
     )
     return list(result.scalars().all())
+
+
+class ContractNotSignedError(Exception):
+    pass
+
+
+def _agreement_title(contract: Contract) -> str:
+    for line in (contract.contract_text or "").splitlines():
+        if line.strip():
+            return _title_case(line.strip())
+    return "Contract"
+
+
+async def _latest_audit_payload(db: AsyncSession, contract_id: str, action: str) -> Optional[dict]:
+    row = (
+        await db.execute(
+            select(AuditLog)
+            .where(AuditLog.entity_type == "contract", AuditLog.entity_id == str(contract_id), AuditLog.action == action)
+            .order_by(AuditLog.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    return row.payload if row else None
+
+
+def _audit_detail(action: str, payload: dict) -> str:
+    payload = payload or {}
+    if action == "generated":
+        return f"Template {str(payload.get('template_used', '')).replace('_', ' ')}"
+    if action == "sent_for_signature":
+        who = payload.get("signer_email") or "signer"
+        return f"Sent to {who} via {str(payload.get('provider') or 'provider').title()}"
+    if action.startswith("signed"):
+        detail = f"Signed by {payload.get('signed_by', 'signer')}"
+        return detail + (" (simulated)" if payload.get("simulated") else "")
+    return ""
+
+
+async def build_pdf_input(db: AsyncSession, contract: Contract, include_audit: bool = False) -> ContractPdfInput:
+    vendor_name = "Unspecified Vendor"
+    if contract.vendor_id:
+        vendor = await db.get(Vendor, contract.vendor_id)
+        if vendor:
+            vendor_name = vendor.name
+    trail: list[AuditEntry] = []
+    if include_audit:
+        rows = (
+            await db.execute(
+                select(AuditLog)
+                .where(AuditLog.entity_type == "contract", AuditLog.entity_id == str(contract.id))
+                .order_by(AuditLog.created_at.asc())
+            )
+        ).scalars().all()
+        trail = [AuditEntry(at=r.created_at, action=r.action, detail=_audit_detail(r.action, r.payload)) for r in rows]
+    return ContractPdfInput(
+        contract_id=str(contract.id),
+        contract_text=contract.contract_text or "",
+        status=contract.status,
+        version=contract.version or 1,
+        template=contract.template,
+        vendor_name=vendor_name,
+        generated_at=contract.generated_at,
+        signed_at=contract.signed_at,
+        signed_by=contract.signed_by,
+        esign_provider_ref=contract.esign_provider_ref,
+        audit_trail=trail,
+    )
+
+
+def document_filename(contract: Contract, signed: bool) -> str:
+    base = f"contract-{str(contract.id)[:8]}-v{contract.version or 1}"
+    return f"{base}-signed.pdf" if signed else f"{base}.pdf"
+
+
+async def render_document(db: AsyncSession, contract: Contract) -> bytes:
+    """The working copy: the agreement as generated, unsigned."""
+    return render_contract_pdf(await build_pdf_input(db, contract))
+
+
+async def render_signed_document(db: AsyncSession, contract: Contract) -> bytes:
+    """The executed copy. Documenso's own sealed PDF when it signed the
+    contract; otherwise rendered here with a certificate of completion."""
+    if contract.status != "signed":
+        raise ContractNotSignedError(f"contract {contract.id} is not signed yet")
+    provider_pdf = await download_signed_pdf(contract.esign_provider_ref)
+    if provider_pdf is not None:
+        return provider_pdf
+    return render_contract_pdf(await build_pdf_input(db, contract, include_audit=True), include_certificate=True)
