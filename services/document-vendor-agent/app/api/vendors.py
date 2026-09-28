@@ -1,14 +1,50 @@
+"""Vendor endpoints: list, detail, payment-change verification,
+no-GSTIN attestation, and 90-day spend summary.
+"""
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy import select
-from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.database import get_db
-from app.models import Vendor, VendorPaymentChangeRequest
+from app.models import Document, Vendor, VendorPaymentChangeRequest
 from app.schemas import DataResponse, VerifyPaymentChangeRequest
 from app.services.vendor_payment_service import verify_payment_change, SameSubmitterError
+from app.services.vendor_tier_service import (
+    get_vendor_spend_90d, check_and_upgrade_tier, confirm_no_gstin,
+)
 from shared.auth import CurrentUser, require_role
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Serializers
+# ---------------------------------------------------------------------------
+
+def _serialize_vendor(v: Vendor) -> dict:
+    return {
+        "id": v.id,
+        "name": v.name,
+        "normalized_name": v.normalized_name,
+        "status": v.status,
+        "vendor_tier": v.vendor_tier,
+        "gstin": v.gstin,
+        "gstin_verification_status": v.gstin_verification_status,
+        "gstin_data_source": v.gstin_data_source,
+        "no_gstin_confirmed_by": v.no_gstin_confirmed_by,
+        "no_gstin_confirmed_at": v.no_gstin_confirmed_at.isoformat() if v.no_gstin_confirmed_at else None,
+        "payment_details_pending_verification": v.payment_details_pending_verification,
+        "cumulative_spend_90d": float(v.cumulative_spend_90d) if v.cumulative_spend_90d is not None else 0.0,
+        "created_at": v.created_at.isoformat() if v.created_at else None,
+        "updated_at": v.updated_at.isoformat() if v.updated_at else None,
+    }
 
 
 def _serialize_change(change: VendorPaymentChangeRequest) -> dict:
@@ -22,10 +58,107 @@ def _serialize_change(change: VendorPaymentChangeRequest) -> dict:
         "verified_by": change.verified_by,
         "verified_at": change.verified_at.isoformat() if change.verified_at else None,
         "verification_channel": change.verification_channel,
+        "document_id": change.document_id,
+        # Masked: enough for a verifier to read back on a call-back, never
+        # the full number in an API response.
+        "previous_account_last4": _last4(change.previous_bank_account_number),
+        "new_account_last4": _last4(change.new_bank_account_number),
+        "new_routing_code": change.new_routing_code,
+        "new_beneficiary_name": change.new_beneficiary_name,
     }
 
 
-@router.get("/{vendor_id}/payment-changes", response_model=DataResponse)
+def _last4(value: Optional[str]) -> Optional[str]:
+    return f"••••{value[-4:]}" if value else None
+
+
+# ---------------------------------------------------------------------------
+# GET /vendors — list all vendors
+# ---------------------------------------------------------------------------
+
+@router.get("/", response_model=DataResponse)
+async def list_vendors(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """List all vendors with GSTIN status and tier info."""
+    result = await db.execute(
+        select(Vendor).order_by(Vendor.created_at.desc().nulls_last()).limit(limit)
+    )
+    vendors = list(result.scalars().all())
+    return DataResponse(data=[_serialize_vendor(v) for v in vendors], meta={"count": len(vendors)})
+
+
+# ---------------------------------------------------------------------------
+# GET /vendors/{vendor_id} — vendor detail
+# ---------------------------------------------------------------------------
+
+@router.get("/{vendor_id}", response_model=DataResponse)
+async def get_vendor(vendor_id: str, db: AsyncSession = Depends(get_db)):
+    """Vendor detail including tier, GSTIN verification status, and spend."""
+    vendor = await db.get(Vendor, vendor_id)
+    if vendor is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    return DataResponse(data=_serialize_vendor(vendor))
+
+
+# ---------------------------------------------------------------------------
+# GET /vendors/{vendor_id}/spend-summary
+# ---------------------------------------------------------------------------
+
+@router.get("/{vendor_id}/spend-summary", response_model=DataResponse)
+async def get_spend_summary(vendor_id: str, db: AsyncSession = Depends(get_db)):
+    """Rolling 90-day spend for this vendor (structuring/tier-upgrade detection)."""
+    vendor = await db.get(Vendor, vendor_id)
+    if vendor is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    spend_90d = await get_vendor_spend_90d(db, vendor_id)
+    return DataResponse(data={
+        "vendor_id": vendor_id,
+        "cumulative_spend_90d_inr": spend_90d,
+        "current_tier": vendor.vendor_tier,
+        "petty_threshold": 5000,
+        "standard_threshold": 50000,
+    })
+
+
+# ---------------------------------------------------------------------------
+# POST /vendors/{vendor_id}/confirm-no-gstin
+# ---------------------------------------------------------------------------
+
+class ConfirmNoGSTINRequest(BaseModel):
+    # Ignored — the attester is the authenticated caller (see endpoint).
+    confirmed_by: Optional[str] = None
+    reason: Optional[str] = None  # e.g. "vendor below GST registration threshold"
+
+
+@router.post("/{vendor_id}/confirm-no-gstin", response_model=DataResponse)
+async def confirm_no_gstin_endpoint(
+    vendor_id: str,
+    body: ConfirmNoGSTINRequest,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_role("finance", "admin")),
+):
+    """Explicit attestation that a vendor is below the GST registration
+    threshold. Required when onboarding a vendor without a GSTIN — logs
+    who confirmed it so the omission is never treated silently."""
+    vendor = await db.get(Vendor, vendor_id)
+    if vendor is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    if vendor.gstin:
+        raise HTTPException(status_code=409, detail="vendor already has a GSTIN — attestation not applicable")
+    await confirm_no_gstin(db, vendor, confirmed_by=user.email)
+    await db.commit()
+    return DataResponse(data={
+        "vendor_id": vendor_id,
+        "no_gstin_confirmed_by": vendor.no_gstin_confirmed_by,
+        "no_gstin_confirmed_at": vendor.no_gstin_confirmed_at.isoformat() if vendor.no_gstin_confirmed_at else None,
+    })
+
+
+# ---------------------------------------------------------------------------
+# GET /vendors/{vendor_id}/payment-changes
+# ---------------------------------------------------------------------------
+
+@router.get("/{vendor_id}/payment-changes", response_model=DataResponse,
+            dependencies=[Depends(require_role("finance", "admin"))])
 async def list_payment_changes(vendor_id: str, db: AsyncSession = Depends(get_db)):
     vendor = await db.get(Vendor, vendor_id)
     if vendor is None:
@@ -39,11 +172,11 @@ async def list_payment_changes(vendor_id: str, db: AsyncSession = Depends(get_db
     return DataResponse(data=[_serialize_change(c) for c in changes])
 
 
-@router.post(
-    "/{vendor_id}/verify-payment-change",
-    response_model=DataResponse,
-    dependencies=[Depends(require_role("finance", "admin"))],
-)
+# ---------------------------------------------------------------------------
+# POST /vendors/{vendor_id}/verify-payment-change
+# ---------------------------------------------------------------------------
+
+@router.post("/{vendor_id}/verify-payment-change", response_model=DataResponse)
 async def verify_payment_change_endpoint(
     vendor_id: str,
     body: VerifyPaymentChangeRequest,
@@ -72,4 +205,52 @@ async def verify_payment_change_endpoint(
     except SameSubmitterError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
-    return DataResponse(data=_serialize_change(change))
+    await db.commit()
+    released = 0
+    if change.status == "verified" and not vendor.payment_details_pending_verification:
+        released = await release_payment_holds(db, vendor_id)
+    return DataResponse(data=_serialize_change(change), meta={"payment_holds_released": released})
+
+
+async def release_payment_holds(db: AsyncSession, vendor_id: str) -> int:
+    """Once a vendor's bank details are verified, its held invoices become
+    payable: clear the hold on the documents and in the invoice ledger."""
+    from sqlalchemy import text as sql_text
+    docs = (
+        await db.execute(select(Document).where(Document.vendor_id == vendor_id, Document.document_type == "invoice"))
+    ).scalars().all()
+    released = 0
+    for doc in docs:
+        extracted = dict(doc.extracted or {})
+        if extracted.get("payment_hold"):
+            extracted["payment_hold"] = False
+            extracted["payment_hold_released_at"] = datetime.now(timezone.utc).isoformat()
+            doc.extracted = extracted
+            released += 1
+    await db.commit()
+    import os
+    import httpx
+    from shared.auth.jwt_tokens import create_access_token
+    url = os.environ.get("APPROVAL_INVENTORY_URL", "http://approval-inventory-agent:8002").rstrip("/")
+    token = create_access_token("document-vendor-agent", "document-vendor-agent@service.internal", "service")
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(f"{url}/invoices/release-holds/{vendor_id}", headers={"Authorization": f"Bearer {token}"})
+    except Exception as e:
+        logger.warning(f"Could not release ledger payment holds for vendor {vendor_id}: {e}")
+    return released
+
+
+@router.get("/payment-changes/pending", response_model=DataResponse,
+            dependencies=[Depends(require_role("finance", "admin"))])
+async def list_pending_payment_changes(db: AsyncSession = Depends(get_db)):
+    """Verification queue across all vendors (finance works through this)."""
+    rows = (
+        await db.execute(
+            select(VendorPaymentChangeRequest, Vendor.name)
+            .join(Vendor, Vendor.id == VendorPaymentChangeRequest.vendor_id)
+            .where(VendorPaymentChangeRequest.status == "pending")
+            .order_by(VendorPaymentChangeRequest.created_at.desc())
+        )
+    ).all()
+    return DataResponse(data=[{**_serialize_change(c), "vendor_name": name} for c, name in rows])

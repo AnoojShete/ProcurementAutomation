@@ -21,8 +21,12 @@ sla:
 
 # License utilisation thresholds
 utilisation:
-  reclaim_threshold: 0.3    # Below 30% usage triggers reclaim
+  reclaim_threshold: 0.3    # Legacy flat-score threshold (kept for reference)
   warning_threshold: 0.5    # Below 50% usage triggers warning
+  # ML anomaly threshold: anomaly_score above this triggers a reclaim request.
+  # Score is in [0, 1] where 1 = maximally anomalous (IsolationForest, SHAP-explained).
+  # 0.6 catches clear decline/drop-off patterns without being tripped by weekend dips.
+  anomaly_threshold: 0.6
   measurement_periods:      # Days to look back
     - 30
     - 60
@@ -31,3 +35,15 @@ utilisation:
 # Inventory
 inventory:
   reservation_ttl_seconds: 300  # 5 minutes lock timeout
+
+# Order monitor (app/services/order_monitor.py): checks every open order
+# on this interval and stores a status summary for the assistant/chatbot.
+order_monitor:
+  interval_minutes: 60
+  # Contract signed but no invoice yet for this long -> flagged.
+  delivery_followup_days: 14
+  # Approved but contract still unsigned for this long -> flagged.
+  signature_followup_days: 3
+  # Repair lost transitions (approved + signed contract -> fulfilled)
+  # before each check, instead of only reporting them.
+  auto_repair: true

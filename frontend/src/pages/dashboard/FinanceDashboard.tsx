@@ -7,6 +7,7 @@ import { vendorsApi } from "@/api/vendors";
 import { contractsApi } from "@/api/contracts";
 import { Greeting } from "@/components/dashboard/Greeting";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { OrderStatusCard } from "@/components/dashboard/OrderStatusCard";
 import { AttentionCard, type AttentionItem } from "@/components/dashboard/AttentionCard";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -93,7 +94,7 @@ export function FinanceDashboard() {
   const loading = reqLoading || vendorsLoading;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Greeting name={user?.email.split("@")[0] ?? "there"} subtitle="Spend, budget, and vendor risk across the organization." />
 
       {loading ? (
@@ -116,6 +117,8 @@ export function FinanceDashboard() {
       )}
 
       <AttentionCard items={attentionItems} />
+
+      <OrderStatusCard />
 
       <Card>
         <CardHeader title="Spend by Request Type" subtitle="Approved and fulfilled requests, grouped by category" />

@@ -13,17 +13,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-brand-700 text-white hover:bg-brand-800 active:bg-brand-900 disabled:bg-brand-300",
+  primary:
+    "border border-brand-700 bg-brand-500 text-white shadow-button hover:bg-brand-600 active:bg-brand-700 disabled:border-transparent disabled:bg-brand-200",
   secondary:
-    "bg-white text-slate-700 border border-surface-border hover:bg-surface-subtle active:bg-surface-muted disabled:text-slate-400",
-  destructive: "bg-danger-500 text-white hover:bg-danger-600 active:bg-danger-600 disabled:bg-danger-50 disabled:text-danger-300",
-  ghost: "bg-transparent text-slate-600 hover:bg-surface-muted active:bg-surface-border disabled:text-slate-300",
+    "border border-surface-border bg-surface-subtle text-slate-800 shadow-button hover:bg-surface-muted hover:border-slate-300 active:bg-surface-border disabled:text-slate-400",
+  destructive:
+    "border border-surface-border bg-surface-subtle text-danger-500 shadow-button hover:border-danger-600 hover:bg-danger-500 hover:text-white disabled:text-danger-300 disabled:hover:bg-surface-subtle",
+  ghost: "border border-transparent bg-transparent text-slate-600 hover:bg-surface-muted hover:text-slate-900 disabled:text-slate-300",
 };
 
 const sizeClasses: Record<Size, string> = {
-  sm: "h-8 px-3 text-sm gap-1.5",
-  md: "h-9 px-4 text-sm gap-2",
-  lg: "h-11 px-5 text-base gap-2",
+  sm: "h-7 px-2.5 text-xs gap-1.5",
+  md: "h-8 px-3 text-sm gap-1.5",
+  lg: "h-10 px-4 text-sm gap-2",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -33,7 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={cn(
-          "inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-150",
+          "inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors duration-100",
           "disabled:cursor-not-allowed",
           variantClasses[variant],
           sizeClasses[size],

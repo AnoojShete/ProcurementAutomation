@@ -84,6 +84,7 @@ def train():
     mlflow = _try_mlflow()
     if mlflow is not None:
         try:
+            os.environ["MLFLOW_HTTP_REQUEST_TIMEOUT"] = "2"
             mlflow.set_tracking_uri(os.environ.get("APP_MLFLOW_TRACKING_URI", "http://mlflow:5000"))
             mlflow.set_experiment("vendor_risk_classifier")
             with mlflow.start_run(run_name=version):

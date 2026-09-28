@@ -1,7 +1,12 @@
 import os
 from functools import lru_cache
 import yaml
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from shared.runtime_env import is_development, require_secret
+
+DEFAULT_ESIGN_SECRET = "dev-esign-secret-change-me"
 
 CONFIG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -18,12 +23,23 @@ class Settings(BaseSettings):
     service_port: int = 8003
     mlflow_tracking_uri: str = "http://mlflow:5000"
     esign_provider: str = "self-hosted"
-    esign_webhook_secret: str = "dev-esign-secret-change-me"
+    esign_webhook_secret: str = DEFAULT_ESIGN_SECRET
+    # Demo-only "Sign (simulated)" — lets an approver mark a contract signed
+    # with no signer. On in development only unless set explicitly.
+    allow_simulated_signatures: bool = Field(default_factory=is_development)
+    documenso_api_url: str | None = None
+    # Documenso API token (Settings -> API Tokens in Documenso) and the
+    # secret configured on its webhook, sent back as X-Documenso-Secret.
+    documenso_api_token: str | None = None
+    documenso_webhook_secret: str | None = None
+    opensign_api_url: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
 
 
 settings = Settings()
+# A published webhook secret would let anyone mark contracts signed.
+require_secret("APP_ESIGN_WEBHOOK_SECRET", settings.esign_webhook_secret, {DEFAULT_ESIGN_SECRET})
 
 
 @lru_cache

@@ -6,12 +6,17 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 
-def build_event(event_type: str, source_service: str, payload: dict) -> dict:
+from shared.logging.context import CorrelationContext
+
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None, schema_version: int = 1) -> dict:
+    corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
     return {
         "event_id": str(uuid.uuid4()),
+        "correlation_id": corr_id,
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,
+        "schema_version": schema_version,
         "payload": payload,
     }
 
@@ -32,7 +37,8 @@ def build_document_ingested_payload(document_id, uploaded_by, file_type, minio_p
 
 def build_document_classified_payload(
     document_id, document_type, vendor_name_raw, extracted_fields: Dict[str, Any],
-    confidence_scores: Dict[str, Any], overall_confidence: float, needs_review: bool
+    confidence_scores: Dict[str, Any], overall_confidence: float, needs_review: bool,
+    model_used: Optional[str] = None, fallback_triggered: bool = False
 ) -> dict:
     return {
         "document_id": str(document_id),
@@ -42,6 +48,8 @@ def build_document_classified_payload(
         "confidence_scores": confidence_scores,
         "overall_confidence": float(overall_confidence) if overall_confidence is not None else None,
         "needs_review": bool(needs_review),
+        "model_used": model_used,
+        "fallback_triggered": fallback_triggered,
     }
 
 
@@ -71,4 +79,20 @@ def build_vendor_payment_details_flagged_payload(
         "source": source,
         "fields_changed": list(fields_changed),
         "flagged_at": _iso(flagged_at),
+    }
+
+
+def build_invoice_matched_payload(
+    document_id, invoice_number, purchase_request_id, po_number,
+    vendor_id, invoice_total, po_total, matched_at=None
+) -> dict:
+    return {
+        "document_id": str(document_id),
+        "invoice_number": invoice_number,
+        "purchase_request_id": str(purchase_request_id),
+        "po_number": po_number,
+        "vendor_id": str(vendor_id),
+        "invoice_total": float(invoice_total) if invoice_total is not None else 0.0,
+        "po_total": float(po_total) if po_total is not None else 0.0,
+        "matched_at": _iso(matched_at or datetime.now(timezone.utc)),
     }

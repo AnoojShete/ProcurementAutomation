@@ -19,7 +19,14 @@ from pydantic import BaseModel, Field
 
 AGENT_VERSION = "1.0.0"
 
-ValidationStatus = Literal["valid", "invalid", "needs_review"]
+ValidationStatus = Literal[
+    "valid",
+    "invalid",
+    "needs_review",
+    "skipped",
+    "skipped_model_unavailable",
+    "skipped_error",
+]
 
 
 class AgentResult(BaseModel):
@@ -29,7 +36,7 @@ class AgentResult(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     input_reference: str
     confidence: Optional[float] = None
-    validation_status: ValidationStatus = "valid"
+    validation_status: str = "valid"
     errors: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     next_action: str = "continue"

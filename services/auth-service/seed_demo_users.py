@@ -43,6 +43,10 @@ async def seed():
                     hashed_password=hash_password(DEMO_PASSWORD),
                     role=role,
                     created_at=datetime.now(timezone.utc),
+                    # Demo inboxes don't exist, so these skip confirmation.
+                    email_verified_at=datetime.now(timezone.utc),
+                    is_active=True,
+                    token_version=0,
                 )
             )
             print(f"  created: {email} ({role})")
@@ -53,5 +57,17 @@ async def seed():
         print(f"  {email:28s} role={role:10s} password={DEMO_PASSWORD}")
 
 
+def should_seed() -> bool:
+    """Demo accounts share a published password (admin included), so they
+    exist only in development — or where someone explicitly asks for them
+    with SEED_DEMO_USERS=true (e.g. a shared demo box)."""
+    import os
+    from shared.runtime_env import is_development
+    return is_development() or os.environ.get("SEED_DEMO_USERS", "").lower() == "true"
+
+
 if __name__ == "__main__":
-    asyncio.run(seed())
+    if should_seed():
+        asyncio.run(seed())
+    else:
+        print("[seed_demo_users] skipped: not a development environment (set SEED_DEMO_USERS=true to force)")

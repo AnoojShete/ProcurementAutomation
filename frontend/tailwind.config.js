@@ -5,67 +5,82 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        // The OS's own UI font (San Francisco / Segoe UI), like most
+        // enterprise tools — nothing to download, and it reads as native.
         sans: [
-          "Inter",
-          "system-ui",
           "-apple-system",
+          "BlinkMacSystemFont",
           "Segoe UI",
-          "Roboto",
+          "Noto Sans",
+          "Helvetica",
+          "Arial",
           "sans-serif",
         ],
+        mono: ["ui-monospace", "SFMono-Regular", "SF Mono", "Menlo", "Consolas", "monospace"],
       },
       colors: {
-        // Deep navy/blue brand family — primary CTAs, active nav, links.
+        // One accent: a plain working blue for primary actions, links and
+        // the active nav marker. Everything else is neutral.
         brand: {
-          50: "#eef3fb",
-          100: "#d9e5f5",
-          200: "#b3caeb",
-          300: "#82a9dc",
-          400: "#4f83c9",
-          500: "#2f63ac",
-          600: "#204a87",
-          700: "#1a3b6d",
-          800: "#152f57",
-          900: "#0f2140",
-          950: "#0a1730",
+          50: "#ddf4ff",
+          100: "#b6e3ff",
+          200: "#80ccff",
+          300: "#54aeff",
+          400: "#218bff",
+          500: "#0969da",
+          600: "#0860ca",
+          700: "#0550ae",
+          800: "#033d8b",
+          900: "#0a3069",
+          950: "#002155",
         },
-        // Soft neutral surfaces (page background vs. card surface).
+        // Page background vs. panel surface vs. hairlines.
         surface: {
           DEFAULT: "#ffffff",
-          subtle: "#f7f8fa",
-          muted: "#eef0f3",
-          border: "#e3e6eb",
+          subtle: "#f6f8fa",
+          muted: "#eff2f5",
+          border: "#d1d9e0",
         },
-        // Secondary AI/intelligence accent — used sparingly (badges, panel
-        // headers for "Intelligence" features), never as a primary CTA color.
+        // Formerly a purple "AI" accent. Kept as a token so existing
+        // classes compile, but it's neutral now: model-driven features are
+        // presented like any other data, not with their own colour.
         intel: {
-          50: "#f4f1fc",
-          100: "#e7e0f9",
-          400: "#9d84e8",
-          500: "#7c5fd6",
-          600: "#6446bd",
-          700: "#503697",
+          50: "#f6f8fa",
+          100: "#d1d9e0",
+          300: "#afb8c1",
+          400: "#818b98",
+          500: "#59636e",
+          600: "#59636e",
+          700: "#393f46",
         },
-        success: { 50: "#eafaf0", 500: "#0ca30c", 600: "#0a8a0a", 700: "#046300" },
-        warning: { 50: "#fef8e9", 500: "#fab219", 600: "#a86e00", 700: "#7a5000" },
-        danger: { 50: "#fdecec", 500: "#d03b3b", 600: "#b32e2e" },
+        success: { 50: "#dafbe1", 500: "#1f883d", 600: "#1a7f37", 700: "#116329" },
+        warning: { 50: "#fff8c5", 500: "#d4a72c", 600: "#9a6700", 700: "#7d4e00" },
+        danger: { 50: "#ffebe9", 100: "#ffcecb", 300: "#ff8182", 500: "#cf222e", 600: "#a40e26", 700: "#82071e" },
+      },
+      fontSize: {
+        // 13px is the workhorse size for dense tables and metadata.
+        "13": ["0.8125rem", { lineHeight: "1.25rem" }],
       },
       boxShadow: {
-        card: "0 1px 2px 0 rgba(15, 33, 64, 0.04), 0 1px 3px 0 rgba(15, 33, 64, 0.06)",
-        popover: "0 4px 16px -2px rgba(15, 33, 64, 0.12), 0 2px 6px -2px rgba(15, 33, 64, 0.08)",
+        card: "0 1px 0 0 rgba(31, 35, 40, 0.04)",
+        popover: "0 8px 24px rgba(140, 149, 159, 0.2), 0 0 0 1px rgba(209, 217, 224, 0.6)",
+        button: "0 1px 0 0 rgba(31, 35, 40, 0.04)",
       },
       borderRadius: {
-        xl: "0.875rem",
+        // Tight, consistent corners. rounded-lg/xl in page code resolve to
+        // the same 6px as rounded-md.
+        lg: "0.375rem",
+        xl: "0.375rem",
       },
       keyframes: {
         "fade-in": { from: { opacity: 0 }, to: { opacity: 1 } },
-        "slide-in-right": { from: { transform: "translateX(12px)", opacity: 0 }, to: { transform: "translateX(0)", opacity: 1 } },
-        "slide-up": { from: { transform: "translateY(6px)", opacity: 0 }, to: { transform: "translateY(0)", opacity: 1 } },
+        "slide-in-right": { from: { transform: "translateX(-8px)", opacity: 0 }, to: { transform: "translateX(0)", opacity: 1 } },
+        "slide-up": { from: { transform: "translateY(4px)", opacity: 0 }, to: { transform: "translateY(0)", opacity: 1 } },
       },
       animation: {
-        "fade-in": "fade-in 0.15s ease-out",
-        "slide-in-right": "slide-in-right 0.2s ease-out",
-        "slide-up": "slide-up 0.18s ease-out",
+        "fade-in": "fade-in 0.12s ease-out",
+        "slide-in-right": "slide-in-right 0.15s ease-out",
+        "slide-up": "slide-up 0.12s ease-out",
       },
     },
   },

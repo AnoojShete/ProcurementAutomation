@@ -70,12 +70,14 @@ export function documentTypeLabel(value: string | null | undefined): string {
   return DOCUMENT_TYPE_LABELS[value] ?? titleCase(value);
 }
 
+const ACRONYMS: Record<string, string> = { saas: "SaaS", it: "IT", sla: "SLA", po: "PO", sso: "SSO" };
+
 export function titleCase(value: string | null | undefined): string {
   if (!value) return "—";
   return value
     .split(/[_\s-]+/)
     .filter(Boolean)
-    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .map((w) => ACRONYMS[w.toLowerCase()] ?? w[0].toUpperCase() + w.slice(1))
     .join(" ");
 }
 

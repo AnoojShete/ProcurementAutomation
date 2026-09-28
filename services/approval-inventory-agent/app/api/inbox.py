@@ -7,6 +7,13 @@ from app.schemas import DataResponse, InboxItemResponse
 
 router = APIRouter()
 
+
+def _license_id(req: PurchaseRequest):
+    for item in req.items or []:
+        if isinstance(item, dict) and item.get("license_id"):
+            return str(item["license_id"])
+    return None
+
 @router.get("/{approver_id}", response_model=DataResponse)
 async def get_inbox(approver_id: str, db: AsyncSession = Depends(get_db)):
     # Uses PostgreSQL JSON path query to check if current approver matches approver_id
@@ -33,7 +40,10 @@ async def get_inbox(approver_id: str, db: AsyncSession = Depends(get_db)):
                 "currency": req.currency,
                 "spend_tier": req.spend_tier,
                 "sla_deadline": req.sla_deadline.isoformat() if req.sla_deadline else None,
-                "created_at": req.created_at.isoformat() if req.created_at else None
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+                # Reclaim/license requests point at the license they concern, so
+                # the inbox can open the license page (where the decision is).
+                "license_id": _license_id(req),
             })
             
     # Sort by sla_deadline ascending (most urgent first)

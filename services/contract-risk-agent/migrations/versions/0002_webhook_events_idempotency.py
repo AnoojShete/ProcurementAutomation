@@ -22,6 +22,10 @@ def upgrade():
         )
         """
     )
+    # shared/db/init.sql may have created the earlier generic shape first.
+    op.execute("ALTER TABLE processed_webhook_events ADD COLUMN IF NOT EXISTS provider_event_id VARCHAR(255)")
+    op.execute("ALTER TABLE processed_webhook_events ADD COLUMN IF NOT EXISTS contract_id UUID")
+    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_processed_webhook_provider_event_id ON processed_webhook_events(provider_event_id)")
 
 
 def downgrade():

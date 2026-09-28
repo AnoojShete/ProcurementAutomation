@@ -26,12 +26,16 @@ def create_access_token(user_id: str, email: str, role: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def create_refresh_token(user_id: str, email: str, role: str) -> str:
+def create_refresh_token(user_id: str, email: str, role: str, token_version: int = 0) -> str:
+    """`tv` is the user's token_version when the token was issued. auth-service
+    refuses to refresh once the stored version has moved on (password
+    changed or reset, account disabled, role changed, "sign out everywhere")."""
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
         "email": email,
         "role": role,
+        "tv": token_version,
         "type": "refresh",
         "iat": now,
         "exp": now + timedelta(days=JWT_REFRESH_EXPIRY_DAYS),

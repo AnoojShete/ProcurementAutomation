@@ -5,11 +5,14 @@ These models must match the actual PostgreSQL table definitions exactly.
 The shared schema is the source of truth — never modify init.sql, use
 Alembic migrations for any extensions.
 """
+import uuid
 from datetime import datetime, date
 from typing import Optional, List
 from sqlalchemy import String, Integer, Float, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, validates
+
+from shared.lifecycle import check_transition
 
 # init.sql declares every id/FK column as native Postgres UUID, not text —
 # without this, Postgres rejects `uuid_column = $1::varchar` with
@@ -34,13 +37,36 @@ class Document(Base):
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
 
 
+class Contract(Base):
+    """Read-only stub: used for contract.signed event processing."""
+    __tablename__ = "contracts"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    purchase_request_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("purchase_requests.id"))
+    # Mapped because the contract.signed handler falls back to it when
+    # deciding which licenses to activate.
+    vendor_id: Mapped[Optional[str]] = mapped_column(Uuid)
+
+
+class ProcessedEvent(Base):
+    """Idempotency tracking for Kafka consumer."""
+    __tablename__ = "processed_kafka_events"
+
+    # The table has a DB-side default, but SQLAlchemy needs a Python-side one
+    # too or it refuses to flush a row with a NULL identity — which rolled back
+    # the invoice_received status update along with it.
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid.uuid4()))
+    event_id: Mapped[str] = mapped_column(Uuid, unique=True, nullable=False)
+    topic: Mapped[str] = mapped_column(String(255), nullable=False)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
 class Vendor(Base):
     """Vendor/supplier in the procurement system."""
     __tablename__ = "vendors"
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    name_normalized: Mapped[Optional[str]] = mapped_column(String(255))
+    normalized_name: Mapped[Optional[str]] = mapped_column(String(255))
     contact_email: Mapped[Optional[str]] = mapped_column(String(255))
     contact_phone: Mapped[Optional[str]] = mapped_column(String(50))
     address: Mapped[Optional[str]] = mapped_column(Text)
@@ -93,6 +119,13 @@ class PurchaseRequest(Base):
         cascade="all, delete-orphan", lazy="selectin"
     )
 
+    @validates("status")
+    def _validate_status(self, _key, new_status):
+        # Every status write — API, Temporal activity, Kafka handler,
+        # reconciler — must be a legal transition (shared/lifecycle.py).
+        check_transition(self.status, new_status)
+        return new_status
+
 
 class ApprovalHistory(Base):
     """Record of each approval/rejection decision on a request."""
@@ -125,17 +158,38 @@ class License(Base):
     vendor_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendors.id"))
     app_name: Mapped[str] = mapped_column(String(255), nullable=False)
     total_seats: Mapped[int] = mapped_column(Integer, nullable=False)
+    assigned_seats: Mapped[int] = mapped_column(Integer, default=0)
     cost_per_seat: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     period_start: Mapped[Optional[date]] = mapped_column(Date)
     period_end: Mapped[Optional[date]] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(20), default="active")
+    reclaim_cooldown_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    anomaly_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 4))
+    top_factors: Mapped[Optional[list]] = mapped_column(JSON)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # Relationships
     vendor: Mapped[Optional["Vendor"]] = relationship("Vendor", back_populates="licenses")
     usages: Mapped[List["LicenseUsage"]] = relationship("LicenseUsage", back_populates="license")
+    reclaim_history: Mapped[List["LicenseReclaimHistory"]] = relationship("LicenseReclaimHistory", back_populates="license")
+
+
+class LicenseReclaimHistory(Base):
+    """Audit and timeline of reclaim events for a license."""
+    __tablename__ = "license_reclaim_history"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    license_id: Mapped[str] = mapped_column(Uuid, ForeignKey("licenses.id"), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    by_user: Mapped[Optional[str]] = mapped_column(String(255))
+    cooldown_set_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    license: Mapped["License"] = relationship("License", back_populates="reclaim_history")
 
 
 class LicenseUsage(Base):

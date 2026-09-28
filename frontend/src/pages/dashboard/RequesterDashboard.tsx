@@ -125,7 +125,7 @@ export function RequesterDashboard() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <Greeting
           name={user?.email.split("@")[0] ?? "there"}
@@ -137,11 +137,11 @@ export function RequesterDashboard() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard label="Open Requests" value={kpis.open} icon={FilePlus2} tone="brand" />
           <MetricCard label="Awaiting Approval" value={kpis.awaitingApproval} icon={Clock} tone="warning" />
           <MetricCard label="Approved" value={kpis.approved} icon={CheckCircle2} tone="success" />

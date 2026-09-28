@@ -67,7 +67,7 @@ export function DataTable<T>({
           <thead>
             <tr className="border-b border-surface-border text-left">
               {columns.map((col) => (
-                <th key={col.key} className={cn("px-4 py-2.5 font-medium text-slate-500", col.className)}>
+                <th key={col.key} className={cn("whitespace-nowrap px-3 py-2 text-xs font-semibold text-slate-600", col.className)}>
                   {col.sortValue ? (
                     <button
                       onClick={() => toggleSort(col)}
@@ -98,7 +98,7 @@ export function DataTable<T>({
                 )}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className={cn("px-4 py-3 align-middle text-slate-700", col.className)}>
+                  <td key={col.key} className={cn("px-3 py-2.5 align-middle text-13 text-slate-800", col.className)}>
                     {col.render(row)}
                   </td>
                 ))}

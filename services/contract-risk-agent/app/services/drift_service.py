@@ -38,7 +38,9 @@ def _population_stability_index(baseline_counts, current_counts) -> float:
 async def check_drift(db: AsyncSession) -> dict:
     cfg = load_drift_config()
     min_n = cfg.get("min_outcomes_for_check", 5)
-    threshold = cfg.get("psi_threshold", 0.2)
+    from shared.rules_engine import get_rule
+    threshold = float(get_rule("risk.psi_significant_threshold", fallback=cfg.get("psi_threshold", 0.2)))
+    moderate_threshold = float(get_rule("risk.psi_moderate_threshold", fallback=0.1))
 
     if not os.path.exists(BASELINE_PATH):
         return {"checked": False, "reason": "no baseline distribution yet — train the model first"}
@@ -57,6 +59,7 @@ async def check_drift(db: AsyncSession) -> dict:
     current_counts, _ = np.histogram(recent_scores, bins=bin_edges)
     psi = _population_stability_index(baseline["counts"], current_counts.tolist())
     drift_detected = psi > threshold
+    moderate_drift = psi > moderate_threshold
 
     _log_to_mlflow(psi, drift_detected, baseline.get("version"))
 
@@ -64,7 +67,9 @@ async def check_drift(db: AsyncSession) -> dict:
         "checked": True,
         "psi": round(psi, 4),
         "threshold": threshold,
+        "moderate_threshold": moderate_threshold,
         "model_drift_detected": drift_detected,
+        "moderate_drift_detected": moderate_drift,
         "n_recent_scores": len(recent_scores),
         "baseline_model_version": baseline.get("version"),
         "checked_at": datetime.now(timezone.utc).isoformat(),

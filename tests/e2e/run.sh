@@ -5,7 +5,7 @@
 # approver -> approve it -> confirm a contract was generated -> send for
 # signature -> simulate the e-sign webhook -> confirm the contract is
 # signed and a risk score is attached -> confirm an email landed in
-# Mailpit. This is the one test that proves the whole product works
+# Mailpit. Also checks ClamAV rejects an EICAR upload. This is the one test that proves the whole product works
 # together, not just that each service passes its own unit tests.
 set -euo pipefail
 GATEWAY="${GATEWAY:-http://localhost:8080}"
@@ -38,6 +38,19 @@ step "Log in as requester and admin"
 REQUESTER_TOKEN=$(login requester@demo.example.com) && ok "requester token acquired" || { bad "requester login failed"; exit 1; }
 APPROVER_TOKEN=$(login approver@demo.example.com) && ok "approver token acquired" || { bad "approver login failed"; exit 1; }
 ADMIN_TOKEN=$(login admin@demo.example.com) && ok "admin token acquired" || { bad "admin login failed"; exit 1; }
+
+step "ClamAV rejects a malware upload and accepts a clean one"
+# EICAR is the industry-standard harmless antivirus test string.
+EICAR_FILE=$(mktemp)
+printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$EICAR_FILE"
+EICAR_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$GATEWAY/api/documents/upload" \
+  -H "Authorization: Bearer $REQUESTER_TOKEN" -F "file=@$EICAR_FILE;filename=eicar.pdf")
+rm -f "$EICAR_FILE"
+if [ "$EICAR_CODE" = "422" ]; then ok "EICAR upload rejected (422)"; else bad "EICAR upload not rejected (HTTP $EICAR_CODE)"; fi
+CLEAN_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$GATEWAY/api/documents/upload" \
+  -H "Authorization: Bearer $REQUESTER_TOKEN" \
+  -F "file=@$(dirname "$0")/../../data/synthetic-invoices/01_po_delltechnologiesindi_PO-2026-00002.pdf")
+if [ "$CLEAN_CODE" = "201" ] || [ "$CLEAN_CODE" = "200" ]; then ok "clean PDF accepted ($CLEAN_CODE)"; else bad "clean upload failed (HTTP $CLEAN_CODE)"; fi
 
 step "Requester creates a manager-tier purchase request"
 REQ=$(curl -s -X POST "$GATEWAY/api/requests/" -H "Authorization: Bearer $REQUESTER_TOKEN" -H "Content-Type: application/json" \
@@ -121,6 +134,36 @@ msgs = d.get('messages', [])
 print('yes' if msgs else 'no')
 ")
 if [ "$MAILPIT_HIT" = "yes" ]; then ok "Mailpit has recent messages (notification pipeline is alive)"; else bad "no messages found in Mailpit"; fi
+
+step "Prompt 7: Mid-test Business Rule Mutation via Admin API"
+PATCH_RULE=$(curl -s -X PATCH "$GATEWAY/api/admin/business-rules/license.anomaly_watch_threshold" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"new_value": 0.55, "justification": "E2E threshold mutation test without restart"}')
+UPDATED_VAL=$(echo "$PATCH_RULE" | json data.current_value)
+if [ "$UPDATED_VAL" = "0.55" ]; then ok "rule mutated mid-test to 0.55"; else bad "failed to mutate rule: $PATCH_RULE"; fi
+
+step "Prompt 7: Verify History Audit Trail"
+HIST=$(curl -s "$GATEWAY/api/admin/business-rules/history?rule_key=license.anomaly_watch_threshold" \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+HIST_JUSTIFICATION=$(python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+items = d.get('data', [])
+print(items[0]['justification'] if items else '')
+" <<< "$HIST")
+if [ "$HIST_JUSTIFICATION" = "E2E threshold mutation test without restart" ]; then ok "history audit trail recorded"; else bad "history audit trail missing: $HIST"; fi
+
+step "Prompt 7: Reset Rule to System Default"
+RESET_RULE=$(curl -s -X POST "$GATEWAY/api/admin/business-rules/license.anomaly_watch_threshold/reset" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"justification": "Resetting e2e threshold mutation to default"}')
+RESET_VAL=$(echo "$RESET_RULE" | json data.current_value)
+if [ -n "$RESET_VAL" ]; then ok "rule reset successfully to $RESET_VAL"; else bad "failed to reset rule: $RESET_RULE"; fi
+
+# The real 3-way invoice -> PO match (upload an invoice, pipeline finds the
+# approved request, invoice.matched moves it to invoice_received) is covered
+# end to end by tests/e2e/invoice_lifecycle.py. This script used to "test"
+# it by setting the status with SQL, which could never fail.
 
 echo
 echo "=================================================================="

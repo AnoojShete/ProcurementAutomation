@@ -4,7 +4,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.config import settings
 
-engine = create_async_engine(settings.database_url, echo=False)
+engine = create_async_engine(
+    settings.database_url,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 MIGRATIONS_SQL_PATH = os.path.join(
@@ -30,17 +35,15 @@ async def init_db():
         raise
 
     if os.path.exists(MIGRATIONS_SQL_PATH):
+        # Quote/comment/$$-aware split (shared/db/sql_runner.py).
+        from shared.db.sql_runner import split_sql
         with open(MIGRATIONS_SQL_PATH) as f:
-            raw_sql = f.read()
-        # Strip full-line `--` comments before splitting on `;` — a chunk
-        # that's comment-only after stripping still passes `if statement`
-        # (non-empty string) and asyncpg chokes trying to execute it.
-        sql = "\n".join(
-            line for line in raw_sql.splitlines() if not line.strip().startswith("--")
-        )
+            statements = split_sql(f.read())
         async with engine.begin() as conn:
-            for statement in sql.split(";"):
-                statement = statement.strip()
-                if statement:
-                    await conn.execute(text(statement))
+            for statement in statements:
+                await conn.execute(text(statement))
         print("Applied migrations/0001_schema_extensions.sql")
+
+    # Shared event backbone tables (outbox / inbox / DLQ).
+    from shared.eventing import ensure_schema
+    await ensure_schema(engine)

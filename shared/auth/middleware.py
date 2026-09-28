@@ -47,7 +47,12 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail=str(e))
     if claims.get("type") != "access":
         raise HTTPException(status_code=401, detail="not an access token")
-    return CurrentUser(id=claims["sub"], email=claims["email"], role=claims["role"])
+    user_id = claims.get("sub")
+    email = claims.get("email")
+    role = claims.get("role")
+    if not all(isinstance(value, str) and value for value in (user_id, email, role)):
+        raise HTTPException(status_code=401, detail="invalid token claims")
+    return CurrentUser(id=user_id, email=email, role=role)
 
 
 def require_role(*roles: str):

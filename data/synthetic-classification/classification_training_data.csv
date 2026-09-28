@@ -1,0 +1,981 @@
+text,label
+"TAX INVOICE
+
+Invoice Number: INV-1889
+Invoice Date: 2026-09-23
+Bill To: Stark Industries
+Amount Due: $250.5
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-6038
+Invoice Date: 2026-09-23
+Bill To: Initech
+Amount Due: $100.0
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-78500
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $4621
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-273
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Security Audit.
+Estimated Cost: $8345
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-684
+Date: 2026-09-20
+Prepared For: Initech
+Valid Until: 2026-10-20
+Proposal for Consulting Hours.
+Estimated Cost: $5717
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-9265
+Invoice Date: 2026-09-23
+Bill To: Acme Corp
+Amount Due: $5000.0
+Terms: Due on Receipt
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-1174
+Invoice Date: 2026-09-23
+Bill To: Stark Industries
+Amount Due: $123.45
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-2313
+Invoice Date: 2026-09-23
+Bill To: Globex
+Amount Due: $100.0
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-721
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Software License.
+Estimated Cost: $6046
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-413
+Date: 2026-09-20
+Prepared For: Globex
+Valid Until: 2026-10-20
+Proposal for Cloud Storage.
+Estimated Cost: $2091
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-535
+Date: 2026-09-20
+Prepared For: Acme Corp
+Valid Until: 2026-10-20
+Proposal for Software License.
+Estimated Cost: $2893
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-432
+Date: 2026-09-20
+Prepared For: Acme Corp
+Valid Until: 2026-10-20
+Proposal for Cloud Storage.
+Estimated Cost: $6652
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-70373
+PO Date: 2026-09-22
+Vendor: Wayne Enterprises
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Server Racks
+Total: $319
+",po
+"PURCHASE ORDER
+
+PO Number: PO-65288
+PO Date: 2026-09-22
+Vendor: Stark Industries
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Server Racks
+Total: $4475
+",po
+"PURCHASE ORDER
+
+PO Number: PO-16633
+PO Date: 2026-09-22
+Vendor: Stark Industries
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $4874
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-492
+Date: 2026-09-20
+Prepared For: Acme Corp
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $9853
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-1836
+Invoice Date: 2026-09-23
+Bill To: Umbrella Corp
+Amount Due: $250.5
+Terms: Net 15
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-8865
+Invoice Date: 2026-09-23
+Bill To: Stark Industries
+Amount Due: $100.0
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-6688
+Invoice Date: 2026-09-23
+Bill To: Umbrella Corp
+Amount Due: $123.45
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-795
+Date: 2026-09-20
+Prepared For: Stark Industries
+Valid Until: 2026-10-20
+Proposal for Security Audit.
+Estimated Cost: $5121
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-48078
+PO Date: 2026-09-22
+Vendor: Globex
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Monitors
+Total: $3990
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-747
+Date: 2026-09-20
+Prepared For: Wayne Enterprises
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $5957
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-7795
+Invoice Date: 2026-09-23
+Bill To: Initech
+Amount Due: $999.0
+Terms: Due on Receipt
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-355
+Date: 2026-09-20
+Prepared For: Globex
+Valid Until: 2026-10-20
+Proposal for Consulting Hours.
+Estimated Cost: $3732
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-4608
+Invoice Date: 2026-09-23
+Bill To: Umbrella Corp
+Amount Due: $1000.0
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-16720
+PO Date: 2026-09-22
+Vendor: Acme Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $1322
+",po
+"TAX INVOICE
+
+Invoice Number: INV-2552
+Invoice Date: 2026-09-23
+Bill To: Wayne Enterprises
+Amount Due: $5000.0
+Terms: Net 15
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-721
+Date: 2026-09-20
+Prepared For: Stark Industries
+Valid Until: 2026-10-20
+Proposal for Cloud Storage.
+Estimated Cost: $4192
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-3931
+Invoice Date: 2026-09-23
+Bill To: Stark Industries
+Amount Due: $100.0
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-86945
+PO Date: 2026-09-22
+Vendor: Acme Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Office Chairs
+Total: $1741
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-875
+Date: 2026-09-20
+Prepared For: Initech
+Valid Until: 2026-10-20
+Proposal for Security Audit.
+Estimated Cost: $8190
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-9700
+Invoice Date: 2026-09-23
+Bill To: Globex
+Amount Due: $5000.0
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-59043
+PO Date: 2026-09-22
+Vendor: Acme Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Keyboards
+Total: $3206
+",po
+"TAX INVOICE
+
+Invoice Number: INV-6988
+Invoice Date: 2026-09-23
+Bill To: Globex
+Amount Due: $999.0
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-756
+Date: 2026-09-20
+Prepared For: Initech
+Valid Until: 2026-10-20
+Proposal for Cloud Storage.
+Estimated Cost: $2329
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-67654
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Office Chairs
+Total: $4538
+",po
+"TAX INVOICE
+
+Invoice Number: INV-2179
+Invoice Date: 2026-09-23
+Bill To: Initech
+Amount Due: $100.0
+Terms: Net 15
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-81589
+PO Date: 2026-09-22
+Vendor: Globex
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Monitors
+Total: $4418
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-216
+Date: 2026-09-20
+Prepared For: Wayne Enterprises
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $7980
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-5539
+Invoice Date: 2026-09-23
+Bill To: Globex
+Amount Due: $99.99
+Terms: Due on Receipt
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-988
+Date: 2026-09-20
+Prepared For: Stark Industries
+Valid Until: 2026-10-20
+Proposal for Security Audit.
+Estimated Cost: $9310
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-20413
+PO Date: 2026-09-22
+Vendor: Wayne Enterprises
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Office Chairs
+Total: $3311
+",po
+"TAX INVOICE
+
+Invoice Number: INV-2123
+Invoice Date: 2026-09-23
+Bill To: Globex
+Amount Due: $99.99
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-1579
+Invoice Date: 2026-09-23
+Bill To: Stark Industries
+Amount Due: $99.99
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-214
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $4948
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-32656
+PO Date: 2026-09-22
+Vendor: Wayne Enterprises
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Office Chairs
+Total: $1576
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-786
+Date: 2026-09-20
+Prepared For: Acme Corp
+Valid Until: 2026-10-20
+Proposal for Software License.
+Estimated Cost: $8586
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-48941
+PO Date: 2026-09-22
+Vendor: Acme Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Monitors
+Total: $3064
+",po
+"PURCHASE ORDER
+
+PO Number: PO-96057
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Keyboards
+Total: $522
+",po
+"PURCHASE ORDER
+
+PO Number: PO-96005
+PO Date: 2026-09-22
+Vendor: Stark Industries
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $4900
+",po
+"PURCHASE ORDER
+
+PO Number: PO-46444
+PO Date: 2026-09-22
+Vendor: Globex
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Coffee Beans
+Total: $617
+",po
+"PURCHASE ORDER
+
+PO Number: PO-30710
+PO Date: 2026-09-22
+Vendor: Globex
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $3610
+",po
+"TAX INVOICE
+
+Invoice Number: INV-7545
+Invoice Date: 2026-09-23
+Bill To: Globex
+Amount Due: $42.0
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-2511
+Invoice Date: 2026-09-23
+Bill To: Acme Corp
+Amount Due: $100.0
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-426
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Security Audit.
+Estimated Cost: $4701
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-412
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $9804
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-1472
+Invoice Date: 2026-09-23
+Bill To: Initech
+Amount Due: $99.99
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-730
+Date: 2026-09-20
+Prepared For: Globex
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $8062
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-7067
+Invoice Date: 2026-09-23
+Bill To: Globex
+Amount Due: $123.45
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-577
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $3089
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-48333
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Monitors
+Total: $1042
+",po
+"PURCHASE ORDER
+
+PO Number: PO-32180
+PO Date: 2026-09-22
+Vendor: Wayne Enterprises
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Keyboards
+Total: $2197
+",po
+"TAX INVOICE
+
+Invoice Number: INV-4462
+Invoice Date: 2026-09-23
+Bill To: Wayne Enterprises
+Amount Due: $999.0
+Terms: Due on Receipt
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-773
+Date: 2026-09-20
+Prepared For: Stark Industries
+Valid Until: 2026-10-20
+Proposal for Cloud Storage.
+Estimated Cost: $1286
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-257
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $1479
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-683
+Date: 2026-09-20
+Prepared For: Acme Corp
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $8923
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-143
+Date: 2026-09-20
+Prepared For: Initech
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $4807
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-64787
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Coffee Beans
+Total: $3109
+",po
+"PURCHASE ORDER
+
+PO Number: PO-77117
+PO Date: 2026-09-22
+Vendor: Umbrella Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Office Chairs
+Total: $2005
+",po
+"TAX INVOICE
+
+Invoice Number: INV-7801
+Invoice Date: 2026-09-23
+Bill To: Wayne Enterprises
+Amount Due: $42.0
+Terms: Net 15
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-714
+Date: 2026-09-20
+Prepared For: Initech
+Valid Until: 2026-10-20
+Proposal for Consulting Hours.
+Estimated Cost: $4287
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-192
+Date: 2026-09-20
+Prepared For: Initech
+Valid Until: 2026-10-20
+Proposal for Cloud Storage.
+Estimated Cost: $8069
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-6241
+Invoice Date: 2026-09-23
+Bill To: Initech
+Amount Due: $99.99
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-4381
+Invoice Date: 2026-09-23
+Bill To: Wayne Enterprises
+Amount Due: $100.0
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-14431
+PO Date: 2026-09-22
+Vendor: Globex
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Keyboards
+Total: $2482
+",po
+"TAX INVOICE
+
+Invoice Number: INV-8206
+Invoice Date: 2026-09-23
+Bill To: Stark Industries
+Amount Due: $123.45
+Terms: Net 15
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-86375
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $2434
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-257
+Date: 2026-09-20
+Prepared For: Globex
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $2808
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-33255
+PO Date: 2026-09-22
+Vendor: Wayne Enterprises
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Coffee Beans
+Total: $3484
+",po
+"TAX INVOICE
+
+Invoice Number: INV-8303
+Invoice Date: 2026-09-23
+Bill To: Umbrella Corp
+Amount Due: $1000.0
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-68063
+PO Date: 2026-09-22
+Vendor: Acme Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $4563
+",po
+"PURCHASE ORDER
+
+PO Number: PO-72667
+PO Date: 2026-09-22
+Vendor: Stark Industries
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Keyboards
+Total: $4406
+",po
+"TAX INVOICE
+
+Invoice Number: INV-5313
+Invoice Date: 2026-09-23
+Bill To: Acme Corp
+Amount Due: $100.0
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-1691
+Invoice Date: 2026-09-23
+Bill To: Acme Corp
+Amount Due: $250.5
+Terms: Net 60
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-71785
+PO Date: 2026-09-22
+Vendor: Acme Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Coffee Beans
+Total: $2146
+",po
+"TAX INVOICE
+
+Invoice Number: INV-3944
+Invoice Date: 2026-09-23
+Bill To: Initech
+Amount Due: $100.0
+Terms: Due on Receipt
+Please remit to our bank account. Remittance address below.",invoice
+"TAX INVOICE
+
+Invoice Number: INV-5596
+Invoice Date: 2026-09-23
+Bill To: Initech
+Amount Due: $123.45
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-36396
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Coffee Beans
+Total: $3307
+",po
+"TAX INVOICE
+
+Invoice Number: INV-3104
+Invoice Date: 2026-09-23
+Bill To: Wayne Enterprises
+Amount Due: $99.99
+Terms: Net 30
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-23873
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $3136
+",po
+"PURCHASE ORDER
+
+PO Number: PO-29252
+PO Date: 2026-09-22
+Vendor: Acme Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Monitors
+Total: $735
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-523
+Date: 2026-09-20
+Prepared For: Acme Corp
+Valid Until: 2026-10-20
+Proposal for Security Audit.
+Estimated Cost: $8889
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-866
+Date: 2026-09-20
+Prepared For: Acme Corp
+Valid Until: 2026-10-20
+Proposal for Security Audit.
+Estimated Cost: $5457
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-268
+Date: 2026-09-20
+Prepared For: Initech
+Valid Until: 2026-10-20
+Proposal for Security Audit.
+Estimated Cost: $2538
+This quotation is subject to our standard terms.",quote
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-722
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Consulting Hours.
+Estimated Cost: $8948
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-2428
+Invoice Date: 2026-09-23
+Bill To: Wayne Enterprises
+Amount Due: $42.0
+Terms: Net 15
+Please remit to our bank account. Remittance address below.",invoice
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-400
+Date: 2026-09-20
+Prepared For: Globex
+Valid Until: 2026-10-20
+Proposal for Consulting Hours.
+Estimated Cost: $3614
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-42653
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Monitors
+Total: $2841
+",po
+"PURCHASE ORDER
+
+PO Number: PO-83092
+PO Date: 2026-09-22
+Vendor: Umbrella Corp
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Monitors
+Total: $3412
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-149
+Date: 2026-09-20
+Prepared For: Umbrella Corp
+Valid Until: 2026-10-20
+Proposal for Maintenance.
+Estimated Cost: $2229
+This quotation is subject to our standard terms.",quote
+"TAX INVOICE
+
+Invoice Number: INV-6612
+Invoice Date: 2026-09-23
+Bill To: Acme Corp
+Amount Due: $99.99
+Terms: Due on Receipt
+Please remit to our bank account. Remittance address below.",invoice
+"PURCHASE ORDER
+
+PO Number: PO-83412
+PO Date: 2026-09-22
+Vendor: Stark Industries
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Laptops
+Total: $325
+",po
+"PRICE QUOTE / ESTIMATE
+
+Quote Number: QT-982
+Date: 2026-09-20
+Prepared For: Initech
+Valid Until: 2026-10-20
+Proposal for Software License.
+Estimated Cost: $2545
+This quotation is subject to our standard terms.",quote
+"PURCHASE ORDER
+
+PO Number: PO-75693
+PO Date: 2026-09-22
+Vendor: Initech
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Keyboards
+Total: $679
+",po
+"PURCHASE ORDER
+
+PO Number: PO-54040
+PO Date: 2026-09-22
+Vendor: Globex
+Ship To: HQ Warehouse
+Deliver To: Receiving Dock 4
+Authorized By: Procurement Dept
+Description: Office Chairs
+Total: $1297
+",po

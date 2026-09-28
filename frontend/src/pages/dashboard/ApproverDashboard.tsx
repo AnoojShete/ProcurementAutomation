@@ -6,6 +6,7 @@ import { usePageHeader } from "@/hooks/usePageTitle";
 import { requestsApi } from "@/api/requests";
 import { Greeting } from "@/components/dashboard/Greeting";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { OrderStatusCard } from "@/components/dashboard/OrderStatusCard";
 import { AttentionCard, type AttentionItem } from "@/components/dashboard/AttentionCard";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/Badge";
 import { formatCountdown, formatCurrency, formatDate } from "@/lib/format";
 import { APPROVER_ROLES } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
+import { approvalItemPath } from "@/lib/routes";
 
 export function ApproverDashboard() {
   const { user } = useAuth();
@@ -87,15 +89,15 @@ export function ApproverDashboard() {
   if (error) return <ErrorState message={error} />;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Greeting name={user?.email.split("@")[0] ?? "there"} subtitle="Requests routed to your approval roles, prioritized by SLA." />
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard label="Pending Approval" value={kpis.pending} icon={Inbox} tone="brand" />
           <MetricCard label="Due Today" value={kpis.dueToday} icon={Clock} tone="warning" />
           <MetricCard label="Escalated" value={kpis.escalated} icon={AlertTriangle} tone="danger" />
@@ -104,6 +106,8 @@ export function ApproverDashboard() {
       )}
 
       <AttentionCard items={attentionItems} />
+
+      <OrderStatusCard />
 
       <Card>
         <CardHeader title="Approval Inbox" subtitle="Highest-priority requests across your approval roles" />
@@ -118,7 +122,7 @@ export function ApproverDashboard() {
                 return (
                   <button
                     key={item.request_id}
-                    onClick={() => navigate(`/app/requests/${item.request_id}`)}
+                    onClick={() => navigate(approvalItemPath(item))}
                     className={`flex items-center justify-between gap-4 rounded-lg border px-4 py-3 text-left transition-colors hover:border-brand-300 ${
                       highPriority ? "border-danger-100 bg-danger-50/40" : "border-surface-border"
                     }`}

@@ -27,7 +27,19 @@ run_one() {
     echo "Image $image not found locally — building it first..."
     docker compose build "$svc"
   fi
+  # auth-service's account-flow tests need a real Postgres (single-use
+  # links and lockout are enforced in SQL). With the stack running they use
+  # a throwaway "auth_test" database next to the demo one; otherwise
+  # they're skipped.
+  local db_args=()
+  if [ "$svc" = "auth-service" ] && docker compose ps --status running postgres 2>/dev/null | grep -q postgres; then
+    local net
+    net=$(docker inspect "$(docker compose ps -q postgres)" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+    db_args=(--network "$net" -e "AUTH_TEST_DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/auth_test")
+  fi
   docker run --rm \
+    ${db_args[@]+"${db_args[@]}"} \
+    -e APP_ENV=development \
     -v "$ROOT_DIR/services/$svc:/app" \
     -v "$ROOT_DIR/shared:/app/shared" \
     -w /app \

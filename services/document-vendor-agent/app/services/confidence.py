@@ -28,6 +28,13 @@ def overall_confidence(confidence_scores: Dict[str, float]) -> float:
     return round(sum(confidence_scores.values()) / len(confidence_scores), 3)
 
 
-def needs_review(overall: float) -> bool:
-    threshold = load_extraction_config().get("confidence_threshold", 0.8)
-    return overall < threshold
+def load_threshold() -> float:
+    from shared.rules_engine import get_rule
+    cfg_val = load_extraction_config().get("confidence_threshold", 0.8)
+    return float(get_rule("document.confidence_review_threshold", fallback=cfg_val))
+
+
+def needs_review(overall: float, threshold: float | None = None) -> bool:
+    """`threshold` overrides the global one — the per-vendor calibrated
+    threshold from app/services/learning.py."""
+    return overall < (load_threshold() if threshold is None else threshold)

@@ -7,13 +7,23 @@
     @apply antialiased;
   }
   body {
-    @apply bg-surface-subtle text-slate-900 font-sans;
+    @apply bg-surface-subtle text-slate-900 font-sans text-sm;
   }
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white rounded-sm;
+    @apply outline-none ring-2 ring-brand-500 ring-offset-1 ring-offset-white rounded-sm;
   }
   ::selection {
-    @apply bg-brand-200;
+    @apply bg-brand-100;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="search"],
+  select,
+  textarea {
+    @apply shadow-none;
   }
 }
 
@@ -27,6 +37,11 @@
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply bg-slate-300 rounded-full;
+  }
+  /* Standard form control, for pages that build their own inputs. */
+  .field {
+    @apply block h-8 w-full rounded-md border border-surface-border bg-white px-2.5 text-sm text-slate-900
+      placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
   }
 }
 

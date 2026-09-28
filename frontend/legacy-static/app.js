@@ -236,7 +236,7 @@ function renderAbout() {
   const svcTable = el("table");
   svcTable.appendChild(el("tr", {}, [el("th", { text: "Service" }), el("th", { text: "Owns" }), el("th", { text: "Port" }), el("th", { text: "Key tech" })]));
   const services = [
-    ["document-vendor-agent", "Upload, malware scan, OCR/classify, vendor match & dedup, payment-detail governance", "8001", "MinIO, ClamAV, pdfplumber/Tesseract, rapidfuzz"],
+    ["document-vendor-agent", "Upload, OCR/classify, vendor match & dedup, payment-detail governance", "8001", "MinIO, pdfplumber/Tesseract, rapidfuzz"],
     ["approval-inventory-agent", "Spend-tier approval chains, SLA escalation, inventory reservation, license utilisation", "8002", "Temporal, Redis locks"],
     ["contract-risk-agent", "Contract generation, clause extraction, e-sign webhook, vendor risk scoring, drift monitoring", "8003", "Jinja2, scikit-learn, MLflow, Temporal"],
     ["notification-agent", "Email rendering + delivery, urgent vs. digest batching, audit log of sends", "8004", "Jinja2, SMTP → Mailpit"],
@@ -863,7 +863,7 @@ async function renderDocuments() {
   root.innerHTML = "";
 
   root.appendChild(el("div", { class: "help-text", html:
-    "<strong>Pipeline:</strong> upload → ClamAV malware scan → stored in MinIO → a background worker " +
+    "<strong>Pipeline:</strong> upload → stored in MinIO → a background worker " +
     "parses it (native text or OCR for scans), classifies PO/invoice/quote, extracts fields, and fuzzy-" +
     "matches the vendor. Anything below the confidence threshold lands in the review queue below instead " +
     "of auto-completing. No sample file handy? The repo ships ~20 synthetic ones under " +
@@ -871,7 +871,7 @@ async function renderDocuments() {
 
   const uploadPanel = el("div", { class: "panel" });
   uploadPanel.appendChild(el("h2", { text: "Upload a document" }));
-  uploadPanel.appendChild(el("p", { class: "desc", text: "PO, invoice, or vendor quote (PDF/image). Scanned through ClamAV, stored in MinIO, then classified/extracted by the worker." }));
+  uploadPanel.appendChild(el("p", { class: "desc", text: "PO, invoice, or vendor quote (PDF/image). Stored in MinIO, then classified/extracted by the worker." }));
   const fileInput = el("input", { type: "file" });
   const uploadBtn = el("button", { text: "Upload" });
   uploadPanel.appendChild(el("div", { class: "row" }, [el("div", { class: "field" }, fileInput), uploadBtn]));

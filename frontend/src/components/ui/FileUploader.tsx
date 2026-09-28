@@ -1,27 +1,43 @@
 import { useCallback, useRef, useState } from "react";
-import { FileText, UploadCloud } from "lucide-react";
+import { FileText, Upload } from "lucide-react";
 import { cn } from "@/lib/cn";
 
+/** Drop zone. Single-file by default (`onFileSelected`); with `multiple`,
+ * every picked/dropped file is passed to `onFilesSelected` and the caller
+ * owns the list. */
 export function FileUploader({
   onFileSelected,
+  onFilesSelected,
+  multiple,
   accept,
   disabled,
+  hint = "PDF, PNG or JPG — purchase orders, invoices, vendor quotes",
 }: {
-  onFileSelected: (file: File) => void;
+  onFileSelected?: (file: File) => void;
+  onFilesSelected?: (files: File[]) => void;
+  multiple?: boolean;
   accept?: string;
   disabled?: boolean;
+  hint?: string;
 }) {
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = useCallback(
-    (file: File | undefined | null) => {
-      if (!file) return;
-      setFileName(file.name);
-      onFileSelected(file);
+  const handleFiles = useCallback(
+    (list: FileList | null | undefined) => {
+      const files = Array.from(list ?? []);
+      if (!files.length) return;
+      if (multiple) {
+        onFilesSelected?.(files);
+      } else {
+        setFileName(files[0].name);
+        onFileSelected?.(files[0]);
+      }
+      // Allow re-picking the same file after it's removed from the list.
+      if (inputRef.current) inputRef.current.value = "";
     },
-    [onFileSelected],
+    [multiple, onFileSelected, onFilesSelected],
   );
 
   return (
@@ -34,16 +50,16 @@ export function FileUploader({
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        if (!disabled) handleFile(e.dataTransfer.files?.[0]);
+        if (!disabled) handleFiles(e.dataTransfer.files);
       }}
       onClick={() => !disabled && inputRef.current?.click()}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
-      aria-label="Upload a document"
+      aria-label={multiple ? "Choose documents to upload" : "Choose a document to upload"}
       className={cn(
-        "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors",
-        dragging ? "border-brand-400 bg-brand-50" : "border-surface-border bg-surface-subtle hover:border-brand-300",
+        "flex cursor-pointer items-center gap-3 rounded-md border border-dashed px-4 py-5 transition-colors",
+        dragging ? "border-brand-500 bg-brand-50" : "border-slate-300 bg-surface-subtle hover:border-slate-400",
         disabled && "cursor-not-allowed opacity-60",
       )}
     >
@@ -51,23 +67,31 @@ export function FileUploader({
         ref={inputRef}
         type="file"
         accept={accept}
+        multiple={multiple}
         disabled={disabled}
         className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])}
+        onChange={(e) => handleFiles(e.target.files)}
       />
-      {fileName ? (
-        <>
-          <FileText className="size-7 text-brand-600" />
-          <p className="text-sm font-medium text-slate-800">{fileName}</p>
-          <p className="text-xs text-slate-500">Click or drop another file to replace it</p>
-        </>
+      {fileName && !multiple ? (
+        <FileText className="size-5 shrink-0 text-slate-500" strokeWidth={1.75} />
       ) : (
-        <>
-          <UploadCloud className="size-7 text-slate-400" />
-          <p className="text-sm font-medium text-slate-700">Drag & drop a file, or click to browse</p>
-          <p className="text-xs text-slate-500">Purchase order, invoice, or vendor quote — PDF or image</p>
-        </>
+        <Upload className="size-5 shrink-0 text-slate-500" strokeWidth={1.75} />
       )}
+      <div className="min-w-0 text-sm">
+        {fileName && !multiple ? (
+          <>
+            <p className="truncate font-medium text-slate-900">{fileName}</p>
+            <p className="text-xs text-slate-500">Click or drop another file to replace it</p>
+          </>
+        ) : (
+          <>
+            <p className="text-slate-700">
+              Drag {multiple ? "files" : "a file"} here or <span className="font-medium text-brand-700">browse</span>
+            </p>
+            <p className="text-xs text-slate-500">{hint}</p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

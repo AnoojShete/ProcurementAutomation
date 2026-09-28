@@ -4,8 +4,13 @@ import { ProtectedRoute } from "./ProtectedRoute";
 import { RoleGuard } from "./RoleGuard";
 import { AppShell } from "@/layouts/AppShell";
 import { LoginPage } from "@/pages/LoginPage";
+import { SignUpPage } from "@/pages/auth/SignUpPage";
+import { VerifyEmailPage } from "@/pages/auth/VerifyEmailPage";
+import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
+const ControlsPage = lazy(() => import("@/pages/admin/ControlsPage").then((m) => ({ default: m.ControlsPage })));
 const DashboardPage = lazy(() => import("@/pages/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const RequestsListPage = lazy(() => import("@/pages/requests/RequestsListPage").then((m) => ({ default: m.RequestsListPage })));
 const NewRequestWizardPage = lazy(() => import("@/pages/requests/NewRequestWizardPage").then((m) => ({ default: m.NewRequestWizardPage })));
@@ -16,6 +21,9 @@ const VendorsListPage = lazy(() => import("@/pages/vendors/VendorsListPage").the
 const VendorDetailPage = lazy(() => import("@/pages/vendors/VendorDetailPage").then((m) => ({ default: m.VendorDetailPage })));
 const ApprovalInboxPage = lazy(() => import("@/pages/approvals/ApprovalInboxPage").then((m) => ({ default: m.ApprovalInboxPage })));
 const InventoryPage = lazy(() => import("@/pages/inventory/InventoryPage").then((m) => ({ default: m.InventoryPage })));
+const LicensesListPage = lazy(() => import("@/pages/licenses/LicensesListPage").then((m) => ({ default: m.LicensesListPage })));
+const LicenseDetailPage = lazy(() => import("@/pages/licenses/LicenseDetailPage").then((m) => ({ default: m.LicenseDetailPage })));
+
 const ContractsListPage = lazy(() => import("@/pages/contracts/ContractsListPage").then((m) => ({ default: m.ContractsListPage })));
 const ContractDetailPage = lazy(() => import("@/pages/contracts/ContractDetailPage").then((m) => ({ default: m.ContractDetailPage })));
 const RiskDashboardPage = lazy(() => import("@/pages/risk/RiskDashboardPage").then((m) => ({ default: m.RiskDashboardPage })));
@@ -23,6 +31,9 @@ const NotificationsPage = lazy(() => import("@/pages/notifications/Notifications
 const SpendAnalysisPage = lazy(() => import("@/pages/finance/SpendAnalysisPage").then((m) => ({ default: m.SpendAnalysisPage })));
 const AuditActivityPage = lazy(() => import("@/pages/admin/AuditActivityPage").then((m) => ({ default: m.AuditActivityPage })));
 const SystemHealthPage = lazy(() => import("@/pages/admin/SystemHealthPage").then((m) => ({ default: m.SystemHealthPage })));
+const UsersPage = lazy(() => import("@/pages/admin/UsersPage").then((m) => ({ default: m.UsersPage })));
+const AccountPage = lazy(() => import("@/pages/account/AccountPage").then((m) => ({ default: m.AccountPage })));
+const BusinessRulesPage = lazy(() => import("@/pages/admin/BusinessRulesPage").then((m) => ({ default: m.BusinessRulesPage })));
 
 function Loading() {
   return (
@@ -39,6 +50,11 @@ function withSuspense(el: React.ReactNode) {
 const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/app" replace /> },
   { path: "/login", element: <LoginPage /> },
+  // Signed-out account pages. The email links point at the last three.
+  { path: "/signup", element: <SignUpPage /> },
+  { path: "/verify-email", element: <VerifyEmailPage /> },
+  { path: "/forgot-password", element: <ForgotPasswordPage /> },
+  { path: "/reset-password", element: <ResetPasswordPage /> },
   {
     path: "/app",
     element: (
@@ -79,6 +95,23 @@ const router = createBrowserRouter([
         ),
       },
       {
+        path: "licenses",
+        element: withSuspense(
+          <RoleGuard allow={["admin", "finance", "approver"]}>
+            <LicensesListPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "licenses/:id",
+        element: withSuspense(
+          <RoleGuard allow={["admin", "finance", "approver"]}>
+            <LicenseDetailPage />
+          </RoleGuard>,
+        ),
+      },
+
+      {
         path: "contracts",
         element: withSuspense(
           <RoleGuard allow={["finance", "admin", "approver"]}>
@@ -103,6 +136,15 @@ const router = createBrowserRouter([
         ),
       },
       { path: "notifications", element: withSuspense(<NotificationsPage />) },
+      { path: "account", element: withSuspense(<AccountPage />) },
+      {
+        path: "users",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <UsersPage />
+          </RoleGuard>,
+        ),
+      },
       {
         path: "spend",
         element: withSuspense(
@@ -124,6 +166,22 @@ const router = createBrowserRouter([
         element: withSuspense(
           <RoleGuard allow={["admin"]}>
             <SystemHealthPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "controls",
+        element: withSuspense(
+          <RoleGuard allow={["finance", "admin"]}>
+            <ControlsPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "business-rules",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <BusinessRulesPage />
           </RoleGuard>,
         ),
       },

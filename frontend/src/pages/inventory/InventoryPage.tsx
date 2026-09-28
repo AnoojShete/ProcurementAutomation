@@ -55,21 +55,52 @@ export function InventoryPage() {
   ];
 
   const licColumns: Column<LicenseItem>[] = [
-    { key: "app", header: "Application", render: (l) => <span className="font-medium text-slate-800">{l.app_name}</span> },
+    {
+      key: "app",
+      header: "Application",
+      render: (l) => (
+        <div>
+          <a href={`/app/licenses/${l.id}`} className="font-semibold text-brand-600 hover:underline">
+            {l.app_name}
+          </a>
+          <p className="text-xs text-slate-500">{l.vendor_name || "Enterprise Vendor"}</p>
+        </div>
+      ),
+    },
     { key: "seats", header: "Total Seats", render: (l) => l.total_seats },
     { key: "active30", header: "Active (30d)", render: (l) => l.active_seats_30d },
     { key: "util", header: "Utilisation", render: (l) => formatPercent(l.utilisation_score), sortValue: (l) => l.utilisation_score },
-    { key: "cost", header: "Cost / Seat", render: (l) => formatCurrency(l.cost_per_seat) },
     {
-      key: "status",
-      header: "Status",
+      key: "last_login",
+      header: "Last Login",
+      render: (l) => `${l.days_since_last_login ?? 0}d ago`,
+    },
+    {
+      key: "anomaly",
+      header: "Anomaly Status",
+      render: (l) => {
+        if (l.anomaly_score === null || l.anomaly_status === "insufficient_history") {
+          return <Badge tone="neutral">Insufficient data</Badge>;
+        }
+        if (l.anomaly_status === "anomalous") return <Badge tone="danger">Anomalous</Badge>;
+        if (l.anomaly_status === "watch") return <Badge tone="warning">Watch</Badge>;
+        return <Badge tone="success">Normal</Badge>;
+      },
+    },
+    {
+      key: "action",
+      header: "Action",
       render: (l) => (
-        <Badge tone={l.utilisation_score < 0.3 ? "warning" : "success"}>
-          {l.utilisation_score < 0.3 ? "Reclaim candidate" : "Healthy"}
-        </Badge>
+        <a
+          href={`/app/licenses/${l.id}`}
+          className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Details →
+        </a>
       ),
     },
   ];
+
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
 

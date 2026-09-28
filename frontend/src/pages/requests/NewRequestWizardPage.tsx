@@ -270,13 +270,21 @@ function StepDocuments({ state, setState }: { state: WizardState; setState: Reac
       let attempts = 0;
       const poll = async () => {
         attempts += 1;
-        const doc = await documentsApi.get(res.data.document_id);
-        setState((s) => ({ ...s, document: doc.data }));
-        if (doc.data.status === "classified" || doc.data.status === "failed" || attempts >= 10) {
+        try {
+          const doc = await documentsApi.get(res.data.document_id);
+          setState((s) => ({ ...s, document: doc.data }));
+          if (doc.data.status === "classified" || doc.data.status === "failed") {
+            setPolling(false);
+            return;
+          }
+        } catch {
+          // ignore transient poll error
+        }
+        if (attempts >= 40) {
           setPolling(false);
           return;
         }
-        setTimeout(poll, 1200);
+        setTimeout(poll, 1500);
       };
       poll();
     } catch (e) {

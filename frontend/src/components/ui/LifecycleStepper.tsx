@@ -18,10 +18,19 @@ function StageIcon({ state, index }: { state: LifecycleStage["state"]; index: nu
   return <span className="text-[11px] font-medium">{index + 1}</span>;
 }
 
-/** The procurement request lifecycle — spec's key differentiator: created ->
- * document processing -> vendor validation -> approval -> inventory check ->
- * contract -> signature -> fulfillment. */
-export function LifecycleStepper({ stages }: { stages: LifecycleStage[] }) {
+/** The procurement request lifecycle: created -> document processing ->
+ * vendor validation -> approval -> inventory check -> contract -> signature
+ * -> fulfillment. With `onSelect`, every step is a button that opens its
+ * details (and its action, e.g. approve or sign). */
+export function LifecycleStepper({
+  stages,
+  onSelect,
+  selectedKey,
+}: {
+  stages: LifecycleStage[];
+  onSelect?: (stage: LifecycleStage) => void;
+  selectedKey?: string | null;
+}) {
   return (
     <div className="flex flex-col gap-0 sm:flex-row sm:items-start">
       {stages.map((stage, i) => {
@@ -31,9 +40,25 @@ export function LifecycleStepper({ stages }: { stages: LifecycleStage[] }) {
           <div key={stage.key} className="flex flex-1 sm:flex-col">
             <div className="flex flex-col items-center sm:w-full">
               <div className="flex w-full items-center sm:contents">
-                <div className={cn("flex size-7 shrink-0 items-center justify-center rounded-full", styles.dot)}>
-                  <StageIcon state={stage.state} index={i} />
-                </div>
+                {onSelect ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelect(stage)}
+                    aria-label={`${stage.label}: ${stage.state}. Show details`}
+                    aria-pressed={selectedKey === stage.key}
+                    className={cn(
+                      "flex size-7 shrink-0 items-center justify-center rounded-full transition-shadow hover:ring-4 hover:ring-brand-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200",
+                      styles.dot,
+                      selectedKey === stage.key && "ring-4 ring-brand-200",
+                    )}
+                  >
+                    <StageIcon state={stage.state} index={i} />
+                  </button>
+                ) : (
+                  <div className={cn("flex size-7 shrink-0 items-center justify-center rounded-full", styles.dot)}>
+                    <StageIcon state={stage.state} index={i} />
+                  </div>
+                )}
                 {!isLast && (
                   <div
                     className={cn(
@@ -45,7 +70,17 @@ export function LifecycleStepper({ stages }: { stages: LifecycleStage[] }) {
               </div>
             </div>
             <div className="py-2 pl-3 sm:px-1 sm:pl-0 sm:text-center">
-              <p className={cn("text-xs leading-tight", styles.label)}>{stage.label}</p>
+              {onSelect ? (
+                <button
+                  type="button"
+                  onClick={() => onSelect(stage)}
+                  className={cn("text-xs leading-tight hover:underline", styles.label)}
+                >
+                  {stage.label}
+                </button>
+              ) : (
+                <p className={cn("text-xs leading-tight", styles.label)}>{stage.label}</p>
+              )}
               {stage.detail && <p className="mt-0.5 text-[11px] text-slate-400">{stage.detail}</p>}
             </div>
           </div>

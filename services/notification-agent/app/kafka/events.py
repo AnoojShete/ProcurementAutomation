@@ -24,3 +24,19 @@ def parse_envelope(event: dict) -> Tuple[str, dict, int]:
     payload = event.get("payload", {}) or {}
     schema_version = event.get("schema_version", 1)
     return event_type, payload, schema_version
+import uuid
+from datetime import datetime, timezone
+from typing import Optional
+from shared.logging.context import CorrelationContext
+
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None) -> dict:
+    corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
+    return {
+        "event_id": str(uuid.uuid4()),
+        "correlation_id": corr_id,
+        "event_type": event_type,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source_service": source_service,
+        "schema_version": 1,
+        "payload": payload
+    }

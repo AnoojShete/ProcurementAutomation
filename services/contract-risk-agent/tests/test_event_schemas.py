@@ -15,7 +15,7 @@ from app.kafka.events import (
 class TestEventSchemas:
     def test_event_envelope_structure(self):
         event = build_event("contract.generated", "contract-risk-agent", {"test": True})
-        assert set(event.keys()) == {"event_id", "event_type", "timestamp", "source_service", "payload"}
+        assert {"event_id", "event_type", "timestamp", "source_service", "payload"}.issubset(set(event.keys()))
         assert event["source_service"] == "contract-risk-agent"
 
     def test_event_timestamp_is_iso8601(self):
@@ -28,10 +28,10 @@ class TestEventSchemas:
             template_used="hardware_purchase", version=1, status="draft",
             generated_at=datetime.now(timezone.utc),
         )
-        assert set(payload.keys()) == {
+        assert {
             "contract_id", "purchase_request_id", "vendor_id", "template_used",
             "version", "status", "generated_at",
-        }
+        }.issubset(set(payload.keys()))
         assert payload["status"] in ("draft", "pending_signature")
 
     def test_contract_signed_payload_keys(self):

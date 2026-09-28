@@ -8,6 +8,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from aiokafka import AIOKafkaProducer
+from shared.kafka_security import kafka_auth_kwargs
 from app.kafka.events import (
     build_event,
     build_approval_requested_payload,
@@ -22,6 +23,7 @@ TOPIC_APPROVAL_REQUESTED = "approval.requested"
 TOPIC_APPROVAL_DECIDED = "approval.decided"
 TOPIC_LICENSE_USAGE_UPDATED = "license.usage.updated"
 TOPIC_NOTIFICATION_SEND = "notification.send"
+TOPIC_ORDER_SUMMARY_GENERATED = "order.summary.generated"
 
 
 class KafkaEventProducer:
@@ -38,7 +40,8 @@ class KafkaEventProducer:
         self.producer = AIOKafkaProducer(
             bootstrap_servers=bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-            acks="all",  # Wait for all replicas to acknowledge
+            acks="all",  # Wait for all replicas to acknowledge,
+            **kafka_auth_kwargs(),
         )
         self.service_name = "approval-inventory-agent"
 
@@ -94,9 +97,11 @@ class KafkaEventProducer:
 
     async def publish_license_usage_updated(self, license_data: dict):
         """Publish a license.usage.updated event.
-        
+
         Args:
             license_data: dict with keys matching the event payload schema.
+                          Anomaly fields (anomaly_score, top_factors, model_version)
+                          are optional and default to 0.0 / [] / 'not_trained'.
         """
         payload = build_license_usage_updated_payload(
             license_id=license_data["license_id"],
@@ -108,6 +113,9 @@ class KafkaEventProducer:
             active_seats_90d=license_data["active_seats_90d"],
             utilisation_score=license_data["utilisation_score"],
             period_end=license_data["period_end"],
+            anomaly_score=license_data.get("anomaly_score", 0.0),
+            top_factors=license_data.get("top_factors", []),
+            model_version=license_data.get("model_version", "not_trained"),
         )
         event = build_event(TOPIC_LICENSE_USAGE_UPDATED, self.service_name, payload)
         await self.publish(TOPIC_LICENSE_USAGE_UPDATED, event)
@@ -125,3 +133,19 @@ class KafkaEventProducer:
         }
         event = build_event(TOPIC_NOTIFICATION_SEND, self.service_name, payload)
         await self.publish(TOPIC_NOTIFICATION_SEND, event)
+
+    async def publish_order_summary_generated(self, summary: dict):
+        """Publish the order monitor's latest snapshot (see
+        app/services/order_monitor.py) for the assistant/chatbot."""
+        payload = {
+            "summary_id": summary["id"],
+            "generated_at": summary["generated_at"],
+            "window_start": summary["window_start"],
+            "counts": summary["counts"],
+            "changes": summary["changes"],
+            "open_order_value": summary["open_order_value"],
+            "attention": summary["attention"],
+            "summary_text": summary["summary_text"],
+        }
+        event = build_event(TOPIC_ORDER_SUMMARY_GENERATED, self.service_name, payload)
+        await self.publish(TOPIC_ORDER_SUMMARY_GENERATED, event)
