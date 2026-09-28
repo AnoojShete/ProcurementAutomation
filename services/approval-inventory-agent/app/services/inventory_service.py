@@ -71,46 +71,60 @@ async def reserve_stock(
 ) -> bool:
     """Reserve inventory stock using a Redis distributed lock.
     
-    The lock prevents two concurrent purchase requests from
-    double-reserving the same stock. Flow:
-    1. Acquire Redis lock on the SKU (NX + TTL)
-    2. Re-check availability inside the lock
-    3. Decrement available, increment reserved
-    4. Keep the lock until the request is decided
+    The Redis lock is a SHORT-LIVED mutex (milliseconds) that guards
+    the atomic check-and-decrement.  The actual "this stock is reserved
+    pending approval" state lives in PostgreSQL (reserved_quantity column).
+    
+    Flow:
+    1. Generate a unique UUID lock token (not the request_id, so a retry can't release someone else's lock)
+    2. Acquire Redis lock on the SKU (NX + short TTL)
+    3. Re-check availability inside the lock
+    4. Decrement available_quantity, increment reserved_quantity in DB
+    5. Commit the DB change
+    6. Release the Redis lock immediately
     
     Args:
         db: Async database session.
         redis_client: Redis client for distributed locking.
         sku: SKU to reserve.
-        request_id: ID of the request holding the reservation.
+        request_id: ID of the request holding the reservation (for logging).
         quantity: Number of units to reserve.
         
     Returns:
         True if reservation succeeded, False if lock failed or
         insufficient stock.
     """
-    lock = InventoryLock(redis_client)
-    acquired = await lock.acquire(sku, request_id)
+    lock = InventoryLock(redis_client, ttl=10)  # 10s safety TTL, released in ms
+    lock_token = str(uuid.uuid4())  # unique per acquisition
+
+    acquired = await lock.acquire(sku, lock_token)
     if not acquired:
         logger.warning(f"Could not acquire lock for SKU {sku} (request {request_id})")
         return False
 
-    # Re-check availability inside the lock
-    stmt = select(Inventory).where(Inventory.sku == sku)
-    result = await db.execute(stmt)
-    item = result.scalar_one_or_none()
+    try:
+        # Re-check availability inside the lock
+        stmt = select(Inventory).where(Inventory.sku == sku)
+        result = await db.execute(stmt)
+        item = result.scalar_one_or_none()
 
-    if item and item.available_quantity >= quantity:
+        if not item or item.available_quantity < quantity:
+            avail = item.available_quantity if item else 0
+            logger.info(
+                f"Insufficient stock for {sku}: needed {quantity}, "
+                f"available {avail} (request {request_id})"
+            )
+            return False
+
+        # Atomic DB update — reservation state lives in PostgreSQL
         item.available_quantity -= quantity
         item.reserved_quantity += quantity
         await db.commit()
         logger.info(f"Reserved {quantity}x {sku} for request {request_id}")
         return True
-
-    # Not enough stock — release the lock
-    await lock.release(sku, request_id)
-    logger.info(f"Insufficient stock for {sku}: needed {quantity}, available {item.available_quantity if item else 0}")
-    return False
+    finally:
+        # ALWAYS release the lock — even on failure
+        await lock.release(sku, lock_token)
 
 
 async def release_reservation(
@@ -121,34 +135,47 @@ async def release_reservation(
     Called when a request is rejected or fully approved (stock moves
     from reserved to allocated/shipped).
     
+    Uses a fresh short-lived Redis lock to guard the atomic DB update,
+    just like reserve_stock does.  The lock is NOT the reservation itself
+    — the reservation lives in PostgreSQL (reserved_quantity column).
+    
     Args:
         db: Async database session.
         redis_client: Redis client.
         sku: SKU to release.
-        request_id: ID of the request that held the reservation.
+        request_id: ID of the request that held the reservation (for logging).
         quantity: Number of units to release.
         
     Returns:
-        True if release succeeded.
+        True if release succeeded, False if lock contention or no stock to release.
     """
-    lock = InventoryLock(redis_client)
-    released = await lock.release(sku, request_id)
-    if not released:
-        logger.warning(f"Could not release lock for SKU {sku} (request {request_id})")
+    lock = InventoryLock(redis_client, ttl=10)
+    lock_token = str(uuid.uuid4())
+
+    acquired = await lock.acquire(sku, lock_token)
+    if not acquired:
+        logger.warning(f"Could not acquire lock for SKU {sku} to release (request {request_id})")
         return False
 
-    stmt = select(Inventory).where(Inventory.sku == sku)
-    result = await db.execute(stmt)
-    item = result.scalar_one_or_none()
+    try:
+        stmt = select(Inventory).where(Inventory.sku == sku)
+        result = await db.execute(stmt)
+        item = result.scalar_one_or_none()
 
-    if item and item.reserved_quantity >= quantity:
+        if not item or item.reserved_quantity < quantity:
+            logger.warning(
+                f"Cannot release {quantity}x {sku}: reserved_quantity is "
+                f"{item.reserved_quantity if item else 0} (request {request_id})"
+            )
+            return False
+
         item.reserved_quantity -= quantity
         item.available_quantity += quantity
         await db.commit()
         logger.info(f"Released reservation: {quantity}x {sku} for request {request_id}")
         return True
-
-    return False
+    finally:
+        await lock.release(sku, lock_token)
 
 
 async def split_backorder(

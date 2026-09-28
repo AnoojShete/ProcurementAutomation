@@ -3,6 +3,24 @@
 Newest first. Dates are 2026. Nothing below the Sep 25 merge has been
 committed yet (branch `anjali`); see TODO.md for open items.
 
+## Sep 28 — Old branches cleaned up
+
+Checked every remote branch against `anjali`. Only `first` (Aug 24) had
+something still useful: its inventory-lock fix, now ported —
+`reserve_stock` holds the Redis lock only while it updates the database
+(unique token, released in `finally`); the reservation itself lives in
+`reserved_quantity`. Before, the lock (keyed by SKU, 5-minute TTL) was
+kept after a successful reservation, so a second order for a well-stocked
+SKU looked out of stock. Regression test `test_inventory_reservation.py`.
+The rest of `first` and `combine` were August versions of files that have
+moved on; the other branches had no commits missing from `anjali`.
+
+Deleted (tip commits, restorable with `git push origin <sha>:refs/heads/<name>`
+while GitHub still has them): anooj1 7843c54, anooj2 ef8dcc2,
+combine 64e9ab2, copilot/research-procurement-agent-capabilities 0d06e67,
+demo 0d06e67, first 1d11488, main-old 14ed52e, niraj 258d175,
+niraj2 27f77a4, without_clamav 4bd5ea4. Kept: `main`, `anjali`.
+
 ## Sep 28 — Merged `withesign` (Niraj)
 
 Brought in built-in e-signing: `POST /contracts/{id}/sign` (typed or drawn

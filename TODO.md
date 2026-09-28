@@ -64,11 +64,6 @@ checked against the code on Sep 27; history is in CHANGELOG.md.
   [Vaidehi]
 
 **Approvals / inventory** [Niraj]
-- [ ] `reserve_stock` keys its Redis lock by SKU only and never releases
-  it on success; `release_inventory_lock` is imported in
-  `approval_workflow.py` but never executed. A second order for a
-  well-stocked SKU looks out of stock until the 5-minute TTL. *Why:
-  wrong stock answers under normal use.*
 - [ ] Anomaly model ranking looks wrong on the seeded data (a license at
   76 % utilisation scores anomalous). Tune before quoting savings.
 - [ ] Two different SSO log generators: the committed dataset comes from
