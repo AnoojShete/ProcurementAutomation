@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Bell, HelpCircle, Menu, Search } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, Bell, HelpCircle, Menu, Search } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { notificationsApi } from "@/api/notifications";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +17,18 @@ export function Topbar({
   onOpenSearch: () => void;
 }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [helpOpen, setHelpOpen] = useState(false);
+  // Every page except the dashboard gets a back arrow: browser-style back
+  // when there's in-app history, otherwise up one level (a link opened in a
+  // new tab still has somewhere sensible to go).
+  const isHome = pathname.replace(/\/+$/, "") === "/app";
+  const goBack = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate(pathname.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/app");
+  };
   const { data: notifications } = useApi(
     () => notificationsApi.log({ recipient: user?.email, limit: 20 }),
     [user?.email],
@@ -36,6 +47,12 @@ export function Topbar({
       >
         <Menu className="size-5" />
       </button>
+
+      {!isHome && (
+        <button onClick={goBack} className="rounded-md p-1.5 text-slate-500 hover:bg-surface-muted hover:text-slate-900" aria-label="Go back" title="Back">
+          <ArrowLeft className="size-[18px]" strokeWidth={1.75} />
+        </button>
+      )}
 
       <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
         {breadcrumb && (

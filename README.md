@@ -189,6 +189,30 @@ assignment on the Controls → Approval authority tab before they can
 approve. Everyone can change their password and sign out of all devices
 on **Account** (`/app/account`, click your name in the sidebar).
 
+### Finding your way around the app
+
+- **Every item has one home page, and its actions live there.** A request
+  (approve / reject) → `/app/requests/:id`; a contract (download, send
+  for signature, sign, signature certificate) → `/app/contracts/:id`; a
+  license (usage, anomaly reasons, reclaim, and any open reclaim request's
+  approve / reject) → `/app/licenses/:id`; a vendor (risk, bank-detail
+  verification) → `/app/vendors/:id`; a document (review) →
+  `/app/documents/:id`. Lists, dashboards and the approval inbox open
+  those pages — a license reclaim in the approval inbox opens the license
+  page, the same page the Licenses tab opens.
+- **The same action panel everywhere.** Each agent's actions are one
+  component (`frontend/src/components/approvals/ApprovalActions.tsx`,
+  `components/contracts/ContractActions.tsx`,
+  `components/vendors/PaymentChangeVerify.tsx`) that talks only to that
+  agent's API, reused wherever the item appears — so approving or signing
+  works the same from every entry point.
+- **Clickable lifecycle.** On a request, click any step of the Procurement
+  Lifecycle for its details; the Approval step has approve / reject, the
+  Contract step the contract's actions, and the Signature step opens the
+  signing dialog. `?step=approval` in the URL opens a step directly.
+- **Back arrow** at the top left of every page except the dashboard (and
+  on the signed-out pages, back to sign-in).
+
 API example:
 
 ```bash
@@ -201,18 +225,20 @@ curl -s http://localhost:8080/api/requests/ -H "Authorization: Bearer <access_to
 
 ## Testing
 
-Results from the Sep 27 audit, on a fresh clone set up with the steps
-above (separate Docker project, empty volumes):
+Service and root test counts and the e2e results are from Sep 28 (after
+merging `withesign` and the UI navigation work); the fresh-clone setup
+was verified on Sep 27 (separate Docker project, empty volumes).
 
 | Command | What | Result |
 |---|---|---|
-| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | 409 passed, 2 skipped |
+| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | 422 passed, 2 skipped |
 | root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | 116 passed |
 | `make e2e` | Bash flow through the gateway: login, ClamAV reject/accept, request → approve → contract → signed webhook → risk → email → business-rule change | 17/17 |
 | `python tests/e2e/auth_flows.py` | Sign-up → email → confirm → login → change password → logout → forgot/reset, expired / reused links, lockout, enumeration, rate limit (reads Mailpit) | 42/42 |
 | `python tests/e2e/invoice_lifecycle.py` | One fresh vendor's quote + invoice through all five agents, no DB shortcuts | 63/63 after `download-models.sh` (62/63 without it: the LayoutLMv3 check) |
 | `python -m pytest tests/e2e/test_flow.py` | Core flow + webhook bad-signature / replay | passed |
 | `python tests/e2e/document_pipeline.py [--quick]` | Normal / huge / corrupt / empty / wrong-type / pathological files, duplicates, outages | **failing** — see TODO.md P0 (invoices stuck on the invoice ledger) |
+| `python tests/e2e/ui_flows.py` | Browser (Playwright): back arrow, clickable lifecycle, approve and sign from lifecycle steps, approval-inbox routing, license page's open-request panel | 11/11 (needs `pip install playwright && python -m playwright install chromium`) |
 | `cd frontend && npm run typecheck` | TypeScript | clean |
 
 ```bash
@@ -253,9 +279,10 @@ shared/
   rules_engine/  business-rules client
   runtime_env.py APP_ENV rules
   kafka_security.py, idempotency.py, logging/, infra/, taxonomy/, live_mode/, audit/, schemas/events.md
-frontend/        React + TypeScript + Vite + Tailwind (src/pages, src/api, src/components); legacy-static/ = old version, unused
+frontend/        React + TypeScript + Vite + Tailwind: src/pages (one home page per item), src/api (one module per agent),
+                 src/components/<agent>/ (each agent's action panels); legacy-static/ = old version, unused
 infra/           nginx/nginx.conf, redpanda/ (acls.conf, bootstrap.sh), prometheus/, grafana/ (k8s/ is empty)
-tests/           root tests; e2e/ (run.sh, auth_flows.py, invoice_lifecycle.py, document_pipeline.py, test_flow.py)
+tests/           root tests; e2e/ (run.sh, auth_flows.py, invoice_lifecycle.py, document_pipeline.py, test_flow.py, ui_flows.py)
 data/            synthetic datasets + provenance READMEs
 scripts/         test-service.sh, seed-demo-data.sh, download-models.sh, ensure-docker.sh, ci-build.sh, generate_sso_logs.py
 run.sh, install.sh, Makefile, docker-compose.yml, docker-compose.override.yml, .env.example, simulate_esign.py

@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Modal } from "@/components/ui/Modal";
 import { RiskGauge } from "@/components/vendors/RiskGauge";
+import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
 import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { ApiError } from "@/api/client";
 
@@ -29,7 +30,8 @@ export function VendorDetailPage() {
   usePageHeader(vendor?.name ?? "Vendor", "Vendors");
 
   const { data: risk, reload: reloadRisk } = useApi(() => vendorsApi.risk(id!), [id]);
-  const { data: paymentChanges } = useApi(() => vendorsApi.paymentChanges(id!), [id]);
+  const { data: paymentChanges, reload: reloadPaymentChanges } = useApi(() => vendorsApi.paymentChanges(id!), [id]);
+  const [paymentMessage, setPaymentMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const { data: allRequests } = useApi(() => requestsApi.list(200), []);
   const { data: allContracts } = useApi(() => contractsApi.list(200), []);
   const { data: allDocuments } = useApi(() => documentsApi.list(200), []);
@@ -181,11 +183,25 @@ export function VendorDetailPage() {
             {(paymentChanges ?? []).length === 0 ? (
               <p className="text-sm text-slate-500">No payment detail changes on record.</p>
             ) : (
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col gap-3">
+                {paymentMessage && (paymentMessage.ok ? <InlineSuccess message={paymentMessage.text} /> : <InlineError message={paymentMessage.text} />)}
                 {paymentChanges!.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-700">Submitted by {c.submitted_by}</span>
-                    <Badge tone={c.status === "verified" ? "success" : c.status === "rejected" ? "danger" : "warning"}>{c.status}</Badge>
+                  <li key={c.id} className="flex flex-col gap-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-700">
+                        {c.new_account_last4 ? `Account …${c.new_account_last4}` : "Change"} · submitted by {c.submitted_by}
+                      </span>
+                      <Badge tone={c.status === "verified" ? "success" : c.status === "rejected" ? "danger" : "warning"}>{c.status}</Badge>
+                    </div>
+                    {c.status === "pending" && (
+                      <PaymentChangeVerify
+                        change={c}
+                        onDone={(result) => {
+                          setPaymentMessage(result);
+                          if (result.ok) reloadPaymentChanges();
+                        }}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>

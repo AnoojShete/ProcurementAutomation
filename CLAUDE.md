@@ -52,8 +52,29 @@ e2e scripts need `pip install -r tests/e2e/requirements.txt` on the host.
 There's no configured Python linter; `ruff check --select F` is a useful
 ad-hoc pass (undefined names).
 
+## Frontend conventions
+
+- **One home page per item** (request, contract, license, vendor,
+  document); its actions live there, and lists / dashboards / the inbox
+  link to it. Don't add a second place with its own copy of an action.
+- **Each agent's actions are one component** under
+  `frontend/src/components/<agent>/` (`approvals/ApprovalActions`,
+  `contracts/ContractActions`, `vendors/PaymentChangeVerify`) that calls
+  only that agent's API module; reuse it wherever the item appears.
+- Show a page's loading skeleton only on the first load
+  (`if (loading && !data)`), or a reload after an action unmounts the
+  panel and loses its confirmation.
+- The top bar's back arrow covers every page; don't add per-page "Back to…"
+  buttons.
+- Deep links: `/app/requests/:id?step=approval|contract|signature|…`,
+  `/app/contracts/:id?action=sign|send`.
+
 ## Gotchas
 
+- **`docker compose up -d --build <svc>` can remove other services**: it
+  re-runs the one-shot `redpanda-init`, and containers depending on it may
+  be removed rather than restarted. Run `docker compose up -d` (and restart
+  nginx) afterwards and check `docker compose ps`.
 - **Restart nginx after recreating any service** — it resolves upstream IPs
   once at boot, so a recreated container gets 502s until nginx restarts.
 - **Gateway rate limits** (per IP): login/register/verify/reset/change

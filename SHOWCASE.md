@@ -2,7 +2,7 @@
 
 For someone evaluating the project: what it does, what makes it
 technically solid, how to demo it, and honest answers to likely
-questions. State as of **Sep 27, 2026**. Setup and reference:
+questions. State as of **Sep 28, 2026**. Setup and reference:
 [README.md](README.md). Open items: [TODO.md](TODO.md).
 
 ## The pitch
@@ -98,15 +98,26 @@ Kafka with its own account and may only use its own topics; uploads
 virus-scanned and failing closed; published default secrets refused
 outside development; every port but the gateway bound to localhost.
 
-**Testing.** Measured on a fresh clone on Sep 27: 409 service unit tests
-+ 116 root tests; end-to-end scripts against the running system —
-`make e2e` 17/17, account flows 42/42 (reading real emails from Mailpit),
-and an invoice lifecycle through all five agents with no database
-shortcuts, 63/63 with the LayoutLMv3 model downloaded. Security fixes
+**Testing.** 422 service unit tests + 116 root tests (Sep 28; the
+fresh-clone setup was verified Sep 27); end-to-end scripts against the
+running system — `make e2e` 17/17, account flows 42/42 (reading real
+emails from Mailpit), an invoice lifecycle through all five agents with
+no database shortcuts (63/63 with the LayoutLMv3 model downloaded), and a
+browser walk-through of the navigation and lifecycle actions (11/11). Security fixes
 were checked by reverting each one and confirming a test fails. Writing
 these tests found real bugs (invoice matching never worked; approvals
 could be lost in a race; account emails and the e-sign webhook broke on a
 fresh install).
+
+**One home page per item, one action panel per agent.** A request, a
+contract, a license, a vendor and a document each have a single page
+where their actions live, and every list, dashboard and inbox opens that
+page. Each agent's actions (approve / reject; generate, send, sign;
+verify bank details) are one component that talks only to that agent's
+API and is reused wherever the item appears, so the agents stay separate
+in the UI as well as in the backend. On a request, every lifecycle step is
+clickable: completed steps show their details, and the Approval and
+Signature steps carry the real approve and sign actions.
 
 **Observability.** Prometheus metrics on every service, a provisioned
 Grafana dashboard (rates, latency, errors, Kafka lag), JSON logs, Temporal
@@ -161,13 +172,18 @@ python tests/e2e/invoice_lifecycle.py    # expect 63 passed (wait a minute after
    again to show the duplicate flag. Optional: upload the EICAR test file
    (`printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/eicar.pdf`)
    — rejected as malware.
-4. **Approver → Approval Inbox.** Approve; the status flips a moment later
-   (Temporal workflow).
-5. **Admin → Contracts.** Generate from the approved request, send for
-   signature, sign, download the signed copy.
+4. **Admin → Approvals.** Click the request: it opens with the lifecycle's
+   Approval step open. Approve there; the status flips a moment later
+   (Temporal workflow). Use the back arrow to return to the inbox.
+5. **Lifecycle.** Click the other steps to show their details. The
+   contract agent generates the contract when the approval arrives; click
+   **Signature** to sign in the platform (typed or drawn), then download
+   the signed copy and open the signature certificate.
 6. **Risk.** Recompute the vendor's risk: band and top factors.
 7. **Licenses.** 2 anomalous, 2 watch, 1 normal, about ₹3.4 lakh potential
-   annual savings; open one for SHAP reasons and the usage trend.
+   annual savings; open one for SHAP reasons and the usage trend. A license
+   with an open reclaim request shows it at the top with approve / reject —
+   the same page a reclaim opens from the approval inbox.
 8. **Admin → Business Rules** (change a tier limit, show history),
    **Users** (promote the account from step 1), **System Health**.
 9. **Mailpit, Grafana** (http://localhost:3000), **Temporal UI**

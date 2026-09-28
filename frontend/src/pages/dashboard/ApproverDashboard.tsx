@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/Badge";
 import { formatCountdown, formatCurrency, formatDate } from "@/lib/format";
 import { APPROVER_ROLES } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
+import { approvalItemPath } from "@/lib/routes";
 
 export function ApproverDashboard() {
   const { user } = useAuth();
@@ -121,7 +122,7 @@ export function ApproverDashboard() {
                 return (
                   <button
                     key={item.request_id}
-                    onClick={() => navigate(`/app/requests/${item.request_id}`)}
+                    onClick={() => navigate(approvalItemPath(item))}
                     className={`flex items-center justify-between gap-4 rounded-lg border px-4 py-3 text-left transition-colors hover:border-brand-300 ${
                       highPriority ? "border-danger-100 bg-danger-50/40" : "border-surface-border"
                     }`}

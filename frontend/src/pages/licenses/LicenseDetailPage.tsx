@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   ArrowUpRight,
   ArrowDownRight,
   Clock,
@@ -22,13 +21,17 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { UsageTrendChart } from "@/components/charts/UsageTrendChart";
+import { ApprovalActions } from "@/components/approvals/ApprovalActions";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type {
   LicenseItem,
   UsageHistoryEntry,
   ReclaimHistoryEntry,
   AnomalyStatus,
+  PurchaseRequest,
 } from "@/types/api";
+
+const OPEN_STATUSES = ["pending_grace_period", "pending_approval"];
 
 const FEATURE_LABELS: Record<string, string> = {
   active_seats_30d: "Seats active in the last 30 days",
@@ -62,6 +65,27 @@ export function LicenseDetailPage() {
   const [reviewLoading, setReviewLoading] = useState(false);
 
   usePageHeader(license ? `${license.app_name} License` : "License Detail", "Licenses");
+
+  // Open reclaim/license requests for this license. Deciding on them uses
+  // the approval agent's panel — the same one as on the request page — so
+  // the approval inbox and the Licenses tab both land here with the action.
+  const [openRequests, setOpenRequests] = useState<PurchaseRequest[]>([]);
+  const loadOpenRequests = useCallback(() => {
+    if (!id) return;
+    requestsApi
+      .list(200)
+      .then((r) =>
+        setOpenRequests(
+          r.data.filter(
+            (req) =>
+              OPEN_STATUSES.includes(req.status ?? "") &&
+              (req.items ?? []).some((item) => String(item.license_id ?? "") === id),
+          ),
+        ),
+      )
+      .catch(() => setOpenRequests([]));
+  }, [id]);
+  useEffect(loadOpenRequests, [loadOpenRequests]);
 
   useEffect(() => {
     if (!id) return;
@@ -152,6 +176,7 @@ export function LicenseDetailPage() {
 
       // Refresh reclaim history
       licensesApi.reclaimHistory(license.id).then((r) => setReclaimHistory(r.data)).catch(() => {});
+      loadOpenRequests();
     } catch (err: any) {
       alert(err.message || "Failed to initiate reclaim request");
     } finally {
@@ -183,12 +208,7 @@ export function LicenseDetailPage() {
     <div className="flex flex-col gap-6">
       {/* Top Header Card */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <button
-          onClick={() => navigate("/app/licenses")}
-          className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
-        >
-          <ArrowLeft className="size-4" /> Back to Licenses
-        </button>
+        <h2 className="text-lg font-semibold text-slate-900">{license.app_name}</h2>
         <div className="flex items-center gap-2">
           {statusBadge(license.anomaly_status, license.anomaly_score)}
           {isCooldown && (
@@ -198,6 +218,29 @@ export function LicenseDetailPage() {
           )}
         </div>
       </div>
+
+      {openRequests.map((req) => (
+        <Card key={req.id}>
+          <CardHeader
+            title={`Open ${req.request_type === "reclaim" ? "reclaim" : "license"} request`}
+            subtitle={`Raised by ${req.requested_by ?? "system"}`}
+            action={
+              <Link to={`/app/requests/${req.id}`} className="text-xs text-brand-700 hover:underline">
+                PR-{req.id.slice(0, 8)} →
+              </Link>
+            }
+          />
+          <CardBody>
+            <ApprovalActions
+              request={req}
+              onDecided={() => {
+                loadOpenRequests();
+                licensesApi.reclaimHistory(license.id).then((r) => setReclaimHistory(r.data)).catch(() => {});
+              }}
+            />
+          </CardBody>
+        </Card>
+      ))}
 
       {/* Overview Metric Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

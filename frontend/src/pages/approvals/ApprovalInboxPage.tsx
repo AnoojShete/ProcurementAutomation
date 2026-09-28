@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { APPROVER_ROLES } from "@/lib/constants";
 import { formatCountdown, formatCurrency, formatDate } from "@/lib/format";
 import type { InboxItem } from "@/types/api";
+import { approvalItemPath } from "@/lib/routes";
 
 export function ApprovalInboxPage() {
   usePageHeader("Approval Inbox");
@@ -63,7 +64,7 @@ export function ApprovalInboxPage() {
             rows={sorted}
             rowKey={(r) => r.request_id}
             loading={loading}
-            onRowClick={(r) => navigate(`/app/requests/${r.request_id}`)}
+            onRowClick={(r) => navigate(approvalItemPath(r))}
             emptyTitle="Nothing pending for this role"
             emptyDescription="Requests routed to this approver role will appear here."
           />

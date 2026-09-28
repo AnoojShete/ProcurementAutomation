@@ -71,6 +71,9 @@ checked against the code on Sep 27; history is in CHANGELOG.md.
   (5 licenses); the repo-root `scripts/generate_sso_logs.py` makes a
   different 8-license set and would break the seeded licenses if run.
   Keep one. *Why: regenerating the data silently breaks the demo.*
+- [ ] Seed or stub a demo reclaim request so the license page's approval
+  panel can be shown without creating one first; and add
+  `tests/e2e/ui_flows.py` (Playwright) to CI once tests run there.
 - [ ] Signing up doesn't create an approval-authority assignment: a user
   promoted to approver can't approve until an admin adds one on the
   Controls page. Surface this on the Users page. *Why: confusing for

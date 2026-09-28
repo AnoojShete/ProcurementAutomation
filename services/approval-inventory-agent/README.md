@@ -10,7 +10,7 @@ reclaim, the invoice ledger, and the order monitor. Owner: Niraj
 | Prefix | Routes | Notes |
 |---|---|---|
 | `/requests` | `POST /`, `GET /`, `GET /search`, `GET /{id}`, `POST /{id}/approve`, `POST /{id}/reject`, `POST /{id}/decline-reclaim`, `GET /audit` | Requesters see only their own; identity comes from the JWT. Approve/reject signal a Temporal workflow, so the status changes a moment later. |
-| `/inbox` | `GET /{approver_id}` | Takes an approver *role* from the approval chain (e.g. `dept_manager`), approver/finance/admin only. |
+| `/inbox` | `GET /{approver_id}` | Takes an approver *role* from the approval chain (e.g. `dept_manager`), approver/finance/admin only. Each item carries `license_id` for reclaim/license requests, so the UI opens the license page. |
 | `/inventory` | `GET /`, plus the license routes below | Hardware + licenses, with each license's stored anomaly score. |
 | `/licenses` | `GET /anomaly-summary`, `GET /{id}/usage-history`, `GET /{id}/reclaim-history`, `GET /{id}/usage-anomaly`, `POST /{id}/mark-reviewed` | Same handlers are also mounted under `/inventory/licenses`. |
 | `/authority` | `GET /`, `GET /check/{request_id}`, `POST/DELETE /assignments`, `POST/DELETE /delegations` | Who may approve which level, up to what amount; separation of duties. |

@@ -3,6 +3,33 @@
 Newest first. Dates are 2026. Nothing below the Sep 25 merge has been
 committed yet (branch `anjali`); see TODO.md for open items.
 
+## Sep 28 — One home page per item, clickable lifecycle, back arrow
+
+- **Back arrow** in the top bar on every page except the dashboard
+  (browser-style back, or up one level when opened directly), and on the
+  signed-out pages back to sign-in.
+- **Action panels per agent**, each talking only to its own agent's API
+  and reused wherever the item appears: `ApprovalActions` (approve /
+  reject, authority check, decision notes), `ContractActions` (generate,
+  download, send for signature, sign, certificate),
+  `PaymentChangeVerify` (dual-control bank-detail verification). The
+  request page's and contract page's own copies of this logic were
+  replaced by them.
+- **Clickable lifecycle** on the request page: every step opens its
+  details; Approval has approve / reject, Contract the contract's actions,
+  Signature opens the signing dialog. `?step=<key>` opens a step directly.
+- **Same page from every entry point**: approval-inbox rows (and the
+  approver dashboard) open a license reclaim on the license page — the
+  page the Licenses tab opens, which now shows any open reclaim request
+  with approve / reject — and other requests with the Approval step open.
+  The inbox API returns `license_id` for that. The vendor page can now
+  verify its pending bank-detail changes, like Controls → Payment
+  protection. `?action=sign|send` on a contract opens that dialog.
+- Fixed while testing it: a decision's confirmation disappeared because
+  the request and contract pages swapped in their loading skeleton on
+  every reload; they now show it on the first load only.
+- `tests/e2e/ui_flows.py`: a Playwright walk-through of these flows, 11/11.
+
 ## Sep 28 — Old branches cleaned up
 
 Checked every remote branch against `anjali`. Only `first` (Aug 24) had

@@ -91,6 +91,8 @@ export interface InboxItem {
   spend_tier: string;
   sla_deadline: string | null;
   created_at: string | null;
+  /** Set for reclaim/license requests: the license they concern. */
+  license_id?: string | null;
 }
 
 export interface InventoryItem {

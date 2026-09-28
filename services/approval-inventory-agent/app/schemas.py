@@ -93,6 +93,7 @@ class InboxItemResponse(BaseModel):
     spend_tier: str
     sla_deadline: Optional[str]
     created_at: Optional[str]
+    license_id: Optional[str] = None
 
 
 # --- Anomaly factor schema (matches risk.score.updated top_factors shape) ---

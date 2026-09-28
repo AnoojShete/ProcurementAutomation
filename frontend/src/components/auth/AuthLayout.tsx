@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 /** Frame for the signed-out pages (sign in, sign up, password reset…). */
 export function AuthLayout({
@@ -12,7 +13,15 @@ export function AuthLayout({
   footer?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col items-center bg-surface-subtle px-4 pt-16 pb-10 sm:pt-24">
+    <div className="relative flex min-h-screen flex-col items-center bg-surface-subtle px-4 pt-16 pb-10 sm:pt-24">
+      <Link
+        to="/login"
+        aria-label="Back to sign in"
+        title="Back to sign in"
+        className="absolute left-4 top-4 rounded-md p-1.5 text-slate-500 hover:bg-surface-muted hover:text-slate-900"
+      >
+        <ArrowLeft className="size-5" strokeWidth={1.75} />
+      </Link>
       <div className="mb-6 flex items-center gap-2.5">
         <div className="flex size-8 items-center justify-center rounded bg-slate-900 text-xs font-bold text-white">
           PI

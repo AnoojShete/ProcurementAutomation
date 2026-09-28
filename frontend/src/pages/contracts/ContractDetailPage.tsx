@@ -1,91 +1,28 @@
-import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { CheckCircle2, Clock, Download, FileCheck2, FileSignature, ShieldCheck } from "lucide-react";
+import { useMemo } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { CheckCircle2, Clock } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
-import { useAuth } from "@/hooks/useAuth";
 import { contractsApi } from "@/api/contracts";
 import { vendorsApi } from "@/api/vendors";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ContractStatusBadge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { DigitalSignatureModal } from "@/components/contracts/DigitalSignatureModal";
-import { SignatureCertificateModal } from "@/components/contracts/SignatureCertificateModal";
-import { ErrorState, InlineError, InlineSuccess } from "@/components/ui/ErrorState";
+import { ContractActions, isDocumensoLive } from "@/components/contracts/ContractActions";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
 import { CONTRACT_RENEWAL_ALERT_DAYS } from "@/lib/constants";
-import { ApiError } from "@/api/client";
 
-type Provider = "builtin" | "documenso" | "docusign";
-
-const PROVIDERS: [Provider, string, string][] = [
-  ["builtin", "Built-in e-sign", "Sign inside the platform: typed or drawn signature, consent, and a SHA-256 seal in the audit log."],
-  ["documenso", "Documenso", "Self-hosted e-signature. Emails the signer a signing link when a Documenso instance is configured."],
-  ["docusign", "DocuSign (sandbox)", "Demo only. Nothing is sent; completion is simulated."],
-];
-
+/** The contract agent's page for one contract. Its actions come from
+ * ContractActions, the same panel the request page uses. */
 export function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const [params] = useSearchParams();
   const { data: contract, loading, error, reload } = useApi(() => contractsApi.get(id!), [id]);
   usePageHeader(contract ? `Contract ${contract.id.slice(0, 8)}` : "Contract", "Contracts");
   const { data: vendors } = useApi(() => vendorsApi.list(200), []);
   const vendor = vendors?.find((v) => v.id === contract?.vendor_id);
-
-  const [sending, setSending] = useState(false);
-  const [signError, setSignError] = useState<string | null>(null);
-  const [signSuccess, setSignSuccess] = useState<string | null>(null);
-
-  const [isSignModalOpen, setIsSignModalOpen] = useState(false);
-  const [isDigitalSignModalOpen, setIsDigitalSignModalOpen] = useState(false);
-  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
-
-  const [selectedProvider, setSelectedProvider] = useState<Provider>("builtin");
-  const [signerEmail, setSignerEmail] = useState("");
-
-  const canAct = user?.role === "approver" || user?.role === "finance" || user?.role === "admin";
-
-  const handleOpenSendModal = () => {
-    setSignerEmail(user?.email ?? "");
-    setIsSignModalOpen(true);
-  };
-
-  const handleSendForSignature = async () => {
-    if (!contract) return;
-    setSending(true);
-    setSignError(null);
-    try {
-      await contractsApi.sendForSignature(contract.id, signerEmail || undefined, selectedProvider);
-      setIsSignModalOpen(false);
-      setSignSuccess(
-        selectedProvider === "builtin"
-          ? "Ready to sign. Use “Sign now” to sign it in the platform."
-          : `Sent to ${signerEmail} for signature.`,
-      );
-      reload();
-    } catch (e) {
-      setSignError(e instanceof ApiError ? e.message : "Unable to send for signature.");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const [downloading, setDownloading] = useState<"document" | "signed" | null>(null);
-  const download = async (kind: "document" | "signed") => {
-    if (!contract) return;
-    setDownloading(kind);
-    setSignError(null);
-    try {
-      if (kind === "signed") await contractsApi.downloadSigned(contract.id);
-      else await contractsApi.downloadDocument(contract.id);
-    } catch (e) {
-      setSignError(e instanceof ApiError ? e.message : "Download failed.");
-    } finally {
-      setDownloading(null);
-    }
-  };
+  const action = params.get("action");
 
   const renewalMilestones = useMemo(() => {
     if (!contract?.contract_end_date || !contract.notice_period_days) return [];
@@ -97,16 +34,11 @@ export function ContractDetailPage() {
     });
   }, [contract]);
 
-  if (loading) return <Skeleton className="h-96" />;
+  if (loading && !contract) return <Skeleton className="h-96" />;
   if (error || !contract) return <ErrorState message={error ?? "Contract not found."} onRetry={reload} />;
 
   const ref = contract.esign_provider_ref ?? "";
-  const isDocumensoLive = ref.startsWith("documenso-doc-");
   const providerName = ref.startsWith("docusign") ? "DocuSign (sandbox)" : ref.startsWith("builtin") ? "the built-in e-sign" : "Documenso";
-  // Built-in signing is available until a live Documenso document is out
-  // for signature (then Documenso's webhook completes it).
-  const canSignHere = canAct && (contract.status === "draft" || (contract.status === "pending_signature" && !isDocumensoLive));
-  const certificate = contract.signature_certificate;
 
   return (
     <div className="flex flex-col gap-4">
@@ -119,41 +51,18 @@ export function ContractDetailPage() {
             <ContractStatusBadge status={contract.status} />
           </div>
           <p className="mt-0.5 font-mono text-xs text-slate-500">{contract.id}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            icon={<Download className="size-4" />}
-            loading={downloading === "document"}
-            onClick={() => download("document")}
-          >
-            {contract.status === "signed" ? "Original PDF" : "Download PDF"}
-          </Button>
-          {contract.status === "signed" && (
-            <Button icon={<FileCheck2 className="size-4" />} loading={downloading === "signed"} onClick={() => download("signed")}>
-              Download signed copy
-            </Button>
-          )}
-          {contract.status === "signed" && certificate && (
-            <Button variant="secondary" icon={<ShieldCheck className="size-4" />} onClick={() => setIsCertModalOpen(true)}>
-              Signature certificate
-            </Button>
-          )}
-          {canAct && contract.status === "draft" && (
-            <Button variant="secondary" onClick={handleOpenSendModal}>
-              Send for signature
-            </Button>
-          )}
-          {canSignHere && (
-            <Button icon={<FileSignature className="size-4" />} onClick={() => setIsDigitalSignModalOpen(true)}>
-              Sign now
-            </Button>
+          {contract.purchase_request_id && (
+            <Link to={`/app/requests/${contract.purchase_request_id}`} className="text-xs text-brand-700 hover:underline">
+              From request PR-{contract.purchase_request_id.slice(0, 8)} →
+            </Link>
           )}
         </div>
+        <ContractActions
+          contract={contract}
+          onChanged={reload}
+          autoOpen={action === "sign" || action === "send" ? action : undefined}
+        />
       </div>
-
-      {signError && <InlineError message={signError} />}
-      {signSuccess && <InlineSuccess message={signSuccess} />}
 
       {contract.status === "pending_signature" && (
         <div className="flex items-start gap-2 rounded-md border border-warning-500/40 bg-warning-50 px-4 py-2.5 text-13 text-slate-800">
@@ -161,7 +70,7 @@ export function ContractDetailPage() {
           <span>
             Waiting for the signer in {providerName}
             {ref && <span className="ml-1 font-mono text-xs text-slate-500">({ref})</span>}.{" "}
-            {isDocumensoLive
+            {isDocumensoLive(contract)
               ? "The contract updates automatically when Documenso reports it completed."
               : "Use “Sign now” to sign it in the platform."}
           </span>
@@ -177,82 +86,6 @@ export function ContractDetailPage() {
             signing audit trail.
           </span>
         </div>
-      )}
-
-      <Modal
-        open={isSignModalOpen}
-        onClose={() => setIsSignModalOpen(false)}
-        title="Send for signature"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setIsSignModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button loading={sending} onClick={handleSendForSignature} disabled={!signerEmail}>
-              Send
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-4 text-sm">
-          <div>
-            <label htmlFor="signer-email" className="mb-1 block font-medium text-slate-800">
-              Signer email
-            </label>
-            <input
-              id="signer-email"
-              type="email"
-              value={signerEmail}
-              onChange={(e) => setSignerEmail(e.target.value)}
-              placeholder="signer@company.com"
-              className="field"
-            />
-          </div>
-          <fieldset>
-            <legend className="mb-1 font-medium text-slate-800">Provider</legend>
-            <div className="divide-y divide-surface-border rounded-md border border-surface-border">
-              {PROVIDERS.map(([value, name, desc]) => (
-                <label key={value} className="flex cursor-pointer items-start gap-2.5 px-3 py-2.5 hover:bg-surface-subtle">
-                  <input
-                    type="radio"
-                    name="provider"
-                    value={value}
-                    checked={selectedProvider === value}
-                    onChange={() => setSelectedProvider(value)}
-                    className="mt-0.5 accent-brand-500"
-                  />
-                  <span>
-                    <span className="block font-medium text-slate-900">{name}</span>
-                    <span className="block text-xs text-slate-500">{desc}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <p className="text-xs text-slate-500">The signer receives the contract as a PDF, the same file as “Download PDF”.</p>
-        </div>
-      </Modal>
-
-      <DigitalSignatureModal
-        open={isDigitalSignModalOpen}
-        onClose={() => setIsDigitalSignModalOpen(false)}
-        contract={contract}
-        defaultSignerEmail={user?.email ?? ""}
-        defaultSignerName={user?.email?.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ?? ""}
-        onSuccess={() => {
-          setIsDigitalSignModalOpen(false);
-          setSignSuccess("Contract signed. The signed copy and signature certificate are ready.");
-          reload();
-        }}
-      />
-
-      {certificate && (
-        <SignatureCertificateModal
-          open={isCertModalOpen}
-          onClose={() => setIsCertModalOpen(false)}
-          contract={contract}
-          certificate={certificate}
-        />
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

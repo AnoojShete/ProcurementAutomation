@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, ShieldAlert, X } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { ledgerApi, paymentControlsApi } from "@/api/controls";
 import { documentsApi } from "@/api/documents";
-import { vendorsApi } from "@/api/vendors";
 import { ApiError } from "@/api/client";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -14,11 +13,11 @@ import { formatCurrency, formatRelativeTime } from "@/lib/format";
 import type { DocumentRecord, LookalikeScenario } from "@/types/api";
 import { Explainer } from "./Explainer";
 import { DocumentControls } from "./DocumentControls";
+import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
 
 export function PaymentPanel({ showcase }: { showcase: boolean }) {
   const { data: pending, reload: reloadPending } = useApi(() => paymentControlsApi.pending(), []);
   const { data: held, reload: reloadHeld } = useApi(() => ledgerApi.matches({ held: true }), []);
-  const [channel, setChannel] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [scenario, setScenario] = useState<LookalikeScenario | null>(null);
@@ -54,20 +53,6 @@ export function PaymentPanel({ showcase }: { showcase: boolean }) {
     return () => clearInterval(t);
   }, [scenario, scenarioDoc, reloadPending, reloadHeld]);
 
-  const decide = (vendorId: string, changeId: string, approve: boolean) =>
-    run(`${changeId}-${approve}`, async () => {
-      const res = await vendorsApi.verifyPaymentChange(vendorId, changeId, channel[changeId] ?? "", approve);
-      const released = (res.meta as { payment_holds_released?: number } | undefined)?.payment_holds_released ?? 0;
-      setMessage({
-        ok: true,
-        text: approve
-          ? `Bank details verified.${released ? ` ${released} held invoice(s) released for payment.` : ""}`
-          : "Change rejected — the vendor's previous bank details stay in force.",
-      });
-      reloadPending();
-      reloadHeld();
-    });
-
   return (
     <div className="flex flex-col gap-4">
       <Explainer
@@ -100,20 +85,16 @@ export function PaymentPanel({ showcase }: { showcase: boolean }) {
                       from {c.submitted_by} · {c.submitted_at ? formatRelativeTime(c.submitted_at) : ""}
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={channel[c.id] ?? ""}
-                      onChange={(e) => setChannel((p) => ({ ...p, [c.id]: e.target.value }))}
-                      placeholder="How verified, e.g. called +91 80 4000 1234 (on file)"
-                      className="field w-80"
-                    />
-                    <Button size="sm" icon={<Check className="size-3.5" />} disabled={!channel[c.id]} loading={busy === `${c.id}-true`} onClick={() => decide(c.vendor_id, c.id, true)}>
-                      Verify
-                    </Button>
-                    <Button size="sm" variant="secondary" icon={<X className="size-3.5" />} disabled={!channel[c.id]} loading={busy === `${c.id}-false`} onClick={() => decide(c.vendor_id, c.id, false)}>
-                      Reject
-                    </Button>
-                  </div>
+                  <PaymentChangeVerify
+                    change={c}
+                    onDone={(result) => {
+                      setMessage(result);
+                      if (result.ok) {
+                        reloadPending();
+                        reloadHeld();
+                      }
+                    }}
+                  />
                 </li>
               ))}
             </ul>
