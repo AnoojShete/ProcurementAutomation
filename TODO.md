@@ -156,6 +156,10 @@ checked against the code on Sep 27; history is in CHANGELOG.md.
   sanctions screening (OFAC / OpenSanctions), and validating clause
   extraction against CUAD — the "future scope" items; all current risk
   data is synthetic.
+- [ ] Built-in e-sign seal is an unkeyed SHA-256 (tamper-evident only if
+  the audit log is trusted); sign it with a server key (HMAC) if it has to
+  stand on its own. The certificate also stores the drawn signature image
+  in the audit row.
 - [ ] Grafana: an approval SLA-breach panel needs a counter in
   approval-inventory-agent.
 

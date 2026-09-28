@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, Clock, Download, FileCheck2, FileSignature } from "lucide-react";
+import { CheckCircle2, Clock, Download, FileCheck2, FileSignature, ShieldCheck } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,11 +10,21 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ContractStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { DigitalSignatureModal } from "@/components/contracts/DigitalSignatureModal";
+import { SignatureCertificateModal } from "@/components/contracts/SignatureCertificateModal";
 import { ErrorState, InlineError, InlineSuccess } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
 import { CONTRACT_RENEWAL_ALERT_DAYS } from "@/lib/constants";
 import { ApiError } from "@/api/client";
+
+type Provider = "builtin" | "documenso" | "docusign";
+
+const PROVIDERS: [Provider, string, string][] = [
+  ["builtin", "Built-in e-sign", "Sign inside the platform: typed or drawn signature, consent, and a SHA-256 seal in the audit log."],
+  ["documenso", "Documenso", "Self-hosted e-signature. Emails the signer a signing link when a Documenso instance is configured."],
+  ["docusign", "DocuSign (sandbox)", "Demo only. Nothing is sent; completion is simulated."],
+];
 
 export function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,18 +35,20 @@ export function ContractDetailPage() {
   const vendor = vendors?.find((v) => v.id === contract?.vendor_id);
 
   const [sending, setSending] = useState(false);
-  const [simulating, setSimulating] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const [signSuccess, setSignSuccess] = useState<string | null>(null);
 
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<"documenso" | "docusign">("documenso");
+  const [isDigitalSignModalOpen, setIsDigitalSignModalOpen] = useState(false);
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+
+  const [selectedProvider, setSelectedProvider] = useState<Provider>("builtin");
   const [signerEmail, setSignerEmail] = useState("");
 
   const canAct = user?.role === "approver" || user?.role === "finance" || user?.role === "admin";
 
-  const handleOpenSignModal = () => {
-    setSignerEmail(user?.email || "authorized_signer@company.com");
+  const handleOpenSendModal = () => {
+    setSignerEmail(user?.email ?? "");
     setIsSignModalOpen(true);
   };
 
@@ -47,27 +59,16 @@ export function ContractDetailPage() {
     try {
       await contractsApi.sendForSignature(contract.id, signerEmail || undefined, selectedProvider);
       setIsSignModalOpen(false);
-      setSignSuccess(`Sent to ${signerEmail} for signature.`);
+      setSignSuccess(
+        selectedProvider === "builtin"
+          ? "Ready to sign. Use “Sign now” to sign it in the platform."
+          : `Sent to ${signerEmail} for signature.`,
+      );
       reload();
     } catch (e) {
       setSignError(e instanceof ApiError ? e.message : "Unable to send for signature.");
     } finally {
       setSending(false);
-    }
-  };
-
-  const handleSimulateSign = async () => {
-    if (!contract) return;
-    setSimulating(true);
-    setSignError(null);
-    try {
-      await contractsApi.simulateSign(contract.id);
-      setSignSuccess("Contract signed. The signed copy is ready to download.");
-      reload();
-    } catch (e) {
-      setSignError(e instanceof ApiError ? e.message : "Unable to simulate signing.");
-    } finally {
-      setSimulating(false);
     }
   };
 
@@ -89,8 +90,6 @@ export function ContractDetailPage() {
   const renewalMilestones = useMemo(() => {
     if (!contract?.contract_end_date || !contract.notice_period_days) return [];
     const end = new Date(contract.contract_end_date);
-    const noticeStart = new Date(end);
-    noticeStart.setDate(noticeStart.getDate() - contract.notice_period_days);
     return CONTRACT_RENEWAL_ALERT_DAYS.map((days) => {
       const date = new Date(end);
       date.setDate(date.getDate() - days);
@@ -101,8 +100,13 @@ export function ContractDetailPage() {
   if (loading) return <Skeleton className="h-96" />;
   if (error || !contract) return <ErrorState message={error ?? "Contract not found."} onRetry={reload} />;
 
-  const isDocumensoLive = contract.esign_provider_ref?.startsWith("documenso-doc-");
-  const providerName = contract.esign_provider_ref?.startsWith("docusign") ? "DocuSign (sandbox)" : "Documenso";
+  const ref = contract.esign_provider_ref ?? "";
+  const isDocumensoLive = ref.startsWith("documenso-doc-");
+  const providerName = ref.startsWith("docusign") ? "DocuSign (sandbox)" : ref.startsWith("builtin") ? "the built-in e-sign" : "Documenso";
+  // Built-in signing is available until a live Documenso document is out
+  // for signature (then Documenso's webhook completes it).
+  const canSignHere = canAct && (contract.status === "draft" || (contract.status === "pending_signature" && !isDocumensoLive));
+  const certificate = contract.signature_certificate;
 
   return (
     <div className="flex flex-col gap-4">
@@ -130,9 +134,19 @@ export function ContractDetailPage() {
               Download signed copy
             </Button>
           )}
+          {contract.status === "signed" && certificate && (
+            <Button variant="secondary" icon={<ShieldCheck className="size-4" />} onClick={() => setIsCertModalOpen(true)}>
+              Signature certificate
+            </Button>
+          )}
           {canAct && contract.status === "draft" && (
-            <Button icon={<FileSignature className="size-4" />} onClick={handleOpenSignModal}>
+            <Button variant="secondary" onClick={handleOpenSendModal}>
               Send for signature
+            </Button>
+          )}
+          {canSignHere && (
+            <Button icon={<FileSignature className="size-4" />} onClick={() => setIsDigitalSignModalOpen(true)}>
+              Sign now
             </Button>
           )}
         </div>
@@ -142,25 +156,15 @@ export function ContractDetailPage() {
       {signSuccess && <InlineSuccess message={signSuccess} />}
 
       {contract.status === "pending_signature" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning-500/40 bg-warning-50 px-4 py-2.5 text-13 text-slate-800">
-          <div className="flex items-start gap-2">
-            <Clock className="mt-0.5 size-4 shrink-0 text-warning-600" />
-            <span>
-              Waiting for the signer in {providerName}
-              {contract.esign_provider_ref && (
-                <span className="ml-1 font-mono text-xs text-slate-500">({contract.esign_provider_ref})</span>
-              )}
-              .{" "}
-              {isDocumensoLive
-                ? "The contract updates automatically when Documenso reports it completed."
-                : "No live provider is configured, so signing is simulated in this environment."}
-            </span>
-          </div>
-          {canAct && !isDocumensoLive && (
-            <Button size="sm" variant="secondary" loading={simulating} onClick={handleSimulateSign}>
-              Simulate signature
-            </Button>
-          )}
+        <div className="flex items-start gap-2 rounded-md border border-warning-500/40 bg-warning-50 px-4 py-2.5 text-13 text-slate-800">
+          <Clock className="mt-0.5 size-4 shrink-0 text-warning-600" />
+          <span>
+            Waiting for the signer in {providerName}
+            {ref && <span className="ml-1 font-mono text-xs text-slate-500">({ref})</span>}.{" "}
+            {isDocumensoLive
+              ? "The contract updates automatically when Documenso reports it completed."
+              : "Use “Sign now” to sign it in the platform."}
+          </span>
         </div>
       )}
 
@@ -207,12 +211,7 @@ export function ContractDetailPage() {
           <fieldset>
             <legend className="mb-1 font-medium text-slate-800">Provider</legend>
             <div className="divide-y divide-surface-border rounded-md border border-surface-border">
-              {(
-                [
-                  ["documenso", "Documenso", "Self-hosted e-signature. Emails the signer a signing link when a Documenso instance is configured."],
-                  ["docusign", "DocuSign (sandbox)", "Demo only. Nothing is sent; completion is simulated."],
-                ] as const
-              ).map(([value, name, desc]) => (
+              {PROVIDERS.map(([value, name, desc]) => (
                 <label key={value} className="flex cursor-pointer items-start gap-2.5 px-3 py-2.5 hover:bg-surface-subtle">
                   <input
                     type="radio"
@@ -233,6 +232,28 @@ export function ContractDetailPage() {
           <p className="text-xs text-slate-500">The signer receives the contract as a PDF, the same file as “Download PDF”.</p>
         </div>
       </Modal>
+
+      <DigitalSignatureModal
+        open={isDigitalSignModalOpen}
+        onClose={() => setIsDigitalSignModalOpen(false)}
+        contract={contract}
+        defaultSignerEmail={user?.email ?? ""}
+        defaultSignerName={user?.email?.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ?? ""}
+        onSuccess={() => {
+          setIsDigitalSignModalOpen(false);
+          setSignSuccess("Contract signed. The signed copy and signature certificate are ready.");
+          reload();
+        }}
+      />
+
+      {certificate && (
+        <SignatureCertificateModal
+          open={isCertModalOpen}
+          onClose={() => setIsCertModalOpen(false)}
+          contract={contract}
+          certificate={certificate}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>

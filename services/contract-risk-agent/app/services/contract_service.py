@@ -1,3 +1,4 @@
+import hashlib
 import os
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -11,7 +12,7 @@ from app.config import load_config
 from app.models import AuditLog, Contract, PurchaseRequest, Vendor
 from app.services.clause_extraction import extract_clauses
 from app.services.contract_pdf import AuditEntry, ContractPdfInput, _title_case, render_contract_pdf
-from app.services.esign_client import EsignProviderError, download_signed_pdf, request_signature
+from app.services.esign_client import EsignProviderError, documenso_document_id, download_signed_pdf, request_signature
 from app.services.audit import write_audit_log
 from app.services.temporal_client import start_renewal_workflow
 from app.metrics import contract_generation_total
@@ -207,6 +208,88 @@ async def sign_contract_simulated(db: AsyncSession, kafka_producer, contract_id:
     return contract
 
 
+async def sign_contract_digitally(
+    db: AsyncSession,
+    kafka_producer,
+    contract_id: str,
+    signer_name: str,
+    signer_email: str,
+    signature_data: Optional[str] = None,
+    legal_consent: bool = False,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> tuple[Contract, dict]:
+    """Built-in e-sign: the signed-in user signs inside the platform.
+
+    signer_email must be the caller's authenticated identity (the API passes
+    the JWT email). The certificate records who signed, when, from where, the
+    consent, the drawn/typed signature, and a SHA-256 over the contract text
+    and those details — so any later change to the text or the record is
+    detectable by recomputing it. It is an unkeyed hash, not a cryptographic
+    signature: it proves integrity only as far as the audit log is trusted."""
+    contract = await db.get(Contract, contract_id)
+    if contract is None:
+        raise ContractGenerationError(f"contract {contract_id} not found")
+    if not legal_consent:
+        raise ContractGenerationError("Consent to sign electronically is required.")
+    if contract.status == "signed":
+        cert = await get_signature_certificate(db, contract_id)
+        return contract, cert or {}
+    if contract.status not in ("draft", "pending_signature"):
+        raise ContractGenerationError(f"contract {contract_id} can't be signed in status {contract.status!r}")
+    if documenso_document_id(contract.esign_provider_ref):
+        raise ContractGenerationError("this contract is out for signature in Documenso; it completes there")
+
+    now = datetime.now(timezone.utc)
+    payload_to_seal = f"{contract_id}|{contract.contract_text or ''}|{signer_name}|{signer_email}|{now.isoformat()}|{signature_data or ''}"
+    sha256_seal = hashlib.sha256(payload_to_seal.encode("utf-8")).hexdigest()
+
+    contract.status = "signed"
+    contract.signed_at = now
+    contract.signed_by = f"{signer_name} <{signer_email}>"
+    contract.esign_provider_ref = f"builtin-seal-{sha256_seal[:16]}"
+    contract.updated_at = now
+
+    certificate = {
+        "certificate_id": str(uuid.uuid4()),
+        "contract_id": contract_id,
+        "template_used": contract.template,
+        "signer_name": signer_name,
+        "signer_email": signer_email,
+        "signed_at": now.isoformat(),
+        "signature_seal": sha256_seal,
+        "legal_framework": "ESIGN Act (15 U.S.C. § 7001) / UETA",
+        "consent_acknowledged": True,
+        "ip_address": ip_address,
+        "user_agent": user_agent,
+        "signature_image": signature_data,
+    }
+    await write_audit_log(db, "contract", contract_id, "digitally_signed", certificate)
+    # Same transaction as the status change (shared/eventing/outbox.py).
+    outbox = staged(kafka_producer, db)
+    if outbox is not None:
+        await outbox.publish_contract_signed(contract)
+    await db.commit()
+    await db.refresh(contract)
+    return contract, certificate
+
+
+async def get_signature_certificate(db: AsyncSession, contract_id: str) -> Optional[dict]:
+    """The built-in e-sign certificate from the audit log, or None when the
+    contract wasn't signed with the built-in e-sign (Documenso's and the
+    webhook's own records are in the signed copy's certificate of completion)."""
+    result = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.entity_id == contract_id, AuditLog.action == "digitally_signed")
+        .order_by(AuditLog.created_at.desc())
+        .limit(1)
+    )
+    log_entry = result.scalars().first()
+    if log_entry and isinstance(log_entry.payload, dict):
+        return log_entry.payload
+    return None
+
+
 async def get_contract(db: AsyncSession, contract_id: str) -> Optional[Contract]:
     return await db.get(Contract, contract_id)
 
@@ -261,6 +344,8 @@ def _audit_detail(action: str, payload: dict) -> str:
     if action == "sent_for_signature":
         who = payload.get("signer_email") or "signer"
         return f"Sent to {who} via {str(payload.get('provider') or 'provider').title()}"
+    if action == "digitally_signed":
+        return f"Signed in the platform by {payload.get('signer_name', 'signer')} <{payload.get('signer_email', '')}>, seal {str(payload.get('signature_seal', ''))[:16]}"
     if action.startswith("signed"):
         detail = f"Signed by {payload.get('signed_by', 'signer')}"
         return detail + (" (simulated)" if payload.get("simulated") else "")

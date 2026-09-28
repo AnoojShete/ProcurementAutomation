@@ -1,5 +1,5 @@
 from typing import Optional, List, Literal, Dict, Any
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, Field
 
 
 # --- Standard response wrappers ---
@@ -28,6 +28,31 @@ class SendForSignatureRequest(BaseModel):
     provider: Optional[str] = "documenso"
 
 
+class SignContractRequest(BaseModel):
+    """Built-in e-sign. The signer is the signed-in account (JWT);
+    signer_email is accepted for older clients but ignored."""
+    signer_name: str = Field(min_length=1, max_length=200)
+    signer_email: Optional[str] = None
+    # A drawn signature as a data: URL (PNG); capped so the audit row stays small.
+    signature_data: Optional[str] = Field(default=None, max_length=300_000)
+    legal_consent: bool = False
+
+
+class SignatureCertificate(BaseModel):
+    certificate_id: str
+    contract_id: str
+    template_used: Optional[str] = None
+    signer_name: str
+    signer_email: str
+    signed_at: str
+    signature_seal: str
+    legal_framework: str
+    consent_acknowledged: bool = True
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    signature_image: Optional[str] = None
+
+
 class ContractResponse(BaseModel):
     id: str
     purchase_request_id: Optional[str]
@@ -43,6 +68,8 @@ class ContractResponse(BaseModel):
     signed_by: Optional[str]
     esign_provider_ref: Optional[str]
     reconciliation_status: Optional[str]
+    contract_text: Optional[str] = None
+    signature_certificate: Optional[SignatureCertificate] = None
 
 
 # --- Risk ---

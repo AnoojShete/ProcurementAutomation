@@ -12,6 +12,17 @@ export const contractsApi = {
   downloadDocument: (id: string) => downloadFile(`/contracts/${id}/document`, `contract-${id.slice(0, 8)}.pdf`),
   downloadSigned: (id: string) =>
     downloadFile(`/contracts/${id}/signed-document`, `contract-${id.slice(0, 8)}-signed.pdf`),
+  signContract: (
+    id: string,
+    data: {
+      signer_name: string;
+      signer_email: string;
+      signature_data?: string;
+      legal_consent: boolean;
+    }
+  ) => api.post<Contract>(`/contracts/${id}/sign`, data),
+  getCertificate: (id: string) =>
+    api.get<Record<string, unknown>>(`/contracts/${id}/signature-certificate`),
   simulateSign: (id: string) =>
     api.post<Contract>(`/contracts/${id}/sign-simulated`, {}),
 };

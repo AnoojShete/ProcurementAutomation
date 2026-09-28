@@ -338,9 +338,16 @@ wrapped with the retry / dead-letter handler (TODO.md).
   anomalous licenses get a reclaim request with a grace period
   (`services/approval-inventory-agent/README.md`).
 - **Contracts**: Jinja2 templates → text + PDF; clause extraction on the
-  generated text; e-sign via the HMAC-signed, replay-protected
-  `POST /api/webhooks/esign`, or Documenso when configured (the Documenso
-  client is tested against mocked HTTP only); signed copy download.
+  generated text; three ways to sign: **built-in e-sign** (an
+  approver/finance/admin signs in the app — typed or drawn signature,
+  consent, and a SHA-256 seal of the contract and signer details in the
+  audit log, viewable as a signature certificate; the signer is always the
+  signed-in account), the HMAC-signed, replay-protected
+  `POST /api/webhooks/esign`, or Documenso when configured (its callbacks
+  go to `/api/webhooks/documenso`, which checks Documenso's secret; the
+  client is tested against mocked HTTP only); signed copy download. The
+  seal is an unkeyed hash: it shows tampering only as far as the audit log
+  itself is trusted.
   Renewal reminders via a Temporal workflow (they currently count from the
   end date, not the notice deadline).
 - **Vendor risk**: RandomForest on a synthetic dataset, logged to MLflow,

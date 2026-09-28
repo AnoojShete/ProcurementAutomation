@@ -114,11 +114,12 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         for stage, duration_ms in stage_durations_ms.items():
             document_pipeline_stage_duration_seconds.labels(stage=stage).observe(duration_ms / 1000)
 
-        fields = envelope["extracted_fields"]
-        vendor = await db.get(Vendor, envelope["vendor_id"]) if envelope["vendor_id"] else None
+        fields = envelope.get("extracted_fields", {})
+        vendor_id = envelope.get("vendor_id")
+        vendor = await db.get(Vendor, vendor_id) if vendor_id else None
 
-        doc.document_type = envelope["document_type"]
-        doc.vendor_id = envelope["vendor_id"]
+        doc.document_type = envelope.get("document_type", "invoice")
+        doc.vendor_id = vendor_id
         doc.vendor_name_raw = fields.get("vendor_name_raw")
         doc.document_number = fields.get("document_number")
         doc.document_date = _safe_date(fields.get("document_date"))
@@ -142,9 +143,9 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
 
         doc.extracted = extracted_data
         doc.raw_text = envelope.get("raw_text")
-        doc.confidence = envelope["confidence_scores"]
-        doc.overall_confidence = envelope["overall_confidence"]
-        doc.needs_review = envelope["needs_review"]
+        doc.confidence = envelope.get("confidence_scores", {})
+        doc.overall_confidence = envelope.get("overall_confidence", 0.0)
+        doc.needs_review = bool(envelope.get("needs_review", False))
         doc.is_likely_duplicate = bool(envelope.get("is_duplicate"))
         doc.duplicate_of_document_id = envelope.get("duplicate_of_document_id")
         doc.status = "classified"
@@ -176,14 +177,18 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
                 )
         await db.commit()
 
-        await checkpoint_service.write_checkpoints(
-            db, doc.id, envelope.get("_agent_trail", []), stage_durations_ms
-        )
-        await db.commit()
+        try:
+            await checkpoint_service.write_checkpoints(
+                db, doc.id, envelope.get("_agent_trail", []), stage_durations_ms
+            )
+            await db.commit()
+        except Exception as cp_err:
+            logger.warning(f"Failed to persist pipeline checkpoints non-fatally: {cp_err}")
+            await db.rollback()
 
         document_processing_total.labels(status="classified").inc()
-        extraction_confidence.observe(envelope["overall_confidence"])
-        vendor_matching_total.labels(match_type=envelope["vendor_match_type"]).inc()
+        extraction_confidence.observe(float(doc.overall_confidence) if doc.overall_confidence is not None else 0.0)
+        vendor_matching_total.labels(match_type=envelope.get("vendor_match_type", "unknown")).inc()
 
         return doc
 

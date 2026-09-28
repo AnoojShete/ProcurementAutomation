@@ -3,6 +3,45 @@
 Newest first. Dates are 2026. Nothing below the Sep 25 merge has been
 committed yet (branch `anjali`); see TODO.md for open items.
 
+## Sep 28 — Merged `withesign` (Niraj)
+
+Brought in built-in e-signing: `POST /contracts/{id}/sign` (typed or drawn
+signature, consent, SHA-256 seal stored in the audit log),
+`GET /contracts/{id}/signature-certificate`, the signature and certificate
+modals, `pool_pre_ping` on every service's DB engine, null-safe document
+saving, and a 50-char checkpoint status column.
+
+Changed while merging:
+- Kept our Documenso client (uploads the PDF, places the signature field,
+  reports failures) over the branch's, which sent no file, silently
+  returned a fake reference on any error, and read a setting that doesn't
+  exist.
+- Did **not** take the branch's unauthenticated Documenso handling on
+  `/webhooks/esign` (no signature check; an empty document id matched any
+  contract, so anyone could mark a contract signed). Documenso callbacks
+  use the authenticated `/webhooks/documenso`; the esign payload is strict
+  again. Test added.
+- `/sign`: the signer is the signed-in user (the body's email is ignored),
+  approver/finance/admin only (was any role, including requesters),
+  draft / awaiting-signature contracts only, not for live Documenso
+  documents; `contract.signed` goes through the outbox. nginx now passes
+  `X-Real-IP` so the certificate records the client, not the gateway.
+- The certificate endpoint no longer invents a certificate (made-up seal
+  and IP) for contracts signed another way — it returns 404.
+- Kept: `APP_ESIGN_WEBHOOK_SECRET` (the branch reverted to the unprefixed
+  name the service ignores), the `asyncio.sleep` renewal timer, the retry
+  path for temporary pipeline failures, and outbox publishing for
+  document events (the branch's direct publish would have sent them twice).
+- The Documenso settings are now actually passed into the container
+  (they never were).
+- UI wording no longer states the signature is "verified" or "legally
+  executed".
+
+Verified: 419 service tests + 116 root tests, `make e2e` 17/17, invoice
+lifecycle 63/63, auth flows 42/42, `test_flow.py`, and a live signing check
+(requester 403, spoofed email ignored, certificate + signed PDF, unsigned
+Documenso payload 422).
+
 ## Sep 27 — Docs audit
 
 Every `.md` file checked against the code; a fresh clone was set up by

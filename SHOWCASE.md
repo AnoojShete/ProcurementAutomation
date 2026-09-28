@@ -46,8 +46,9 @@ keeps the invoice ledger (line-level three-way match) and an hourly order
 summary.
 
 **contract-risk-agent** (Anjali). Contracts from templates (text and PDF),
-clause extraction, e-signature through an HMAC-signed, replay-protected
-webhook (or Documenso when configured), signed-copy download, renewal
+clause extraction, e-signature (built-in signing in the app with a
+signature certificate, an HMAC-signed replay-protected webhook, or
+Documenso when configured), signed-copy download, renewal
 reminders, a RandomForest vendor-risk model tracked in MLflow with
 per-vendor explanations and a weekly drift check, and vendor offboarding
 that flags contracts for reconciliation instead of deleting anything.
@@ -117,8 +118,9 @@ UI for workflow history, MLflow for model runs.
   first time — a database constraint added on Sep 26 rejects the ledger
   booking (TODO.md P0). Quotes, POs and invoices from known vendors are
   unaffected.
-- **Simulated / partial:** e-signatures are simulated unless Documenso is
-  configured (the Documenso client has only been tested against mocks);
+- **Simulated / partial:** the built-in e-sign records a SHA-256 seal, not
+  a keyed cryptographic signature; the Documenso client has only been
+  tested against mocks;
   notification emails go to Mailpit only; the ML document classifier
   isn't trained, so classification is keyword-based; images don't OCR on
   Apple Silicon; all ML runs on synthetic data.

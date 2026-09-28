@@ -22,6 +22,11 @@ services:
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       APP_ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
+      # Optional live Documenso (see .env.example); unset = signing is
+      # simulated or done with the built-in e-sign.
+      APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-}
+      APP_DOCUMENSO_API_TOKEN: ${APP_DOCUMENSO_API_TOKEN:-}
+      APP_DOCUMENSO_WEBHOOK_SECRET: ${APP_DOCUMENSO_WEBHOOK_SECRET:-}
     depends_on:
       redpanda-init:
         condition: service_completed_successfully
@@ -57,6 +62,11 @@ services:
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       APP_ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
+      # Optional live Documenso (see .env.example); unset = signing is
+      # simulated or done with the built-in e-sign.
+      APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-}
+      APP_DOCUMENSO_API_TOKEN: ${APP_DOCUMENSO_API_TOKEN:-}
+      APP_DOCUMENSO_WEBHOOK_SECRET: ${APP_DOCUMENSO_WEBHOOK_SECRET:-}
     depends_on:
       redpanda-init:
         condition: service_completed_successfully

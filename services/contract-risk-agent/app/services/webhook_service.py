@@ -37,7 +37,9 @@ def verify_signature(payload: dict, signature: str) -> None:
 
 
 async def handle_esign_webhook(db: AsyncSession, kafka_producer, payload: dict) -> Contract:
-    """payload keys: provider_event_id, contract_id, signed_by, signed_at, signature."""
+    """payload keys: provider_event_id, contract_id, signed_by, signed_at, signature.
+    Always HMAC-verified. Documenso's callbacks go to POST /webhooks/documenso,
+    which checks Documenso's own secret (handle_documenso_webhook)."""
     signature = payload.get("signature", "")
     body = {k: v for k, v in payload.items() if k != "signature"}
     verify_signature(body, signature)
