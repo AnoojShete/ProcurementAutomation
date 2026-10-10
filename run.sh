@@ -58,7 +58,8 @@ docker compose up -d --remove-orphans nginx --force-recreate
 echo
 echo "--- [6/6] Waiting for every service's healthcheck ---"
 SERVICES="postgres redis redpanda minio temporal clamav auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
-for i in $(seq 1 30); do
+MAX_WAIT=90
+for i in $(seq 1 $MAX_WAIT); do
   unhealthy=""
   for svc in $SERVICES; do
     cid=$(docker compose ps -q "$svc" 2>/dev/null || true)
@@ -72,7 +73,7 @@ for i in $(seq 1 30); do
     echo "All services healthy."
     break
   fi
-  if [ "$i" -eq 30 ]; then
+  if [ "$i" -eq "$MAX_WAIT" ]; then
     echo "ERROR: Services failed to become healthy:" >&2
     for svc in $SERVICES; do
       cid=$(docker compose ps -q "$svc" 2>/dev/null || true)
@@ -85,7 +86,7 @@ for i in $(seq 1 30); do
     done
     exit 1
   fi
-  echo "Still waiting on:$unhealthy ($i/30)"
+  echo "Still waiting on:$unhealthy ($i/$MAX_WAIT)"
   sleep 5
 done
 

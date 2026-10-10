@@ -50,12 +50,13 @@ echo "Bringing up core services..."
 # "network <id> not found" errors on the next `up`.
 CORE_SERVICES="postgres redis redpanda redpanda-init minio prometheus grafana temporal temporal-ui mailpit kafka-exporter clamav"
 
-# If any containers are already running with stale network references
-# (e.g. containers kept alive between runs), tear them down first so they
-# don't block the fresh `up` with "network not found" errors.
-docker compose down --remove-orphans 2>/dev/null || true
-
-docker compose up -d --remove-orphans $CORE_SERVICES
+# Bring up core services. If existing containers hold stale network references,
+# tear down and retry once cleanly, avoiding unnecessary restarts of already-running
+# containers (such as ClamAV, which takes several minutes to load signatures).
+if ! docker compose up -d --remove-orphans $CORE_SERVICES 2>/dev/null; then
+  docker compose down --remove-orphans 2>/dev/null || true
+  docker compose up -d --remove-orphans $CORE_SERVICES
+fi
 
 echo "Waiting for core services to report healthy (Postgres, Redpanda, MinIO). This may take a few minutes on first run..."
 MAX=120

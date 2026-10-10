@@ -140,8 +140,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 60s
 
   approval-inventory-agent-worker:
     build:
@@ -213,8 +213,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8005/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 20s
+      retries: 8
+      start_period: 30s
 
   # --- document-vendor-agent (Vaidehi) ---
   document-vendor-agent:
@@ -265,15 +265,15 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      # Uploads fail closed (503) without ClamAV. It's healthy ~5s after
-      # start (see docker-compose.yml), so this doesn't slow boot down.
+      # Uploads fail closed (503) without ClamAV. Service starts immediately
+      # while ClamAV loads signatures in the background.
       clamav:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 60s
 
   document-vendor-agent-worker:
     build:
@@ -355,7 +355,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8004/health || exit 1"]
       interval: 10s
-      retries: 5
+      retries: 8
       start_period: 30s
 
   # --- frontend ---
