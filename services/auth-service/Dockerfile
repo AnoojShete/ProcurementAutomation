@@ -4,8 +4,10 @@
 
 FROM python:3.11-slim AS builder
 WORKDIR /build
+ENV PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=5
 COPY services/auth-service/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=120 --retries=5 -r requirements.txt
 
 FROM python:3.11-slim AS runtime
 WORKDIR /app
