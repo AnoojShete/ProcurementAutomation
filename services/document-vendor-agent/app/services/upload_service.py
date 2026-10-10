@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models import Document
 from app.services import storage
 from app.services.audit import write_audit_log
@@ -100,6 +101,8 @@ async def scan_upload(data: bytes, db: AsyncSession, filename: str, clamd_client
     """Raises MalwareDetectedError or ScanUnavailableError; returns
     normally when the file is clean. Never writes to MinIO itself — the
     caller only proceeds to storage.upload_bytes after this returns."""
+    if not settings.clamav_enabled:
+        return
     file_hash = sha256_hex(data)
     try:
         # python-clamd is a blocking socket client; run it off the event
