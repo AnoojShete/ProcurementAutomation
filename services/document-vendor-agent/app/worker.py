@@ -13,6 +13,7 @@ from app.config import settings
 from app.database import async_session_factory, init_db
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
+from app.services.inbox_watcher import run_inbox_watcher
 from app.services.storage import ensure_bucket
 
 
@@ -41,10 +42,16 @@ async def main():
     relay_task = asyncio.create_task(run_relay(
         async_session_factory, producer.service_name, kafka_sender(producer.producer),
     ))
+    # Drop folder: files put in ./inbox are uploaded like a UI upload.
+    inbox_task = (
+        asyncio.create_task(run_inbox_watcher(async_session_factory, producer)) if settings.inbox_enabled else None
+    )
     try:
         await start_consumer(producer)
     finally:
         relay_task.cancel()
+        if inbox_task:
+            inbox_task.cancel()
         await producer.stop()
 
 

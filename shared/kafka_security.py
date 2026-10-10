@@ -21,16 +21,20 @@ SASL_MECHANISM = "SCRAM-SHA-256"
 _DEV_PASSWORD_PREFIX = "dev-kafka-"
 
 
-def kafka_auth_kwargs() -> dict:
-    username = os.environ.get("KAFKA_USERNAME", "").strip()
-    password = os.environ.get("KAFKA_PASSWORD", "")
+def kafka_auth_kwargs(prefix: str = "KAFKA") -> dict:
+    """`prefix` picks the login: KAFKA_USERNAME/KAFKA_PASSWORD is the
+    service's own; EVENT_MONITOR_KAFKA_* is the read-only event-monitor
+    login the control panel's live event log uses."""
+    username_var, password_var = f"{prefix}_USERNAME", f"{prefix}_PASSWORD"
+    username = os.environ.get(username_var, "").strip()
+    password = os.environ.get(password_var, "")
     if not username:
         if not is_development():
-            raise RuntimeError("KAFKA_USERNAME is not set; services must authenticate to Kafka outside development")
+            raise RuntimeError(f"{username_var} is not set; services must authenticate to Kafka outside development")
         return {}
     # Outside development, refuse an empty password or a published dev one.
     known = {password} if password.startswith(_DEV_PASSWORD_PREFIX) else set()
-    require_secret("KAFKA_PASSWORD", password, known)
+    require_secret(password_var, password, known)
     return {
         "security_protocol": "SASL_PLAINTEXT",
         "sasl_mechanism": SASL_MECHANISM,

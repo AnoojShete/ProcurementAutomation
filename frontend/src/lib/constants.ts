@@ -63,7 +63,7 @@ export const INFRA_LINKS = [
   { label: "Prometheus", url: "http://localhost:9090", description: "Raw metrics scrape targets" },
   { label: "Temporal UI", url: "http://localhost:8088", description: "Approval & contract workflow executions" },
   { label: "MLflow", url: "http://localhost:5050", description: "Vendor risk model runs & drift metrics" },
-  { label: "MinIO console", url: "http://localhost:9000", description: "Document object storage" },
+  { label: "MinIO console", url: "http://localhost:9001", description: "Document object storage" },
   { label: "Mailpit", url: "http://localhost:8025", description: "Outbound notification emails" },
 ];
 

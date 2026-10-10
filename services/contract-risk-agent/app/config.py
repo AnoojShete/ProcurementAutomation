@@ -34,6 +34,36 @@ class Settings(BaseSettings):
     documenso_webhook_secret: str | None = None
     opensign_api_url: str | None = None
 
+    # DocuSign (optional; sandbox by default). Used when the integration
+    # key, user id, account id and RSA private key are all set — see
+    # app/services/docusign_client.py and .env.example. Without them,
+    # "docusign" sends are simulated like every other provider.
+    docusign_integration_key: str | None = None
+    docusign_user_id: str | None = None
+    docusign_account_id: str | None = None
+    # The app's RSA private key: PEM text (newlines may be written as \n)
+    # or a path to a mounted PEM file.
+    docusign_private_key: str | None = None
+    docusign_private_key_file: str | None = None
+    docusign_auth_server: str = "account-d.docusign.com"
+    docusign_base_url: str = "https://demo.docusign.net/restapi"
+    # Must be one of the app's registered redirect URIs; only used to build
+    # the one-time consent link shown on the control panel.
+    docusign_redirect_uri: str = "https://developers.docusign.com/platform/auth/consent"
+    # DocuSign Connect's HMAC key, for POST /webhooks/docusign. Optional:
+    # without Connect, the status poller notices completed envelopes.
+    docusign_connect_hmac_key: str | None = None
+    docusign_poll_seconds: int = 30
+
+    # Drop-folder automation (shared/drop_folder.py): a contract generated
+    # for a drop-folder request is sent for signature once, automatically.
+    esign_auto_send: bool = True
+    esign_auto_provider: str = "docusign"
+    # Who signs auto-sent contracts. Unset: the vendor's contact email; with
+    # neither, the contract stays in draft and the control panel says why.
+    esign_auto_signer_email: str | None = None
+    esign_auto_signer_name: str = "Authorized Signer"
+
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
 
 

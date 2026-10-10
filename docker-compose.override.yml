@@ -27,6 +27,20 @@ services:
       APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-}
       APP_DOCUMENSO_API_TOKEN: ${APP_DOCUMENSO_API_TOKEN:-}
       APP_DOCUMENSO_WEBHOOK_SECRET: ${APP_DOCUMENSO_WEBHOOK_SECRET:-}
+      # Optional live DocuSign, sandbox by default (see .env.example); unset
+      # = "docusign" sends are simulated.
+      APP_DOCUSIGN_INTEGRATION_KEY: ${APP_DOCUSIGN_INTEGRATION_KEY:-}
+      APP_DOCUSIGN_USER_ID: ${APP_DOCUSIGN_USER_ID:-}
+      APP_DOCUSIGN_ACCOUNT_ID: ${APP_DOCUSIGN_ACCOUNT_ID:-}
+      APP_DOCUSIGN_PRIVATE_KEY: ${APP_DOCUSIGN_PRIVATE_KEY:-}
+      APP_DOCUSIGN_PRIVATE_KEY_FILE: ${APP_DOCUSIGN_PRIVATE_KEY_FILE:-}
+      APP_DOCUSIGN_AUTH_SERVER: ${APP_DOCUSIGN_AUTH_SERVER:-account-d.docusign.com}
+      APP_DOCUSIGN_BASE_URL: ${APP_DOCUSIGN_BASE_URL:-https://demo.docusign.net/restapi}
+      APP_DOCUSIGN_CONNECT_HMAC_KEY: ${APP_DOCUSIGN_CONNECT_HMAC_KEY:-}
+      # Drop-folder contracts are sent for signature automatically, once.
+      APP_ESIGN_AUTO_SEND: ${APP_ESIGN_AUTO_SEND:-true}
+      APP_ESIGN_AUTO_SIGNER_EMAIL: ${APP_ESIGN_AUTO_SIGNER_EMAIL:-}
+      APP_ESIGN_AUTO_SIGNER_NAME: ${APP_ESIGN_AUTO_SIGNER_NAME:-Authorized Signer}
     depends_on:
       redpanda-init:
         condition: service_completed_successfully
@@ -36,6 +50,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      # Optional: put the DocuSign RSA key in ./secrets (git-ignored) and set
+      # APP_DOCUSIGN_PRIVATE_KEY_FILE=/run/secrets/app/<file>.
+      - ./secrets:/run/secrets/app:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8003/health || exit 1"]
       interval: 10s
@@ -67,6 +85,20 @@ services:
       APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-}
       APP_DOCUMENSO_API_TOKEN: ${APP_DOCUMENSO_API_TOKEN:-}
       APP_DOCUMENSO_WEBHOOK_SECRET: ${APP_DOCUMENSO_WEBHOOK_SECRET:-}
+      # Optional live DocuSign, sandbox by default (see .env.example); unset
+      # = "docusign" sends are simulated.
+      APP_DOCUSIGN_INTEGRATION_KEY: ${APP_DOCUSIGN_INTEGRATION_KEY:-}
+      APP_DOCUSIGN_USER_ID: ${APP_DOCUSIGN_USER_ID:-}
+      APP_DOCUSIGN_ACCOUNT_ID: ${APP_DOCUSIGN_ACCOUNT_ID:-}
+      APP_DOCUSIGN_PRIVATE_KEY: ${APP_DOCUSIGN_PRIVATE_KEY:-}
+      APP_DOCUSIGN_PRIVATE_KEY_FILE: ${APP_DOCUSIGN_PRIVATE_KEY_FILE:-}
+      APP_DOCUSIGN_AUTH_SERVER: ${APP_DOCUSIGN_AUTH_SERVER:-account-d.docusign.com}
+      APP_DOCUSIGN_BASE_URL: ${APP_DOCUSIGN_BASE_URL:-https://demo.docusign.net/restapi}
+      APP_DOCUSIGN_CONNECT_HMAC_KEY: ${APP_DOCUSIGN_CONNECT_HMAC_KEY:-}
+      # Drop-folder contracts are sent for signature automatically, once.
+      APP_ESIGN_AUTO_SEND: ${APP_ESIGN_AUTO_SEND:-true}
+      APP_ESIGN_AUTO_SIGNER_EMAIL: ${APP_ESIGN_AUTO_SIGNER_EMAIL:-}
+      APP_ESIGN_AUTO_SIGNER_NAME: ${APP_ESIGN_AUTO_SIGNER_NAME:-Authorized Signer}
     depends_on:
       redpanda-init:
         condition: service_completed_successfully
@@ -215,8 +247,13 @@ services:
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      # Read-only Kafka login for the control panel's live event log.
+      EVENT_MONITOR_KAFKA_USERNAME: event-monitor
+      EVENT_MONITOR_KAFKA_PASSWORD: ${KAFKA_PASSWORD_EVENT_MONITOR:-dev-kafka-event-monitor}
     volumes:
       - hf-cache:/app/.cache/huggingface
+      # Drop folder, read-only here: the control panel lists it.
+      - ./inbox:/inbox:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -272,6 +309,9 @@ services:
     volumes:
       - docling-models:/root/.cache/huggingface
       - hf-cache:/app/.cache/huggingface
+      # Drop folder: files put in ./inbox are ingested automatically
+      # (app/services/inbox_watcher.py).
+      - ./inbox:/inbox
     depends_on:
       redpanda-init:
         condition: service_completed_successfully

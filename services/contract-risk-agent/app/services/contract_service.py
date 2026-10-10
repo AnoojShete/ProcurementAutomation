@@ -8,14 +8,15 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import load_config
+from app.config import load_config, settings
 from app.models import AuditLog, Contract, PurchaseRequest, Vendor
 from app.services.clause_extraction import extract_clauses
 from app.services.contract_pdf import AuditEntry, ContractPdfInput, _title_case, render_contract_pdf
-from app.services.esign_client import EsignProviderError, documenso_document_id, download_signed_pdf, request_signature
+from app.services.esign_client import EsignProviderError, download_signed_pdf, live_provider_ref, request_signature
 from app.services.audit import write_audit_log
 from app.services.temporal_client import start_renewal_workflow
 from app.metrics import contract_generation_total
+from shared.drop_folder import INBOX_UPLOADER
 from shared.eventing import staged
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
@@ -150,7 +151,8 @@ async def generate_contract_for_request(
 
 
 async def send_for_signature(
-    db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str], provider: str = "documenso"
+    db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str], provider: str = "documenso",
+    signer_name: Optional[str] = None, automatic: bool = False,
 ) -> Contract:
     contract = await db.get(Contract, contract_id)
     if contract is None:
@@ -163,6 +165,7 @@ async def send_for_signature(
         provider_ref = await request_signature(
             contract_id, signer_email, provider=provider,
             pdf=render_contract_pdf(pdf_input), title=f"{_agreement_title(contract)} — {pdf_input.vendor_name}",
+            signer_name=signer_name,
         )
     except EsignProviderError as e:
         raise ContractGenerationError(str(e)) from e
@@ -172,11 +175,71 @@ async def send_for_signature(
 
     await write_audit_log(
         db, "contract", contract_id, "sent_for_signature",
-        {"esign_provider_ref": provider_ref, "signer_email": signer_email, "provider": provider},
+        {"esign_provider_ref": provider_ref, "signer_email": signer_email, "provider": provider,
+         "automatic": automatic},
     )
     await db.commit()
     await db.refresh(contract)
     return contract
+
+
+async def is_drop_folder_contract(db: AsyncSession, contract: Contract) -> bool:
+    """Whether the contract's request came from a drop-folder quote."""
+    if not contract.purchase_request_id:
+        return False
+    uploader = (await db.execute(text(
+        "SELECT d.uploaded_by FROM purchase_requests pr JOIN documents d ON d.id = pr.document_id "
+        "WHERE pr.id = :id"
+    ), {"id": contract.purchase_request_id})).scalar_one_or_none()
+    return uploader == INBOX_UPLOADER
+
+
+async def auto_send_for_signature(db: AsyncSession, kafka_producer, contract: Contract) -> str:
+    """The drop-folder automation's last step: send a freshly generated
+    contract for signature once, with no clicks. Returns what happened.
+
+    Once: only a draft that has never been sent or tried is sent, so a
+    redelivered approval.decided never emails the signer twice. A send
+    that fails (DocuSign down, no signer email) is recorded on the contract
+    and left in draft for someone to send from its page.
+    """
+    if not settings.esign_auto_send or contract.status != "draft":
+        return "skipped"
+    contract_id = contract.id  # usable after a rollback expires `contract`
+    if not await is_drop_folder_contract(db, contract):
+        return "not_from_drop_folder"
+    tried = (await db.execute(
+        select(AuditLog.id).where(
+            AuditLog.entity_id == contract_id,
+            AuditLog.action.in_(["sent_for_signature", "auto_send_skipped", "auto_send_failed"]),
+        ).limit(1)
+    )).first()
+    if tried:
+        return "already_tried"
+
+    signer_email = settings.esign_auto_signer_email
+    if not signer_email and contract.vendor_id:
+        signer_email = (await db.execute(
+            text("SELECT contact_email FROM vendors WHERE id = :id"), {"id": contract.vendor_id}
+        )).scalar_one_or_none()
+    if not signer_email:
+        await write_audit_log(db, "contract", contract_id, "auto_send_skipped", {
+            "reason": "no signer email (set APP_ESIGN_AUTO_SIGNER_EMAIL or the vendor's contact email)",
+        })
+        await db.commit()
+        return "no_signer"
+
+    try:
+        await send_for_signature(
+            db, kafka_producer, contract_id, signer_email, provider=settings.esign_auto_provider,
+            signer_name=settings.esign_auto_signer_name, automatic=True,
+        )
+    except ContractGenerationError as e:
+        await db.rollback()
+        await write_audit_log(db, "contract", contract_id, "auto_send_failed", {"reason": str(e)[:300]})
+        await db.commit()
+        return "failed"
+    return "sent"
 
 
 async def sign_contract_simulated(db: AsyncSession, kafka_producer, contract_id: str, signed_by: Optional[str] = None) -> Contract:
@@ -237,8 +300,9 @@ async def sign_contract_digitally(
         return contract, cert or {}
     if contract.status not in ("draft", "pending_signature"):
         raise ContractGenerationError(f"contract {contract_id} can't be signed in status {contract.status!r}")
-    if documenso_document_id(contract.esign_provider_ref):
-        raise ContractGenerationError("this contract is out for signature in Documenso; it completes there")
+    provider_name = live_provider_ref(contract.esign_provider_ref)
+    if provider_name:
+        raise ContractGenerationError(f"this contract is out for signature in {provider_name}; it completes there")
 
     now = datetime.now(timezone.utc)
     payload_to_seal = f"{contract_id}|{contract.contract_text or ''}|{signer_name}|{signer_email}|{now.isoformat()}|{signature_data or ''}"

@@ -7,7 +7,8 @@ from app.schemas import (
     GenerateContractRequest, SendForSignatureRequest, SignContractRequest, ContractResponse, DataResponse,
 )
 from app.services import contract_service
-from app.services.esign_client import EsignProviderError
+from app.services import docusign_client
+from app.services.esign_client import EsignProviderError, documenso_enabled
 from shared.auth import CurrentUser, get_current_user, require_role
 from shared.idempotency import get_cached_response, store_response
 
@@ -32,6 +33,40 @@ def _serialize(contract) -> dict:
         "reconciliation_status": contract.reconciliation_status,
         "contract_text": contract.contract_text,
     }
+
+
+@router.get("/esign/status", response_model=DataResponse, dependencies=[Depends(require_role("admin"))])
+async def esign_status(db: AsyncSession = Depends(get_db)):
+    """E-signature connections and recent DocuSign envelopes, for the
+    admin control panel."""
+    from sqlalchemy import text
+    rows = (await db.execute(text("""
+        SELECT c.id::text AS contract_id, c.status, c.esign_provider_ref, c.signed_at, c.signed_by,
+               a.payload->>'signer_email' AS signer_email, a.created_at AS sent_at,
+               (a.payload->>'automatic')::boolean AS automatic
+        FROM contracts c
+        JOIN LATERAL (
+            SELECT payload, created_at FROM audit_log
+            WHERE entity_id = c.id AND action = 'sent_for_signature'
+            ORDER BY created_at DESC LIMIT 1
+        ) a ON true
+        WHERE c.esign_provider_ref LIKE 'docusign-%'
+        ORDER BY a.created_at DESC
+        LIMIT 10
+    """))).mappings().all()
+    envelopes = [
+        {**dict(r), "live": bool(docusign_client.envelope_id(r["esign_provider_ref"]))} for r in rows
+    ]
+    return DataResponse(data={
+        "docusign": await docusign_client.connection_status(),
+        "documenso": {"configured": documenso_enabled()},
+        "auto_send": {
+            "enabled": settings.esign_auto_send,
+            "provider": settings.esign_auto_provider,
+            "signer_email": settings.esign_auto_signer_email,
+        },
+        "envelopes": envelopes,
+    })
 
 
 @router.post(
@@ -128,7 +163,8 @@ async def sign_contract_simulated(contract_id: str, request: Request, db: AsyncS
     """Demo only — simulates a provider webhook without real signature verification.
     Disabled when a real e-signature provider is configured.
     """
-    if not settings.allow_simulated_signatures or settings.documenso_api_url or settings.opensign_api_url:
+    if (not settings.allow_simulated_signatures or settings.documenso_api_url or settings.opensign_api_url
+            or docusign_client.docusign_enabled()):
         raise HTTPException(
             status_code=403,
             detail="Simulated signatures are disabled when a real e-signature provider is configured",

@@ -11,8 +11,12 @@ With no provider configured (the default dev/demo stack) request_signature
 returns a deterministic simulated reference instead, and signing is
 completed by POST /webhooks/esign or the demo-only sign-simulated route.
 
+DocuSign (app/services/docusign_client.py) is used the same way when its
+JWT-grant settings are set and the provider is "docusign".
+
 Provider references:
   documenso-doc-<id>    a real Documenso document
+  docusign-env-<id>     a real DocuSign envelope
   <provider>-ref-<hash> simulated, nothing was sent anywhere
 """
 import hashlib
@@ -23,6 +27,7 @@ from typing import Optional
 import httpx
 
 from app.config import settings
+from app.services import docusign_client
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +46,16 @@ def documenso_enabled() -> bool:
 def documenso_document_id(provider_ref: Optional[str]) -> Optional[str]:
     if provider_ref and provider_ref.startswith(DOCUMENSO_REF_PREFIX):
         return provider_ref[len(DOCUMENSO_REF_PREFIX):]
+    return None
+
+
+def live_provider_ref(provider_ref: Optional[str]) -> Optional[str]:
+    """The provider name when the contract is out with a real provider
+    (it completes there, not in this platform), else None."""
+    if documenso_document_id(provider_ref):
+        return "Documenso"
+    if docusign_client.envelope_id(provider_ref):
+        return "DocuSign"
     return None
 
 
@@ -110,9 +125,19 @@ async def request_signature(
     provider: str = "documenso",
     pdf: Optional[bytes] = None,
     title: str = "Contract",
+    signer_name: Optional[str] = None,
 ) -> str:
     """Routes the contract for signature and returns the provider reference."""
     p_name = (provider or "documenso").strip().lower()
+    if p_name == "docusign" and docusign_client.docusign_enabled():
+        if not signer_email:
+            raise EsignProviderError("a signer email is required to send through DocuSign")
+        if not pdf:
+            raise EsignProviderError("no contract PDF to send")
+        try:
+            return await docusign_client.send_envelope(contract_id, signer_email, signer_name or signer_email, pdf, title)
+        except docusign_client.DocuSignError as e:
+            raise EsignProviderError(str(e)) from e
     if p_name == "documenso" and documenso_enabled():
         if not signer_email:
             raise EsignProviderError("a signer email is required to send through Documenso")
@@ -123,8 +148,15 @@ async def request_signature(
 
 
 async def download_signed_pdf(provider_ref: Optional[str]) -> Optional[bytes]:
-    """The provider's sealed PDF for a completed Documenso document, or
-    None when the contract wasn't signed through a live Documenso."""
+    """The provider's sealed PDF for a completed Documenso document or
+    DocuSign envelope, or None when the contract wasn't signed through a
+    live provider."""
+    env_id = docusign_client.envelope_id(provider_ref)
+    if env_id is not None and docusign_client.docusign_enabled():
+        try:
+            return await docusign_client.download_combined(env_id)
+        except docusign_client.DocuSignError as e:
+            raise EsignProviderError(str(e)) from e
     document_id = documenso_document_id(provider_ref)
     if document_id is None or not documenso_enabled():
         return None

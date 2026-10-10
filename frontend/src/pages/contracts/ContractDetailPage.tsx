@@ -7,7 +7,7 @@ import { contractsApi } from "@/api/contracts";
 import { vendorsApi } from "@/api/vendors";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ContractStatusBadge } from "@/components/ui/Badge";
-import { ContractActions, isDocumensoLive } from "@/components/contracts/ContractActions";
+import { ContractActions, isProviderLive } from "@/components/contracts/ContractActions";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
@@ -70,8 +70,8 @@ export function ContractDetailPage() {
           <span>
             Waiting for the signer in {providerName}
             {ref && <span className="ml-1 font-mono text-xs text-slate-500">({ref})</span>}.{" "}
-            {isDocumensoLive(contract)
-              ? "The contract updates automatically when Documenso reports it completed."
+            {isProviderLive(contract)
+              ? `The contract updates automatically when ${ref.startsWith("docusign") ? "DocuSign" : "Documenso"} reports it completed.`
               : "Use “Sign now” to sign it in the platform."}
           </span>
         </div>

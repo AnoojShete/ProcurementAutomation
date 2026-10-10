@@ -16,7 +16,7 @@ type Provider = "builtin" | "documenso" | "docusign";
 const PROVIDERS: [Provider, string, string][] = [
   ["builtin", "Built-in e-sign", "Sign inside the platform: typed or drawn signature, consent, and a SHA-256 seal in the audit log."],
   ["documenso", "Documenso", "Self-hosted e-signature. Emails the signer a signing link when a Documenso instance is configured."],
-  ["docusign", "DocuSign (sandbox)", "Demo only. Nothing is sent; completion is simulated."],
+  ["docusign", "DocuSign (sandbox)", "DocuSign emails the signer once when DocuSign is configured (see Control Panel); otherwise simulated."],
 ];
 
 const TEMPLATES: [ContractTemplate, string][] = [
@@ -31,8 +31,11 @@ function defaultTemplate(request?: PurchaseRequest | null): ContractTemplate {
   return "professional_services";
 }
 
-export function isDocumensoLive(contract?: Contract | null) {
-  return !!contract?.esign_provider_ref?.startsWith("documenso-doc-");
+/** Out with a real provider (Documenso document / DocuSign envelope): it
+ * completes there, not in the platform. */
+export function isProviderLive(contract?: Contract | null) {
+  const ref = contract?.esign_provider_ref ?? "";
+  return ref.startsWith("documenso-doc-") || ref.startsWith("docusign-env-");
 }
 
 /**
@@ -74,7 +77,7 @@ export function ContractActions({
   const [sending, setSending] = useState(false);
 
   const canSignHere =
-    staff && !!contract && (contract.status === "draft" || (contract.status === "pending_signature" && !isDocumensoLive(contract)));
+    staff && !!contract && (contract.status === "draft" || (contract.status === "pending_signature" && !isProviderLive(contract)));
 
   useEffect(() => {
     if (autoOpen === "sign" && canSignHere) setSignOpen(true);

@@ -14,6 +14,7 @@ from app.config import settings
 from app.database import async_session_factory
 from app.models import PurchaseRequest, Contract, License, Inventory
 
+from shared.drop_folder import INBOX_UPLOADER
 from shared.eventing import deliver, PermanentEventError
 from shared.infra.retry import with_retry
 from shared.lifecycle import already_past, can_transition
@@ -32,12 +33,19 @@ CONSUME_TOPICS = [
 ]
 
 
+# The FastAPI app whose producer/redis the handlers use (set by
+# start_consumer; the DLQ replay in app/api/ops.py runs in the same process).
+_app = None
+
+
 async def start_consumer(app):
     """Background task that consumes Kafka events.
     
     Runs as an asyncio task during the FastAPI app lifespan.
     Handles graceful shutdown via CancelledError.
     """
+    global _app
+    _app = app
     consumer = AIOKafkaConsumer(
         *CONSUME_TOPICS,
         bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -92,9 +100,9 @@ async def dispatch(topic: str, event: dict) -> None:
 
 async def _handle_document_classified(payload: dict, event: dict):
     """Handle a document.classified event.
-    
-    Logs the event for audit. Could also trigger automatic purchase request
-    creation based on classified document data.
+
+    A quote dropped into the drop folder (shared/drop_folder.py) becomes a
+    purchase request here, with no clicks; everything else is only logged.
     """
     document_id = payload.get("document_id")
     document_type = payload.get("document_type")
@@ -105,6 +113,76 @@ async def _handle_document_classified(payload: dict, event: dict):
         f"Document classified: id={document_id}, type={document_type}, "
         f"vendor={vendor_name}, confidence={confidence}"
     )
+    if document_id and document_type == "quote":
+        await create_request_from_dropped_quote(document_id)
+
+
+async def create_request_from_dropped_quote(document_id: str, service_factory=None) -> str:
+    """Purchase request for a drop-folder quote. Returns what happened.
+
+    Only drop-folder documents (uploaded_by = INBOX_UPLOADER): a quote a
+    person uploads keeps its manual flow. Skipped while the document needs
+    review — the reviewer's correction re-publishes document.classified and
+    the request is created then — and for likely duplicates. At most one
+    request per document, so a redelivered event changes nothing.
+    """
+    from sqlalchemy import text
+    from app.schemas import CreatePurchaseRequest
+
+    async with async_session_factory() as session:
+        doc = (await session.execute(text(
+            "SELECT uploaded_by, original_filename, vendor_id::text AS vendor_id, total::float AS total, "
+            "currency, needs_review, is_likely_duplicate, extracted FROM documents WHERE id = :id"
+        ), {"id": document_id})).mappings().first()
+        if doc is None:
+            raise LookupError(f"document {document_id} not found")  # retried: may not be visible yet
+        if doc["uploaded_by"] != INBOX_UPLOADER:
+            return "not_from_drop_folder"
+        name = doc["original_filename"]
+        if doc["needs_review"]:
+            logger.info(f"Drop-folder quote {name} ({document_id}) needs review; request waits for the reviewer")
+            return "needs_review"
+        if doc["is_likely_duplicate"]:
+            logger.info(f"Drop-folder quote {name} ({document_id}) looks like a duplicate; no request created")
+            return "duplicate"
+        if not doc["vendor_id"] or not doc["total"] or doc["total"] <= 0:
+            logger.info(f"Drop-folder quote {name} ({document_id}) has no vendor or total; no request created")
+            return "incomplete"
+        existing = (await session.execute(
+            select(PurchaseRequest.id).where(PurchaseRequest.document_id == document_id).limit(1)
+        )).first()
+        if existing:
+            return "already_created"
+
+        extracted = doc["extracted"] or {}
+        if isinstance(extracted, str):
+            extracted = json.loads(extracted)
+        items = [
+            {k: li.get(k) for k in ("description", "quantity", "unit_price", "amount") if li.get(k) is not None}
+            for li in (extracted.get("line_items") or []) if isinstance(li, dict)
+        ]
+        quote_no = extracted.get("quote_number") or extracted.get("document_number")
+        data = CreatePurchaseRequest(
+            request_type=settings.drop_folder_request_type,
+            requested_by=INBOX_UPLOADER,
+            department=settings.drop_folder_department,
+            vendor_id=doc["vendor_id"],
+            amount=doc["total"],
+            currency=(doc["currency"] or "INR")[:3],
+            items=items or None,
+            comments=f"Created automatically from drop-folder quote {name}" + (f" ({quote_no})" if quote_no else ""),
+        )
+        if service_factory is None:
+            from app.services.approval_service import ApprovalService
+            service = ApprovalService(session, _app.state.kafka_producer, _app.state.redis)
+        else:
+            service = service_factory(session)
+        req = await service.create_request(data, document_id=document_id)
+        logger.info(
+            f"Drop-folder quote {name} -> purchase request {req.id} "
+            f"({data.amount} {data.currency}, tier {req.spend_tier}, status {req.status})"
+        )
+        return "created"
 
 
 async def _handle_contract_signed(payload: dict, event: dict):

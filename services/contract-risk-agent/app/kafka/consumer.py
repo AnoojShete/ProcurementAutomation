@@ -12,7 +12,9 @@ from aiokafka import AIOKafkaConsumer
 from shared.kafka_security import kafka_auth_kwargs
 from app.config import settings
 from app.database import async_session_factory
-from app.services.contract_service import ContractGenerationError, generate_contract_for_request
+from app.services.contract_service import (
+    ContractGenerationError, auto_send_for_signature, generate_contract_for_request,
+)
 from app.models import Contract
 from sqlalchemy import select
 from shared.eventing import deliver, PermanentEventError
@@ -104,15 +106,22 @@ async def _handle_approval_decided(app, payload: dict):
         return
     request_id = payload.get("request_id")
     async with async_session_factory() as db:
-        existing = (
-            await db.execute(select(Contract.id).where(Contract.purchase_request_id == request_id).limit(1))
-        ).first()
-        if existing:
-            logger.info(f"Request {request_id} already has contract {existing[0]}; skipping generation")
-            return
-        logger.info(f"Request approved, generating contract: request_id={request_id}")
-        try:
-            await generate_contract_for_request(db, app.state.kafka_producer, request_id, template_name=None)
-        except ContractGenerationError as e:
-            # e.g. the request doesn't exist — retrying can't fix it.
-            raise PermanentEventError(str(e)) from e
+        contract = (
+            await db.execute(select(Contract).where(Contract.purchase_request_id == request_id).limit(1))
+        ).scalar_one_or_none()
+        if contract is not None:
+            logger.info(f"Request {request_id} already has contract {contract.id}; skipping generation")
+        else:
+            logger.info(f"Request approved, generating contract: request_id={request_id}")
+            try:
+                contract = await generate_contract_for_request(db, app.state.kafka_producer, request_id, template_name=None)
+            except ContractGenerationError as e:
+                # e.g. the request doesn't exist — retrying can't fix it.
+                raise PermanentEventError(str(e)) from e
+        # Drop-folder requests: send for signature once, automatically.
+        # Also runs for an existing contract, so a crash between generating
+        # and sending is finished on redelivery.
+        contract_id = contract.id
+        outcome = await auto_send_for_signature(db, app.state.kafka_producer, contract)
+        if outcome not in ("skipped", "not_from_drop_folder", "already_tried"):
+            logger.info(f"Contract {contract_id} auto-send: {outcome}")

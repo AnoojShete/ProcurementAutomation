@@ -41,6 +41,7 @@ create_user contract-risk-agent      "$KAFKA_PASSWORD_CONTRACT_RISK_AGENT"
 create_user notification-agent       "$KAFKA_PASSWORD_NOTIFICATION_AGENT"
 create_user auth-service             "$KAFKA_PASSWORD_AUTH_SERVICE"
 create_user kafka-exporter           "$KAFKA_PASSWORD_KAFKA_EXPORTER"
+create_user event-monitor            "$KAFKA_PASSWORD_EVENT_MONITOR"
 
 echo "[3/5] topics (services can't create topics themselves)"
 existing="$(rpk_kafka topic list | awk 'NR>1 {print $1}')"

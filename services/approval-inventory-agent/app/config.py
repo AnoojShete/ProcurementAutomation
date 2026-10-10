@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Demo-only fault-injection endpoints under /ops/showcase. On in
     # development (APP_ENV) unless APP_SHOWCASE_MODE says otherwise.
     showcase_mode: bool = Field(default_factory=is_development)
+    # Purchase requests created from drop-folder quotes (app/kafka/consumer.py).
+    drop_folder_request_type: str = "saas"
+    drop_folder_department: str = "Procurement"
 
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
 

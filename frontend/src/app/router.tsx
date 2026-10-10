@@ -30,6 +30,7 @@ const RiskDashboardPage = lazy(() => import("@/pages/risk/RiskDashboardPage").th
 const NotificationsPage = lazy(() => import("@/pages/notifications/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
 const SpendAnalysisPage = lazy(() => import("@/pages/finance/SpendAnalysisPage").then((m) => ({ default: m.SpendAnalysisPage })));
 const AuditActivityPage = lazy(() => import("@/pages/admin/AuditActivityPage").then((m) => ({ default: m.AuditActivityPage })));
+const ControlPanelPage = lazy(() => import("@/pages/admin/ControlPanelPage").then((m) => ({ default: m.ControlPanelPage })));
 const SystemHealthPage = lazy(() => import("@/pages/admin/SystemHealthPage").then((m) => ({ default: m.SystemHealthPage })));
 const UsersPage = lazy(() => import("@/pages/admin/UsersPage").then((m) => ({ default: m.UsersPage })));
 const AccountPage = lazy(() => import("@/pages/account/AccountPage").then((m) => ({ default: m.AccountPage })));
@@ -158,6 +159,14 @@ const router = createBrowserRouter([
         element: withSuspense(
           <RoleGuard allow={["admin"]}>
             <AuditActivityPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "control-panel",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <ControlPanelPage />
           </RoleGuard>,
         ),
       },

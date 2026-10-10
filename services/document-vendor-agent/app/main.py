@@ -11,7 +11,8 @@ from shared.logging.configure import configure_logging
 configure_logging(settings.service_name)
 from app.database import async_session_factory, init_db, get_db
 from app.kafka.producer import KafkaEventProducer
-from app.api import health, documents, vendors, admin, showcase
+from app.api import health, documents, vendors, admin, showcase, control_panel
+from app.services.event_monitor import EventMonitor
 from app.models import AuditLog
 from app.services.storage import ensure_bucket
 from shared.http.error_handlers import register_error_handlers
@@ -47,13 +48,20 @@ async def lifespan(app: FastAPI):
         kafka_sender(app.state.kafka_producer.producer),
     ))
 
+    # Read-only tail of every Kafka topic for the control panel's event log.
+    app.state.event_monitor = EventMonitor(settings.kafka_bootstrap_servers) if settings.event_monitor_enabled else None
+    monitor_task = asyncio.create_task(app.state.event_monitor.run()) if app.state.event_monitor else None
+
     yield
 
-    relay_task.cancel()
-    try:
-        await relay_task
-    except asyncio.CancelledError:
-        pass
+    for task in (relay_task, monitor_task):
+        if task is None:
+            continue
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     await app.state.kafka_producer.stop()
     await app.state.redis.aclose()
 
@@ -86,4 +94,5 @@ app.include_router(
     vendors.router, prefix="/vendors", tags=["Vendors"], dependencies=[Depends(get_current_user)]
 )
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(control_panel.router, prefix="/admin/control-panel", tags=["Control panel"])
 app.include_router(showcase.router, prefix="/documents/showcase", tags=["Showcase"])

@@ -13,6 +13,7 @@ from shared.eventing import kafka_sender, run_relay
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
 from app.api import health, contracts, vendors, webhooks, ops
+from app.services.docusign_client import run_status_poller
 from app.models import AuditLog
 from shared.http.error_handlers import register_error_handlers
 from shared.auth import get_current_user
@@ -38,9 +39,13 @@ async def lifespan(app: FastAPI):
         kafka_sender(app.state.kafka_producer.producer),
     ))
 
+    # Marks contracts signed when their DocuSign envelope completes (no-op
+    # unless DocuSign is configured).
+    docusign_task = asyncio.create_task(run_status_poller(async_session_factory, app.state.kafka_producer))
+
     yield
 
-    for task in (consumer_task, relay_task):
+    for task in (consumer_task, relay_task, docusign_task):
         task.cancel()
         try:
             await task

@@ -64,6 +64,7 @@ services:
       KAFKA_PASSWORD_NOTIFICATION_AGENT: ${KAFKA_PASSWORD_NOTIFICATION_AGENT:-dev-kafka-notification-agent}
       KAFKA_PASSWORD_AUTH_SERVICE: ${KAFKA_PASSWORD_AUTH_SERVICE:-dev-kafka-auth-service}
       KAFKA_PASSWORD_KAFKA_EXPORTER: ${KAFKA_PASSWORD_KAFKA_EXPORTER:-dev-kafka-kafka-exporter}
+      KAFKA_PASSWORD_EVENT_MONITOR: ${KAFKA_PASSWORD_EVENT_MONITOR:-dev-kafka-event-monitor}
     depends_on:
       redpanda:
         condition: service_healthy

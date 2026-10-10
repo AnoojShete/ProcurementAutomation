@@ -15,6 +15,7 @@ import {
   Sliders as SL,
   ShieldCheck as SC2,
   Users as US,
+  Radio as RA,
 } from "lucide-react";
 import type { Role } from "@/types/api";
 
@@ -60,6 +61,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   ],
   admin: [
     { label: "Overview", to: "/app", icon: LD, end: true },
+    { label: "Control Panel", to: "/app/control-panel", icon: RA },
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Requests", to: "/app/requests", icon: FT },
     { label: "Documents", to: "/app/documents", icon: FI },

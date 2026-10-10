@@ -12,3 +12,5 @@ mlartifacts/
 **/ml/artifacts/
 services/*/ml/data/
 frontend/dist/
+# Local secrets (DocuSign RSA key) and drop-folder contents
+secrets/

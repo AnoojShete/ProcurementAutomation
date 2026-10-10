@@ -1,0 +1,4 @@
+# Drop-folder contents are local only.
+*
+!.gitignore
+!README.md

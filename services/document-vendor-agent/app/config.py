@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "documents"
     minio_secure: bool = False
+    # Browser link to the MinIO console, shown on the control panel.
+    minio_console_url: str = "http://localhost:9001"
 
     clamav_host: str = "clamav"
     clamav_port: int = 3310
@@ -43,6 +45,15 @@ class Settings(BaseSettings):
     # (APP_ENV) unless APP_SHOWCASE_MODE says otherwise.
     showcase_mode: bool = Field(default_factory=is_development)
     document_ingested_partitions: int = 6
+
+    # Drop folder (app/services/inbox_watcher.py): ./inbox on the host,
+    # mounted here. The worker ingests what lands in it; the API only
+    # reads it for the control panel.
+    inbox_enabled: bool = True
+    inbox_dir: str = "/inbox"
+    inbox_poll_seconds: float = 3.0
+    # Live Kafka event log on the control panel (app/services/event_monitor.py).
+    event_monitor_enabled: bool = True
 
     # GSTIN live registry (gstincheck.co.in — ~20 free lookups total, not per-day).
     # Always gated by shared/live_mode quota before calling; set this only

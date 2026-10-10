@@ -338,6 +338,34 @@ run.sh, install.sh, Makefile, docker-compose.yml, docker-compose.override.yml, .
 A sweep every minute re-queues documents stranded in `pending` or
 `processing`.
 
+### Drop folder → DocuSign (fully automated)
+
+Put a vendor quote (PDF/PNG/JPEG) in `./inbox`. No clicks after that:
+
+| Step | Who | Kafka event |
+|---|---|---|
+| File noticed (size stable for one 3 s poll), moved to `inbox/.processing/` | document-vendor-agent-worker (`inbox_watcher.py`) | — |
+| ClamAV scan → MinIO → `documents` row, uploader `inbox@procurement.local` | same code as a UI upload | `document.ingested` |
+| Read / classify / match vendor | worker pipeline | `document.classified`, `vendor.matched` |
+| Quote → purchase request (skipped while it needs review, for duplicates, or without vendor/total) | approval-inventory-agent consumer | `approval.requested` |
+| Auto-approved under the spend threshold, else the normal approvers | approval-inventory-agent | `approval.decided` |
+| Contract generated, then sent for signature **once** (DocuSign emails the signer) | contract-risk-agent consumer | `contract.generated` |
+| Envelope completed → contract signed (poller every 30 s, or DocuSign Connect) | contract-risk-agent | `contract.signed` |
+
+The file ends up in `inbox/processed/`, or in `inbox/failed/` with a
+`.error.txt`. Quotes a person uploads in the UI keep the manual flow.
+
+**Control Panel** (admin, `/app/control-panel`) shows it live: the Kafka
+event log (every topic, read through a read-only `event-monitor` Kafka
+login, payloads reduced to ids and statuses — no bank details), each
+dropped file's current step with links to its document / request /
+contract, and the MinIO and DocuSign connections.
+
+DocuSign is optional: without keys, "docusign" sends are simulated. To
+use the free sandbox, follow the DocuSign block in `.env.example`, set
+`APP_ESIGN_AUTO_SIGNER_EMAIL` to who should sign, restart
+contract-risk-agent and click **Grant consent** on the Control Panel once.
+
 ### Platform controls
 
 Visible on the **Controls** page (`/app/controls`, finance + admin), each

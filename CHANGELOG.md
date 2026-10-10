@@ -3,6 +3,24 @@
 Newest first. Dates are 2026. Nothing below the Sep 25 merge has been
 committed yet (branch `anjali`); see TODO.md for open items.
 
+## Oct 10 — Drop folder → DocuSign automation, Control Panel
+
+- **Drop folder** `./inbox`: the document worker ingests files put there
+  (same scan/MinIO/outbox path as an upload); processed files move to
+  `inbox/processed/`, rejected ones to `inbox/failed/` with the reason.
+- A drop-folder **quote becomes a purchase request** automatically
+  (approval-inventory-agent; `purchase_requests.document_id` now set),
+  and its contract is **sent for signature once** after approval
+  (contract-risk-agent). Manual uploads are unchanged.
+- **DocuSign** (JWT grant, sandbox default) next to Documenso: real
+  envelopes when `APP_DOCUSIGN_*` is set, simulated otherwise; completion
+  by a status poller or DocuSign Connect (`/api/webhooks/docusign`, HMAC).
+- **Control Panel** page (admin): live Kafka log, dropped-file progress,
+  MinIO and DocuSign status. New Kafka user `event-monitor` (read on all
+  topics, no group, no writes).
+- MinIO console link on System Health pointed at the API port (9000);
+  now 9001.
+
 ## Sep 28 — One home page per item, clickable lifecycle, back arrow
 
 - **Back arrow** in the top bar on every page except the dashboard

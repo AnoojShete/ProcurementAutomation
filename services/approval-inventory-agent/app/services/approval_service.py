@@ -91,7 +91,7 @@ class ApprovalService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_request(self, data: CreatePurchaseRequest) -> PurchaseRequest:
+    async def create_request(self, data: CreatePurchaseRequest, document_id: str | None = None) -> PurchaseRequest:
         """Create a new purchase request with proper tier routing.
         
         Flow:
@@ -169,6 +169,9 @@ class ApprovalService:
         now = datetime.now(timezone.utc)
         req = PurchaseRequest(
             id=req_id,
+            # The source quote, for requests created from a drop-folder
+            # document (app/kafka/consumer.py); never taken from the API body.
+            document_id=document_id,
             request_type=data.request_type,
             requested_by=data.requested_by,
             department=data.department,
