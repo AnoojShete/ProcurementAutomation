@@ -10,8 +10,10 @@ with workflow.unsafe.imports_passed_through():
         record_approval_decision, publish_approval_decided_event,
         publish_notification_event, release_inventory_lock,
         release_hardware_reservations, set_reclaim_cooldown,
+        revoke_email_tokens_activity,
         NotificationInput
     )
+
 
 @dataclass
 class ApprovalSignal:
@@ -98,6 +100,13 @@ class ApprovalWorkflow:
             )
             return True  # Workflow should terminate
 
+        # Prompt 8 A6: SLA escalation - revoke old approver's token
+        await workflow.execute_activity(
+            revoke_email_tokens_activity,
+            args=[request_id, index, "sla_escalation"],
+            start_to_close_timeout=timedelta(seconds=10)
+        )
+
         # Non-terminal escalation: just notify the next approver
         notification_input = NotificationInput(
             recipient=approver_id,
@@ -107,6 +116,7 @@ class ApprovalWorkflow:
             priority="urgent",
             related_entity_id=request_id
         )
+
         await workflow.execute_activity(
             publish_notification_event,
             args=[notification_input],

@@ -115,12 +115,18 @@ The demo compose defaults work without editing it.
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD` | blank | Leave blank for `dev`. For `smtp`: port defaults to 587, security to `starttls` (`ssl` for 465). |
 | `EMAIL_FROM`, `EMAIL_REPLY_TO` | `Procurement Platform <noreply@procurement.local>`, blank | With Gmail, `EMAIL_FROM` must be your Gmail address. |
 | `APP_BASE_URL` | `http://localhost:8080` | Used to build the links in emails. |
+| `PUBLIC_BASE_URL` | `http://localhost:8080` | External gateway URL used for email action links (`/email-action/*`). In production, **must be HTTPS** because plain HTTP exposes action tokens to network sniffing. |
+| `INTERNAL_SERVICE_TOKEN` | `dev-internal-service-token-change-me` | Secret for internal service-to-service calls (`POST /internal/email-actions/mint`). Never exposed at the gateway. |
+| `ENABLE_SIGN_SIMULATED` | `false` | When false, `POST /contracts/{id}/sign-simulated` is disabled. Set true only for demo/dev without Documenso/DocuSign. |
 | `AUTH_LOCKOUT_THRESHOLD` / `_WINDOW_MINUTES` / `_MINUTES` | 5 / 15 / 15 | Wrong passwords per address before a temporary lock. |
 | `AUTH_COOKIE_SECURE` | off in development | Turn on behind HTTPS. |
 | `APP_SHOWCASE_MODE` | on in development only | Enables the Controls page scenario endpoints. |
 | `GSTINCHECK_API_KEY` | placeholder | Only for live GSTIN lookups (off by default, admin toggle). |
 | `APP_DOCUMENSO_API_URL` / `_API_TOKEN` / `_WEBHOOK_SECRET` | unset | With these, "Send for signature" uses Documenso; unset = simulated signing. |
 | `VITE_SHOW_DEMO_ACCOUNTS` (frontend build) | shown | Set to `false` when building for real users to hide the demo-login buttons. |
+
+> [!NOTE]
+> **Authorization vs. Signature**: An email approval records an **AUTHORIZATION** decision; the e-signature provider's flow (Documenso / DocuSign) produces the legally binding **DIGITAL SIGNATURE**. An email approval button is never described or treated as a digital signature.
 
 Only **auth-service** uses the email settings. notification-agent still
 sends every notification to Mailpit (its recipients are placeholder role
@@ -160,6 +166,7 @@ runs automatically against Mailpit in `tests/e2e/auth_flows.py`.
 |---|---|
 | App | http://localhost:8080 |
 | API (through the gateway) | http://localhost:8080/api/… |
+| Email action (single-action token) | http://localhost:8080/email-action/… |
 | Mailpit (all dev email) | http://localhost:8025 |
 | Grafana (admin / admin) | http://localhost:3000 |
 | Temporal UI | http://localhost:8088 |

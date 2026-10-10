@@ -274,3 +274,13 @@ async def set_reclaim_cooldown(request_id: str) -> None:
                 if lic:
                     lic.reclaim_cooldown_until = datetime.now(timezone.utc) + timedelta(days=45)
         await session.commit()
+
+
+@activity.defn
+async def revoke_email_tokens_activity(request_id: str, step_index: Optional[int] = None, reason: str = "sla_escalation") -> None:
+    """Prompt 8 A6: Revoke email action tokens on SLA escalation or state change."""
+    async with async_session_factory() as session:
+        from app.services.email_action_token_service import revoke_tokens
+        await revoke_tokens(session, request_id, step_index=step_index, reason=reason)
+        await session.commit()
+

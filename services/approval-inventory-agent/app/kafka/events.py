@@ -36,7 +36,7 @@ def build_approval_requested_payload(
 
 def build_approval_decided_payload(
     request_id, decision, decided_by, decision_level,
-    escalated, decided_at, comments=None
+    escalated, decided_at, comments=None, decision_channel="portal"
 ) -> dict:
     """Build payload for approval.decided event."""
     return {
@@ -46,8 +46,10 @@ def build_approval_decided_payload(
         "decision_level": decision_level,
         "escalated": escalated,
         "decided_at": decided_at.isoformat() if hasattr(decided_at, 'isoformat') else str(decided_at),
-        "comments": comments
+        "comments": comments,
+        "decision_channel": decision_channel,
     }
+
 
 def build_license_usage_updated_payload(
     license_id, vendor_id, app_name, total_seats,

@@ -23,6 +23,10 @@ def is_development() -> bool:
     return app_env() in DEVELOPMENT_NAMES
 
 
+def is_production() -> bool:
+    return not is_development()
+
+
 def require_secret(name: str, value: str | None, known_defaults: set[str]) -> None:
     """Refuse to run outside development with a missing or published secret."""
     if is_development():

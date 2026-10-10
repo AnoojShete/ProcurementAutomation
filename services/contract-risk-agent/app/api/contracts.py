@@ -163,12 +163,26 @@ async def sign_contract_simulated(contract_id: str, request: Request, db: AsyncS
     """Demo only — simulates a provider webhook without real signature verification.
     Disabled when a real e-signature provider is configured.
     """
-    if (not settings.allow_simulated_signatures or settings.documenso_api_url or settings.opensign_api_url
-            or docusign_client.docusign_enabled()):
+    import os
+    from shared.runtime_env import is_production
+    if is_production():
+        raise HTTPException(
+            status_code=403,
+            detail="Simulated signatures are disabled in production. Simulated signing is disabled.",
+        )
+
+    enabled = os.environ.get("ENABLE_SIGN_SIMULATED", os.environ.get("APP_ENABLE_SIGN_SIMULATED", "false")).lower() in ("true", "1", "yes")
+    if not settings.allow_simulated_signatures or not enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="Simulated signatures are disabled. Simulated signing is disabled. Set ENABLE_SIGN_SIMULATED=true for demo/testing only.",
+        )
+    if (settings.documenso_api_url or settings.opensign_api_url or docusign_client.docusign_enabled()):
         raise HTTPException(
             status_code=403,
             detail="Simulated signatures are disabled when a real e-signature provider is configured",
         )
+
     try:
         contract = await contract_service.sign_contract_simulated(
             db, request.app.state.kafka_producer, contract_id

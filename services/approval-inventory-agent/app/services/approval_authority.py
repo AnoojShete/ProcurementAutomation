@@ -234,12 +234,34 @@ async def create_delegation(
             "to_": delegate_email.strip().lower(), "until": valid_until, "reason": reason, "by": created_by,
         },
     )
+    # Prompt 8 A6: delegation created - revoke active tokens for the delegator
+    await db.execute(
+        text(
+            "UPDATE email_action_tokens SET revoked_at = now(), revoked_reason = 'delegation_changed' "
+            "WHERE lower(approver_id) = :approver AND revoked_at IS NULL AND used_at IS NULL"
+        ),
+        {"approver": delegator_email.strip().lower()},
+    )
     return row_id
 
 
 async def revoke_delegation(db, delegation_id: str) -> bool:
+    row = (await db.execute(
+        text("SELECT delegate_email, delegator_email FROM approval_delegations WHERE id = :id"),
+        {"id": delegation_id},
+    )).first()
     res = await db.execute(
         text("UPDATE approval_delegations SET revoked_at = now() WHERE id = :id AND revoked_at IS NULL"),
         {"id": delegation_id},
     )
+    if res.rowcount == 1 and row:
+        # Prompt 8 A6: delegation revoked - revoke tokens for delegate and delegator
+        await db.execute(
+            text(
+                "UPDATE email_action_tokens SET revoked_at = now(), revoked_reason = 'delegation_changed' "
+                "WHERE (lower(approver_id) = :d1 OR lower(approver_id) = :d2) AND revoked_at IS NULL AND used_at IS NULL"
+            ),
+            {"d1": row.delegate_email.lower(), "d2": row.delegator_email.lower()},
+        )
     return res.rowcount == 1
+

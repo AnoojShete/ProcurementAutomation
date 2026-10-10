@@ -239,3 +239,24 @@ class AuditLog(Base):
     performed_by: Mapped[Optional[str]] = mapped_column(String(255))
     details: Mapped[Optional[dict]] = mapped_column(JSON)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class EmailActionToken(Base):
+    """Single-action token for approval/rejection via email link (Prompt 8 Part A)."""
+    __tablename__ = "email_action_tokens"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False, index=True)
+    request_id: Mapped[str] = mapped_column(Uuid, ForeignKey("purchase_requests.id", ondelete="CASCADE"), nullable=False)
+    approver_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    used_action: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    used_ip: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    used_user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    purchase_request: Mapped["PurchaseRequest"] = relationship("PurchaseRequest")

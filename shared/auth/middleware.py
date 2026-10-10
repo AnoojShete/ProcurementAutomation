@@ -14,10 +14,14 @@ Usage in a service's main.py:
         dependencies=[Depends(require_role("admin"))],       # role-gated
     )
 
-Only GET /health and GET /metrics are exempt — every other route must
+Only GET /health and GET /metrics are exempt across services, plus
+a NARROW exemption for exactly GET /email-action/{token} and
+POST /email-action/{token}/decide in approval-inventory-agent (which
+authenticate via the one-time token alone). Every other route must
 depend on `get_current_user` (directly, or transitively via
 `require_role`), applied at the router level so it's impossible to forget
 on an individual endpoint.
+
 """
 from dataclasses import dataclass
 

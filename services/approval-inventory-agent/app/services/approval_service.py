@@ -277,23 +277,28 @@ class ApprovalService:
         return req
 
     async def process_decision(
-        self, request_id: str, decision: str, action: ApprovalAction
+        self, request_id: str, decision: str, action: ApprovalAction,
+        channel: str = "portal", actor_role: str = "approver"
     ) -> PurchaseRequest:
-        """Process an approve/reject decision from an approver.
+        """Process an approve/reject decision from an approver (portal or email action).
         
-        Sends a signal to the running Temporal workflow, which handles
-        the actual state transitions and event publishing.
+        Reuses the exact same business logic: budget checks, segregation of duties,
+        delegation resolution, atomic row locks, Temporal signal, Kafka publishing,
+        and audit logging.
         
         Args:
             request_id: UUID of the purchase request
             decision: 'approved' or 'rejected'
             action: ApprovalAction with decided_by and optional comments
+            channel: 'portal' or 'email'
+            actor_role: role of the decider ('approver', 'finance', 'admin')
             
         Returns:
             The updated PurchaseRequest
             
         Raises:
             ValueError: If request not found or not in pending state
+            AuthorityError: If authority check fails
         """
         # 1. Fetch request, validate it exists and is pending
         req = await self.get_request_with_history(request_id)
@@ -333,20 +338,27 @@ class ApprovalService:
                     "comments": action.comments,
                     # Authority was checked for this level only.
                     "level_index": idx,
+                    "channel": channel,
                 },
             )
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to signal Temporal workflow: {e}")
             # Fallback: process directly without Temporal
-            await self._process_decision_direct(req, decision, action)
+            await self._process_decision_direct(req, decision, action, channel=channel)
 
-        # Refresh to get latest state (Temporal may have updated it)
+        # 3. Prompt 8 A6: Revoke email action tokens on decision
+        from app.services.email_action_token_service import revoke_tokens
+        await revoke_tokens(self.db, request_id, reason=f"decided_via_{channel}")
+        await self.db.commit()
+
+        # Refresh to get latest state (Temporal or direct fallback updated it)
         await self.db.refresh(req)
         return req
 
     async def _process_decision_direct(
-        self, req: PurchaseRequest, decision: str, action: ApprovalAction
+        self, req: PurchaseRequest, decision: str, action: ApprovalAction,
+        channel: str = "portal"
     ):
         """Fallback: process a decision directly without Temporal.
         
@@ -392,6 +404,7 @@ class ApprovalService:
                 "decision": decision,
                 "level": decision_level,
                 "escalated": False,
+                "channel": channel,
             },
         )
         self.db.add(audit)
@@ -401,7 +414,7 @@ class ApprovalService:
         try:
             await self.producer.publish_approval_decided(
                 req.id, decision, action.decided_by, decision_level,
-                False, action.comments, now
+                False, action.comments, now, decision_channel=channel
             )
         except Exception:
             pass
@@ -456,6 +469,13 @@ class ApprovalService:
             details={"reason": "Declined by user during grace period"},
         )
         self.db.add(audit)
+
+        # Prompt 8 A6: revoke any active tokens when reclaim is declined
+        from app.services.email_action_token_service import revoke_tokens
+        await revoke_tokens(self.db, request_id, reason="reclaim_declined")
+
         await self.db.commit()
         await self.db.refresh(req)
         return req
+
+

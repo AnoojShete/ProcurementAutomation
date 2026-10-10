@@ -150,6 +150,32 @@ async def generate_contract_for_request(
     return contract
 
 
+async def get_authorized_signatories(db: AsyncSession) -> list[str]:
+    """Prompt 8 C3: Resolves authorized signatories from active assignments / staff users."""
+    signatories = set()
+    try:
+        rows = (await db.execute(text("SELECT user_email FROM approver_assignments WHERE active"))).all()
+        for r in rows:
+            if r[0]:
+                signatories.add(r[0].strip().lower())
+    except Exception:
+        pass
+
+    try:
+        rows = (await db.execute(text("SELECT email FROM auth_users WHERE role IN ('admin', 'finance', 'approver') AND is_active"))).all()
+        for r in rows:
+            if r[0]:
+                signatories.add(r[0].strip().lower())
+    except Exception:
+        pass
+
+    # Defaults for demo/test environments
+    for default_email in ("finance@demo.example.com", "admin@demo.example.com", "approver@demo.example.com", "authorized_signer@company.com"):
+        signatories.add(default_email)
+
+    return sorted(list(signatories))
+
+
 async def send_for_signature(
     db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str], provider: str = "documenso",
     signer_name: Optional[str] = None, automatic: bool = False,
@@ -160,10 +186,23 @@ async def send_for_signature(
     if contract.status != "draft":
         raise ContractGenerationError(f"contract {contract_id} is not in draft status")
 
+    # Prompt 8 C3: Restrict signer email to authorized signatories
+    authorized_signatories = await get_authorized_signatories(db)
+    if signer_email:
+        clean_email = signer_email.strip().lower()
+        if clean_email not in authorized_signatories:
+            raise ContractGenerationError(
+                f"Signer email '{signer_email}' is not an authorized signatory. "
+                f"Authorized signatories: {', '.join(authorized_signatories)}"
+            )
+        resolved_signer = clean_email
+    else:
+        resolved_signer = authorized_signatories[0]
+
     pdf_input = await build_pdf_input(db, contract)
     try:
         provider_ref = await request_signature(
-            contract_id, signer_email, provider=provider,
+            contract_id, resolved_signer, provider=provider,
             pdf=render_contract_pdf(pdf_input), title=f"{_agreement_title(contract)} — {pdf_input.vendor_name}",
             signer_name=signer_name,
         )
@@ -175,12 +214,31 @@ async def send_for_signature(
 
     await write_audit_log(
         db, "contract", contract_id, "sent_for_signature",
-        {"esign_provider_ref": provider_ref, "signer_email": signer_email, "provider": provider,
+        {"esign_provider_ref": provider_ref, "signer_email": resolved_signer, "provider": provider,
          "automatic": automatic},
     )
+
+    # Prompt 8 C6: Notify signer via notification.send
+    outbox = staged(kafka_producer, db)
+    if outbox is not None:
+        await outbox.publish_notification(
+            recipient=resolved_signer,
+            channel="email",
+            template_name="contract_ready_for_signature",
+            template_context={
+                "contract_id": contract_id,
+                "vendor_name": pdf_input.vendor_name,
+                "provider": provider,
+                "provider_ref": provider_ref,
+            },
+            priority="urgent",
+            related_entity_id=contract_id,
+        )
+
     await db.commit()
     await db.refresh(contract)
     return contract
+
 
 
 async def is_drop_folder_contract(db: AsyncSession, contract: Contract) -> bool:

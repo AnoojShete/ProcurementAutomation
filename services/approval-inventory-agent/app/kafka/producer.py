@@ -78,7 +78,7 @@ class KafkaEventProducer:
 
     async def publish_approval_decided(
         self, request_id, decision, decided_by, decision_level,
-        escalated, comments, decided_at=None
+        escalated, comments, decided_at=None, decision_channel="portal"
     ):
         """Publish an approval.decided event."""
         if decided_at is None:
@@ -91,9 +91,11 @@ class KafkaEventProducer:
             escalated=escalated,
             decided_at=decided_at,
             comments=comments,
+            decision_channel=decision_channel,
         )
         event = build_event(TOPIC_APPROVAL_DECIDED, self.service_name, payload)
         await self.publish(TOPIC_APPROVAL_DECIDED, event)
+
 
     async def publish_license_usage_updated(self, license_data: dict):
         """Publish a license.usage.updated event.

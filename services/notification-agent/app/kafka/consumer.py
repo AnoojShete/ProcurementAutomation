@@ -14,6 +14,9 @@ vendor.offboarded — so all 10 are handled here:
 import json
 import asyncio
 import logging
+import os
+import httpx
+from sqlalchemy import text
 
 from aiokafka import AIOKafkaConsumer
 from shared.kafka_security import kafka_auth_kwargs
@@ -27,6 +30,31 @@ from shared.infra.retry import with_retry
 from shared.logging.context import CorrelationContext
 
 logger = logging.getLogger(__name__)
+
+
+async def _mint_action_url(request_id: str, approver_id: str, step_index: int) -> tuple[str | None, str | None]:
+    """Calls approval-inventory-agent POST /internal/email-actions/mint to obtain action_url."""
+    token = os.environ.get("INTERNAL_SERVICE_TOKEN", "dev-internal-service-token-change-me")
+    url = "http://approval-inventory-agent:8002/internal/email-actions/mint"
+    headers = {"X-Internal-Service-Token": token}
+    body = {
+        "request_id": request_id,
+        "approver_id": approver_id,
+        "step_index": step_index,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.post(url, json=body, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                return data.get("action_url"), data.get("expires_at")
+            else:
+                logger.warning(f"Minting email action token failed ({resp.status_code}): {resp.text[:200]}")
+                return None, None
+    except Exception as e:
+        logger.warning(f"Error calling internal mint endpoint: {e}")
+        return None, None
+
 
 CONSUME_TOPICS = [
     "document.classified",              # published by document-vendor-agent
@@ -66,6 +94,17 @@ async def start_consumer(app):
                 if correlation_id:
                     CorrelationContext.set(correlation_id)
                 
+                event_id = msg.value.get("event_id") if isinstance(msg.value, dict) else None
+                if event_id:
+                    async with async_session_factory() as db:
+                        res = await db.execute(
+                            text("SELECT 1 FROM processed_kafka_events WHERE event_id = :e"),
+                            {"e": event_id}
+                        )
+                        if res.first() is not None:
+                            logger.info(f"Skipping already-processed event {event_id} on {msg.topic}")
+                            continue
+
                 event_type, payload, schema_version = parse_envelope(msg.value)
                 if schema_version != 1:
                     logger.info(f"event {event_type} has schema_version={schema_version} (handled as v1-compatible)")
@@ -77,6 +116,14 @@ async def start_consumer(app):
 
                 async with async_session_factory() as db:
                     await handler(db, payload)
+
+                if event_id:
+                    async with async_session_factory() as db:
+                        await db.execute(
+                            text("INSERT INTO processed_kafka_events (event_id, topic) VALUES (:e, :t) ON CONFLICT (event_id) DO NOTHING"),
+                            {"e": event_id, "t": msg.topic}
+                        )
+                        await db.commit()
 
             except Exception as e:
                 logger.error(f"Error processing message: {e}", exc_info=True)
@@ -119,19 +166,39 @@ async def _handle_license_usage_updated(db, payload: dict):
 
 async def _handle_approval_requested(db, payload: dict):
     chain = payload.get("approval_chain") or []
-    # The event doesn't say which chain index is "current" (that's tracked
-    # internally by approval-inventory-agent) — the first entry is who a
-    # freshly-created request needs to act on first.
     candidate = chain[0] if chain else None
     recipient = await directory.resolve_recipient(db, candidate)
+
+    request_id = payload.get("request_id")
+    step_index = int(payload.get("step_index", 0))
+    approver_candidate = candidate or recipient
+
+    # Prompt 8 B1: Mint email action URL at render time
+    action_url, action_expires_at = await _mint_action_url(
+        request_id=request_id,
+        approver_id=approver_candidate,
+        step_index=step_index,
+    )
+
+    context = dict(payload)
+    if action_url:
+        context["action_url"] = action_url
+        context["action_expires_at"] = action_expires_at
+    else:
+        context["action_url"] = None
+
+    public_base_url = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8080").rstrip("/")
+    context["portal_url"] = f"{public_base_url}/app/requests/{request_id}"
+
     await dispatcher.notify(
         db,
         event_type="approval.requested",
         template_name="approval_requested",
-        context=payload,
+        context=context,
         recipient=recipient,
-        related_entity_id=payload.get("request_id"),
+        related_entity_id=request_id,
     )
+
 
 
 async def _handle_approval_decided(db, payload: dict):

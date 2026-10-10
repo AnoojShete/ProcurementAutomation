@@ -13,7 +13,10 @@ from app.workflows.activities import (
     publish_notification_event,
     release_inventory_lock,
     release_hardware_reservations,
+    set_reclaim_cooldown,
+    revoke_email_tokens_activity,
 )
+
 from app.workflows.approval_workflow import ApprovalWorkflow
 
 logger = logging.getLogger(__name__)
@@ -57,7 +60,10 @@ async def main():
             publish_notification_event,
             release_inventory_lock,
             release_hardware_reservations,
+            set_reclaim_cooldown,
+            revoke_email_tokens_activity,
         ],
+
     )
 
     logger.info(f"Starting Temporal worker on task queue: {settings.temporal_task_queue}")

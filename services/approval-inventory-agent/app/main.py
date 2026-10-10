@@ -16,7 +16,7 @@ from app.database import init_db, get_db, async_session_factory
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
 from app.usage_scanner import run_usage_scanner
-from app.api import health, requests, inventory, inbox, licenses, orders, authority, invoices, ops
+from app.api import health, requests, inventory, inbox, licenses, orders, authority, invoices, ops, email_action, internal_email_action
 from app.services.order_monitor import run_order_monitor
 from app.schemas import ErrorResponse, ErrorDetail
 
@@ -187,4 +187,13 @@ app.include_router(
     inbox.router, prefix="/inbox", tags=["Approver Inbox"],
     dependencies=[Depends(require_role("approver", "finance", "admin"))],
 )
+
+# Prompt 8 Part A: Email action public confirmation & decision endpoints
+# Excluded from JWT middleware; authenticates via token alone
+app.include_router(email_action.router, prefix="/email-action", tags=["Email Actions"])
+
+# Prompt 8 Part A4: Internal service-to-service token minting endpoint
+# Excluded from JWT middleware; authenticated via X-Internal-Service-Token header
+app.include_router(internal_email_action.router, prefix="/internal/email-actions", tags=["Internal"])
+
 
