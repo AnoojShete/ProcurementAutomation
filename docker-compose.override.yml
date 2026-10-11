@@ -238,6 +238,7 @@ services:
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
+      APP_CLAMAV_ENABLED: "true"
       APP_CLAMAV_HOST: clamav
       APP_CLAMAV_PORT: "3310"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}

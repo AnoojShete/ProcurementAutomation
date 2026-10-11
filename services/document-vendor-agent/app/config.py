@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Browser link to the MinIO console, shown on the control panel.
     minio_console_url: str = "http://localhost:9001"
 
+    clamav_enabled: bool = True
     clamav_host: str = "clamav"
     clamav_port: int = 3310
     clamav_timeout_seconds: int = 15
@@ -65,7 +66,7 @@ class Settings(BaseSettings):
     # every container rebuild.
     hf_home: str = "/app/.cache/huggingface"
 
-    model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()
