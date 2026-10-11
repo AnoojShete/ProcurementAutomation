@@ -56,8 +56,9 @@ echo "---       needs a restart now that every service above exists  ---"
 docker compose up -d --remove-orphans nginx --force-recreate
 
 echo
-echo "--- [6/6] Waiting for every service's healthcheck ---"
-SERVICES="postgres redis redpanda minio temporal clamav auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
+# To re-enable ClamAV: uncomment the line below and comment the active SERVICES line
+# SERVICES="postgres redis redpanda minio temporal clamav auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
+SERVICES="postgres redis redpanda minio temporal auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent"
 MAX_WAIT=90
 for i in $(seq 1 $MAX_WAIT); do
   unhealthy=""

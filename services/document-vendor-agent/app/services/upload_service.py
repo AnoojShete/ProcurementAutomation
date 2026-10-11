@@ -101,6 +101,8 @@ async def scan_upload(data: bytes, db: AsyncSession, filename: str, clamd_client
     """Raises MalwareDetectedError or ScanUnavailableError; returns
     normally when the file is clean. Never writes to MinIO itself — the
     caller only proceeds to storage.upload_bytes after this returns."""
+    # ClamAV scan is disabled by default. To re-enable, set APP_CLAMAV_ENABLED=true in .env
+    # or set clamav_enabled = True in config.py.
     if not settings.clamav_enabled:
         return
     file_hash = sha256_hex(data)

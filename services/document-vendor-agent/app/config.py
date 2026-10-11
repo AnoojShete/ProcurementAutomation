@@ -26,7 +26,9 @@ class Settings(BaseSettings):
     # Browser link to the MinIO console, shown on the control panel.
     minio_console_url: str = "http://localhost:9001"
 
-    clamav_enabled: bool = True
+    # To re-enable ClamAV: uncomment clamav_enabled: bool = True and comment out False
+    # clamav_enabled: bool = True
+    clamav_enabled: bool = False
     clamav_host: str = "clamav"
     clamav_port: int = 3310
     clamav_timeout_seconds: int = 15
