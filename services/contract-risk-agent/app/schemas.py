@@ -33,6 +33,7 @@ class SignContractRequest(BaseModel):
     signer_email is accepted for older clients but ignored."""
     signer_name: str = Field(min_length=1, max_length=200)
     signer_email: Optional[str] = None
+    signer_designation: Optional[str] = Field(default=None, max_length=200)
     # A drawn signature as a data: URL (PNG); capped so the audit row stays small.
     signature_data: Optional[str] = Field(default=None, max_length=300_000)
     legal_consent: bool = False
@@ -44,6 +45,7 @@ class SignatureCertificate(BaseModel):
     template_used: Optional[str] = None
     signer_name: str
     signer_email: str
+    signer_designation: Optional[str] = None
     signed_at: str
     signature_seal: str
     legal_framework: str

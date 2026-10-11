@@ -80,6 +80,12 @@ export function SignatureCertificateModal({
             <span className="text-slate-400">Signer Email</span>
             <p className="font-medium text-slate-800 truncate">{email}</p>
           </div>
+          {certificate?.signer_designation && (
+            <div>
+              <span className="text-slate-400">Designation</span>
+              <p className="font-medium text-slate-800">{certificate.signer_designation}</p>
+            </div>
+          )}
           <div>
             <span className="text-slate-400">Legal Framework</span>
             <p className="font-medium text-slate-800">ESIGN Act & UETA</p>

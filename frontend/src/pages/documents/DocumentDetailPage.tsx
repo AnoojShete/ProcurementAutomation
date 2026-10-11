@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, Copy, FileWarning } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Download, FileWarning } from "lucide-react";
 import { DocumentControls } from "@/components/controls/DocumentControls";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
@@ -34,6 +34,39 @@ export function DocumentDetailPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
+
+  useEffect(() => {
+    if (!doc?.id) return;
+    let active = true;
+    let url: string | null = null;
+    setPreviewLoading(true);
+    setPreviewFailed(false);
+    documentsApi
+      .getFileUrl(doc.id)
+      .then((blobUrl: string) => {
+        if (!active) {
+          URL.revokeObjectURL(blobUrl);
+          return;
+        }
+        url = blobUrl;
+        setPreviewUrl(blobUrl);
+      })
+      .catch(() => {
+        if (active) setPreviewFailed(true);
+      })
+      .finally(() => {
+        if (active) setPreviewLoading(false);
+      });
+
+    return () => {
+      active = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [doc?.id]);
 
   useEffect(() => {
     if (!doc) return;
@@ -96,22 +129,59 @@ export function DocumentDetailPage() {
       <DocumentControls extracted={doc.extracted_fields ?? {}} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Left: file placeholder — no preview endpoint exists in the current API */}
-        <Card>
-          <CardHeader title="Document" />
-          <CardBody className="flex flex-col items-center gap-3 text-center">
-            <div className={`flex size-16 items-center justify-center rounded-xl ${FILE_ICON_BG[doc.file_type ?? "pdf"] ?? "bg-slate-100 text-slate-500"}`}>
-              <FileWarning className="size-7" />
-            </div>
-            <p className="text-sm font-medium text-slate-800">{doc.original_filename}</p>
-            <p className="text-xs text-slate-400">
-              File preview isn't exposed by the API in this environment — the original is stored in object storage,
-              accessible to operators outside this app.
-            </p>
+        {/* Left: Document Preview & Details */}
+        <Card className="flex flex-col">
+          <CardHeader
+            title="Document Preview"
+            action={
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Download className="size-3.5" />}
+                onClick={() => doc && documentsApi.downloadFile(doc.id, doc.original_filename ?? "document")}
+              >
+                Download
+              </Button>
+            }
+          />
+          <CardBody className="flex flex-1 flex-col gap-3">
+            {previewLoading ? (
+              <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-surface-border bg-surface-subtle p-4">
+                <Skeleton className="h-44 w-full" />
+                <span className="text-xs text-slate-400">Loading document preview...</span>
+              </div>
+            ) : previewUrl && (doc.file_type === "image" || doc.original_filename?.match(/\.(png|jpe?g|webp|gif)$/i)) ? (
+              <div className="flex max-h-80 items-center justify-center overflow-hidden rounded-lg border border-surface-border bg-slate-900/5 p-2">
+                <img
+                  src={previewUrl}
+                  alt={doc.original_filename ?? "Document"}
+                  className="max-h-72 w-auto max-w-full rounded object-contain shadow-sm"
+                />
+              </div>
+            ) : previewUrl && (doc.file_type === "pdf" || doc.original_filename?.toLowerCase().endsWith(".pdf")) ? (
+              <div className="relative h-72 w-full overflow-hidden rounded-lg border border-surface-border bg-slate-100">
+                <iframe
+                  src={previewUrl}
+                  title="PDF Preview"
+                  className="size-full rounded-lg border-0"
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-surface-border bg-surface-subtle p-6 text-center">
+                <div className={`flex size-14 items-center justify-center rounded-xl ${FILE_ICON_BG[doc.file_type ?? "pdf"] ?? "bg-slate-100 text-slate-500"}`}>
+                  <FileWarning className="size-6" />
+                </div>
+                <p className="text-sm font-medium text-slate-700">{doc.original_filename}</p>
+                <p className="text-xs text-slate-400">
+                  {previewFailed ? "Preview could not be loaded." : "Direct preview not supported for this file type."}
+                </p>
+              </div>
+            )}
+
             <dl className="mt-2 w-full space-y-2 border-t border-surface-border pt-3 text-left text-sm">
-              <div className="flex justify-between"><dt className="text-slate-400">Uploaded by</dt><dd className="text-slate-700">{doc.uploaded_by ?? "—"}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-400">Uploaded by</dt><dd className="font-medium text-slate-700">{doc.uploaded_by ?? "—"}</dd></div>
               <div className="flex justify-between"><dt className="text-slate-400">Uploaded</dt><dd className="text-slate-700">{formatDateTime(doc.uploaded_at)}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-400">File type</dt><dd className="uppercase text-slate-700">{doc.file_type ?? "—"}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-400">File type</dt><dd className="uppercase font-semibold text-slate-700">{doc.file_type ?? "—"}</dd></div>
               {doc.reviewed_by && (
                 <div className="flex justify-between"><dt className="text-slate-400">Reviewed by</dt><dd className="text-slate-700">{doc.reviewed_by}</dd></div>
               )}

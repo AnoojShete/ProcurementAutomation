@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api, downloadFile, fetchBlobUrl } from "./client";
 import type { BatchUploadResult, DocumentRecord, ReviewCorrectionBody } from "@/types/api";
 
 export const documentsApi = {
@@ -20,4 +20,6 @@ export const documentsApi = {
   },
   submitReview: (id: string, body: ReviewCorrectionBody) =>
     api.post<DocumentRecord>(`/documents/${id}/review`, body),
+  getFileUrl: (id: string) => fetchBlobUrl(`/documents/${id}/file`),
+  downloadFile: (id: string, filename: string) => downloadFile(`/documents/${id}/file`, filename),
 };

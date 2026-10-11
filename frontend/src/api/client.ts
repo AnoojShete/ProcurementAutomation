@@ -166,6 +166,17 @@ export const api = {
   request: <T,>(path: string, method: string, body?: unknown) => apiRequest<T>(path, { method, body }),
 };
 
+/** Fetches a file blob with auth headers and returns a temporary Object URL. */
+export async function fetchBlobUrl(path: string): Promise<string> {
+  const res = await authedFetch(path, { method: "GET" });
+  if (!res.ok) {
+    const { code, message } = await parseErrorBody(res);
+    throw new ApiError(message, code, res.status);
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
 /** Fetches a file with the caller's token and hands it to the browser as a
  * download. A plain <a href> can't be used: the access token lives in
  * memory, not in a cookie. */

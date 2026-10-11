@@ -133,6 +133,7 @@ async def sign_contract(
             contract_id=contract_id,
             signer_name=data.signer_name.strip(),
             signer_email=user.email,
+            signer_designation=data.signer_designation.strip() if data.signer_designation else None,
             signature_data=data.signature_data,
             legal_consent=data.legal_consent,
             ip_address=ip_addr,
