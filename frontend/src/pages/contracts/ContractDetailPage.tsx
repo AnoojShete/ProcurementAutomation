@@ -102,6 +102,9 @@ export function ContractDetailPage() {
               <Row label="Generated" value={formatDateTime(contract.generated_at)} />
               {contract.signed_at && <Row label="Signed" value={formatDateTime(contract.signed_at)} />}
               {contract.signed_by && <Row label="Signed By" value={contract.signed_by} />}
+              {contract.signature_certificate?.signer_designation && (
+                <Row label="Designation" value={contract.signature_certificate.signer_designation} />
+              )}
               {contract.reconciliation_status && <Row label="Reconciliation" value={titleCase(contract.reconciliation_status)} />}
             </dl>
           </CardBody>
@@ -116,6 +119,43 @@ export function ContractDetailPage() {
               </pre>
             ) : (
               <p className="text-sm text-slate-500">No contract text available.</p>
+            )}
+
+            {contract.status === "signed" && (
+              <div className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Executed Signature</h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                    <span className="text-xs font-medium text-slate-500">For the Company</span>
+                    {contract.signature_certificate?.signature_image ? (
+                      <div className="my-2 flex h-16 items-center justify-start">
+                        <img
+                          src={contract.signature_certificate.signature_image}
+                          alt="Signature Mark"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="my-2 py-2 font-serif text-lg italic text-slate-800">
+                        {contract.signature_certificate?.signer_name ?? contract.signed_by ?? "Signed"}
+                      </div>
+                    )}
+                    <div className="border-t border-slate-300 pt-1.5 text-xs">
+                      <p className="font-semibold text-slate-900">
+                        {contract.signature_certificate?.signer_name ?? contract.signed_by?.split("<")[0].trim() ?? "—"}
+                      </p>
+                      {contract.signature_certificate?.signer_designation && (
+                        <p className="font-medium text-slate-600">
+                          {contract.signature_certificate.signer_designation}
+                        </p>
+                      )}
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        Electronically signed · {formatDateTime(contract.signed_at)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </CardBody>
         </Card>

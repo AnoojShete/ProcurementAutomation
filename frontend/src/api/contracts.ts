@@ -17,6 +17,7 @@ export const contractsApi = {
     data: {
       signer_name: string;
       signer_email: string;
+      signer_designation?: string | null;
       signature_data?: string;
       legal_consent: boolean;
     }

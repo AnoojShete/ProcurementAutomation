@@ -12,8 +12,10 @@ When a live Documenso instance signed the contract, the signed copy comes
 from Documenso instead (see esign_client.download_signed_pdf) and this
 module is only the fallback.
 """
+import base64
 import hashlib
 import io
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -26,8 +28,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    Image as RLImage, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
+
+logger = logging.getLogger(__name__)
 
 INK = colors.HexColor("#1f2328")
 MUTED = colors.HexColor("#59636e")
@@ -65,6 +69,27 @@ class ContractPdfInput:
     signed_by: Optional[str] = None
     esign_provider_ref: Optional[str] = None
     audit_trail: list[AuditEntry] = field(default_factory=list)
+    signature_image: Optional[str] = None
+    signer_designation: Optional[str] = None
+
+
+def _decode_signature_image(data_url: Optional[str], width: float = 48 * mm, height: float = 14 * mm) -> Optional[RLImage]:
+    """Decode a base64 PNG data URL into a ReportLab Image flowable."""
+    if not data_url or not isinstance(data_url, str):
+        return None
+    try:
+        if "," in data_url:
+            _, b64_data = data_url.split(",", 1)
+        else:
+            b64_data = data_url
+        img_bytes = base64.b64decode(b64_data)
+        buf = io.BytesIO(img_bytes)
+        img = RLImage(buf, width=width, height=height)
+        img.hAlign = "LEFT"
+        return img
+    except Exception as e:
+        logger.warning("Could not decode signature image: %s", e)
+        return None
 
 
 def text_sha256(contract_text: str) -> str:
@@ -158,37 +183,56 @@ def _kv_table(rows: list[tuple[str, str]], st: dict, label_width: float, mono_ke
 def _signature_block(c: ContractPdfInput, st: dict, width: float) -> Table:
     signed = c.status == "signed"
 
-    def party(role: str, name: str, signer: Optional[str]) -> list:
-        if signed and signer:
-            sig = Paragraph(
-                f"<font name='Helvetica-Oblique' size='12'>{escape(signer)}</font><br/>"
-                f"<font size='8' color='#59636e'>Electronically signed · {escape(_fmt_dt(c.signed_at))}</font>",
+    signer_name = ""
+    if c.signed_by:
+        signer_name = c.signed_by.split("<")[0].strip() if "<" in c.signed_by else c.signed_by.strip()
+
+    sig_img = _decode_signature_image(c.signature_image, width=48 * mm, height=14 * mm) if signed else None
+    if signed and c.signed_by:
+        if sig_img is not None:
+            left_sig = sig_img
+        else:
+            left_sig = Paragraph(
+                f"<font name='Helvetica-Oblique' size='12'>{escape(signer_name)}</font>",
                 st["cell"],
             )
-        else:
-            sig = Spacer(1, 26)
-        return [
-            Paragraph(f"<b>{escape(role)}</b>", st["cell"]),
-            Paragraph(escape(name), st["cell_label"]),
-            sig,
+        left_sub = [
             Paragraph("Signature", st["small"]),
+            Paragraph(f"<b>Name:</b> {escape(signer_name)}", st["cell"]),
         ]
+        if c.signer_designation:
+            left_sub.append(Paragraph(f"<b>Designation:</b> {escape(c.signer_designation)}", st["cell"]))
+        left_sub.append(
+            Paragraph(
+                f"<font size='8' color='#59636e'>Electronically signed · {escape(_fmt_dt(c.signed_at))}</font>",
+                st["small"],
+            )
+        )
+    else:
+        left_sig = Spacer(1, 26)
+        left_sub = [Paragraph("Signature", st["small"])]
 
-    # The platform (Subscriber/Purchaser side) signs through the e-sign
-    # provider; the vendor's countersignature isn't tracked by this system.
-    left = party("For the Company", "IT Procurement Intelligence Platform", c.signed_by)
-    right = party("For the Vendor", c.vendor_name, None)
-    # Middle spacer column keeps the two signature lines visibly separate.
+    right_sig = Spacer(1, 26)
+    right_sub = [Paragraph("Signature", st["small"])]
+
     gap = 14 * mm
-    rows = [[left[i], "", right[i]] for i in range(4)]
-    t = Table(rows, colWidths=[(width - gap) / 2, gap, (width - gap) / 2], hAlign="LEFT", spaceBefore=6)
+    col_w = (width - gap) / 2
+    rows = [
+        [Paragraph("<b>For the Company</b>", st["cell"]), "", Paragraph("<b>For the Vendor</b>", st["cell"])],
+        [Paragraph("IT Procurement Intelligence Platform", st["cell_label"]), "", Paragraph(escape(c.vendor_name), st["cell_label"])],
+        [left_sig, "", right_sig],
+        [left_sub, "", right_sub],
+    ]
+    t = Table(rows, colWidths=[col_w, gap, col_w], hAlign="LEFT", spaceBefore=6)
     t.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("VALIGN", (0, 2), (-1, 2), "BOTTOM"),
         ("LINEBELOW", (0, 2), (0, 2), 0.75, INK),
         ("LINEBELOW", (2, 2), (2, 2), 0.75, INK),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 2), (-1, 2), 4),
     ]))
     return t
 
@@ -235,18 +279,31 @@ def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False) 
                   Paragraph("Issued by the IT Procurement Intelligence Platform for the agreement above.", st["subtitle"]),
                   Spacer(1, 10)]
         provider = (c.esign_provider_ref or "").split("-", 1)[0].title() or "—"
+        cert_rows = [
+            ("Document", f"{_title_case(title)} (v{c.version})"),
+            ("Contract ID", c.contract_id),
+            ("Agreement SHA-256", text_sha256(c.contract_text)),
+            ("Signed by", c.signed_by or "—"),
+        ]
+        if c.signer_designation:
+            cert_rows.append(("Designation", c.signer_designation))
+        cert_rows.extend([
+            ("Signed at", _fmt_dt(c.signed_at)),
+            ("Signature provider", provider),
+            ("Provider reference", c.esign_provider_ref or "—"),
+        ])
         story.append(_kv_table(
-            [
-                ("Document", f"{_title_case(title)} (v{c.version})"),
-                ("Contract ID", c.contract_id),
-                ("Agreement SHA-256", text_sha256(c.contract_text)),
-                ("Signed by", c.signed_by or "—"),
-                ("Signed at", _fmt_dt(c.signed_at)),
-                ("Signature provider", provider),
-                ("Provider reference", c.esign_provider_ref or "—"),
-            ],
+            cert_rows,
             st, 40 * mm, mono_keys=frozenset({"Contract ID", "Agreement SHA-256", "Provider reference"}),
         ))
+        if c.signature_image:
+            cert_img = _decode_signature_image(c.signature_image, width=48 * mm, height=14 * mm)
+            if cert_img:
+                story += [
+                    Spacer(1, 8),
+                    Paragraph("Signature Mark", st["section"]),
+                    cert_img,
+                ]
         if c.audit_trail:
             story += [Spacer(1, 14), Paragraph("Audit trail", st["section"])]
             rows = [[Paragraph("<b>Time</b>", st["cell"]), Paragraph("<b>Event</b>", st["cell"]),

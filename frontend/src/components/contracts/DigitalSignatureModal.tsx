@@ -26,6 +26,7 @@ export function DigitalSignatureModal({
 }: DigitalSignatureModalProps) {
   const [signerName, setSignerName] = useState(defaultSignerName);
   const [signerEmail, setSignerEmail] = useState(defaultSignerEmail);
+  const [signerDesignation, setSignerDesignation] = useState("");
   const [signMode, setSignMode] = useState<"draw" | "type">("draw");
   const [typedFont, setTypedFont] = useState<"serif" | "cursive" | "mono">("cursive");
   const [legalConsent, setLegalConsent] = useState(false);
@@ -41,6 +42,7 @@ export function DigitalSignatureModal({
     if (open) {
       setSignerName(defaultSignerName || "");
       setSignerEmail(defaultSignerEmail || "");
+      setSignerDesignation("");
       setLegalConsent(false);
       setError(null);
       setHasDrawn(false);
@@ -179,6 +181,7 @@ export function DigitalSignatureModal({
       const response = await contractsApi.signContract(contract.id, {
         signer_name: signerName.trim(),
         signer_email: signerEmail.trim(),
+        signer_designation: signerDesignation.trim() || null,
         signature_data: signatureData,
         legal_consent: true,
       });
@@ -232,7 +235,7 @@ export function DigitalSignatureModal({
         </div>
 
         {/* Signer Identity Fields */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-700">
               Legal Full Name <span className="text-rose-500">*</span>
@@ -242,6 +245,19 @@ export function DigitalSignatureModal({
               value={signerName}
               onChange={(e) => setSignerName(e.target.value)}
               placeholder="e.g. Jane Doe"
+              className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">
+              Designation / Title
+            </label>
+            <input
+              type="text"
+              value={signerDesignation}
+              onChange={(e) => setSignerDesignation(e.target.value)}
+              placeholder="e.g. Chief Financial Officer"
               className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
             />
           </div>

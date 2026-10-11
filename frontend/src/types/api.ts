@@ -295,6 +295,7 @@ export interface SignatureCertificate {
   template_used?: string | null;
   signer_name: string;
   signer_email: string;
+  signer_designation?: string | null;
   signed_at: string;
   signature_seal: string;
   legal_framework: string;

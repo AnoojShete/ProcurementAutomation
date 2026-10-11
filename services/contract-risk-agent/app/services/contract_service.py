@@ -339,6 +339,7 @@ async def sign_contract_digitally(
     legal_consent: bool = False,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
+    signer_designation: Optional[str] = None,
 ) -> tuple[Contract, dict]:
     """Built-in e-sign: the signed-in user signs inside the platform.
 
@@ -363,7 +364,7 @@ async def sign_contract_digitally(
         raise ContractGenerationError(f"this contract is out for signature in {provider_name}; it completes there")
 
     now = datetime.now(timezone.utc)
-    payload_to_seal = f"{contract_id}|{contract.contract_text or ''}|{signer_name}|{signer_email}|{now.isoformat()}|{signature_data or ''}"
+    payload_to_seal = f"{contract_id}|{contract.contract_text or ''}|{signer_name}|{signer_email}|{signer_designation or ''}|{now.isoformat()}|{signature_data or ''}"
     sha256_seal = hashlib.sha256(payload_to_seal.encode("utf-8")).hexdigest()
 
     contract.status = "signed"
@@ -378,6 +379,7 @@ async def sign_contract_digitally(
         "template_used": contract.template,
         "signer_name": signer_name,
         "signer_email": signer_email,
+        "signer_designation": signer_designation,
         "signed_at": now.isoformat(),
         "signature_seal": sha256_seal,
         "legal_framework": "ESIGN Act (15 U.S.C. § 7001) / UETA",
@@ -467,7 +469,8 @@ def _audit_detail(action: str, payload: dict) -> str:
         who = payload.get("signer_email") or "signer"
         return f"Sent to {who} via {str(payload.get('provider') or 'provider').title()}"
     if action == "digitally_signed":
-        return f"Signed in the platform by {payload.get('signer_name', 'signer')} <{payload.get('signer_email', '')}>, seal {str(payload.get('signature_seal', ''))[:16]}"
+        desig_str = f" ({payload.get('signer_designation')})" if payload.get('signer_designation') else ""
+        return f"Signed in the platform by {payload.get('signer_name', 'signer')}{desig_str} <{payload.get('signer_email', '')}>, seal {str(payload.get('signature_seal', ''))[:16]}"
     if action.startswith("signed"):
         detail = f"Signed by {payload.get('signed_by', 'signer')}"
         return detail + (" (simulated)" if payload.get("simulated") else "")
@@ -490,6 +493,15 @@ async def build_pdf_input(db: AsyncSession, contract: Contract, include_audit: b
             )
         ).scalars().all()
         trail = [AuditEntry(at=r.created_at, action=r.action, detail=_audit_detail(r.action, r.payload)) for r in rows]
+
+    signature_image = None
+    signer_designation = None
+    if contract.status == "signed":
+        cert = await get_signature_certificate(db, str(contract.id))
+        if cert and isinstance(cert, dict):
+            signature_image = cert.get("signature_image")
+            signer_designation = cert.get("signer_designation")
+
     return ContractPdfInput(
         contract_id=str(contract.id),
         contract_text=contract.contract_text or "",
@@ -502,6 +514,8 @@ async def build_pdf_input(db: AsyncSession, contract: Contract, include_audit: b
         signed_by=contract.signed_by,
         esign_provider_ref=contract.esign_provider_ref,
         audit_trail=trail,
+        signature_image=signature_image,
+        signer_designation=signer_designation,
     )
 
 

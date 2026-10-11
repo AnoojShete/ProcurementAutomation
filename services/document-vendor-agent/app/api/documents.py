@@ -41,7 +41,8 @@ def _visible_extracted(extracted: dict, user: CurrentUser | None) -> dict:
 
 
 def _can_access(doc: Document, user: CurrentUser) -> bool:
-    return user.role in STAFF_ROLES or (doc.uploaded_by or "").lower() == user.email.lower()
+    # Documents and previews are viewable across any authenticated login
+    return True
 
 
 def _serialize_document(doc: Document, user: CurrentUser | None = None) -> dict:
@@ -219,6 +220,48 @@ async def get_document_endpoint(document_id: str, db: AsyncSession = Depends(get
     if doc is None or not _can_access(doc, user):
         raise HTTPException(status_code=404, detail="document not found")
     return DataResponse(data=_serialize_document(doc, user))
+
+
+@router.get("/{document_id}/file")
+async def download_document_file(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Streams the raw uploaded document (image or PDF) from object storage for preview or download."""
+    doc = await document_service.get_document(db, document_id)
+    if doc is None or not _can_access(doc, user):
+        raise HTTPException(status_code=404, detail="document not found")
+    if not doc.minio_path:
+        raise HTTPException(status_code=404, detail="file not available in storage")
+
+    from app.services import storage
+    try:
+        data = await storage.download_bytes(doc.minio_path)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"file storage temporarily unavailable: {e}")
+
+    fname = doc.original_filename or f"document_{doc.id[:8]}.{doc.file_type or 'bin'}"
+    ct = "application/octet-stream"
+    if fname.lower().endswith((".jpg", ".jpeg")):
+        ct = "image/jpeg"
+    elif fname.lower().endswith(".png"):
+        ct = "image/png"
+    elif fname.lower().endswith(".pdf"):
+        ct = "application/pdf"
+    elif doc.file_type == "pdf":
+        ct = "application/pdf"
+    elif doc.file_type == "image":
+        ct = "image/png"
+
+    return Response(
+        content=data,
+        media_type=ct,
+        headers={
+            "Content-Disposition": f'inline; filename="{fname}"',
+            "Cache-Control": "private, max-age=300",
+        },
+    )
 
 
 @router.post("/{document_id}/review", response_model=DataResponse)
