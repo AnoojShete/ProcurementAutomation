@@ -170,8 +170,8 @@ class ApprovalService:
         req = PurchaseRequest(
             id=req_id,
             # The source quote, for requests created from a drop-folder
-            # document (app/kafka/consumer.py); never taken from the API body.
-            document_id=document_id,
+            # document or uploaded in the creation wizard.
+            document_id=document_id or data.document_id,
             request_type=data.request_type,
             requested_by=data.requested_by,
             department=data.department,

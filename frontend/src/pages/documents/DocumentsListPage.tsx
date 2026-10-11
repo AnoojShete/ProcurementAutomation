@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Loader2, Upload, X } from "lucide-react";
+import { Eye, FileText, Loader2, Upload, X } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { documentsApi } from "@/api/documents";
@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/Modal";
 import { FileUploader } from "@/components/ui/FileUploader";
 import { Button } from "@/components/ui/Button";
 import { InlineError } from "@/components/ui/ErrorState";
+import { DocumentPreviewModal } from "@/components/documents/DocumentPreviewModal";
 import { documentTypeLabel, formatDateTime } from "@/lib/format";
 import type { BatchUploadResult, DocumentRecord } from "@/types/api";
 import { ApiError } from "@/api/client";
@@ -24,6 +25,7 @@ export function DocumentsListPage() {
   const { data: documents, loading, error, reload } = useApi(() => documentsApi.list(200), []);
   const [scope, setScope] = useState<"needs-review" | "all">("all");
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<DocumentRecord | null>(null);
 
   const rows = useMemo(() => {
     const all = documents ?? [];
@@ -51,6 +53,24 @@ export function DocumentsListPage() {
       className: "whitespace-nowrap",
       render: (d) => <span className="text-slate-600">{formatDateTime(d.uploaded_at)}</span>,
       sortValue: (d) => d.uploaded_at ?? "",
+    },
+    {
+      key: "preview",
+      header: "",
+      className: "w-24 text-right",
+      render: (d) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Eye className="size-3.5" />}
+          onClick={(e) => {
+            e.stopPropagation();
+            setPreviewDoc(d);
+          }}
+        >
+          Preview
+        </Button>
+      ),
     },
   ];
 
@@ -86,6 +106,7 @@ export function DocumentsListPage() {
       </Card>
 
       <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} onUploaded={reload} />
+      <DocumentPreviewModal open={!!previewDoc} onClose={() => setPreviewDoc(null)} document={previewDoc} />
     </div>
   );
 }

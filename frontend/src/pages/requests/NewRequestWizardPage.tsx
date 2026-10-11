@@ -19,6 +19,7 @@ import { RiskBadge } from "@/components/ui/Badge";
 import { formatCurrency, formatConfidence, titleCase } from "@/lib/format";
 import { SPEND_TIERS, SLA_APPROVAL_TIMEOUT_HOURS, CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
 import { deriveUploadPipeline } from "@/lib/documentPipeline";
+import { DocumentPreviewCard } from "@/components/documents/DocumentPreviewCard";
 import type { CreatePurchaseRequestBody, DocumentRecord, RequestType, VendorSummary } from "@/types/api";
 import { ApiError } from "@/api/client";
 
@@ -77,6 +78,7 @@ export function NewRequestWizardPage() {
         vendor_id: state.vendorId,
         amount: amountNum,
         currency: "INR",
+        document_id: state.document?.id ?? null,
         comments: state.description || undefined,
       };
       const res = await requestsApi.create(body);
@@ -302,13 +304,21 @@ function StepDocuments({ state, setState }: { state: WizardState; setState: Reac
         subtitle="Optional — attach a purchase order, invoice, or quote for reference"
       />
       <CardBody className="flex flex-col gap-4">
-        <InlineInfo message="Documents are processed independently by the Document Intelligence pipeline — they aren't stored as a formal link on the request record, but their extracted vendor/amount can help fill in your review step below." />
+        <InlineInfo message="Documents are processed by Document Intelligence and permanently attached to your purchase request for approver and finance verification." />
         <FileUploader onFileSelected={handleFile} accept=".pdf,.png,.jpg,.jpeg" disabled={uploading || polling} />
         {error && <InlineError message={error} />}
         {(uploading || state.document) && (
           <div className="rounded-lg border border-surface-border p-4">
             <LifecycleStepper stages={pipeline} />
           </div>
+        )}
+        {state.document && (
+          <DocumentPreviewCard
+            initialDocument={state.document}
+            title="Uploaded Document Preview"
+            subtitle={state.document.original_filename ?? undefined}
+            compact
+          />
         )}
         {state.document?.status === "classified" && (
           <div className="rounded-lg border border-surface-border p-4">
@@ -345,7 +355,7 @@ function StepReview({ state, amount, tier }: { state: WizardState; amount: numbe
   return (
     <Card>
       <CardHeader title="Review" subtitle="Confirm the details before submitting" />
-      <CardBody>
+      <CardBody className="flex flex-col gap-4">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
           <Field label="Category" static>
             <span className="capitalize">{state.requestType}</span>
@@ -364,13 +374,21 @@ function StepReview({ state, amount, tier }: { state: WizardState; amount: numbe
           </Field>
         </dl>
         {state.description && (
-          <div className="mt-4 border-t border-surface-border pt-4">
+          <div className="border-t border-surface-border pt-4">
             <p className="text-xs text-slate-400">Description</p>
             <p className="mt-1 text-sm text-slate-700">{state.description}</p>
           </div>
         )}
+        {state.document && (
+          <DocumentPreviewCard
+            initialDocument={state.document}
+            title="Attached Supporting Document"
+            subtitle={state.document.original_filename ?? undefined}
+            compact
+          />
+        )}
         {state.document?.needs_review && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-warning-50 bg-warning-50 px-3 py-2 text-sm text-warning-700">
+          <div className="flex items-start gap-2 rounded-lg border border-warning-50 bg-warning-50 px-3 py-2 text-sm text-warning-700">
             <Info className="mt-0.5 size-4 shrink-0" />
             <span>The attached document has low-confidence fields and needs review under Documents after submitting.</span>
           </div>

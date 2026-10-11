@@ -52,6 +52,7 @@ export interface ApprovalHistoryEntry {
 
 export interface PurchaseRequest {
   id: string;
+  document_id: string | null;
   request_type: RequestType | null;
   requested_by: string | null;
   department: string | null;
@@ -75,6 +76,7 @@ export interface CreatePurchaseRequestBody {
   requested_by: string;
   department: string;
   vendor_id?: string | null;
+  document_id?: string | null;
   amount: number;
   currency?: string;
   items?: Record<string, unknown>[] | null;

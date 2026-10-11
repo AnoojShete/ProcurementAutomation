@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { InvoiceLedgerCard } from "@/components/controls/InvoiceLedgerCard";
@@ -7,6 +7,8 @@ import { useApi } from "@/hooks/useApi";
 import { requestsApi } from "@/api/requests";
 import { vendorsApi } from "@/api/vendors";
 import { contractsApi } from "@/api/contracts";
+import { documentsApi } from "@/api/documents";
+import { DocumentPreviewCard } from "@/components/documents/DocumentPreviewCard";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge, ContractStatusBadge } from "@/components/ui/Badge";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -19,7 +21,7 @@ import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { deriveLifecycle, type LifecycleStage } from "@/lib/lifecycle";
-import type { Contract, PurchaseRequest, VendorRisk, VendorSummary } from "@/types/api";
+import type { Contract, DocumentRecord, PurchaseRequest, VendorRisk, VendorSummary } from "@/types/api";
 
 /** The approval agent's page for one purchase request. Other agents' parts
  * (the contract, the vendor) are shown through their own components and
@@ -53,6 +55,25 @@ export function RequestDetailPage() {
     [linkedContract?.id, linkedContract?.status],
   );
 
+  const { data: allDocs, reload: reloadDocs } = useApi(() => documentsApi.list(200), []);
+  const attachedDoc = useMemo(() => {
+    if (!request || !allDocs) return null;
+    if (request.document_id) {
+      const direct = allDocs.find((d) => d.id === request.document_id);
+      if (direct) return direct;
+    }
+    // Fallback: match by vendor_id or requested_by
+    if (request.vendor_id) {
+      const vendorDoc = allDocs.find((d) => d.vendor_id === request.vendor_id);
+      if (vendorDoc) return vendorDoc;
+    }
+    if (request.requested_by) {
+      const userDoc = allDocs.find((d) => d.uploaded_by === request.requested_by);
+      if (userDoc) return userDoc;
+    }
+    return null;
+  }, [request, allDocs]);
+
   // ?step=<key> selects a lifecycle step (e.g. from the approval inbox).
   const selectedKey = params.get("step");
   const select = (stage: LifecycleStage | null) => {
@@ -66,6 +87,7 @@ export function RequestDetailPage() {
     reload();
     reloadContracts();
     reloadContract();
+    reloadDocs();
   };
 
   if (loading && !request) {
@@ -78,7 +100,7 @@ export function RequestDetailPage() {
   }
   if (error || !request) return <ErrorState message={error ?? "Request not found."} onRetry={reload} />;
 
-  const lifecycle = deriveLifecycle(request, null, contract ?? linkedContract);
+  const lifecycle = deriveLifecycle(request, attachedDoc, contract ?? linkedContract);
   const selected = lifecycle.find((s) => s.key === selectedKey) ?? null;
 
   const activity: TimelineEvent[] = [
@@ -141,6 +163,7 @@ export function RequestDetailPage() {
               vendor={vendor}
               vendorRisk={vendorRisk}
               contract={contract ?? null}
+              attachedDoc={attachedDoc}
               onChanged={refresh}
             />
           </div>
@@ -177,6 +200,15 @@ export function RequestDetailPage() {
               <LineItems request={request} />
             </CardBody>
           </Card>
+
+          {(request.document_id || attachedDoc) && (
+            <DocumentPreviewCard
+              documentId={request.document_id ?? attachedDoc?.id}
+              initialDocument={attachedDoc}
+              title="Attached Supporting Document"
+              subtitle={attachedDoc?.original_filename ? `Uploaded file: ${attachedDoc.original_filename}` : undefined}
+            />
+          )}
 
           <Card>
             <CardHeader title="Approval" subtitle={request.status === "pending_approval" ? "Decide here or from the lifecycle's Approval step" : undefined} />
@@ -236,6 +268,7 @@ function StageDetails({
   vendor,
   vendorRisk,
   contract,
+  attachedDoc,
   onChanged,
 }: {
   stage: LifecycleStage;
@@ -243,6 +276,7 @@ function StageDetails({
   vendor: VendorSummary | null;
   vendorRisk: VendorRisk | null;
   contract: Contract | null;
+  attachedDoc?: DocumentRecord | null;
   onChanged: () => void;
 }) {
   switch (stage.key) {
@@ -255,13 +289,20 @@ function StageDetails({
       );
     case "document":
       return (
-        <p className="text-sm text-slate-700">
-          {stage.detail ?? "No document attached."} Documents are processed by the document agent —{" "}
-          <Link to="/app/documents" className="text-brand-700 hover:underline">
-            open Documents
-          </Link>
-          .
-        </p>
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-slate-700">
+            {stage.detail ?? (attachedDoc ? "Supporting document attached." : "No document attached.")} Documents are processed by the document intelligence pipeline —{" "}
+            <Link to="/app/documents" className="text-brand-700 hover:underline">
+              open Documents
+            </Link>
+            .
+          </p>
+          {attachedDoc && (
+            <div className="max-w-md">
+              <DocumentPreviewCard initialDocument={attachedDoc} title="Attached Document Preview" compact />
+            </div>
+          )}
+        </div>
       );
     case "vendor":
       return vendor ? (

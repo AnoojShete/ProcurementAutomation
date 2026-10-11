@@ -54,7 +54,7 @@ async def create_request(
         if cached is not None:
             return cached
     try:
-        req = await approval_svc.create_request(data)
+        req = await approval_svc.create_request(data, document_id=data.document_id)
         result = DataResponse(data=PurchaseRequestResponse.model_validate(req))
     except ValueError as e:
         return _error("VALIDATION_ERROR", str(e), 400)

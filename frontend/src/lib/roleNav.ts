@@ -51,6 +51,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   finance: [
     dashboard("/app"),
     { label: "Approval Queue", to: "/app/approvals", icon: IN },
+    { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Spend Analysis", to: "/app/spend", icon: AC },
     { label: "Vendors", to: "/app/vendors", icon: BU },

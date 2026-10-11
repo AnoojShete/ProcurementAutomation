@@ -22,6 +22,7 @@ class CreatePurchaseRequest(BaseModel):
     requested_by: Optional[str] = None
     department: str
     vendor_id: Optional[str] = None
+    document_id: Optional[str] = None
     amount: float
     currency: str = "INR"
     items: Optional[list[dict]] = None
@@ -46,6 +47,7 @@ class ApprovalHistoryResponse(BaseModel):
 
 class PurchaseRequestResponse(BaseModel):
     id: str
+    document_id: Optional[str] = None
     po_number: Optional[str] = None
     # Optional rather than required: rows inserted directly via SQL (demo
     # seed scripts, the e2e test's vendor-linking step) bypass
