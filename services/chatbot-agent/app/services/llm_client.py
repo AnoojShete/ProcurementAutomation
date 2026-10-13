@@ -7,21 +7,20 @@ from app.services import context_service
 async def query_llm_with_tools(history: list, user: CurrentUser) -> str:
     url = f"{settings.llm_api_base_url}/api/chat"
     
+    # Simplified schemas: Removed empty parameters and required arrays
     tools = [
         {
             "type": "function",
             "function": {
                 "name": "get_procurement_summary",
-                "description": "Fetches high-level executive procurement metrics including pending approvals, count of orders, and open order value.",
-                "parameters": {"type": "object", "properties": {}, "required": []}
+                "description": "Fetches high-level executive procurement metrics including pending approvals, count of orders, and open order value."
             }
         },
         {
             "type": "function",
             "function": {
                 "name": "list_my_requests",
-                "description": "Lists the latest purchase requests. Requesters see their own; staff see company-wide requests.",
-                "parameters": {"type": "object", "properties": {}, "required": []}
+                "description": "Lists the latest purchase requests. Requesters see their own; staff see company-wide requests."
             }
         },
         {
@@ -42,8 +41,7 @@ async def query_llm_with_tools(history: list, user: CurrentUser) -> str:
             "type": "function",
             "function": {
                 "name": "get_license_anomaly_summary",
-                "description": "Returns counts of SaaS licenses by anomaly status and potential annual savings.",
-                "parameters": {"type": "object", "properties": {}, "required": []}
+                "description": "Returns counts of SaaS licenses by anomaly status and potential annual savings."
             }
         },
         {
@@ -77,7 +75,6 @@ async def query_llm_with_tools(history: list, user: CurrentUser) -> str:
     ]
 
     messages = [{"role": m.role, "content": m.content} for m in history]
-    
     messages.insert(0, {
         "role": "system", 
         "content": (
