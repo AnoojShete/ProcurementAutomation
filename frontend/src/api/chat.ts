@@ -1,7 +1,7 @@
-import client from "./client";
+import { api } from "./client";
 
 export interface ChatMessage {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "tool";
   content: string;
 }
 
@@ -12,9 +12,20 @@ export interface ChatResponse {
 }
 
 export async function sendMessage(message: string, sessionId?: string): Promise<ChatResponse> {
-  const response = await client.post("/api/chat/", {
+  const response = await api.post<any>("/chat/", {
     message,
     session_id: sessionId || null,
   });
-  return response.data;
+  
+  // client.ts unwraps the { data: ... } envelope for us if it exists,
+  // but if the backend didn't wrap it, it just returns the raw object.
+  // We handle both safely here:
+  const data = response.data || response;
+  
+  if (!data.history) {
+      console.error("Malformed response from server:", data);
+      throw new Error("Malformed response");
+  }
+  
+  return data;
 }

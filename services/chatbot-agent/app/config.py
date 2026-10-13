@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     llm_api_base_url: str = "http://host.docker.internal:11434"
     llm_model_name: str = "llama3.1"
     orders_api_base_url: str = "http://approval-inventory-agent:8002"
+    risk_api_base_url: str = "http://contract-risk-agent:8003"
 
     model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", extra="ignore")
 
