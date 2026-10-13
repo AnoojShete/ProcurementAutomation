@@ -14,7 +14,7 @@ for i in range(30):
         print("postgres is up")
         sys.exit(0)
     except Exception as e:
-        print(f"waiting for postgres ({i+1}/30): {e}")
+        print(f"waiting for postgres ({i+1}/30)...")
         time.sleep(2)
 sys.exit(1)
 PYEOF
