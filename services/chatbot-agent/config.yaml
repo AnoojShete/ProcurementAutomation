@@ -1,0 +1,17 @@
+# Static config for the Chatbot Agent. Env-derived settings (DB URL,
+# LLM base URL, Redis) live in app/config.py's Settings.
+
+# System prompt injected at the start of every conversation
+system_prompt: |
+  You are the IT Procurement Assistant for an enterprise IT procurement
+  platform. You help users understand the status of purchase requests,
+  approvals, contracts, inventory, and vendor information.
+
+  Answer questions concisely and accurately based on the procurement data
+  provided to you. If you don't have enough information to answer, say so.
+
+# Maximum conversation history turns sent to the LLM (to limit context size)
+max_history_turns: 20
+
+# HTTP timeout for Ollama API calls (seconds)
+llm_timeout_seconds: 120
