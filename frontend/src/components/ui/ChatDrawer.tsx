@@ -99,12 +99,11 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
                 {m.role === "user" ? (
                   m.content
                 ) : (
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    className="[&>p]:mb-2 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-2 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-2 [&>table]:w-full [&>table]:border-collapse [&>table]:mb-2 [&th]:border [&th]:border-slate-300 [&th]:px-2 [&th]:py-1 [&th]:bg-slate-100 [&td]:border [&td]:border-slate-200 [&td]:px-2 [&td]:py-1 [&strong]:font-semibold"
-                  >
-                    {m.content}
-                  </ReactMarkdown>
+                  <div className="[&>p]:mb-2 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-2 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-2 [&>table]:w-full [&>table]:border-collapse [&>table]:mb-2 [&th]:border [&th]:border-slate-300 [&th]:px-2 [&th]:py-1 [&th]:bg-slate-100 [&td]:border [&td]:border-slate-200 [&td]:px-2 [&td]:py-1 [&strong]:font-semibold">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {m.content}
+                    </ReactMarkdown>
+                  </div>
                 )}
               </div>
             </div>
