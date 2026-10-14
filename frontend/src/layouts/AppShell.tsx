@@ -4,6 +4,8 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PageHeaderProvider, usePageTitle } from "@/hooks/usePageTitle";
+import { BotMessageSquare } from "lucide-react";
+import { ChatDrawer } from "@/components/ui/ChatDrawer";
 
 export function AppShell() {
   return (
@@ -17,6 +19,7 @@ function AppShellInner() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false); // NEW STATE
   const { title, breadcrumb } = usePageTitle();
 
   useEffect(() => {
@@ -31,7 +34,7 @@ function AppShellInner() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-subtle">
+    <div className="flex h-screen overflow-hidden bg-surface-subtle relative">
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
@@ -52,6 +55,18 @@ function AppShellInner() {
         </main>
       </div>
       <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+      
+      {/* Floating Chat Button */}
+      <button
+        onClick={() => setChatOpen(true)}
+        className="fixed bottom-6 right-6 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors z-30"
+        aria-label="Open AI Assistant"
+      >
+        <BotMessageSquare className="w-6 h-6" />
+      </button>
+
+      {/* The Chat Drawer */}
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 }

@@ -365,6 +365,33 @@ services:
       retries: 8
       start_period: 30s
 
+  # --- chatbot-agent ---
+  chatbot-agent:
+    build:
+      context: .
+      dockerfile: services/chatbot-agent/Dockerfile
+    ports:
+      - "127.0.0.1:8006:8006"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      # External Ollama LLM on the local network
+      APP_LLM_API_BASE_URL: ${LLM_API_BASE_URL:-http://host.docker.internal:11434}
+      APP_LLM_MODEL_NAME: ${LLM_MODEL_NAME:-llama3.1}
+      APP_ORDERS_API_BASE_URL: http://approval-inventory-agent:8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8006/health || exit 1"]
+      interval: 10s
+      retries: 8
+      start_period: 30s
+      
   # --- frontend ---
   # No separate frontend container/port: the built static files
   # (frontend/dist, produced by run.sh's frontend-build step) are volume-
