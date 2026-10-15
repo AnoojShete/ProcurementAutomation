@@ -1,7 +1,11 @@
 # CLAUDE.md
 
-Context for an agent working in this repo. README.md is the full
-reference; TODO.md is the open work; CHANGELOG.md is what changed and why.
+Context for an agent working in this repo. `readmeforme.md` is the full
+technical reference (setup, config, testing, internals); `README.md` is the
+short public overview for people outside the project; TODO.md is the open
+work and the roadmap (dated evidence per finished item); `git log` is what
+changed. `docs/project-flow.html` is the visual status — update it, README.md
+and TODO.md at every roadmap phase.
 
 ## What this is
 

@@ -1,8 +1,8 @@
 # TODO
 
-Open work as of **Sep 27, 2026**, grouped by priority, each with why it
-matters. Everything here was
-checked against the code on Sep 27; history is in CHANGELOG.md.
+Open work, grouped by priority, each with why it matters. What changed
+and when is in `git log`; finished roadmap items keep a dated evidence
+line here. Started Sep 27, 2026; roadmap added Oct 15; updated every phase.
 
 - **P0**: broken now, or a security exposure. Fix before the next demo /
   any shared deployment.
@@ -140,7 +140,7 @@ event or writing a spec for him.
   `test_risk_model.py` 14 passed (11 new + the 3 earlier ones; 5 of the
   new fail with the old defaults/no overrides); contract-risk 103 passed; `invoice_lifecycle.py` 71/0 (risk
   check now: coverage reported, factors only from signals on file).
-  `docs/risk-model.md` written. *Missing:* results not committed yet; the
+  `docs/risk-model.md` written; results committed (03e7f59). *Missing:* the
   12 red-team profiles are ours (the Agent doc's list isn't in the repo —
   compare them); sanctions and IFSC overrides report "not checked" (no
   data: FR-14, and IFSC results aren't stored); live vendors have no risk
@@ -202,7 +202,7 @@ event or writing a spec for him.
   B #6; Team C #1, #4). *Now:* Oct 15 confidence work (sample scan 0.50
   → 0.93). OpenCV is in `requirements.txt` but no code imports `cv2`.
   There's no accuracy measurement over a document set. TODO still says
-  image OCR crashes on Apple Silicon, while CHANGELOG Oct 14 says it's
+  image OCR crashes on Apple Silicon, while the Oct 14 commit says it's
   fixed (`LD_PRELOAD`). *Do:* `scripts/eval_extraction.py` over
   `data/synthetic-invoices` (+ a few rotated/noisy scans) → field-level
   accuracy per field into `docs/results/extraction.json`; OpenCV
@@ -223,17 +223,17 @@ event or writing a spec for him.
   `docs/presentation-outline.md`. *Done when:* each agent has a sample,
   a screenshot and a metric to paste into the Word doc.
 
-### R1 — what the docs and tech stack say we have
+#### Added to R0 on Oct 16 (every yellow/red box on the flow chart)
 
 - [ ] **FR-13 Clause extraction with a model, rules as fallback**
-  (Agent doc §2.2 says Legal-BERT on CUAD; code is regex). *Do:* either
+  (Agent doc §2.2 says Legal-BERT on CUAD; code is regex). Moved from R1 on Oct 16. *Do:* either
   add `alex-apostolo/legal-bert-base-cuad` QA as primary (local cache
   like LayoutLMv3, `download-models.sh`), regex as fallback via
   `clause_router.py`, evaluated on a held-out CUAD slice → `docs/results/
   clauses.json`; **or** correct the docs to say rule-based. Ask before
   choosing (image size and CPU time).
 - [ ] **FR-14 Sanctions screening and the strategic-tier checks**
-  (Agent doc §2.3; Overall doc §6). *Now:* `vendor_tier_service.py`
+  (Agent doc §2.3; Overall doc §6). Moved from R1 on Oct 16. Also store IFSC results (`validate_ifsc` exists but nothing calls it or keeps its result) so the IFSC override in FR-04 can fire. *Now:* `vendor_tier_service.py`
   lists `opencorporates`, `sanctions_screening`, `risk_model` for
   strategic vendors, but none runs. *Do:* OpenSanctions bulk file
   (downloaded by a script, refreshed by a daily job, no API key) + rapidfuzz
@@ -243,6 +243,41 @@ event or writing a spec for him.
   from the list. *Done when:* precision tests (a near-match is flagged, an
   unrelated company isn't); the strategic tier's checklist shows real
   results. Closes part of the P2 "external data" item.
+- [ ] **FR-29 Train the document classifier** (flow chart: "ML classifier
+  not trained"). *Now:* `classification.py` is a keyword classifier; an ML
+  classifier is wired in but no trained model ships. *Do:* train it on
+  `data/synthetic-classification` (+ the invoices/quotes/POs we generate),
+  evaluate against the keyword classifier on a held-out set → `docs/results/
+  classifier.json`; keep keywords as the fallback (FR-08 router). *Done
+  when:* accuracy per class for both is in the results file and the ML
+  classifier is used only if it's better.
+- [ ] **FR-30 Risk signals from platform data** (flow chart: "no vendor
+  has risk signals recorded"; follows FR-04). *Now:* `vendor_risk_features`
+  is empty, so every live score is "0 of 6 signals" and the drift check
+  flags PSI 7.2. *Do:* fill what the platform knows — tenure from the
+  vendor's first document/request, on-time delivery from ordered →
+  received dates (Oct 15 lifecycle), plus a finance-only form for
+  certification / breaches / geography, audit-logged; re-score on change.
+  *Done when:* a vendor with platform history scores on ≥ 3 signals, the
+  form updates the score, and the drift check is re-baselined or explained.
+- [ ] **FR-31 Notification consumer retry + dead-letter** (flow chart:
+  "No retry / DLQ"; P1 Platform line). *Now:* notification-agent's Kafka
+  consumer isn't wrapped with `shared/eventing.deliver`, and on Oct 14 it
+  silently stopped for three days when its login failed. *Do:* wrap it,
+  and make `/health` report unhealthy when the consumer has stopped.
+  notification-agent is Anooj's service: spec + his OK first.
+- [ ] **FR-32 Licence-usage anomaly model, evaluated and tuned** (flow
+  chart: "Needs tuning"). *Do:* the same treatment as FR-04 for the
+  IsolationForest: precision/recall on the synthetic SSO logs' injected
+  anomalies → `docs/results/licence-anomaly.json`, threshold chosen from
+  that curve (business rule), and the reasons shown on the licence page.
+  *Done when:* the results file exists and the threshold is justified in it.
+- [ ] **FR-33 P0 credentials** (flow chart: P0 red box): rotate the
+  GSTINCheck key and set real secrets before any shared deploy. Only a
+  person can do this (no key rotation by the assistant).
+
+### R1 — what the docs and tech stack say we have
+
 - [ ] **FR-15 PySpark in the pipeline** (Project Tech Stack:
   "Dataprocessing: PySpark"; Architecture §5.1). *Now:* no PySpark
   anywhere. *Do:* one batch job (`services/analytics-job/`, its own
@@ -261,7 +296,7 @@ event or writing a spec for him.
   single-replica manifests; tested on local kind/minikube only. Don't
   deploy anywhere shared. Ask the mentor whether a cluster is coming.
   *Done when:* `helm install` on kind passes every `/health` through the
-  gateway; the steps are in the README.
+  gateway; the steps are in `readmeforme.md`.
 - [ ] **FR-17 Database and object-storage pages** (29 Aug Team C #5,
   "applicable wherever relevant"). *Now:* Control Panel lists the latest
   MinIO files only. *Do:* admin-only "Data" page: read-only browse of
@@ -310,7 +345,7 @@ event or writing a spec for him.
   images"): service suites, root tests, `npm run typecheck`, ruff (= P2
   lint).
 - [ ] **FR-26 Fresh-clone rehearsal on Ubuntu** (4 Jul / 18 Jul
-  feedback; mentor's Ubuntu VM requirement). Follow only the README on a
+  feedback; mentor's Ubuntu VM requirement). Follow only `readmeforme.md` on a
   clean Ubuntu VM, run every e2e suite, and record times and results in
   `docs/results/fresh-clone.md`.
 - [ ] **FR-27 Security P1s before any shared demo**: dependency upgrades,

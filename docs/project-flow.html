@@ -3,344 +3,180 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Procurement Platform Flow</title>
+<title>Procurement Flow Status</title>
 <style>
   :root {
-    --bg: #f5f6f8; --panel: #fff; --ink: #17202b; --muted: #5d6877; --line: #d4d9e0; --arrow: #98a2b0;
-    --ok: #1f8a4c; --ok-bg: #e8f5ed; --part: #a86a00; --part-bg: #fdf3e1; --bad: #c23934; --bad-bg: #fcebea;
-    --next: #4b5563; --next-bg: #eceff3; --new: #2457c5; --new-bg: #e7eefd; --evt: #6b7686;
+    --bg: #f5f6f8; --panel: #fff; --ink: #17202b; --muted: #5d6877; --line: #d9dee5;
+    --ok: #1f8a4c; --ok-bg: #e7f5ec; --wip: #a86a00; --wip-bg: #fdf3e1; --stop: #c23934; --stop-bg: #fcebea;
+    --todo: #6b7686; --todo-bg: #eef0f3;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0f1318; --panel: #171c23; --ink: #e7ebf0; --muted: #9ba6b5; --line: #2b333e; --arrow: #5c6775;
-      --ok: #4cc27f; --ok-bg: #12291c; --part: #e3a73c; --part-bg: #2c2311; --bad: #f0706a; --bad-bg: #331817;
-      --next: #aab3bf; --next-bg: #1f252d; --new: #7ea4ff; --new-bg: #162240; --evt: #8d98a7;
+      --bg: #0f1318; --panel: #171c23; --ink: #e7ebf0; --muted: #9ba6b5; --line: #2b333e;
+      --ok: #4cc27f; --ok-bg: #12291c; --wip: #e3a73c; --wip-bg: #2c2311; --stop: #f0706a; --stop-bg: #331817;
+      --todo: #9ba6b5; --todo-bg: #1f252d;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0f1318; --panel: #171c23; --ink: #e7ebf0; --muted: #9ba6b5; --line: #2b333e; --arrow: #5c6775;
-    --ok: #4cc27f; --ok-bg: #12291c; --part: #e3a73c; --part-bg: #2c2311; --bad: #f0706a; --bad-bg: #331817;
-    --next: #aab3bf; --next-bg: #1f252d; --new: #7ea4ff; --new-bg: #162240; --evt: #8d98a7;
+    --bg: #0f1318; --panel: #171c23; --ink: #e7ebf0; --muted: #9ba6b5; --line: #2b333e;
+    --ok: #4cc27f; --ok-bg: #12291c; --wip: #e3a73c; --wip-bg: #2c2311; --stop: #f0706a; --stop-bg: #331817;
+    --todo: #9ba6b5; --todo-bg: #1f252d;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
-    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
-  .page { padding: 20px 24px 40px; }
+         font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 22px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; justify-content: space-between; }
+  h1 { font-size: 20px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); margin: 14px 0 22px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .ok { --c: var(--ok); --cb: var(--ok-bg); } .wip { --c: var(--wip); --cb: var(--wip-bg); }
+  .stop { --c: var(--stop); --cb: var(--stop-bg); } .todo { --c: var(--todo); --cb: var(--todo-bg); }
+  .dot { background: var(--c); }
+  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 26px 0 10px; }
 
-  /* top: title + keys */
-  .top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
-  h1 { margin: 0; font-size: 22px; }
-  .date { color: var(--muted); font-size: 13px; }
-  .keys { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 4px; font-size: 12.5px; color: var(--muted); }
-  .keys span { display: inline-flex; align-items: center; gap: 5px; }
-  .sw { width: 11px; height: 11px; border-radius: 3px; border: 2px solid; }
-  .sw.ok { border-color: var(--ok); background: var(--ok-bg); }
-  .sw.part { border-color: var(--part); background: var(--part-bg); }
-  .sw.bad { border-color: var(--bad); background: var(--bad-bg); }
-  .sw.new { border-color: var(--new); background: var(--new-bg); }
-  .sw.next { border-color: var(--next); border-style: dashed; background: var(--next-bg); }
-  .phases { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 18px; font-size: 12px; color: var(--muted); }
-  .phases span { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 2px 9px; }
-  .phases b { color: var(--ink); }
+  /* lifecycle: a row of stations joined by a track */
+  .track { display: grid; grid-template-columns: repeat(auto-fit, minmax(98px, 1fr)); gap: 18px 10px; position: relative; }
+  .station { position: relative; text-align: center; padding-top: 4px; }
+  .station::before { content: ""; position: absolute; top: 30px; left: -50%; width: 100%; height: 3px; background: var(--line); z-index: 0; }
+  .station:first-child::before { display: none; }
+  .badge { position: relative; z-index: 1; width: 54px; height: 54px; margin: 0 auto; border-radius: 50%;
+           display: grid; place-items: center; font-size: 24px; background: var(--cb); border: 3px solid var(--c); }
+  .name { font-weight: 650; font-size: 13px; margin-top: 7px; }
+  .note { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 5px; }
+  .chip { font: 600 10.5px ui-monospace, Menlo, monospace; border: 1.5px solid var(--c); color: var(--c);
+          background: var(--cb); border-radius: 999px; padding: 0 6px; }
 
-  /* chart */
-  .chart { display: flex; flex-direction: column; align-items: center; width: 100%; }
-  .node {
-    width: 100%; background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--arrow);
-    border-radius: 8px; padding: 8px 11px;
-  }
-  .node.ok { border-top-color: var(--ok); }
-  .node.part { border-top-color: var(--part); }
-  .node.bad { border-top-color: var(--bad); background: var(--bad-bg); }
-  .node.new { outline: 2px solid var(--new); outline-offset: 2px; }
-  .node.next { border: 1.5px dashed var(--next); border-top: 4px dashed var(--next); background: var(--next-bg); }
-  .center { max-width: 520px; }
-  .t { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
-  .t .s { margin-left: auto; font-size: 13px; }
-  .ok .s { color: var(--ok); } .part .s { color: var(--part); } .bad .s { color: var(--bad); } .next .s { color: var(--next); }
-  .ph { font-size: 10.5px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
-  .ph.n { color: var(--new); border-color: var(--new); }
-  .node ul { margin: 5px 0 0; padding-left: 15px; font-size: 12.5px; color: var(--muted); }
-  .node li { margin: 1px 0; }
-  .node li.warn { color: var(--part); }
-  .node li.err { color: var(--bad); font-weight: 600; }
+  /* side systems */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--c);
+          border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; }
+  .card .ic { font-size: 22px; line-height: 1; }
+  .card .name { margin: 0; text-align: left; }
+  .card .note, .card .chips { text-align: left; justify-content: flex-start; }
 
-  .evt { font: 600 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--evt);
-    border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 12px; }
-
-  .v { position: relative; width: 2px; height: 20px; background: var(--arrow); margin: 1px 0 6px; flex: none; }
-  .v::after { content: ""; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
-    border: 6px solid transparent; border-top-color: var(--arrow); border-bottom: 0; }
-
-  .row { width: 100%; display: grid; gap: 14px; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
-  .lane { display: flex; flex-direction: column; align-items: center; }
-  .lane-t { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
-  .row { align-items: stretch; }
-  .fill { flex: 1 0 14px; width: 2px; background: var(--arrow); }
-  .stub { position: relative; width: 2px; height: 14px; background: var(--arrow); margin-bottom: 6px; flex: none; }
-  .stub::after { content: ""; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
-    border: 6px solid transparent; border-top-color: var(--arrow); border-bottom: 0; }
-  .bar { height: 2px; background: var(--arrow); width: calc(100% - 100% / var(--n)); }
-
-  /* decision with side loop */
-  .decide { width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
-  .diamond { width: 112px; height: 112px; display: grid; place-items: center; text-align: center; }
-  .diamond div { width: 80px; height: 80px; transform: rotate(45deg); border: 2px solid var(--arrow); background: var(--panel);
-    display: grid; place-items: center; border-radius: 6px; }
-  .diamond span { transform: rotate(-45deg); font-size: 12px; font-weight: 700; line-height: 1.2; }
-  .h { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--muted); }
-  .h i { display: block; height: 2px; width: 36px; background: var(--arrow); position: relative; }
-  .h i::after { content: ""; position: absolute; right: -6px; top: 50%; transform: translateY(-50%);
-    border: 5px solid transparent; border-left-color: var(--arrow); border-right: 0; }
-  .loop { max-width: 260px; }
-
-  /* next phase: left-to-right chain */
-  .steps { width: 100%; display: flex; align-items: stretch; gap: 0; }
-  .steps .node { flex: 1 1 0; min-width: 0; }
-  .steps .hz { flex: none; width: 22px; display: flex; align-items: center; justify-content: center; }
-  .steps .hz i { display: block; height: 2px; width: 12px; background: var(--arrow); position: relative; }
-  .steps .hz i::after { content: ""; position: absolute; right: -5px; top: 50%; transform: translateY(-50%);
-    border: 5px solid transparent; border-left-color: var(--arrow); border-right: 0; }
-  .num { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
-    background: var(--next); color: var(--panel); font-size: 11px; }
-  .bad .num { background: var(--bad); }
-  .goal { margin-top: 2px; font-size: 12px; color: var(--muted); }
-  .id { font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--new); white-space: nowrap; }
-  .keys .id { margin-right: 2px; }
-
-  @media (max-width: 900px) {
-    .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .bar, .fill, .stub { display: none; }
-    .lane { margin-bottom: 8px; }
-    .steps { flex-direction: column; align-items: center; }
-    .steps .hz { width: 2px; height: 20px; }
-    .steps .hz i { width: 2px; height: 12px; }
-    .steps .hz i::after { right: auto; left: 50%; top: auto; bottom: -5px; transform: translateX(-50%);
-      border: 5px solid transparent; border-top-color: var(--arrow); border-bottom: 0; }
-  }
-  @media (max-width: 560px) {
-    .page { padding: 16px; }
-    .row { grid-template-columns: minmax(0, 1fr); }
-    .decide { grid-template-columns: minmax(0, 1fr); justify-items: center; }
-    .decide > :first-child { display: none; }
-    .h i { width: 2px; height: 16px; }
-    .h { flex-direction: column; }
-    .h i::after { right: auto; left: 50%; top: auto; bottom: -5px; transform: translateX(-50%);
-      border: 5px solid transparent; border-top-color: var(--arrow); border-bottom: 0; }
-  }
+  /* roadmap */
+  .phase { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .phase-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .phase-top b { font-size: 14px; } .phase-top .sub { flex: 1; }
+  .bar { height: 8px; border-radius: 999px; background: var(--todo-bg); overflow: hidden; margin: 8px 0 10px; display: flex; }
+  .bar i { display: block; height: 100%; }
+  .items { display: flex; flex-wrap: wrap; gap: 6px; }
+  .item { font-size: 12px; border: 1.5px solid var(--c); background: var(--cb); border-radius: 8px; padding: 3px 8px; }
+  .item b { font-family: ui-monospace, Menlo, monospace; color: var(--c); margin-right: 4px; }
+  .item.ok { text-decoration: none; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 22px; }
+  @media (max-width: 640px) { .station::before { display: none; } }
 </style>
 </head>
 <body>
 <div class="page">
-
-  <div class="top">
-    <h1>IT Procurement Platform — Flow &amp; Status</h1>
-    <span class="date">15 Oct 2026 · branch anjali · Anjali · Vaidehi · Niraj · Anooj</span>
-  </div>
-  <div class="keys">
-    <span><i class="sw ok"></i>Working</span>
-    <span><i class="sw part"></i>Partial / needs setup</span>
-    <span><i class="sw bad"></i>Broken</span>
-    <span><i class="sw new"></i>New this phase (P8)</span>
-    <span><i class="sw next"></i>To do</span>
-    <span><b class="id">FR-nn</b>Roadmap item in TODO.md</span>
-  </div>
-  <div class="phases">
-    <span><b>P1</b> Jul–Aug · Foundations</span>
-    <span><b>P2</b> late Aug · All agents built</span>
-    <span><b>P3</b> early Sep · ML + first audit</span>
-    <span><b>P4</b> 23–25 Sep · Merges + e2e test</span>
-    <span><b>P5</b> 26 Sep · Hardening</span>
-    <span><b>P6</b> 27–28 Sep · E-sign + docs</span>
-    <span><b>P7</b> 10 Oct · Automation + Control Panel</span>
-    <span><b>P8</b> 11–15 Oct · OCR, FX, ordered status, chatbot</span>
-    <span><b>P9</b> Roadmap R0–R3 · to Dec</span>
+  <header>
+    <div>
+      <h1>IT Procurement Platform — flow &amp; status</h1>
+      <div class="sub" id="updated"></div>
+    </div>
+    <div class="sub" id="totals"></div>
+  </header>
+  <div class="legend">
+    <span><i class="dot ok"></i>Done</span>
+    <span><i class="dot wip"></i>Works, roadmap item open</span>
+    <span><i class="dot stop"></i>Needs a person</span>
+    <span><i class="dot todo"></i>Not started</span>
   </div>
 
-  <div class="chart">
+  <h2>One purchase, start to finish</h2>
+  <div class="track" id="flow"></div>
 
-    <!-- way in -->
-    <div class="row" style="--n:2; max-width:1040px">
-      <div class="lane">
-        <div class="node ok">
-          <div class="t">Upload in app <span class="ph">P2</span><span class="s">✓</span></div>
-          <ul><li>Several files at once</li><li>Gateway, rate limits, 25 MB cap</li></ul>
-        </div>
-        <div class="fill"></div>
-      </div>
-      <div class="lane">
-        <div class="node ok">
-          <div class="t">Drop folder ./inbox <span class="ph">P7</span><span class="s">✓</span></div>
-          <ul><li>Picked up in ~3 s</li><li>No clicks</li></ul>
-        </div>
-        <div class="fill"></div>
-      </div>
-    </div>
-    <div class="bar" style="--n:2; max-width:1040px"></div>
-    <div class="v"></div>
+  <h2>Around the flow</h2>
+  <div class="cards" id="side"></div>
 
-    <div class="node ok center">
-      <div class="t">Scan → Store <span class="ph">P3</span><span class="s">✓</span></div>
-      <ul><li>ClamAV virus scan</li><li>Saved to MinIO</li></ul>
-    </div>
-    <div class="v"></div>
-    <div class="evt">document.ingested</div>
-    <div class="v"></div>
+  <h2>Roadmap</h2>
+  <div id="roadmap"></div>
 
-    <div class="node part new center">
-      <div class="t">Document pipeline <span class="ph">P2–P5</span><span class="ph n">P8</span><span class="s">◐</span></div>
-      <ul>
-        <li>Read → classify → extract</li>
-        <li>Image OCR fixed · sample scan 0.50 → 0.93</li>
-        <li>Foreign currency → INR at capture</li>
-        <li>Vendor match + bank check</li>
-        <li class="warn">ML classifier not trained</li>
-        <li class="warn">No accuracy test set · OpenCV unused <b class="id">FR-11</b></li>
-      </ul>
-    </div>
-    <div class="v"></div>
-
-    <div class="decide" style="max-width:760px">
-      <div></div>
-      <div class="diamond"><div><span>Confidence<br>≥ 0.8?</span></div></div>
-      <div class="h">no<i></i>
-        <div class="node ok loop">
-          <div class="t">Review queue <span class="ph">P5</span><span class="s">✓</span></div>
-          <ul><li>Person checks → continues</li><li class="warn">No reminder if stale <b class="id">FR-03</b></li></ul>
-        </div>
-      </div>
-    </div>
-    <div class="v"></div>
-    <div class="evt">document.classified · vendor.matched</div>
-    <div class="v"></div>
-
-    <!-- four lanes -->
-    <div class="bar" style="--n:4"></div>
-    <div class="row" style="--n:4">
-
-      <div class="lane">
-        <div class="stub"></div>
-        <div class="lane-t">Quote</div>
-        <div class="node ok new">
-          <div class="t">Purchase request <span class="ph">P1</span><span class="ph n">P8</span><span class="s">✓</span></div>
-          <ul><li>Auto from drop folder</li><li>Or from an unmatched invoice</li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node ok">
-          <div class="t">Approval <span class="ph">P1</span><span class="ph">P5</span><span class="s">✓</span></div>
-          <ul><li>≤ ₹500 auto</li><li>Else manager / finance</li><li>Approve from email link</li><li class="warn">No reminder before SLA <b class="id">FR-03</b></li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node part">
-          <div class="t">Contract + PDF <span class="ph">P2</span><span class="s">◐</span></div>
-          <ul><li>Generated on approval</li><li>Reminders count from the notice deadline <b class="id">FR-02</b> ✓</li><li class="warn">Clauses by regex only <b class="id">FR-13</b></li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node part">
-          <div class="t">E-signature <span class="ph">P6</span><span class="ph">P7</span><span class="s">◐</span></div>
-          <ul><li>Built-in ✓ · signed copy download</li><li>Auto-sent after every approval (rule <code>contract.auto_send_scope</code>) <b class="id">FR-01</b> ✓</li><li class="warn">DocuSign needs keys</li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node ok new">
-          <div class="t">Ordered → Received <span class="ph n">P8</span><span class="s">✓</span></div>
-          <ul><li>Signing sets ordered</li><li>"Mark as received" → fulfilled</li><li>Licence / stock released</li></ul>
-        </div>
-        <div class="fill"></div>
-      </div>
-
-      <div class="lane">
-        <div class="stub"></div>
-        <div class="lane-t">Invoice</div>
-        <div class="node ok new">
-          <div class="t">Invoice ↔ PO match <span class="ph">P5</span><span class="ph n">P8</span><span class="s">✓</span></div>
-          <ul><li>3-way match on INR amount</li><li>New-vendor bug fixed 14 Oct</li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node ok">
-          <div class="t">Invoiced <span class="ph">P5</span><span class="s">✓</span></div>
-          <ul><li>Payment hold if unverified</li></ul>
-        </div>
-        <div class="fill"></div>
-      </div>
-
-      <div class="lane">
-        <div class="stub"></div>
-        <div class="lane-t">Vendor</div>
-        <div class="node part">
-          <div class="t">Risk score <span class="ph">P2</span><span class="s">◐</span></div>
-          <ul><li>Random forest + PSI drift</li><li>Evaluated: ROC-AUC 0.715 (ceiling 0.739), red-team 12/12, signals on file shown <b class="id">FR-04</b></li><li class="warn">GSTIN override ✓ · sanctions / IFSC not checked yet <b class="id">FR-14</b></li><li class="warn">No vendor has risk signals recorded</li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node ok">
-          <div class="t">Bank-detail guard <span class="ph">P5</span><span class="s">✓</span></div>
-          <ul><li>Two-person verify</li><li>Lookalike names flagged</li></ul>
-        </div>
-        <div class="fill"></div>
-      </div>
-
-      <div class="lane">
-        <div class="stub"></div>
-        <div class="lane-t">Every event</div>
-        <div class="node part">
-          <div class="t">Control Panel <span class="ph">P7</span><span class="s">◐</span></div>
-          <ul><li>Live Kafka log · MinIO · DocuSign</li><li class="warn">Last 500 events, lost on restart <b class="id">FR-06</b></li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node part new">
-          <div class="t">Notifications <span class="ph">P2</span><span class="ph n">P8</span><span class="s">◐</span></div>
-          <ul><li>SMTP via shared mailer</li><li class="warn">Coverage unchecked <b class="id">FR-10</b></li><li class="warn">No retry / DLQ</li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node part new">
-          <div class="t">Chatbot drawer <span class="ph n">P8</span><span class="s">◐</span></div>
-          <ul><li>Ollama + tools</li><li class="warn">One model, no fallback</li></ul>
-        </div>
-        <div class="v"></div>
-        <div class="node part">
-          <div class="t">Licence usage ML <span class="ph">P3</span><span class="s">◐</span></div>
-          <ul><li>Anomaly → reclaim</li><li class="warn">Needs tuning</li></ul>
-        </div>
-        <div class="fill"></div>
-      </div>
-    </div>
-    <div class="bar" style="--n:4"></div>
-    <div class="v"></div>
-
-    <!-- roadmap -->
-    <div class="evt" style="border-style:dashed">P9 · roadmap (TODO.md, Oct 15)</div>
-    <div class="v"></div>
-    <div class="steps">
-      <div class="node bad">
-        <div class="t"><span class="num">0</span> P0</div>
-        <ul><li>Rotate GSTIN key</li><li>Real secrets before any shared deploy</li></ul>
-      </div>
-      <div class="hz"><i></i></div>
-      <div class="node next">
-        <div class="t"><span class="num">1</span> R0 · by 24 Oct</div>
-        <div class="goal">Mentor asks, 29 Aug</div>
-        <ul><li>Auto-send for signature</li><li>Notice-based renewals, pending-action reminders</li><li>Risk evaluation write-up</li><li>Demo script</li><li>Kafka log kept, searchable logs</li><li>Fallback demo, rules, layout accuracy</li><li>Results for the docs</li></ul>
-      </div>
-      <div class="hz"><i></i></div>
-      <div class="node next">
-        <div class="t"><span class="num">2</span> R1 · by 31 Oct</div>
-        <div class="goal">Docs = code</div>
-        <ul><li>Legal-BERT clauses (or fix docs)</li><li>Sanctions screening</li><li>PySpark KPI job</li><li>Helm on kind</li><li>Data page, request trace</li></ul>
-      </div>
-      <div class="hz"><i></i></div>
-      <div class="node next">
-        <div class="t"><span class="num">3</span> R2 · if time</div>
-        <div class="goal">Competitive features</div>
-        <ul><li>Delivery tracking</li><li>Vendor scorecard, guided buying</li><li>Weekly report</li><li>SaaS overlap savings</li><li>MCP server</li></ul>
-      </div>
-      <div class="hz"><i></i></div>
-      <div class="node next">
-        <div class="t"><span class="num">4</span> R3 · November</div>
-        <div class="goal">Test + submit</div>
-        <ul><li>Tests in CI</li><li>Ubuntu fresh-clone run</li><li>Security P1s</li><li>Templates filled from results</li></ul>
-      </div>
-    </div>
-
-  </div>
+  <footer>Statuses are updated at every roadmap phase from TODO.md (dated evidence per item).
+    Hover a chip for its title.</footer>
 </div>
+
+<script>
+// ── Update here at every phase ─────────────────────────────────────────
+const UPDATED = "16 Oct 2026 · branch anjali";
+
+// Roadmap items: status ok | wip | stop | todo  (TODO.md is the source)
+const ITEMS = {
+  "FR-01": ["ok", "Auto-send for signature"], "FR-02": ["ok", "Renewals from notice deadline"],
+  "FR-03": ["todo", "Pending-action reminders"], "FR-04": ["wip", "Risk model evaluated"],
+  "FR-05": ["todo", "Demo script"], "FR-06": ["todo", "Kafka log kept"], "FR-07": ["todo", "Searchable logs"],
+  "FR-08": ["todo", "Fallback on demand"], "FR-09": ["todo", "Business rules tested"],
+  "FR-10": ["todo", "Notification audit"], "FR-11": ["todo", "Extraction accuracy"],
+  "FR-12": ["todo", "Results & deck"], "FR-13": ["todo", "Clause model"], "FR-14": ["todo", "Sanctions + IFSC"],
+  "FR-29": ["todo", "Train classifier"], "FR-30": ["todo", "Risk signals from data"],
+  "FR-31": ["todo", "Notification retry"], "FR-32": ["todo", "Licence model tuned"],
+  "FR-33": ["stop", "Rotate keys, real secrets"],
+  "FR-15": ["todo", "PySpark job"], "FR-16": ["todo", "Helm on kind"], "FR-17": ["todo", "Data pages"],
+  "FR-18": ["todo", "Trace view"], "FR-19": ["todo", "Re-verify 26 Sep items"],
+  "FR-20": ["todo", "Delivery tracking"], "FR-21": ["todo", "Vendor scorecard"], "FR-22": ["todo", "Weekly report"],
+  "FR-23": ["todo", "SaaS overlap"], "FR-24": ["todo", "MCP server"],
+  "FR-25": ["todo", "CI runs tests"], "FR-26": ["todo", "Fresh-clone rehearsal"],
+  "FR-27": ["todo", "Security P1s"], "FR-28": ["todo", "Final docs"],
+};
+const PHASES = [
+  ["R0", "by 24 Oct", "mentor feedback + every open box above",
+   ["FR-01","FR-02","FR-03","FR-04","FR-05","FR-06","FR-07","FR-08","FR-09","FR-10","FR-11","FR-12","FR-13","FR-14","FR-29","FR-30","FR-31","FR-32","FR-33"]],
+  ["R1", "by 31 Oct", "what the docs say we have", ["FR-15","FR-16","FR-17","FR-18","FR-19"]],
+  ["R2", "if time", "features other tools have", ["FR-20","FR-21","FR-22","FR-23","FR-24"]],
+  ["R3", "November", "testing, evidence, submission", ["FR-25","FR-26","FR-27","FR-28"]],
+];
+// The purchase flow. A stage is green when it works and has no open item.
+const FLOW = [
+  ["📄", "Upload / drop folder", "virus-scanned, stored", []],
+  ["🔍", "Read the document", "OCR 0.50 → 0.93", ["FR-11", "FR-29"]],
+  ["👀", "Review if unsure", "", ["FR-03"]],
+  ["🏢", "Vendor check", "match · bank guard", []],
+  ["📝", "Purchase request", "auto or from invoice", []],
+  ["✅", "Approval", "by spend tier", ["FR-03"]],
+  ["📃", "Contract", "PDF · notice reminders", ["FR-13"]],
+  ["✍️", "E-signature", "built-in, auto-sent", []],
+  ["📦", "Ordered → received", "", []],
+  ["💰", "Invoice matched", "3-way, in INR", []],
+];
+const SIDE = [
+  ["📊", "Vendor risk", "AUC 0.715 · red-team 12/12", ["FR-04", "FR-14", "FR-30"]],
+  ["🖥️", "Control Panel", "live Kafka log", ["FR-06"]],
+  ["🔔", "Notifications", "email via shared mailer", ["FR-10", "FR-31"]],
+  ["🔑", "Licence usage ML", "anomaly → reclaim", ["FR-32"]],
+  ["💬", "Chatbot", "Anooj's area · fallback spec only", ["FR-08"]],
+  ["🔐", "Credentials", "rotate GSTIN key, real secrets", ["FR-33"]],
+];
+// ───────────────────────────────────────────────────────────────────────
+
+// Green when every item on it is done; red if one needs a person; else amber.
+const status = (ids) => {
+  const open = ids.filter((id) => ITEMS[id][0] !== "ok");
+  return open.length === 0 ? "ok" : open.some((id) => ITEMS[id][0] === "stop") ? "stop" : "wip";
+};
+const chips = (ids) => ids.filter((id) => ITEMS[id][0] !== "ok")
+  .map((id) => `<span class="chip ${ITEMS[id][0] === "stop" ? "stop" : "wip"}" title="${ITEMS[id][1]}">${id}</span>`).join("");
+
+document.getElementById("updated").textContent = "Updated " + UPDATED;
+document.getElementById("flow").innerHTML = FLOW.map(([ic, name, note, ids]) =>
+  `<div class="station ${status(ids)}"><div class="badge">${ic}</div><div class="name">${name}</div>
+   ${note ? `<div class="note">${note}</div>` : ""}<div class="chips">${chips(ids)}</div></div>`).join("");
+document.getElementById("side").innerHTML = SIDE.map(([ic, name, note, ids]) =>
+  `<div class="card ${status(ids)}"><div class="ic">${ic}</div><div><div class="name">${name}</div>
+   <div class="note">${note}</div><div class="chips">${chips(ids)}</div></div></div>`).join("");
+document.getElementById("roadmap").innerHTML = PHASES.map(([ph, when, what, ids]) => {
+  const n = (s) => ids.filter((id) => ITEMS[id][0] === s).length;
+  const seg = ["ok", "wip", "stop"].map((s) => `<i class="${s}" style="width:${100 * n(s) / ids.length}%;background:var(--c)"></i>`).join("");
+  return `<div class="phase"><div class="phase-top"><b>${ph}</b><span class="sub">${what} · ${when}</span>
+    <span class="sub">${n("ok")} / ${ids.length} done</span></div><div class="bar">${seg}</div>
+    <div class="items">${ids.map((id) => `<span class="item ${ITEMS[id][0]}"><b>${id}</b>${ITEMS[id][1]}</span>`).join("")}</div></div>`;
+}).join("");
+const all = Object.values(ITEMS), done = all.filter(([s]) => s === "ok").length;
+document.getElementById("totals").textContent = `${done} of ${all.length} roadmap items done`;
+</script>
 </body>
 </html>

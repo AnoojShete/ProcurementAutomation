@@ -3,7 +3,7 @@
 For someone evaluating the project: what it does, what makes it
 technically solid, how to demo it, and honest answers to likely
 questions. State as of **Sep 28, 2026**. Setup and reference:
-[README.md](README.md). Open items: [TODO.md](TODO.md).
+[readmeforme.md](readmeforme.md). Open items: [TODO.md](TODO.md).
 
 ## The pitch
 

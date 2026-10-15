@@ -11,7 +11,7 @@ Implement the **"Fractal roadmap — Oct 15, 2026"** section of `TODO.md`
 say so. R3 runs in November.
 
 **Before starting**
-1. Read `CLAUDE.md`, the roadmap section of `TODO.md`, and the CHANGELOG
+1. Read `CLAUDE.md`, the roadmap section of `TODO.md`, and the git log
    entries since Oct 15. Run `git status` and `git log` and list anything
    that changed since the roadmap was written. Don't overwrite other
    people's uncommitted or recent work. If something already covers an
@@ -41,9 +41,10 @@ say so. R3 runs in November.
    met, the item isn't done.
 6. Update `TODO.md`: tick the box only when every "Done when" point is
    met, and add one line of evidence (test names and pass counts, or the
-   file in `docs/results/`). Add a dated CHANGELOG entry in the existing
-   style. If the item changes a node on the flow chart, update
-   `docs/project-flow.html`.
+   file in `docs/results/`). Update `docs/project-flow.html` (status
+   colours), `README.md` (public overview) and `readmeforme.md` (technical
+   reference) when the item changes what they say. There is no
+   CHANGELOG — `git log` and the TODO evidence lines are the history.
 7. Report: what changed, what you ran and the actual output (passed and
    failed), and what's left open. Then go on to the next item.
 
