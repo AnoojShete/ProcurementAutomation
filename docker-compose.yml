@@ -92,6 +92,23 @@ services:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - 127.0.0.1:9090:9090
+  # Searchable logs (FR-07): Promtail ships every container's stdout to
+  # Loki; Grafana queries it ("Logs" dashboard, by correlation id).
+  loki:
+    image: grafana/loki:2.9.8
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - 127.0.0.1:3100:3100
+    volumes:
+      - loki-data:/loki
+  promtail:
+    image: grafana/promtail:2.9.8
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./infra/promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
   grafana:
     image: grafana/grafana:latest
     ports:
@@ -180,6 +197,7 @@ volumes:
   miniodata:
   grafana-data:
   clamav-data:
+  loki-data:
 
 networks:
   default:

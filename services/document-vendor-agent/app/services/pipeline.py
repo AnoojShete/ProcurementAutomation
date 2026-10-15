@@ -390,6 +390,7 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
 
     import os
     import httpx
+    from shared.logging.context import CorrelationContext
     from shared.auth.jwt_tokens import create_access_token
 
     approval_svc_url = os.environ.get("APPROVAL_INVENTORY_URL", "http://approval-inventory-agent:8002").rstrip("/")
@@ -417,7 +418,9 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
                 f"{approval_svc_url}/invoices/match", json=body,
-                headers={"Authorization": f"Bearer {service_token}"},
+                headers={"Authorization": f"Bearer {service_token}",
+                         # same id in the ledger's logs (shared/http/correlation.py)
+                         "X-Correlation-ID": CorrelationContext.get() or ""},
             )
     except httpx.HTTPError as e:
         # Couldn't reach it (down, restarting, timed out): retry later.

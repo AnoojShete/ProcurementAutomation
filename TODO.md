@@ -198,7 +198,7 @@ event or writing a spec for him.
   with its PermanentEventError. `test_event_log.py` 6 passed (resume test
   fails with the old in-memory restart). document-vendor 223 passed.
   Control Panel's DocuSign labels now say built-in E-signature.
-- [ ] **FR-07 Application logs you can search** (29 Aug overall #7).
+- [x] **FR-07 Application logs you can search** (29 Aug overall #7).
   *Now:* every service writes JSON logs with `correlation_id`, but only
   `docker logs` can read them. *Do:* Loki + Promtail in compose (pinned
   versions, 127.0.0.1 only), Grafana datasource, a "Logs" dashboard with
@@ -207,6 +207,19 @@ event or writing a spec for him.
   that request's log lines from all services in one Grafana query
   (screenshot into `docs/results/`).
   *Decision (Oct 16):* add Loki + Promtail (pinned, 127.0.0.1 only).
+  *Evidence (Oct 16):* Loki + Promtail 2.9.8 (127.0.0.1:3100; Promtail
+  reads container logs via the Docker socket, skips the log stack itself),
+  Grafana "Logs" dashboard (correlation-id box, service filter). Before
+  this, HTTP requests had no correlation id and the workers logged plain
+  text: nginx now sends `X-Correlation-ID` ($request_id),
+  `shared/http/correlation.py` sets it per request, echoes it and writes
+  one JSON access line (all five services checked live), the
+  document-vendor → ledger call forwards it, and the three workers log
+  JSON. One upload's id (`71f1e695…`) shows lines from document-vendor,
+  its worker, approval-inventory, contract-risk and notification-agent in
+  one Grafana query: `docs/results/logs-correlation.png`.
+  `tests/test_correlation.py` 5 passed. Note: on this Mac something else
+  answers `localhost:3000`; Grafana is at `http://127.0.0.1:3000`.
 - [ ] **FR-08 Model routing and fallback, demonstrable** (29 Aug overall
   #2, #3; Team B #1, #5). *Now:* two routers write `model_routing_log`:
   extraction (Docling/Paddle → LayoutLMv3 cross-check) and clauses (regex →

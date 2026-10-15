@@ -8,6 +8,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
 from shared.logging.configure import configure_logging
+from shared.http.correlation import CorrelationMiddleware
 configure_logging(settings.service_name)
 from app.database import async_session_factory, init_db, get_db
 from app.kafka.producer import KafkaEventProducer
@@ -75,6 +76,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+# One correlation id per request (from nginx's X-Correlation-ID) + a JSON access line.
+app.add_middleware(CorrelationMiddleware)
 
 register_error_handlers(app)
 

@@ -175,7 +175,7 @@ runs automatically against Mailpit in `tests/e2e/auth_flows.py`.
 | API (through the gateway) | http://localhost:8080/api/… |
 | Email action (single-action token) | http://localhost:8080/email-action/… |
 | Mailpit (all dev email) | http://localhost:8025 |
-| Grafana (admin / admin) | http://localhost:3000 |
+| Grafana (admin / admin) — Logs dashboard by correlation id | http://127.0.0.1:3000 |
 | Temporal UI | http://localhost:8088 |
 | MLflow | http://localhost:5050 |
 | MinIO console (minioadmin / minioadmin) | http://localhost:9001 |
@@ -445,6 +445,12 @@ wrapped with the retry / dead-letter handler (TODO.md).
   are notification-agent work (spec in TODO FR-03).
 - **Observability**: Prometheus metrics on every service, a provisioned
   Grafana dashboard (request rate, latency, errors, Kafka lag), JSON logs.
+  Every API request gets a correlation id (nginx `X-Correlation-ID`,
+  echoed in the response) that follows it through events into every
+  service; Loki + Promtail collect all logs, and Grafana's **Logs**
+  dashboard shows one id's lines across services. Open Grafana at
+  `http://127.0.0.1:3000` (admin / admin) if `localhost:3000` is taken by
+  something else on your machine.
 
 ### Migrations
 

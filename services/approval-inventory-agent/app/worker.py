@@ -72,5 +72,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    # JSON lines with the correlation id, like the API (FR-07: searchable in Loki).
+    from shared.logging.configure import configure_logging
+    configure_logging(f"{settings.service_name}-worker")
     asyncio.run(main())
