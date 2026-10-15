@@ -26,7 +26,13 @@ import numpy as np
 import pandas as pd
 
 SEED = 42
-N_SYNTHETIC = 400
+N_SYNTHETIC = 2000
+# Share of "stressed" vendors (newer, any delivery/finance level, more
+# breaches, more flagged geographies). With only the typical-vendor
+# distributions, very risky vendors almost never occurred, so the forest
+# had nothing to learn High from (Oct 16 evaluation: 400 typical rows →
+# red-team 7/12, "everything bad" scored Medium). See docs/risk-model.md.
+STRESSED_SHARE = 0.2
 
 
 def _find_data_dir() -> str:
@@ -81,6 +87,36 @@ def _synthesize_supplement(n: int, rng: np.random.Generator) -> pd.DataFrame:
     )
 
 
+def _synthesize_stressed(n: int, rng: np.random.Generator) -> pd.DataFrame:
+    """Vendors under strain: shorter tenure, delivery and finances anywhere
+    from poor to good, more breach disclosures, more flagged geographies,
+    fewer certifications."""
+    return pd.DataFrame(
+        {
+            "vendor_tenure_months": rng.integers(1, 36, n),
+            "on_time_delivery_rate": rng.beta(2, 2, n),
+            "financial_stability_score": rng.beta(2, 2, n),
+            "breach_disclosure_count": rng.poisson(1.5, n).clip(0, 6),
+            "security_cert_flag": rng.random(n) < 0.15,
+            "geo_risk_flag": rng.random(n) < 0.4,
+        }
+    )
+
+
+def risk_probability(df: pd.DataFrame) -> pd.Series:
+    """The labelling rule's incident probability before noise — the best any
+    model could do on these labels (the evaluation reports its ROC-AUC as
+    the ceiling)."""
+    return (
+        (1 - df["on_time_delivery_rate"]) * 0.35
+        + (1 - df["financial_stability_score"]) * 0.25
+        + (df["breach_disclosure_count"] / 6.0).clip(0, 1) * 0.25
+        + df["geo_risk_flag"].astype(float) * 0.1
+        - df["security_cert_flag"].astype(float) * 0.1
+        - (df["vendor_tenure_months"] / 120.0).clip(0, 1) * 0.1
+    ).clip(0, 1)
+
+
 def _synthesize_label(df: pd.DataFrame, rng: np.random.Generator) -> pd.Series:
     """Ground-truth 'did this vendor have an incident' doesn't exist in any
     public dataset either, so it's derived from a weighted rule over the
@@ -95,7 +131,7 @@ def _synthesize_label(df: pd.DataFrame, rng: np.random.Generator) -> pd.Series:
         + df["geo_risk_flag"].astype(float) * 0.1
         - df["security_cert_flag"].astype(float) * 0.1
         - (df["vendor_tenure_months"] / 120.0).clip(0, 1) * 0.1
-    )
+    )  # same formula as risk_probability(), kept unclipped as before
     noise = rng.normal(0, 0.08, len(df))
     prob = (risk_signal + noise).clip(0, 1)
     return (rng.random(len(df)) < prob).astype(int)
@@ -131,16 +167,19 @@ def build_dataset() -> pd.DataFrame:
     rng = np.random.default_rng(SEED)
     df = _load_from_kaggle(rng)
     if df is None:
-        # Fully-synthetic fallback (no Kaggle CSV present in this environment).
-        df = pd.DataFrame(
+        # Fully-synthetic fallback (no Kaggle CSV present in this environment):
+        # typical vendors plus a stressed segment (STRESSED_SHARE).
+        n_stressed = int(N_SYNTHETIC * STRESSED_SHARE)
+        n_typical = N_SYNTHETIC - n_stressed
+        typical = pd.DataFrame(
             {
-                "vendor_tenure_months": rng.integers(1, 120, N_SYNTHETIC),
-                "on_time_delivery_rate": rng.beta(6, 2, N_SYNTHETIC),
-                "financial_stability_score": rng.beta(5, 3, N_SYNTHETIC),
+                "vendor_tenure_months": rng.integers(1, 120, n_typical),
+                "on_time_delivery_rate": rng.beta(6, 2, n_typical),
+                "financial_stability_score": rng.beta(5, 3, n_typical),
             }
         )
-        supplement = _synthesize_supplement(N_SYNTHETIC, rng)
-        df = pd.concat([df, supplement], axis=1)
+        typical = pd.concat([typical, _synthesize_supplement(n_typical, rng)], axis=1)
+        df = pd.concat([typical, _synthesize_stressed(n_stressed, rng)], ignore_index=True)
 
     df["security_cert_flag"] = df["security_cert_flag"].astype(int)
     df["geo_risk_flag"] = df["geo_risk_flag"].astype(int)

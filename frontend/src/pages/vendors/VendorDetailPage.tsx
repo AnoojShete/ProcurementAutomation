@@ -130,10 +130,30 @@ export function VendorDetailPage() {
             ) : (
               <>
                 <RiskGauge score={risk.risk_score} band={risk.risk_band} scoredAt={risk.scored_at} />
+                {risk.signals_total != null && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Based on <span className="font-medium text-slate-700">{risk.signals_used} of {risk.signals_total}</span> signals on file
+                    {risk.signals_used! < risk.signals_total ? " — missing ones are left out, not guessed." : "."}
+                  </p>
+                )}
+                {risk.top_factors.filter((f) => f.override).map((f) => (
+                  <div key={f.feature} className="mt-3 rounded-md border border-danger-500/30 bg-danger-50 px-3 py-2 text-13 text-slate-800">
+                    <span className="font-medium">Hard override:</span> {f.reason} — rated High regardless of the model score.
+                  </div>
+                ))}
+                {(risk.overrides?.length ?? 0) > 0 && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Hard checks:{" "}
+                    {risk.overrides!.map((c) => `${c.check.toUpperCase()} ${c.status.replace("_", " ")}`).join(" · ")}
+                  </p>
+                )}
                 <p className="mt-4 mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Contributing Factors</p>
+                {risk.top_factors.filter((f) => !f.override).length === 0 && (
+                  <p className="text-sm text-slate-500">No signals on file to explain the score.</p>
+                )}
                 <div className="flex flex-col gap-2.5">
-                  {risk.top_factors.map((f) => {
-                    const max = Math.max(...risk.top_factors.map((x) => Math.abs(x.contribution)), 0.001);
+                  {risk.top_factors.filter((f) => !f.override).map((f, _i, factors) => {
+                    const max = Math.max(...factors.map((x) => Math.abs(x.contribution)), 0.001);
                     return (
                       <div key={f.feature} className="flex items-center gap-3">
                         <span className="w-40 shrink-0 truncate text-sm text-slate-600">{titleCase(f.feature)}</span>

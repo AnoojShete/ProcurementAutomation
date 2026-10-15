@@ -76,7 +76,7 @@ class KafkaEventProducer:
 
     async def publish_contract_renewal_due(
         self, contract_id, vendor_id, renewal_type, notice_period_days,
-        contract_end_date, days_remaining, alert_level
+        contract_end_date, days_remaining, alert_level, notice_deadline=None
     ):
         payload = build_contract_renewal_due_payload(
             contract_id=contract_id,
@@ -86,6 +86,7 @@ class KafkaEventProducer:
             contract_end_date=contract_end_date,
             days_remaining=days_remaining,
             alert_level=alert_level,
+            notice_deadline=notice_deadline,
         )
         event = build_event(TOPIC_CONTRACT_RENEWAL_DUE, self.service_name, payload)
         await self.publish(TOPIC_CONTRACT_RENEWAL_DUE, event)

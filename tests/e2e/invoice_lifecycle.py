@@ -233,9 +233,37 @@ def main():
     r = requests.post(f"{GW}/vendors/{vendor_id}/risk/recompute", headers=H(fin_t))
     check("finance recomputes vendor risk -> 200", r.status_code == 200, r.text[:150])
     risk = requests.get(f"{GW}/vendors/{vendor_id}/risk", headers=H(adm_t)).json().get("data") or {}
-    check("risk band + top factors present", risk.get("risk_band") in ("Low", "Medium", "High") and risk.get("top_factors"), risk)
+    check("risk band + signal coverage reported", risk.get("risk_band") in ("Low", "Medium", "High")
+          and risk.get("signals_total") == 6 and risk.get("signals_used") is not None, risk)
+    # FR-04: factors explain known signals only; none are invented for a
+    # vendor with nothing on file (it used to show factors from defaults).
+    check("factors only from signals on file", bool(risk.get("top_factors")) == bool(risk.get("signals_used")), risk)
+    check("hard checks reported (gstin, sanctions, ifsc)",
+          {c["check"] for c in risk.get("overrides", [])} == {"gstin", "sanctions", "ifsc"}, risk.get("overrides"))
     spend = requests.get(f"{GW}/vendors/{vendor_id}/spend-summary", headers=H(adm_t))
     check("vendor spend-summary -> 200", spend.status_code == 200, spend.text[:120])
+
+    # ── FR-01: an in-app request is sent for signature with no clicks ────
+    step("contract-risk-agent — auto-send after approval (in-app request)")
+    r = requests.post(f"{GW}/requests/", headers=H(req_t["access_token"]), json={
+        "request_type": "hardware", "requested_by": "ignored", "department": "IT", "amount": 3000,
+        "currency": "INR", "vendor_id": vendor_id, "comments": f"auto-send check {run}"})
+    app_pr = (r.json().get("data") or {}).get("id")
+    check("in-app request created (no document)", r.status_code == 200 and app_pr, r.text[:150])
+    r = requests.post(f"{GW}/requests/{app_pr}/approve", headers=H(app_t), json={"decided_by": "ignored"})
+    check("approver approves it", r.status_code == 200, r.text[:150])
+    auto = None
+    for _ in range(30):  # only reads from here on: nobody generates or sends
+        auto = next((c for c in requests.get(f"{GW}/contracts/?limit=50", headers=H(adm_t)).json()["data"]
+                     if c["purchase_request_id"] == app_pr), None)
+        if auto and auto["status"] == "pending_signature":
+            break
+        time.sleep(2)
+    check("contract generated and sent for signature with no clicks",
+          auto is not None and auto["status"] == "pending_signature", auto and auto["status"])
+    if auto:
+        detail = requests.get(f"{GW}/contracts/{auto['id']}", headers=H(adm_t)).json()["data"]
+        check("contract says it was sent automatically", detail.get("sent_automatically") is True, detail.get("sent_automatically"))
 
     # ── notification-agent ───────────────────────────────────────────────
     step("notification-agent")

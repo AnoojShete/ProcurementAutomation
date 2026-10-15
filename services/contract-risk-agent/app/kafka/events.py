@@ -52,7 +52,8 @@ def build_contract_signed_payload(contract_id, signed_at, signed_by, esign_provi
 
 
 def build_contract_renewal_due_payload(
-    contract_id, vendor_id, renewal_type, notice_period_days, contract_end_date, days_remaining, alert_level
+    contract_id, vendor_id, renewal_type, notice_period_days, contract_end_date, days_remaining, alert_level,
+    notice_deadline=None,
 ) -> dict:
     return {
         "contract_id": str(contract_id),
@@ -62,6 +63,8 @@ def build_contract_renewal_due_payload(
         "contract_end_date": _iso(contract_end_date),
         "days_remaining": days_remaining,
         "alert_level": str(alert_level),
+        # Last day to give notice (end date − notice period); the reminders count back from it.
+        "notice_deadline": _iso(notice_deadline) if notice_deadline else None,
     }
 
 

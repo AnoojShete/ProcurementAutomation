@@ -337,7 +337,7 @@ function StageDetails({
             {contract.status === "signed"
               ? `Signed by ${contract.signed_by ?? "the signer"} on ${formatDateTime(contract.signed_at)}.`
               : contract.status === "pending_signature"
-                ? `Waiting for signature (${contract.esign_provider_ref ?? "built-in e-sign"}).`
+                ? `${contract.sent_automatically ? "Sent for signature automatically after approval — w" : "W"}aiting for signature (${contract.esign_provider_ref ?? "built-in e-sign"}).`
                 : "Not sent for signature yet."}
           </p>
           <ContractActions contract={contract} request={request} onChanged={onChanged} autoOpen={contract.status !== "signed" ? "sign" : undefined} />

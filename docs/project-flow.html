@@ -105,6 +105,8 @@
     background: var(--next); color: var(--panel); font-size: 11px; }
   .bad .num { background: var(--bad); }
   .goal { margin-top: 2px; font-size: 12px; color: var(--muted); }
+  .id { font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--new); white-space: nowrap; }
+  .keys .id { margin-right: 2px; }
 
   @media (max-width: 900px) {
     .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -133,14 +135,15 @@
 
   <div class="top">
     <h1>IT Procurement Platform — Flow &amp; Status</h1>
-    <span class="date">10 Oct 2026 · branch anjali · Anjali · Vaidehi · Niraj · Anooj</span>
+    <span class="date">15 Oct 2026 · branch anjali · Anjali · Vaidehi · Niraj · Anooj</span>
   </div>
   <div class="keys">
     <span><i class="sw ok"></i>Working</span>
     <span><i class="sw part"></i>Partial / needs setup</span>
     <span><i class="sw bad"></i>Broken</span>
-    <span><i class="sw new"></i>New this phase</span>
+    <span><i class="sw new"></i>New this phase (P8)</span>
     <span><i class="sw next"></i>To do</span>
+    <span><b class="id">FR-nn</b>Roadmap item in TODO.md</span>
   </div>
   <div class="phases">
     <span><b>P1</b> Jul–Aug · Foundations</span>
@@ -150,7 +153,8 @@
     <span><b>P5</b> 26 Sep · Hardening</span>
     <span><b>P6</b> 27–28 Sep · E-sign + docs</span>
     <span><b>P7</b> 10 Oct · Automation + Control Panel</span>
-    <span><b>P8</b> Next phase</span>
+    <span><b>P8</b> 11–15 Oct · OCR, FX, ordered status, chatbot</span>
+    <span><b>P9</b> Roadmap R0–R3 · to Dec</span>
   </div>
 
   <div class="chart">
@@ -160,13 +164,13 @@
       <div class="lane">
         <div class="node ok">
           <div class="t">Upload in app <span class="ph">P2</span><span class="s">✓</span></div>
-          <ul><li>Gateway, rate limits</li><li>25 MB cap</li></ul>
+          <ul><li>Several files at once</li><li>Gateway, rate limits, 25 MB cap</li></ul>
         </div>
         <div class="fill"></div>
       </div>
       <div class="lane">
-        <div class="node ok new">
-          <div class="t">Drop folder ./inbox <span class="ph n">P7</span><span class="s">✓</span></div>
+        <div class="node ok">
+          <div class="t">Drop folder ./inbox <span class="ph">P7</span><span class="s">✓</span></div>
           <ul><li>Picked up in ~3 s</li><li>No clicks</li></ul>
         </div>
         <div class="fill"></div>
@@ -183,13 +187,15 @@
     <div class="evt">document.ingested</div>
     <div class="v"></div>
 
-    <div class="node part center">
-      <div class="t">Document pipeline <span class="ph">P2–P5</span><span class="s">◐</span></div>
+    <div class="node part new center">
+      <div class="t">Document pipeline <span class="ph">P2–P5</span><span class="ph n">P8</span><span class="s">◐</span></div>
       <ul>
         <li>Read → classify → extract</li>
+        <li>Image OCR fixed · sample scan 0.50 → 0.93</li>
+        <li>Foreign currency → INR at capture</li>
         <li>Vendor match + bank check</li>
-        <li class="warn">Image OCR fails on Mac</li>
         <li class="warn">ML classifier not trained</li>
+        <li class="warn">No accuracy test set · OpenCV unused <b class="id">FR-11</b></li>
       </ul>
     </div>
     <div class="v"></div>
@@ -200,7 +206,7 @@
       <div class="h">no<i></i>
         <div class="node ok loop">
           <div class="t">Review queue <span class="ph">P5</span><span class="s">✓</span></div>
-          <ul><li>Person checks → continues</li><li class="warn">New vendors stop here</li></ul>
+          <ul><li>Person checks → continues</li><li class="warn">No reminder if stale <b class="id">FR-03</b></li></ul>
         </div>
       </div>
     </div>
@@ -216,28 +222,28 @@
         <div class="stub"></div>
         <div class="lane-t">Quote</div>
         <div class="node ok new">
-          <div class="t">Purchase request <span class="ph">P1</span><span class="ph n">P7</span><span class="s">✓</span></div>
-          <ul><li>Auto from drop folder</li></ul>
+          <div class="t">Purchase request <span class="ph">P1</span><span class="ph n">P8</span><span class="s">✓</span></div>
+          <ul><li>Auto from drop folder</li><li>Or from an unmatched invoice</li></ul>
         </div>
         <div class="v"></div>
         <div class="node ok">
           <div class="t">Approval <span class="ph">P1</span><span class="ph">P5</span><span class="s">✓</span></div>
-          <ul><li>≤ ₹500 auto</li><li>Else manager / finance</li></ul>
+          <ul><li>≤ ₹500 auto</li><li>Else manager / finance</li><li>Approve from email link</li><li class="warn">No reminder before SLA <b class="id">FR-03</b></li></ul>
         </div>
         <div class="v"></div>
-        <div class="node ok">
-          <div class="t">Contract + PDF <span class="ph">P2</span><span class="s">✓</span></div>
-          <ul><li>Renewal reminders</li></ul>
+        <div class="node part">
+          <div class="t">Contract + PDF <span class="ph">P2</span><span class="s">◐</span></div>
+          <ul><li>Generated on approval</li><li>Reminders count from the notice deadline <b class="id">FR-02</b> ✓</li><li class="warn">Clauses by regex only <b class="id">FR-13</b></li></ul>
         </div>
         <div class="v"></div>
-        <div class="node part new">
-          <div class="t">E-signature <span class="ph">P6</span><span class="ph n">P7</span><span class="s">◐</span></div>
-          <ul><li>Auto-sent once</li><li>Built-in ✓</li><li class="warn">DocuSign needs keys</li></ul>
+        <div class="node part">
+          <div class="t">E-signature <span class="ph">P6</span><span class="ph">P7</span><span class="s">◐</span></div>
+          <ul><li>Built-in ✓ · signed copy download</li><li>Auto-sent after every approval (rule <code>contract.auto_send_scope</code>) <b class="id">FR-01</b> ✓</li><li class="warn">DocuSign needs keys</li></ul>
         </div>
         <div class="v"></div>
-        <div class="node ok">
-          <div class="t">Fulfilled <span class="ph">P5</span><span class="s">✓</span></div>
-          <ul><li>Licence / stock released</li></ul>
+        <div class="node ok new">
+          <div class="t">Ordered → Received <span class="ph n">P8</span><span class="s">✓</span></div>
+          <ul><li>Signing sets ordered</li><li>"Mark as received" → fulfilled</li><li>Licence / stock released</li></ul>
         </div>
         <div class="fill"></div>
       </div>
@@ -245,9 +251,9 @@
       <div class="lane">
         <div class="stub"></div>
         <div class="lane-t">Invoice</div>
-        <div class="node bad">
-          <div class="t">Invoice ↔ PO match <span class="ph">P5</span><span class="s">✗</span></div>
-          <ul><li>3-way match</li><li class="err">Fails for new vendors</li></ul>
+        <div class="node ok new">
+          <div class="t">Invoice ↔ PO match <span class="ph">P5</span><span class="ph n">P8</span><span class="s">✓</span></div>
+          <ul><li>3-way match on INR amount</li><li>New-vendor bug fixed 14 Oct</li></ul>
         </div>
         <div class="v"></div>
         <div class="node ok">
@@ -262,7 +268,7 @@
         <div class="lane-t">Vendor</div>
         <div class="node part">
           <div class="t">Risk score <span class="ph">P2</span><span class="s">◐</span></div>
-          <ul><li class="warn">Synthetic data</li></ul>
+          <ul><li>Random forest + PSI drift</li><li>Evaluated: ROC-AUC 0.715 (ceiling 0.739), red-team 12/12, signals on file shown <b class="id">FR-04</b></li><li class="warn">GSTIN override ✓ · sanctions / IFSC not checked yet <b class="id">FR-14</b></li><li class="warn">No vendor has risk signals recorded</li></ul>
         </div>
         <div class="v"></div>
         <div class="node ok">
@@ -275,14 +281,19 @@
       <div class="lane">
         <div class="stub"></div>
         <div class="lane-t">Every event</div>
-        <div class="node ok new">
-          <div class="t">Control Panel <span class="ph n">P7</span><span class="s">✓</span></div>
-          <ul><li>Live Kafka log</li><li>MinIO + DocuSign status</li></ul>
+        <div class="node part">
+          <div class="t">Control Panel <span class="ph">P7</span><span class="s">◐</span></div>
+          <ul><li>Live Kafka log · MinIO · DocuSign</li><li class="warn">Last 500 events, lost on restart <b class="id">FR-06</b></li></ul>
         </div>
         <div class="v"></div>
-        <div class="node part">
-          <div class="t">Notifications <span class="ph">P2</span><span class="s">◐</span></div>
-          <ul><li class="warn">Mailpit only</li><li class="warn">No retry / DLQ</li></ul>
+        <div class="node part new">
+          <div class="t">Notifications <span class="ph">P2</span><span class="ph n">P8</span><span class="s">◐</span></div>
+          <ul><li>SMTP via shared mailer</li><li class="warn">Coverage unchecked <b class="id">FR-10</b></li><li class="warn">No retry / DLQ</li></ul>
+        </div>
+        <div class="v"></div>
+        <div class="node part new">
+          <div class="t">Chatbot drawer <span class="ph n">P8</span><span class="s">◐</span></div>
+          <ul><li>Ollama + tools</li><li class="warn">One model, no fallback</li></ul>
         </div>
         <div class="v"></div>
         <div class="node part">
@@ -295,38 +306,37 @@
     <div class="bar" style="--n:4"></div>
     <div class="v"></div>
 
-    <!-- next phase -->
-    <div class="evt" style="border-style:dashed">P8 · next phase</div>
+    <!-- roadmap -->
+    <div class="evt" style="border-style:dashed">P9 · roadmap (TODO.md, Oct 15)</div>
     <div class="v"></div>
     <div class="steps">
       <div class="node bad">
-        <div class="t"><span class="num">1</span> Fix P0</div>
-        <ul><li>Invoice FK bug</li><li>Rotate GSTIN key</li><li>Push access</li></ul>
+        <div class="t"><span class="num">0</span> P0</div>
+        <ul><li>Rotate GSTIN key</li><li>Real secrets before any shared deploy</li></ul>
       </div>
       <div class="hz"><i></i></div>
       <div class="node next">
-        <div class="t"><span class="num">2</span> Hands-off</div>
-        <ul><li>DocuSign keys + consent</li><li>Signer email</li><li>Review rule decision</li></ul>
+        <div class="t"><span class="num">1</span> R0 · by 24 Oct</div>
+        <div class="goal">Mentor asks, 29 Aug</div>
+        <ul><li>Auto-send for signature</li><li>Notice-based renewals, pending-action reminders</li><li>Risk evaluation write-up</li><li>Demo script</li><li>Kafka log kept, searchable logs</li><li>Fallback demo, rules, layout accuracy</li><li>Results for the docs</li></ul>
       </div>
       <div class="hz"><i></i></div>
       <div class="node next">
-        <div class="t"><span class="num">3</span> Reliable</div>
-        <ul><li>Tests in CI</li><li>Outbox everywhere</li><li>Notification DLQ</li></ul>
+        <div class="t"><span class="num">2</span> R1 · by 31 Oct</div>
+        <div class="goal">Docs = code</div>
+        <ul><li>Legal-BERT clauses (or fix docs)</li><li>Sanctions screening</li><li>PySpark KPI job</li><li>Helm on kind</li><li>Data page, request trace</li></ul>
       </div>
       <div class="hz"><i></i></div>
       <div class="node next">
-        <div class="t"><span class="num">4</span> Per person</div>
-        <ul><li>Anooj: real email, chatbot</li><li>Niraj: tune anomaly</li><li>Vaidehi: OCR, classifier</li><li>Anjali: renewals, access</li></ul>
+        <div class="t"><span class="num">3</span> R2 · if time</div>
+        <div class="goal">Competitive features</div>
+        <ul><li>Delivery tracking</li><li>Vendor scorecard, guided buying</li><li>Weekly report</li><li>SaaS overlap savings</li><li>MCP server</li></ul>
       </div>
       <div class="hz"><i></i></div>
       <div class="node next">
-        <div class="t"><span class="num">5</span> Upgrades</div>
-        <ul><li>FastAPI, Pillow</li><li>Shorter tokens</li><li>Linting</li></ul>
-      </div>
-      <div class="hz"><i></i></div>
-      <div class="node next">
-        <div class="t"><span class="num">6</span> Deploy-ready</div>
-        <ul><li>Real secrets</li><li>HTTPS</li><li>Limits + health checks</li></ul>
+        <div class="t"><span class="num">4</span> R3 · November</div>
+        <div class="goal">Test + submit</div>
+        <ul><li>Tests in CI</li><li>Ubuntu fresh-clone run</li><li>Security P1s</li><li>Templates filled from results</li></ul>
       </div>
     </div>
 

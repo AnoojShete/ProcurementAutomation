@@ -15,6 +15,30 @@ from shared.idempotency import get_cached_response, store_response
 router = APIRouter()
 
 
+def _renewal_schedule(contract) -> dict:
+    """Notice deadline and reminder dates, from the same calculation the
+    renewal workflow uses (app/services/renewal_schedule.py)."""
+    from datetime import datetime, timezone
+    from shared.rules_engine import get_rule
+    from app.services.renewal_schedule import all_milestones, notice_deadline
+    if contract.contract_end_date is None:
+        return {"notice_deadline": None, "renewal_reminders": [], "next_renewal_reminder": None}
+    milestones = get_rule("risk.contract_renewal_milestones_days", fallback=[60, 30, 15])
+    if not isinstance(milestones, list):
+        milestones = [60, 30, 15]
+    now = datetime.now(timezone.utc)
+    reminders = all_milestones(contract.contract_end_date, contract.notice_period_days, milestones)
+    upcoming = [r for r in reminders if r.fire_at > now]
+    return {
+        "notice_deadline": notice_deadline(contract.contract_end_date, contract.notice_period_days).isoformat(),
+        "renewal_reminders": [
+            {"alert_level": r.alert_level, "date": r.fire_at.date().isoformat(), "passed": r.fire_at <= now}
+            for r in reminders
+        ],
+        "next_renewal_reminder": upcoming[0].fire_at.date().isoformat() if upcoming else None,
+    }
+
+
 def _serialize(contract) -> dict:
     return {
         "id": contract.id,
@@ -247,6 +271,8 @@ async def get_contract(contract_id: str, db: AsyncSession = Depends(get_db)):
     if contract is None:
         raise HTTPException(status_code=404, detail="contract not found")
     serialized = _serialize(contract)
+    serialized["sent_automatically"] = await contract_service.was_sent_automatically(db, contract_id)
+    serialized.update(_renewal_schedule(contract))
     if contract.status == "signed":
         cert = await contract_service.get_signature_certificate(db, contract_id)
         if cert:

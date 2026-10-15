@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Clock } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
@@ -11,7 +10,6 @@ import { ContractActions, isProviderLive } from "@/components/contracts/Contract
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
-import { CONTRACT_RENEWAL_ALERT_DAYS } from "@/lib/constants";
 
 /** The contract agent's page for one contract. Its actions come from
  * ContractActions, the same panel the request page uses. */
@@ -24,15 +22,8 @@ export function ContractDetailPage() {
   const vendor = vendors?.find((v) => v.id === contract?.vendor_id);
   const action = params.get("action");
 
-  const renewalMilestones = useMemo(() => {
-    if (!contract?.contract_end_date || !contract.notice_period_days) return [];
-    const end = new Date(contract.contract_end_date);
-    return CONTRACT_RENEWAL_ALERT_DAYS.map((days) => {
-      const date = new Date(end);
-      date.setDate(date.getDate() - days);
-      return { days, date, passed: date.getTime() < Date.now() };
-    });
-  }, [contract]);
+  // Same dates the renewal workflow uses: counted back from the notice deadline.
+  const renewalMilestones = contract?.renewal_reminders ?? [];
 
   if (loading && !contract) return <Skeleton className="h-96" />;
   if (error || !contract) return <ErrorState message={error ?? "Contract not found."} onRetry={reload} />;
@@ -99,6 +90,8 @@ export function ContractDetailPage() {
               <Row label="Renewal Type" value={titleCase(contract.renewal_type)} />
               <Row label="Notice Period" value={contract.notice_period_days ? `${contract.notice_period_days} days` : "—"} />
               <Row label="End Date" value={formatDate(contract.contract_end_date)} />
+              <Row label="Notice Deadline" value={formatDate(contract.notice_deadline ?? null)} />
+              <Row label="Next Renewal Reminder" value={contract.next_renewal_reminder ? formatDate(contract.next_renewal_reminder) : "—"} />
               <Row label="Generated" value={formatDateTime(contract.generated_at)} />
               {contract.signed_at && <Row label="Signed" value={formatDateTime(contract.signed_at)} />}
               {contract.signed_by && <Row label="Signed By" value={contract.signed_by} />}
@@ -167,12 +160,12 @@ export function ContractDetailPage() {
           <CardBody>
             <div className="flex flex-col gap-0 sm:flex-row">
               {renewalMilestones.map((m, i) => (
-                <div key={m.days} className="flex flex-1 items-center">
+                <div key={m.alert_level} className="flex flex-1 items-center">
                   <div className="flex flex-col items-center gap-1.5 text-center">
                     <div className={`flex size-8 items-center justify-center rounded-full ${m.passed ? "bg-success-500 text-white" : "border border-slate-300 text-slate-400"}`}>
-                      {m.passed ? <CheckCircle2 className="size-4" /> : <span className="text-xs font-medium">{m.days}d</span>}
+                      {m.passed ? <CheckCircle2 className="size-4" /> : <span className="text-xs font-medium">{m.alert_level}d</span>}
                     </div>
-                    <p className="text-xs text-slate-600">{formatDate(m.date.toISOString())}</p>
+                    <p className="text-xs text-slate-600">{formatDate(m.date)}</p>
                   </div>
                   {i < renewalMilestones.length - 1 && <div className="mx-2 h-0.5 flex-1 bg-slate-200" />}
                 </div>

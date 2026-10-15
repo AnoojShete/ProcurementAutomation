@@ -22,6 +22,11 @@ def _serialize_risk(row) -> dict:
         "top_factors": row.details or [],
         "model_version": row.model_version,
         "scored_at": row.scored_at.isoformat() if row.scored_at else None,
+        # FR-04: how many of the model's signals were on file (None for
+        # scores from before this was recorded), and the hard-override checks.
+        "signals_used": getattr(row, "signals_used", None),
+        "signals_total": getattr(row, "signals_total", None),
+        "overrides": getattr(row, "overrides", None) or [],
     }
 
 

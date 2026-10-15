@@ -43,7 +43,6 @@ export const UTILISATION_THRESHOLDS = {
   measurementPeriodsDays: [30, 60, 90],
 };
 
-export const CONTRACT_RENEWAL_ALERT_DAYS = [60, 30, 15];
 
 export const CONTRACT_TEMPLATES: { value: string; label: string }[] = [
   { value: "hardware_purchase", label: "Hardware Purchase" },

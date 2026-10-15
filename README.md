@@ -34,13 +34,13 @@ for what's open, [CHANGELOG.md](CHANGELOG.md) for what changed, and
    Postgres · Kafka (Redpanda) · Temporal · Redis · MinIO · ClamAV · Mailpit
 ```
 
-| Service | Port | Owner | Does |
-|---|---|---|---|
-| document-vendor-agent (+ worker) | 8001 | Vaidehi | Upload (virus scan, type checks) → MinIO; worker extracts text, classifies, extracts fields, matches/vets vendors, books invoices against the ledger, flags duplicates |
-| approval-inventory-agent (+ worker) | 8002 | Niraj | Purchase requests, Temporal approval workflows, approval authority, inventory, license usage anomaly model + reclaim, invoice ledger, order monitor |
-| contract-risk-agent (+ worker) | 8003 | Anjali | Contract generation (text + PDF), e-sign webhook / Documenso client, renewal reminders, vendor risk model (RandomForest, MLflow) and drift check, offboarding |
-| notification-agent | 8004 | Anooj | Consumes events, renders email templates, sends immediately or in digests (to Mailpit) |
-| auth-service | 8005 | Anooj | Accounts, login/sessions, email verification and password reset, roles, business-rules engine |
+| Service | Port | Does |
+|---|---|---|
+| document-vendor-agent (+ worker) | 8001 | Upload (virus scan, type checks) → MinIO; worker extracts text, classifies, extracts fields, matches/vets vendors, books invoices against the ledger, flags duplicates |
+| approval-inventory-agent (+ worker) | 8002 | Purchase requests, Temporal approval workflows, approval authority, inventory, license usage anomaly model + reclaim, invoice ledger, order monitor |
+| contract-risk-agent (+ worker) | 8003 | Contract generation (text + PDF), e-sign webhook / Documenso client, renewal reminders, vendor risk model (RandomForest, MLflow) and drift check, offboarding |
+| notification-agent | 8004 | Consumes events, renders email templates, sends immediately or in digests (to Mailpit) |
+| auth-service | 8005 | Accounts, login/sessions, email verification and password reset, roles, business-rules engine |
 
 Infrastructure (22 containers in total, `docker-compose.yml` +
 `docker-compose.override.yml`): Postgres, Redis, Redpanda (Kafka API) and

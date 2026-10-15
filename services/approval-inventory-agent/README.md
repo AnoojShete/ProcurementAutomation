@@ -1,8 +1,7 @@
 # approval-inventory-agent (port 8002)
 
 Purchase requests and approvals, inventory, license utilisation and
-reclaim, the invoice ledger, and the order monitor. Owner: Niraj
-(controls added by Anjali, Sep 26). Every route except `/health` and
+reclaim, the invoice ledger, and the order monitor. Every route except `/health` and
 `/metrics` needs a JWT; role checks are in `app/api/*.py`.
 
 ## Endpoints (behind the gateway at `/api/...`)

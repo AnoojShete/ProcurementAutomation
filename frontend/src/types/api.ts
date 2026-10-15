@@ -280,6 +280,15 @@ export interface VendorSummary {
 export interface RiskFactor {
   feature: string;
   contribution: number;
+  /** A hard override (e.g. GSTIN cancelled): the vendor is High whatever the model says. */
+  override?: boolean;
+  reason?: string | null;
+}
+
+export interface RiskOverrideCheck {
+  check: "gstin" | "sanctions" | "ifsc" | string;
+  status: "triggered" | "clear" | "not_checked";
+  reason: string | null;
 }
 
 export interface VendorRisk {
@@ -289,6 +298,10 @@ export interface VendorRisk {
   top_factors: RiskFactor[];
   model_version: string | null;
   scored_at: string | null;
+  /** How many of the model's signals were on file (null for older scores). */
+  signals_used?: number | null;
+  signals_total?: number | null;
+  overrides?: RiskOverrideCheck[];
 }
 
 export interface DriftCheckResult {
@@ -334,6 +347,12 @@ export interface Contract {
   signed_at: string | null;
   signed_by: string | null;
   esign_provider_ref: string | null;
+  /** Sent for signature by the platform after approval, nobody clicked "Send". */
+  sent_automatically?: boolean;
+  /** Last day to give notice (end date − notice period); reminders count back from it. */
+  notice_deadline?: string | null;
+  renewal_reminders?: { alert_level: number; date: string; passed: boolean }[];
+  next_renewal_reminder?: string | null;
   reconciliation_status: string | null;
   contract_text: string | null;
   signature_certificate?: SignatureCertificate | null;

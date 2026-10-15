@@ -190,12 +190,41 @@ class TestAutoSend:
         assert run(contract_service.auto_send_for_signature(_db(), "p", _contract("pending_signature"))) == "skipped"
         self.send.assert_not_awaited()
 
-    def test_manual_contracts_are_left_alone(self, monkeypatch):
+    def test_in_app_requests_are_sent_too_by_default(self, monkeypatch):
+        # FR-01: rule contract.auto_send_scope defaults to "all".
         monkeypatch.setattr(contract_service, "is_drop_folder_contract", AsyncMock(return_value=False))
+        monkeypatch.setattr(contract_service, "auto_send_scope", lambda: "all")
+        assert run(contract_service.auto_send_for_signature(_db(), "p", _contract())) == "sent"
+        assert self.send.await_args.kwargs["automatic"] is True
+
+    def test_scope_drop_folder_leaves_in_app_contracts_alone(self, monkeypatch):
+        monkeypatch.setattr(contract_service, "is_drop_folder_contract", AsyncMock(return_value=False))
+        monkeypatch.setattr(contract_service, "auto_send_scope", lambda: "drop_folder")
         assert run(contract_service.auto_send_for_signature(_db(), "p", _contract())) == "not_from_drop_folder"
         self.send.assert_not_awaited()
 
+    def test_scope_drop_folder_still_sends_drop_folder_contracts(self, monkeypatch):
+        monkeypatch.setattr(contract_service, "auto_send_scope", lambda: "drop_folder")
+        assert run(contract_service.auto_send_for_signature(_db(), "p", _contract())) == "sent"
+
+    def test_builtin_with_no_signer_goes_to_an_authorised_signatory(self, monkeypatch):
+        # send_for_signature resolves signer None to an authorised signatory;
+        # the vendor's contact email isn't one, so it isn't looked up.
+        monkeypatch.setattr(contract_service.settings, "esign_auto_signer_email", None)
+        monkeypatch.setattr(contract_service.settings, "esign_auto_provider", "builtin")
+        assert run(contract_service.auto_send_for_signature(
+            _db(vendor_email="sales@vendor.example"), "p", _contract())) == "sent"
+        assert self.send.await_args.args[3] is None
+
+    def test_scope_rule_value_is_checked(self, monkeypatch):
+        monkeypatch.setattr("shared.rules_engine.get_rule", lambda key, fallback=None: "everything")
+        assert contract_service.auto_send_scope() == "all"
+        monkeypatch.setattr("shared.rules_engine.get_rule", lambda key, fallback=None: "drop_folder")
+        assert contract_service.auto_send_scope() == "drop_folder"
+
     def test_falls_back_to_vendor_email_and_records_when_there_is_none(self, monkeypatch):
+        # External providers email the signer, so they need an address.
+        monkeypatch.setattr(contract_service.settings, "esign_auto_provider", "docusign")
         monkeypatch.setattr(contract_service.settings, "esign_auto_signer_email", None)
         assert run(contract_service.auto_send_for_signature(
             _db(vendor_email="sales@vendor.example"), "p", _contract())) == "sent"

@@ -252,9 +252,28 @@ async def is_drop_folder_contract(db: AsyncSession, contract: Contract) -> bool:
     return uploader == INBOX_UPLOADER
 
 
+async def was_sent_automatically(db: AsyncSession, contract_id: str) -> bool:
+    """Whether the contract went out for signature without anyone clicking
+    "Send" (its sent_for_signature audit entry says automatic)."""
+    payload = (await db.execute(
+        select(AuditLog.payload).where(AuditLog.entity_id == contract_id, AuditLog.action == "sent_for_signature")
+        .order_by(AuditLog.created_at).limit(1)
+    )).scalar_one_or_none()
+    return bool((payload or {}).get("automatic"))
+
+
+def auto_send_scope() -> str:
+    """Business rule contract.auto_send_scope: "all" approved requests
+    (default) or only "drop_folder" quotes."""
+    from shared.rules_engine import get_rule
+    scope = get_rule("contract.auto_send_scope", fallback="all")
+    return scope if scope in ("all", "drop_folder") else "all"
+
+
 async def auto_send_for_signature(db: AsyncSession, kafka_producer, contract: Contract) -> str:
-    """The drop-folder automation's last step: send a freshly generated
-    contract for signature once, with no clicks. Returns what happened.
+    """After approval: send the freshly generated contract for signature
+    once, with no clicks. Returns what happened. Applies to every approved
+    request, or only drop-folder quotes (rule contract.auto_send_scope).
 
     Once: only a draft that has never been sent or tried is sent, so a
     redelivered approval.decided never emails the signer twice. A send
@@ -264,7 +283,7 @@ async def auto_send_for_signature(db: AsyncSession, kafka_producer, contract: Co
     if not settings.esign_auto_send or contract.status != "draft":
         return "skipped"
     contract_id = contract.id  # usable after a rollback expires `contract`
-    if not await is_drop_folder_contract(db, contract):
+    if auto_send_scope() == "drop_folder" and not await is_drop_folder_contract(db, contract):
         return "not_from_drop_folder"
     tried = (await db.execute(
         select(AuditLog.id).where(
@@ -275,17 +294,22 @@ async def auto_send_for_signature(db: AsyncSession, kafka_producer, contract: Co
     if tried:
         return "already_tried"
 
+    # Built-in e-sign with no configured signer: send_for_signature picks
+    # one of the platform's authorised signatories, who signs in the app.
+    # External providers email someone, so they need an address.
     signer_email = settings.esign_auto_signer_email
-    if not signer_email and contract.vendor_id:
-        signer_email = (await db.execute(
-            text("SELECT contact_email FROM vendors WHERE id = :id"), {"id": contract.vendor_id}
-        )).scalar_one_or_none()
-    if not signer_email:
-        await write_audit_log(db, "contract", contract_id, "auto_send_skipped", {
-            "reason": "no signer email (set APP_ESIGN_AUTO_SIGNER_EMAIL or the vendor's contact email)",
-        })
-        await db.commit()
-        return "no_signer"
+    builtin = (settings.esign_auto_provider or "").lower() == "builtin"
+    if not signer_email and not builtin:
+        if contract.vendor_id:
+            signer_email = (await db.execute(
+                text("SELECT contact_email FROM vendors WHERE id = :id"), {"id": contract.vendor_id}
+            )).scalar_one_or_none()
+        if not signer_email:
+            await write_audit_log(db, "contract", contract_id, "auto_send_skipped", {
+                "reason": "no signer email (set APP_ESIGN_AUTO_SIGNER_EMAIL or the vendor's contact email)",
+            })
+            await db.commit()
+            return "no_signer"
 
     try:
         await send_for_signature(

@@ -49,7 +49,7 @@ class TestEventSchemas:
         )
         assert set(payload.keys()) == {
             "contract_id", "vendor_id", "renewal_type", "notice_period_days",
-            "contract_end_date", "days_remaining", "alert_level",
+            "contract_end_date", "days_remaining", "alert_level", "notice_deadline",
         }
         assert payload["alert_level"] in ("60", "30", "15")
 

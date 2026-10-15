@@ -3,6 +3,62 @@
 Newest first. Dates are 2026. Nothing below the Sep 25 merge has been
 committed yet (branch `anjali`); see TODO.md for open items.
 
+## Oct 16 — FR-04: risk model evaluated, missing data left out, GSTIN override
+
+- **Missing data**: no longer filled with defaults (on-time rate and
+  financial stability were 0.5 — below the typical vendor, so "no data"
+  read as risk). The forest is trained with 20 % of values blanked and
+  scores with gaps (scikit-learn ≥ 1.4); missing signals are never
+  factors. The risk API and vendor page show "based on N of 6 signals".
+- **Hard overrides** before the model: cancelled/suspended GSTIN → High,
+  shown as the first factor (the model score is kept for drift). Sanctions
+  and IFSC checks report "not checked" until their data exists (FR-14).
+  `risk_scores` gains `signals_used`, `signals_total`, `overrides`
+  (Alembic 0006).
+- **Dataset**: 2,000 seeded synthetic vendors, 20 % in a "stressed"
+  segment (the 400 typical-only rows almost never contained a risky
+  vendor). Label rule unchanged.
+- **Evaluation**: `ml/evaluate_risk_model.py` → `docs/results/risk-model.*`
+  (ROC-AUC 0.715 vs ceiling 0.739, bands 6.5 / 20 / 40 % incidents,
+  12 red-team profiles in `ml/redteam_profiles.json` all as expected);
+  `docs/risk-model.md` explains it. The image trains the model at build
+  (it used to ship whatever git-ignored artifacts the builder had).
+
+## Oct 16 — FR-02: renewal reminders count from the notice deadline
+
+- Before: `ContractRenewalWorkflow` fired at end date − 60/30/15 days
+  (its docstring said notice deadline), and a contract created inside a
+  window fired every missed milestone at once. The contract page's
+  Renewal Timeline made the same mistake on its own.
+- Now: `app/services/renewal_schedule.py` — deadline = end date − notice
+  period (end date if unknown), reminders count back from it, missed
+  milestones are skipped except the most recent one. Used by the workflow
+  (behind Temporal `workflow.patched("renewal-from-notice-deadline")`, so
+  workflows started earlier replay unchanged) and by `GET /contracts/{id}`
+  (`notice_deadline`, `renewal_reminders`, `next_renewal_reminder`), which
+  the contract page now shows instead of computing its own.
+- `contract.renewal.due` gains `notice_deadline` (events.md updated;
+  activity argument `Optional`, per the Temporal gotcha).
+- Control Panel: the auto-send signer reads "an authorised signatory, in
+  the app" for the built-in e-sign (was "vendor contact email", stale
+  after FR-01).
+
+## Oct 16 — FR-01: contracts sent for signature after every approval
+
+- Before: only contracts for drop-folder quotes were sent automatically;
+  a request made in the app waited in `draft` until someone clicked
+  "Send for signature" (`auto_send_for_signature` returned
+  `not_from_drop_folder`).
+- Now: business rule `contract.auto_send_scope` (`all` by default,
+  `drop_folder` = the old behaviour; auth-service migration 0004, value
+  validated). Still sent once per contract, with the same audit entries.
+  With the built-in e-sign and no configured signer, an authorised
+  signatory signs in the app (the vendor's contact email was rejected as a
+  signer). `GET /contracts/{id}` returns `sent_automatically`; the request
+  page's Signature step says so.
+- Owner columns and `[Name]` tags removed from README, CLAUDE.md,
+  TODO.md, the flow chart and the approval-inventory README.
+
 ## Oct 15 — Extraction confidence, currency, request from an invoice, ordered status
 
 - **Confidence** (sample scanned invoice 0.50 → 0.93): image text quality is

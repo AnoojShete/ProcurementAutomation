@@ -11,13 +11,13 @@ Temporal for long-running workflows, MinIO for files, ClamAV for upload
 scanning, nginx gateway on :8080 serving the React/Vite frontend. Keep
 explanations and designs simple enough for students to present.
 
-| Service | Port | Owner | Migrations |
-|---|---|---|---|
-| document-vendor-agent (+ worker) | 8001 | Vaidehi | raw SQL `migrations/000N_*.sql`, applied at startup by `app/database.py` (`MIGRATIONS` tuple) |
-| approval-inventory-agent (+ worker) | 8002 | Niraj | raw SQL `migrations/0001_schema_extensions.sql` (one growing file), applied at startup |
-| contract-risk-agent (+ worker) | 8003 | Anjali | Alembic, `alembic_version_contract_risk_agent`, run by `docker-entrypoint.sh` |
-| notification-agent | 8004 | Anooj | raw SQL `migrations/0001_notification_tables.sql` |
-| auth-service | 8005 | Anooj | Alembic, `alembic_version_auth_service`, run by `docker-entrypoint.sh` |
+| Service | Port | Migrations |
+|---|---|---|
+| document-vendor-agent (+ worker) | 8001 | raw SQL `migrations/000N_*.sql`, applied at startup by `app/database.py` (`MIGRATIONS` tuple) |
+| approval-inventory-agent (+ worker) | 8002 | raw SQL `migrations/0001_schema_extensions.sql` (one growing file), applied at startup |
+| contract-risk-agent (+ worker) | 8003 | Alembic, `alembic_version_contract_risk_agent`, run by `docker-entrypoint.sh` |
+| notification-agent | 8004 | raw SQL `migrations/0001_notification_tables.sql` |
+| auth-service | 8005 | Alembic, `alembic_version_auth_service`, run by `docker-entrypoint.sh` |
 
 Base tables: `shared/db/init.sql`, applied once by `install.sh`. Never edit
 it for new work — add a migration in the owning service. Raw-SQL

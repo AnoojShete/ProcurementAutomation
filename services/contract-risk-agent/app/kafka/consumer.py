@@ -118,7 +118,8 @@ async def _handle_approval_decided(app, payload: dict):
             except ContractGenerationError as e:
                 # e.g. the request doesn't exist — retrying can't fix it.
                 raise PermanentEventError(str(e)) from e
-        # Drop-folder requests: send for signature once, automatically.
+        # Send for signature once, automatically (every approved request,
+        # or drop-folder quotes only: rule contract.auto_send_scope).
         # Also runs for an existing contract, so a crash between generating
         # and sending is finished on redelivery.
         contract_id = contract.id

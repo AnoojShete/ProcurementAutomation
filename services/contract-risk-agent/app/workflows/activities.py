@@ -3,6 +3,7 @@ workflows. Each activity opens its own DB session / Kafka producer since
 activities run in the worker process, not the FastAPI request context."""
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 from temporalio import activity
 
@@ -37,7 +38,8 @@ async def fetch_contract_renewal_info(contract_id: str) -> dict | None:
 @activity.defn
 async def publish_renewal_due_event(
     contract_id: str, vendor_id: str | None, renewal_type: str | None,
-    notice_period_days: int | None, contract_end_date: str, days_remaining: int, alert_level: int
+    notice_period_days: Optional[int], contract_end_date: str, days_remaining: int, alert_level: int,
+    notice_deadline: Optional[str] = None,
 ) -> None:
     producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
     await producer.start()
@@ -50,6 +52,7 @@ async def publish_renewal_due_event(
             contract_end_date=contract_end_date,
             days_remaining=days_remaining,
             alert_level=alert_level,
+            notice_deadline=notice_deadline,
         )
     finally:
         await producer.stop()

@@ -106,6 +106,9 @@ async def _validate_rule_value(db: AsyncSession, rule: BusinessRule, new_value: 
         elif rule.rule_key == "budget.fiscal_period_type":
             if new_value not in ("quarterly", "annual"):
                 raise HTTPException(status_code=400, detail="budget.fiscal_period_type must be 'quarterly' or 'annual'")
+        elif rule.rule_key == "contract.auto_send_scope":
+            if new_value not in ("all", "drop_folder"):
+                raise HTTPException(status_code=400, detail="contract.auto_send_scope must be 'all' or 'drop_folder'")
         elif rule.rule_key == "risk.contract_renewal_milestones_days":
             if not isinstance(new_value, list) or not all(isinstance(x, int) and x > 0 for x in new_value):
                 raise HTTPException(status_code=400, detail="renewal milestones must be a list of positive integers")

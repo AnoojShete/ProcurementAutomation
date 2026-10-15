@@ -250,7 +250,10 @@ function DocusignCard({ esign, error }: { esign: EsignStatus | null; error: stri
       }
     >
       <Row label="Auto-send">{esign.auto_send.enabled ? `on, via ${esign.auto_send.provider}` : "off"}</Row>
-      <Row label="Signer">{esign.auto_send.signer_email || "vendor contact email"}</Row>
+      <Row label="Signer">
+        {esign.auto_send.signer_email ||
+          (esign.auto_send.provider === "builtin" ? "an authorised signatory, in the app" : "vendor contact email")}
+      </Row>
       {ds.configured && <Row label="Account">{ds.account_id}</Row>}
       {ds.configured && <Row label="Completion">{ds.connect_webhook ? "Connect webhook + polling" : `polled every ${ds.poll_seconds}s`}</Row>}
       {ds.error && !ds.consent_url && <p className="text-danger-600">{ds.error}</p>}

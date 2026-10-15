@@ -90,6 +90,10 @@ class RiskScore(Base):
     # Added by this service's migration 0001:
     model_version: Mapped[Optional[str]] = mapped_column(String(50))
     scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Added by migration 0006 (FR-04): signal coverage and hard overrides.
+    signals_used: Mapped[Optional[int]] = mapped_column(Integer)
+    signals_total: Mapped[Optional[int]] = mapped_column(Integer)
+    overrides: Mapped[Optional[list]] = mapped_column(JSON)
 
 
 class VendorRiskFeatures(Base):
