@@ -125,6 +125,7 @@ async def scan_upload(data: bytes, db: AsyncSession, filename: str, clamd_client
 
 async def store_and_record_upload(
     db: AsyncSession, kafka_producer, data: bytes, filename: str, content_type: str, uploaded_by: str,
+    source: str = "upload", source_sender: str | None = None,
 ) -> Document:
     """Called only after scan_upload() has confirmed the file is clean.
     Raises InvalidUploadError before anything is stored."""
@@ -146,6 +147,8 @@ async def store_and_record_upload(
         original_filename=filename,
         uploaded_by=uploaded_by,
         uploaded_at=uploaded_at,
+        source=source,
+        source_sender=source_sender,
         needs_review=False,
         created_at=uploaded_at,
         updated_at=uploaded_at,
@@ -154,7 +157,8 @@ async def store_and_record_upload(
     await write_audit_log(
         db, entity_type="document", entity_id=document_id, action="uploaded",
         payload={"filename": filename, "file_type": file_type, "sha256": sha256_hex(data),
-                 "uploaded_by": uploaded_by, "malware_scan": "clean"},
+                 "uploaded_by": uploaded_by, "malware_scan": "clean", "source": source,
+                 "source_sender": source_sender},
     )
     # Committed together with the document row (shared/eventing/outbox.py):
     # an upload can no longer be recorded without its processing event.

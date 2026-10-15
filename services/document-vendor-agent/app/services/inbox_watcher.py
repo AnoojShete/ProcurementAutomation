@@ -138,7 +138,8 @@ async def ingest_file(session_factory, kafka_producer, inbox: InboxFolder, path:
 
         content_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
         try:
-            doc = await store_and_record_upload(db, kafka_producer, data, name, content_type, INBOX_UPLOADER)
+            doc = await store_and_record_upload(db, kafka_producer, data, name, content_type, INBOX_UPLOADER,
+                                                source="folder")
         except InvalidUploadError as e:
             await db.rollback()
             inbox.fail(path, str(e))

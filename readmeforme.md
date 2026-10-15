@@ -351,6 +351,18 @@ run.sh, install.sh, Makefile, docker-compose.yml, docker-compose.override.yml, .
 A sweep every minute re-queues documents stranded in `pending` or
 `processing`.
 
+### Email intake
+
+Documents emailed to `invoices@procurement.local` (setting
+`EMAIL_INTAKE_ADDRESS`) enter the same path as an upload — virus scan,
+MinIO, pipeline — read by the document worker over POP3 or IMAP
+(`EMAIL_INTAKE_PROTOCOL/HOST/PORT/SSL/USER/PASSWORD`; in development it
+reads Mailpit's POP3, so mail sent to Mailpit's SMTP on :1025 is picked up
+within 30 s). The mailbox is only read: each message is handled once
+(`email_intake` table, with the reason for any rejected attachment), and
+mail to other addresses is ignored. The document page shows "By email from
+<sender>". Emailed documents follow the normal reviewed flow.
+
 ### Drop folder → signed contract (fully automated)
 
 Put a vendor quote (PDF/PNG/JPEG) in `./inbox`. No clicks after that:

@@ -198,6 +198,9 @@ export interface DocumentRecord {
   /** Amount in INR and the exchange rate used, fixed when the document was
    * processed. Null until then. */
   fx?: DocumentFx | null;
+  /** upload | folder | email; the sender's address for email. */
+  source?: string | null;
+  source_sender?: string | null;
 }
 
 export interface DocumentFx {

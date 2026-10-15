@@ -121,6 +121,9 @@ class Document(Base):
     fx_rate: Mapped[Optional[float]] = mapped_column(Numeric(18, 8))
     fx_rate_date: Mapped[Optional[date]] = mapped_column(Date)
     fx_source: Mapped[Optional[str]] = mapped_column(Text)
+    # Added by migration 0009: upload | folder | email, and the email sender.
+    source: Mapped[Optional[str]] = mapped_column(Text)
+    source_sender: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

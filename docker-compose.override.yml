@@ -307,6 +307,17 @@ services:
       TRANSFORMERS_OFFLINE: "1"
       # Signs the service token for the invoice -> PO search call.
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      # Email intake (BR-1): documents emailed to the intake address. In
+      # development it reads Mailpit over POP3 (read-only); set
+      # EMAIL_INTAKE_HOST etc. for a real mailbox (pop3 or imap).
+      APP_EMAIL_INTAKE_ENABLED: ${EMAIL_INTAKE_ENABLED:-true}
+      APP_EMAIL_INTAKE_PROTOCOL: ${EMAIL_INTAKE_PROTOCOL:-pop3}
+      APP_EMAIL_INTAKE_HOST: ${EMAIL_INTAKE_HOST:-mailpit}
+      APP_EMAIL_INTAKE_PORT: ${EMAIL_INTAKE_PORT:-1110}
+      APP_EMAIL_INTAKE_SSL: ${EMAIL_INTAKE_SSL:-false}
+      APP_EMAIL_INTAKE_USER: ${EMAIL_INTAKE_USER:-intake}
+      APP_EMAIL_INTAKE_PASSWORD: ${EMAIL_INTAKE_PASSWORD:-dev-intake-password}
+      APP_EMAIL_INTAKE_ADDRESS: ${EMAIL_INTAKE_ADDRESS:-invoices@procurement.local}
     # docling-models: Docling layout/table models (~300MB).
     # hf-cache: LayoutLMv3 model (~1GB).
     # paddleocr-models: PaddleOCR detection/recognition weights (~20MB).

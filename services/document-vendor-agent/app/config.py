@@ -58,6 +58,18 @@ class Settings(BaseSettings):
     inbox_enabled: bool = True
     inbox_dir: str = "/inbox"
     inbox_poll_seconds: float = 3.0
+    # Email intake (app/services/email_intake.py): documents attached to
+    # emails sent to email_intake_address. POP3 or IMAP; the mailbox is
+    # only read, never changed. Off unless a host is configured.
+    email_intake_enabled: bool = False
+    email_intake_protocol: str = "pop3"          # pop3 | imap
+    email_intake_host: str = ""
+    email_intake_port: int = 0                   # 0 = protocol default
+    email_intake_ssl: bool = False
+    email_intake_user: str = ""
+    email_intake_password: str = ""
+    email_intake_address: str = "invoices@procurement.local"
+    email_intake_poll_seconds: float = 30.0
     # Live Kafka event log on the control panel (app/services/event_monitor.py).
     event_monitor_enabled: bool = True
 
@@ -76,6 +88,8 @@ class Settings(BaseSettings):
 
 settings = Settings()
 require_secret("APP_MINIO_SECRET_KEY", settings.minio_secret_key, {"minioadmin"})
+if settings.email_intake_enabled and settings.email_intake_host:
+    require_secret("APP_EMAIL_INTAKE_PASSWORD", settings.email_intake_password, {"dev-intake-password"})
 
 
 @lru_cache

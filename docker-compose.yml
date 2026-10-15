@@ -165,6 +165,9 @@ services:
       - 127.0.0.1:8088:8088
   mailpit:
     image: axllent/mailpit:latest
+    environment:
+      # POP3 read access for the email intake (BR-1) — development only.
+      MP_POP3_AUTH: "intake:${EMAIL_INTAKE_PASSWORD:-dev-intake-password}"
     ports:
       - 127.0.0.1:8025:8025
     healthcheck:

@@ -180,7 +180,14 @@ export function DocumentDetailPage() {
             )}
 
             <dl className="mt-2 w-full space-y-2 border-t border-surface-border pt-3 text-left text-sm">
-              <div className="flex justify-between"><dt className="text-slate-400">Uploaded by</dt><dd className="font-medium text-slate-700">{doc.uploaded_by ?? "—"}</dd></div>
+              <div className="flex justify-between">
+                <dt className="text-slate-400">Received</dt>
+                <dd className="font-medium text-slate-700">
+                  {doc.source === "email" ? `By email from ${doc.source_sender ?? "unknown sender"}`
+                    : doc.source === "folder" ? "From the shared folder"
+                    : `Uploaded by ${doc.uploaded_by ?? "—"}`}
+                </dd>
+              </div>
               <div className="flex justify-between"><dt className="text-slate-400">Uploaded</dt><dd className="text-slate-700">{formatDateTime(doc.uploaded_at)}</dd></div>
               <div className="flex justify-between"><dt className="text-slate-400">File type</dt><dd className="uppercase font-semibold text-slate-700">{doc.file_type ?? "—"}</dd></div>
               {doc.reviewed_by && (

@@ -66,6 +66,9 @@ def _serialize_document(doc: Document, user: CurrentUser | None = None) -> dict:
         "reviewed_at": doc.reviewed_at.isoformat() if doc.reviewed_at else None,
         "error_message": doc.error_message,
         "fx": _fx(doc),
+        # upload | folder | email (BR-1), and the sender for email.
+        "source": getattr(doc, "source", None),
+        "source_sender": getattr(doc, "source_sender", None),
     }
 
 

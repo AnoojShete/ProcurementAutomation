@@ -15,3 +15,6 @@ uploaded by a person through the UI keeps its manual flow.
 
 # documents.uploaded_by / purchase_requests.requested_by for drop-folder items.
 INBOX_UPLOADER = "inbox@procurement.local"
+# documents.uploaded_by for documents taken from the intake mailbox (BR-1).
+# Unlike the drop folder they keep the normal, reviewed flow.
+EMAIL_INTAKE_UPLOADER = "email-intake@procurement.local"

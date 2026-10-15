@@ -14,6 +14,7 @@ from app.database import async_session_factory, init_db
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
 from app.services.inbox_watcher import run_inbox_watcher
+from app.services.email_intake import run_email_intake
 from app.services.storage import ensure_bucket
 
 
@@ -46,12 +47,18 @@ async def main():
     inbox_task = (
         asyncio.create_task(run_inbox_watcher(async_session_factory, producer)) if settings.inbox_enabled else None
     )
+    # Email intake: documents attached to mail sent to the intake address.
+    email_task = (
+        asyncio.create_task(run_email_intake(async_session_factory, producer))
+        if settings.email_intake_enabled and settings.email_intake_host else None
+    )
     try:
         await start_consumer(producer)
     finally:
         relay_task.cancel()
-        if inbox_task:
-            inbox_task.cancel()
+        for task in (inbox_task, email_task):
+            if task:
+                task.cancel()
         await producer.stop()
 
 

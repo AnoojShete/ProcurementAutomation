@@ -56,7 +56,7 @@ contract & risk; platform/infrastructure excluded) was checked against the
 code on Oct 16. Everything else in it is built; these are the gaps, done
 before any other roadmap item.
 
-- [ ] **BR-1 Email ingestion of documents.** *Now:* upload, API and the
+- [x] **BR-1 Email ingestion of documents.** *Now:* upload, API and the
   drop folder feed the pipeline; nothing reads documents from a mailbox.
   *Do:* poll a mailbox (IMAP; Mailpit in development) for attachments and
   send them through the same scan → store → pipeline path as an upload,
@@ -64,6 +64,16 @@ before any other roadmap item.
   notifications). *Done when:* an emailed PDF becomes a classified
   document with its sender recorded, and a non-document attachment is
   rejected with a reason.
+  *Evidence (Oct 16):* `app/services/email_intake.py` in the
+  document-vendor worker (POP3 or IMAP, read-only; Mailpit POP3 in
+  development), `email_intake` table + `documents.source/source_sender`
+  (migration 0009). Live: an email to invoices@procurement.local with an
+  invoice PNG and a .docx → the PNG became a classified invoice (Nova Grid
+  Supplies, INV-30744, $2,450) with source "email" and the sender shown on
+  the document page; the .docx was rejected ("not a PDF, PNG or JPEG");
+  after a worker restart still one intake row and one document.
+  `test_email_intake.py` 9 passed; document-vendor 232 passed.
+
 - [ ] **BR-2 Image preprocessing before OCR** (= FR-11's OpenCV part).
   *Now:* OpenCV installed, never used. *Do:* resize, denoise, deskew /
   rotation correction for scans and photos. *Done when:* a rotated or noisy
