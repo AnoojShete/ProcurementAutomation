@@ -372,7 +372,10 @@ old behaviour).
 
 **Control Panel** (admin, `/app/control-panel`) shows it live: the Kafka
 event log (every topic, read through a read-only `event-monitor` Kafka
-login, payloads reduced to ids and statuses — no bank details), each
+login, payloads reduced to ids and statuses — no bank details; stored in
+`event_log`, so it survives restarts, filterable by topic, time, text and
+correlation id, kept `monitor.event_log_retention_days`), a **Failed
+events** panel (open dead-letter entries with their error), each
 dropped file's current step with links to its document / request /
 contract, and the MinIO and DocuSign connections.
 

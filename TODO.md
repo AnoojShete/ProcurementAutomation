@@ -175,7 +175,7 @@ event or writing a spec for him.
   option for any data the scenarios need. *Done when:* someone who didn't
   build it runs every scenario from a fresh `./run.sh` using only the
   script.
-- [ ] **FR-06 Kafka monitoring that survives a restart** (29 Aug overall
+- [x] **FR-06 Kafka monitoring that survives a restart** (29 Aug overall
   #6; Team B #2). *Now:* Control Panel shows live events, but
   `event_monitor.py` keeps the last 500 in memory (gone on restart, no
   search); consumer lag is on System Health; DLQ rows aren't shown.
@@ -185,6 +185,19 @@ event or writing a spec for him.
   `event_dlq` with the error. *Done when:* events are still there after
   `docker compose restart document-vendor-agent`; a forced consumer
   failure shows in the failed-events panel.
+  *Evidence (Oct 16):* `event_log` table (document-vendor migration 0008;
+  summaries only, unique per topic/partition/offset), retention rule
+  `monitor.event_log_retention_days` (auth-service migration 0006, hourly
+  prune). The monitor resumes after the last stored offset. Live: 472 rows
+  → stop the service → a risk event published meanwhile → 473 rows after
+  restart, 0 partitions with offset gaps. Filters on the API and page
+  (topic, time window, text, correlation id — one approval's correlation
+  id returned its approval.decided, contract.generated and
+  notification.send). "Failed events" panel (`/failed-events`, summarised,
+  no raw payload): the showcase out-of-order `invoice.matched` appeared
+  with its PermanentEventError. `test_event_log.py` 6 passed (resume test
+  fails with the old in-memory restart). document-vendor 223 passed.
+  Control Panel's DocuSign labels now say built-in E-signature.
 - [ ] **FR-07 Application logs you can search** (29 Aug overall #7).
   *Now:* every service writes JSON logs with `correlation_id`, but only
   `docker logs` can read them. *Do:* Loki + Promtail in compose (pinned

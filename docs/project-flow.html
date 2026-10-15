@@ -109,7 +109,7 @@ const UPDATED = "16 Oct 2026 · branch anjali";
 const ITEMS = {
   "FR-01": ["ok", "Auto-send for signature"], "FR-02": ["ok", "Renewals from notice deadline"],
   "FR-03": ["ok", "Pending-action reminders"], "FR-04": ["wip", "Risk model evaluated"],
-  "FR-05": ["todo", "Demo script"], "FR-06": ["todo", "Kafka log kept"], "FR-07": ["todo", "Searchable logs"],
+  "FR-05": ["todo", "Demo script"], "FR-06": ["ok", "Kafka log kept"], "FR-07": ["todo", "Searchable logs"],
   "FR-08": ["todo", "Fallback on demand"], "FR-09": ["todo", "Business rules tested"],
   "FR-10": ["todo", "Notification audit"], "FR-11": ["todo", "Extraction accuracy"],
   "FR-12": ["todo", "Results & deck"], "FR-13": ["todo", "Clause model"], "FR-14": ["todo", "Sanctions + IFSC"],
@@ -145,7 +145,7 @@ const FLOW = [
 ];
 const SIDE = [
   ["📊", "Vendor risk", "AUC 0.715 · red-team 12/12", ["FR-04", "FR-14", "FR-30"]],
-  ["🖥️", "Control Panel", "live Kafka log", ["FR-06"]],
+  ["🖥️", "Control Panel", "Kafka log kept & searchable · failed events", ["FR-06"]],
   ["🔔", "Notifications", "email via shared mailer", ["FR-10", "FR-31"]],
   ["🔑", "Licence usage ML", "anomaly → reclaim", ["FR-32"]],
   ["💬", "Chatbot", "Anooj's area · fallback spec only", ["FR-08"]],

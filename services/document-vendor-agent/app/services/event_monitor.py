@@ -1,7 +1,10 @@
 """Live Kafka event log for the admin control panel.
 
-A read-only tail of every topic in shared/kafka-topics.yaml, kept in memory
-(the last `maxlen` events) and served by GET /admin/control-panel/events.
+A read-only tail of every topic in shared/kafka-topics.yaml. Each summary
+is stored in the event_log table (FR-06: kept across restarts, searchable,
+pruned after monitor.event_log_retention_days) and served by
+GET /admin/control-panel/events. After a restart the tail resumes from the
+last stored offset of each partition, so nothing is skipped.
 
 It logs in as its own Kafka user, `event-monitor`
 (EVENT_MONITOR_KAFKA_USERNAME / _PASSWORD), which may read every topic and
@@ -17,8 +20,11 @@ import asyncio
 import json
 import logging
 from collections import deque
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+from sqlalchemy import text
 
 import yaml
 from aiokafka import AIOKafkaConsumer, TopicPartition
@@ -110,8 +116,66 @@ def summarize(topic: str, partition: int, offset: int, timestamp_ms: int | None,
     }
 
 
+_INSERT = text("""
+    INSERT INTO event_log (topic, kafka_partition, kafka_offset, event_time, event_type, source_service,
+                           correlation_id, message, fields)
+    VALUES (:topic, :partition, :offset, :timestamp, :event_type, :source_service,
+            :correlation_id, :message, CAST(:fields AS jsonb))
+    ON CONFLICT (topic, kafka_partition, kafka_offset) DO NOTHING
+""")
+PRUNE_EVERY_SECONDS = 3600
+
+
+def _parse_time(value) -> datetime | None:
+    if not value:
+        return None
+    try:
+        t = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def retention_days() -> int:
+    from shared.rules_engine import get_rule
+    days = get_rule("monitor.event_log_retention_days", fallback=14)
+    return days if isinstance(days, int) and days > 0 else 14
+
+
+def start_offset(last_stored: int | None, begin: int, end: int, backlog: int, first_connect: bool) -> int:
+    """Where to start reading a partition. Already stored: right after the
+    last stored record, so a restart skips nothing. Never seen: the recent
+    `backlog`, so the log isn't empty. Reconnect without storage: the end."""
+    if last_stored is not None:
+        return max(begin, last_stored + 1)
+    if first_connect:
+        return max(begin, end - backlog)
+    return end
+
+
+def build_query(after: int, limit: int, topic: str | None, correlation_id: str | None,
+                since_hours: float | None, q: str | None):
+    """SQL and params for the filtered log, newest `limit` rows after `after`."""
+    where, params = ["id > :after"], {"after": after, "limit": limit}
+    if topic:
+        where.append("topic = :topic"); params["topic"] = topic
+    if correlation_id:
+        where.append("correlation_id = :cid"); params["cid"] = correlation_id
+    if since_hours:
+        where.append("event_time >= now() - make_interval(secs => :secs)"); params["secs"] = since_hours * 3600
+    if q:
+        where.append("(message ILIKE :q OR fields::text ILIKE :q)"); params["q"] = f"%{q}%"
+    sql = text(
+        "SELECT id AS seq, topic, kafka_partition AS partition, kafka_offset AS offset, event_time, event_type, "
+        "source_service, correlation_id, message, fields FROM event_log "
+        f"WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT :limit"
+    )
+    return sql, params
+
+
 class EventMonitor:
-    def __init__(self, bootstrap_servers: str, backlog_per_partition: int = 50, maxlen: int = 500):
+    def __init__(self, bootstrap_servers: str, backlog_per_partition: int = 50, maxlen: int = 500,
+                 session_factory=None):
         self.bootstrap_servers = bootstrap_servers
         self.backlog = backlog_per_partition
         self.events: deque[dict] = deque(maxlen=maxlen)
@@ -119,6 +183,51 @@ class EventMonitor:
         self.connected = False
         self.error: str | None = None
         self.topics: list[str] = []
+        # With a session factory the log lives in event_log (survives restarts).
+        self.session_factory = session_factory
+        self._last_prune = 0.0
+
+    async def store(self, entries: list[dict]) -> None:
+        if not self.session_factory or not entries:
+            return
+        async with self.session_factory() as session:
+            await session.execute(_INSERT, [{**e, "timestamp": _parse_time(e.get("timestamp")),
+                                             "fields": json.dumps(e["fields"])} for e in entries])
+            await session.commit()
+
+    async def stored_offsets(self) -> dict:
+        """(topic, partition) -> last stored offset, to resume after a restart."""
+        if not self.session_factory:
+            return {}
+        async with self.session_factory() as session:
+            rows = (await session.execute(text(
+                "SELECT topic, kafka_partition, max(kafka_offset) AS last FROM event_log GROUP BY 1, 2"
+            ))).all()
+        return {(r.topic, r.kafka_partition): r.last for r in rows}
+
+    async def query(self, after: int = 0, limit: int = 200, topic: str | None = None,
+                    correlation_id: str | None = None, since_hours: float | None = None,
+                    q: str | None = None) -> tuple[list[dict], int]:
+        if not self.session_factory:
+            return self.since(after, limit), self.seq
+        sql, params = build_query(after, limit, topic, correlation_id, since_hours, q)
+        async with self.session_factory() as session:
+            rows = (await session.execute(sql, params)).mappings().all()
+            latest = (await session.execute(text("SELECT coalesce(max(id), 0) FROM event_log"))).scalar()
+        events = [{**dict(r), "timestamp": r["event_time"].isoformat() if r["event_time"] else None} for r in rows]
+        for e in events:
+            e.pop("event_time", None)
+        return list(reversed(events)), int(latest)
+
+    async def prune(self) -> int:
+        if not self.session_factory:
+            return 0
+        async with self.session_factory() as session:
+            result = await session.execute(text(
+                "DELETE FROM event_log WHERE stored_at < now() - make_interval(days => :d)"
+            ), {"d": retention_days()})
+            await session.commit()
+        return result.rowcount or 0
 
     def add(self, entry: dict) -> None:
         self.seq += 1
@@ -147,21 +256,27 @@ class EventMonitor:
                 TopicPartition(t, p) for t in self.topics for p in sorted(consumer.partitions_for_topic(t) or [])
             ]
             consumer.assign(tps)
-            if not self.events:
-                # First connect: show the recent history, not an empty log.
-                begin = await consumer.beginning_offsets(tps)
-                end = await consumer.end_offsets(tps)
-                for tp in tps:
-                    consumer.seek(tp, max(begin[tp], end[tp] - self.backlog))
-            else:
-                await consumer.seek_to_end(*tps)
+            stored = await self.stored_offsets()
+            begin = await consumer.beginning_offsets(tps)
+            end = await consumer.end_offsets(tps)
+            for tp in tps:
+                consumer.seek(tp, start_offset(stored.get((tp.topic, tp.partition)), begin[tp], end[tp],
+                                               self.backlog, first_connect=not self.events))
             self.connected, self.error = True, None
             logger.info(f"[event-monitor] tailing {len(self.topics)} topics")
             while True:
                 batches = await consumer.getmany(timeout_ms=1000, max_records=500)
                 records = [r for rs in batches.values() for r in rs]
-                for r in sorted(records, key=lambda r: r.timestamp or 0):
-                    self.add(summarize(r.topic, r.partition, r.offset, r.timestamp, r.value))
+                entries = [summarize(r.topic, r.partition, r.offset, r.timestamp, r.value)
+                           for r in sorted(records, key=lambda r: r.timestamp or 0)]
+                for e in entries:
+                    self.add(e)
+                await self.store(entries)
+                if self.session_factory and time.monotonic() - self._last_prune > PRUNE_EVERY_SECONDS:
+                    self._last_prune = time.monotonic()
+                    pruned = await self.prune()
+                    if pruned:
+                        logger.info(f"[event-monitor] pruned {pruned} events older than the retention window")
         finally:
             self.connected = False
             await consumer.stop()

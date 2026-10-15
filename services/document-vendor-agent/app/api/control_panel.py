@@ -1,6 +1,8 @@
 """Admin control panel: the drop-folder automation end to end.
 
-    GET /admin/control-panel/events   live Kafka event log (event_monitor.py)
+    GET /admin/control-panel/events   Kafka event log, kept in event_log (event_monitor.py);
+                                      filters: topic, correlation_id, since_hours, q
+    GET /admin/control-panel/failed-events  open dead-letter entries, summarised
     GET /admin/control-panel/inbox    drop folder + where each dropped file is now
     GET /admin/control-panel/storage  MinIO connection, bucket contents
 
@@ -26,13 +28,40 @@ router = APIRouter(dependencies=[Depends(require_role("admin"))])
 
 
 @router.get("/events")
-async def get_events(request: Request, after: int = Query(0, ge=0), limit: int = Query(200, ge=1, le=500)):
+async def get_events(
+    request: Request, after: int = Query(0, ge=0), limit: int = Query(200, ge=1, le=500),
+    topic: str | None = None, correlation_id: str | None = None,
+    since_hours: float | None = Query(None, gt=0, le=24 * 365), q: str | None = Query(None, max_length=100),
+):
     monitor = getattr(request.app.state, "event_monitor", None)
     if monitor is None:
         return DataResponse(data={"status": {"connected": False, "error": "event monitor is disabled"},
                                   "events": [], "latest_seq": 0})
-    return DataResponse(data={"status": monitor.status(), "events": monitor.since(after, limit),
-                              "latest_seq": monitor.seq})
+    events, latest = await monitor.query(after, limit, topic, correlation_id, since_hours, q)
+    return DataResponse(data={"status": monitor.status(), "events": events, "latest_seq": latest})
+
+
+@router.get("/failed-events")
+async def failed_events(db: AsyncSession = Depends(get_db), limit: int = Query(50, ge=1, le=200)):
+    """Events a consumer gave up on (shared event_dlq table), newest first.
+    The stored event is summarised the same way as the Kafka log — full
+    payloads (bank details) never reach the browser."""
+    import json as _json
+    from app.services.event_monitor import summarize
+    rows = (await db.execute(text(
+        "SELECT id::text AS id, consumer, topic, event_id, event, error, attempts, failed_at "
+        "FROM event_dlq WHERE status = 'open' ORDER BY failed_at DESC LIMIT :limit"
+    ), {"limit": limit})).all()
+    out = []
+    for r in rows:
+        summary = summarize(r.topic, 0, 0, None, _json.dumps(r.event or {}).encode())
+        out.append({
+            "id": r.id, "consumer": r.consumer, "topic": r.topic, "event_id": r.event_id,
+            "error": (r.error or "")[:300], "attempts": r.attempts, "failed_at": r.failed_at.isoformat(),
+            "message": summary["message"], "correlation_id": summary["correlation_id"],
+            "fields": summary["fields"],
+        })
+    return DataResponse(data=out, meta={"count": len(out)})
 
 
 _RECENT_DROPS = text("""

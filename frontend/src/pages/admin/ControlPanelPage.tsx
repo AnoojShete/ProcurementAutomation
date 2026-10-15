@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Database, ExternalLink, FolderInput, Pause, PenLine, Play, Radio } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
+import { useDebounce } from "@/hooks/useDebounce";
 import { ApiError } from "@/api/client";
 import type { ApiEnvelope } from "@/types/api";
 import {
@@ -11,6 +12,7 @@ import {
   type InboxStatus,
   type KafkaEvent,
   type StorageStatus,
+  type EventFilters,
 } from "@/api/controlPanel";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -102,7 +104,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-const FLOW = ["Drop folder", "Kafka", "Document pipeline", "Purchase request", "Approval", "Contract", "DocuSign"];
+const FLOW = ["Drop folder", "Kafka", "Document pipeline", "Purchase request", "Approval", "Contract", "E-signature"];
 
 const STAGE_TONE: Record<DropStage, Tone> = {
   processing: "brand",
@@ -152,9 +154,11 @@ export function ControlPanelPage() {
 
       <EventLogCard />
 
+      <FailedEventsCard />
+
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <MinioObjectsCard storage={storage.data} />
-        <EnvelopesCard esign={esign.data} />
+        {esign.data?.docusign.configured && <EnvelopesCard esign={esign.data} />}
       </div>
     </div>
   );
@@ -224,10 +228,10 @@ function MinioCard({ storage, error }: { storage: StorageStatus | null; error: s
 }
 
 function DocusignCard({ esign, error }: { esign: EsignStatus | null; error: string | null }) {
-  if (!esign) return error ? <InlineError message={`DocuSign: ${error}`} /> : <Skeleton className="h-40" />;
+  if (!esign) return error ? <InlineError message={`E-signature: ${error}`} /> : <Skeleton className="h-40" />;
   const ds = esign.docusign;
   const [tone, state]: [Tone, string] = !ds.configured
-    ? ["neutral", "Simulated"]
+    ? ["success", "Built-in"]
     : ds.connected
       ? ["success", `Connected (${ds.environment})`]
       : ds.consent_url
@@ -236,7 +240,7 @@ function DocusignCard({ esign, error }: { esign: EsignStatus | null; error: stri
   return (
     <ConnectionCard
       icon={PenLine}
-      title="DocuSign"
+      title="E-signature"
       tone={tone}
       state={state}
       action={
@@ -245,7 +249,7 @@ function DocusignCard({ esign, error }: { esign: EsignStatus | null; error: stri
             Grant consent (once) <ExternalLink className="size-3" />
           </a>
         ) : !ds.configured ? (
-          <span className="text-slate-500">Add the DocuSign keys to .env to send real envelopes (see .env.example).</span>
+          <span className="text-slate-500">Signed in the app: typed or drawn signature, consent and a SHA-256 seal.</span>
         ) : undefined
       }
     >
@@ -337,30 +341,36 @@ function topicColor(topic: string) {
 
 const MAX_EVENTS = 500;
 
+const WINDOWS: [string, number | undefined][] = [["Any time", undefined], ["Last hour", 1], ["Last 24 h", 24], ["Last 7 days", 168]];
+
 function EventLogCard() {
   const [events, setEvents] = useState<KafkaEvent[]>([]);
   const [connected, setConnected] = useState<boolean | null>(null);
+  const [topics, setTopics] = useState<string[]>([]);
   const [paused, setPaused] = useState(false);
-  const [topic, setTopic] = useState("all");
   const [expanded, setExpanded] = useState<number | null>(null);
+  // Filters run on the server: the log is stored (event_log), not just what this tab has seen.
+  const [topic, setTopic] = useState("");
+  const [sinceHours, setSinceHours] = useState<number | undefined>(undefined);
+  const [correlation, setCorrelation] = useState("");
+  const [search, setSearch] = useState("");
+  const query = useDebounce(search, 400);
   const lastSeq = useRef(0);
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
 
   useEffect(() => {
     let cancelled = false;
+    lastSeq.current = 0;
+    setEvents([]);
+    const filters: EventFilters = { topic, since_hours: sinceHours, correlation_id: correlation.trim(), q: query.trim() };
     const poll = async () => {
       if (pausedRef.current) return;
       try {
-        const { data } = await controlPanelApi.events(lastSeq.current);
+        const { data } = await controlPanelApi.events(lastSeq.current, filters);
         if (cancelled) return;
         setConnected(data.status.connected);
-        if (data.latest_seq < lastSeq.current) {
-          // The service restarted and its sequence began again.
-          lastSeq.current = 0;
-          setEvents([]);
-          return;
-        }
+        if (data.status.topics?.length) setTopics(data.status.topics);
         if (data.events.length) {
           lastSeq.current = data.events[data.events.length - 1].seq;
           setEvents((prev) => [...data.events.slice().reverse(), ...prev].slice(0, MAX_EVENTS));
@@ -375,48 +385,64 @@ function EventLogCard() {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [topic, sinceHours, correlation, query]);
 
-  const topics = useMemo(() => Array.from(new Set(events.map((e) => e.topic))).sort(), [events]);
-  const shown = topic === "all" ? events : events.filter((e) => e.topic === topic);
-
+  const field = "h-7 rounded border border-surface-border bg-white px-2 text-xs text-slate-700";
   return (
     <Card>
       <CardHeader
         title={
           <span className="flex items-center gap-2">
-            Live Kafka log
+            Kafka log
             {connected !== null && <StatusDot tone={connected ? "success" : "danger"} />}
           </span>
         }
-        subtitle="Every event on every topic, newest first. Click a row for its fields."
+        subtitle="Every event on every topic, newest first — kept across restarts. Click a row for its fields."
         action={
-          <div className="flex items-center gap-2">
-            <select
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className="h-7 rounded border border-surface-border bg-white px-2 text-xs text-slate-700"
-              aria-label="Filter by topic"
-            >
-              <option value="all">All topics</option>
-              {topics.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setPaused((p) => !p)}
-              className="inline-flex h-7 items-center gap-1 rounded border border-surface-border px-2 text-xs text-slate-700 hover:bg-surface-subtle"
-            >
-              {paused ? <Play className="size-3" /> : <Pause className="size-3" />}
-              {paused ? "Resume" : "Pause"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setPaused((p) => !p)}
+            className="inline-flex h-7 items-center gap-1 rounded border border-surface-border px-2 text-xs text-slate-700 hover:bg-surface-subtle"
+          >
+            {paused ? <Play className="size-3" /> : <Pause className="size-3" />}
+            {paused ? "Resume" : "Pause"}
+          </button>
         }
       />
+      <div className="flex flex-wrap items-center gap-2 border-b border-surface-border px-4 py-2">
+        <select value={topic} onChange={(e) => setTopic(e.target.value)} className={field} aria-label="Filter by topic">
+          <option value="">All topics</option>
+          {topics.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select
+          value={sinceHours ?? ""}
+          onChange={(e) => setSinceHours(e.target.value ? Number(e.target.value) : undefined)}
+          className={field}
+          aria-label="Time window"
+        >
+          {WINDOWS.map(([label, h]) => <option key={label} value={h ?? ""}>{label}</option>)}
+        </select>
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search text" className={cn(field, "w-40")} aria-label="Search" />
+        <input
+          value={correlation}
+          onChange={(e) => setCorrelation(e.target.value)}
+          placeholder="Correlation id"
+          className={cn(field, "w-72 font-mono")}
+          aria-label="Correlation id"
+        />
+        {(topic || sinceHours || correlation || search) && (
+          <button
+            type="button"
+            onClick={() => { setTopic(""); setSinceHours(undefined); setCorrelation(""); setSearch(""); }}
+            className="text-xs font-medium text-brand-700 hover:underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
       <div className="max-h-[28rem] overflow-y-auto bg-slate-950 px-3 py-2 font-mono text-xs leading-relaxed scrollbar-thin">
-        {shown.length === 0 && <p className="py-6 text-center text-slate-500">Waiting for events…</p>}
-        {shown.map((e) => (
+        {events.length === 0 && <p className="py-6 text-center text-slate-500">No events match.</p>}
+        {events.map((e) => (
           <div key={e.seq} className="border-b border-white/5 last:border-0">
             <button
               type="button"
@@ -424,18 +450,23 @@ function EventLogCard() {
               className="flex w-full gap-3 py-1 text-left hover:bg-white/5"
             >
               <span className="shrink-0 text-slate-500">
-                {e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : "--:--:--"}
+                {e.timestamp ? new Date(e.timestamp).toLocaleString([], { dateStyle: "short", timeStyle: "medium" }) : "--"}
               </span>
-              <span className={cn("w-44 shrink-0 truncate font-semibold", topicColor(e.topic))}>
-                {e.topic}
-              </span>
+              <span className={cn("w-44 shrink-0 truncate font-semibold", topicColor(e.topic))}>{e.topic}</span>
               <span className="min-w-0 flex-1 text-slate-200">{e.message}</span>
               <span className="hidden shrink-0 text-slate-500 md:inline">{e.source_service}</span>
             </button>
             {expanded === e.seq && (
               <div className="mb-1.5 ml-[4.5rem] grid gap-x-4 rounded bg-white/5 px-3 py-2 text-slate-300 sm:grid-cols-2">
                 <span className="text-slate-500">partition {e.partition} · offset {e.offset}</span>
-                <span className="truncate text-slate-500">correlation {e.correlation_id ?? "-"}</span>
+                <span className="truncate text-slate-500">
+                  correlation{" "}
+                  {e.correlation_id ? (
+                    <button type="button" className="text-sky-300 hover:underline" onClick={() => setCorrelation(e.correlation_id!)}>
+                      {e.correlation_id}
+                    </button>
+                  ) : "-"}
+                </span>
                 {Object.entries(e.fields).map(([k, v]) => (
                   <span key={k} className="truncate">
                     <span className="text-slate-500">{k}</span>={typeof v === "object" ? JSON.stringify(v) : String(v)}
@@ -446,6 +477,43 @@ function EventLogCard() {
           </div>
         ))}
       </div>
+    </Card>
+  );
+}
+
+/** Events a consumer gave up on after its retries (event_dlq). Replay /
+ * discard stay on the Controls page; this shows what failed and why. */
+function FailedEventsCard() {
+  const { data, error } = usePoll(() => controlPanelApi.failedEvents(), 10000);
+  return (
+    <Card>
+      <CardHeader
+        title={
+          <span className="flex items-center gap-2">
+            Failed events
+            <StatusDot tone={data && data.length > 0 ? "danger" : "success"} />
+          </span>
+        }
+        subtitle="Events a service couldn't process after retrying (dead-letter queue)."
+      />
+      {error && <div className="p-4"><InlineError message={error} /></div>}
+      {data && data.length === 0 && <p className="p-4 text-sm text-slate-500">None — every event was processed.</p>}
+      {data && data.length > 0 && (
+        <div className="divide-y divide-surface-border">
+          {data.map((f) => (
+            <div key={f.id} className="flex flex-col gap-0.5 px-4 py-2.5 text-13">
+              <div className="flex flex-wrap items-baseline gap-x-3">
+                <span className="font-mono text-xs font-semibold text-danger-600">{f.topic}</span>
+                <span className="text-slate-700">{f.message}</span>
+                <span className="ml-auto text-xs text-slate-500">
+                  {f.consumer} · {f.attempts} attempts · {new Date(f.failed_at).toLocaleString()}
+                </span>
+              </div>
+              <span className="truncate font-mono text-xs text-slate-500" title={f.error}>{f.error}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

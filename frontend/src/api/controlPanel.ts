@@ -19,6 +19,27 @@ export interface EventLog {
   latest_seq: number;
 }
 
+export interface EventFilters {
+  topic?: string;
+  correlation_id?: string;
+  since_hours?: number;
+  q?: string;
+}
+
+/** A dead-lettered event, summarised (never the full payload). */
+export interface FailedEvent {
+  id: string;
+  consumer: string;
+  topic: string;
+  event_id: string | null;
+  error: string;
+  attempts: number;
+  failed_at: string;
+  message: string;
+  correlation_id: string | null;
+  fields: Record<string, unknown>;
+}
+
 export type DropStage =
   | "processing" | "failed" | "review" | "stopped" | "approval" | "rejected" | "contract" | "signature" | "signed";
 
@@ -89,7 +110,12 @@ export interface EsignStatus {
 
 /** Admin control panel: the drop-folder automation and its connections. */
 export const controlPanelApi = {
-  events: (after = 0) => api.get<EventLog>(`/admin/control-panel/events?after=${after}`),
+  events: (after = 0, filters: EventFilters = {}) => {
+    const qs = new URLSearchParams({ after: String(after) });
+    Object.entries(filters).forEach(([k, v]) => v !== undefined && v !== "" && qs.set(k, String(v)));
+    return api.get<EventLog>(`/admin/control-panel/events?${qs}`);
+  },
+  failedEvents: () => api.get<FailedEvent[]>("/admin/control-panel/failed-events"),
   inbox: () => api.get<InboxStatus>("/admin/control-panel/inbox"),
   storage: () => api.get<StorageStatus>("/admin/control-panel/storage"),
   esign: () => api.get<EsignStatus>("/contracts/esign/status"),

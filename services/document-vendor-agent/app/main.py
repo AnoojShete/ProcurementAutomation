@@ -49,7 +49,10 @@ async def lifespan(app: FastAPI):
     ))
 
     # Read-only tail of every Kafka topic for the control panel's event log.
-    app.state.event_monitor = EventMonitor(settings.kafka_bootstrap_servers) if settings.event_monitor_enabled else None
+    app.state.event_monitor = (
+        EventMonitor(settings.kafka_bootstrap_servers, session_factory=async_session_factory)
+        if settings.event_monitor_enabled else None
+    )
     monitor_task = asyncio.create_task(app.state.event_monitor.run()) if app.state.event_monitor else None
 
     yield
