@@ -3,180 +3,287 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Procurement Flow Status</title>
+<title>Procurement Platform Flow</title>
 <style>
   :root {
-    --bg: #f5f6f8; --panel: #fff; --ink: #17202b; --muted: #5d6877; --line: #d9dee5;
-    --ok: #1f8a4c; --ok-bg: #e7f5ec; --wip: #a86a00; --wip-bg: #fdf3e1; --stop: #c23934; --stop-bg: #fcebea;
-    --todo: #6b7686; --todo-bg: #eef0f3;
+    --bg: #f4f6f9; --panel: #ffffff; --ink: #172033; --muted: #5d6879; --line: #d6dce5; --arrow: #8e99a8;
+    --src: #1f5fbf; --stream: #7a3fa3; --proc: #2563c9; --gate: #1d8a4a; --agent: #d9730d; --notify: #d1336b; --shared: #4b5563;
+    --ok: #1d8a4a; --part: #b7791f; --plan: #8b95a3;
+    --tint: 8%;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1218; --panel: #161c24; --ink: #e6ebf1; --muted: #9aa5b4; --line: #2a333f; --arrow: #5d6876;
+    --src: #6aa1f5; --stream: #b98ae0; --proc: #7aa7f2; --gate: #4cc27f; --agent: #f2a250; --notify: #f07aa0; --shared: #a3adba;
+    --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796;
+    --tint: 14%;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0f1318; --panel: #171c23; --ink: #e7ebf0; --muted: #9ba6b5; --line: #2b333e;
-      --ok: #4cc27f; --ok-bg: #12291c; --wip: #e3a73c; --wip-bg: #2c2311; --stop: #f0706a; --stop-bg: #331817;
-      --todo: #9ba6b5; --todo-bg: #1f252d;
+      --bg: #0e1218; --panel: #161c24; --ink: #e6ebf1; --muted: #9aa5b4; --line: #2a333f; --arrow: #5d6876;
+      --src: #6aa1f5; --stream: #b98ae0; --proc: #7aa7f2; --gate: #4cc27f; --agent: #f2a250; --notify: #f07aa0; --shared: #a3adba;
+      --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796;
+      --tint: 14%;
     }
   }
-  :root[data-theme="dark"] {
-    --bg: #0f1318; --panel: #171c23; --ink: #e7ebf0; --muted: #9ba6b5; --line: #2b333e;
-    --ok: #4cc27f; --ok-bg: #12291c; --wip: #e3a73c; --wip-bg: #2c2311; --stop: #f0706a; --stop-bg: #331817;
-    --todo: #9ba6b5; --todo-bg: #1f252d;
-  }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .page { max-width: 1180px; margin: 0 auto; padding: 22px 16px 48px; }
-  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; justify-content: space-between; }
-  h1 { font-size: 20px; margin: 0; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .page { max-width: 1200px; margin: 0 auto; padding: 22px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; }
+  h1 { margin: 0; font-size: 21px; letter-spacing: .01em; }
   .sub { color: var(--muted); font-size: 13px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); margin: 14px 0 22px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12.5px; color: var(--muted); margin: 12px 0 20px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-  .ok { --c: var(--ok); --cb: var(--ok-bg); } .wip { --c: var(--wip); --cb: var(--wip-bg); }
-  .stop { --c: var(--stop); --cb: var(--stop-bg); } .todo { --c: var(--todo); --cb: var(--todo-bg); }
-  .dot { background: var(--c); }
-  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 26px 0 10px; }
+  .theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+  .theme button { border: 0; background: none; color: var(--muted); padding: 5px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .theme button[aria-pressed="true"] { background: var(--line); color: var(--ink); }
 
-  /* lifecycle: a row of stations joined by a track */
-  .track { display: grid; grid-template-columns: repeat(auto-fit, minmax(98px, 1fr)); gap: 18px 10px; position: relative; }
-  .station { position: relative; text-align: center; padding-top: 4px; }
-  .station::before { content: ""; position: absolute; top: 30px; left: -50%; width: 100%; height: 3px; background: var(--line); z-index: 0; }
-  .station:first-child::before { display: none; }
-  .badge { position: relative; z-index: 1; width: 54px; height: 54px; margin: 0 auto; border-radius: 50%;
-           display: grid; place-items: center; font-size: 24px; background: var(--cb); border: 3px solid var(--c); }
-  .name { font-weight: 650; font-size: 13px; margin-top: 7px; }
-  .note { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
-  .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 5px; }
-  .chip { font: 600 10.5px ui-monospace, Menlo, monospace; border: 1.5px solid var(--c); color: var(--c);
-          background: var(--cb); border-radius: 999px; padding: 0 6px; }
+  svg.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .st { width: 14px; height: 14px; flex: none; }
+  .st.ok { color: var(--ok); } .st.part { color: var(--part); } .st.plan { color: var(--plan); }
 
-  /* side systems */
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--c);
-          border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; }
-  .card .ic { font-size: 22px; line-height: 1; }
-  .card .name { margin: 0; text-align: left; }
-  .card .note, .card .chips { text-align: left; justify-content: flex-start; }
+  .sec { --c: var(--src); border: 1.5px solid var(--c); border-radius: 12px;
+         background: color-mix(in srgb, var(--c) var(--tint), var(--panel)); padding: 10px 12px 12px; }
+  .sec > h2 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--c);
+              display: flex; align-items: center; gap: 7px; }
+  .sec.src { --c: var(--src); } .sec.stream { --c: var(--stream); } .sec.proc { --c: var(--proc); }
+  .sec.gate { --c: var(--gate); } .sec.agent { --c: var(--agent); } .sec.notify { --c: var(--notify); } .sec.shared { --c: var(--shared); }
 
-  /* roadmap */
-  .phase { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
-  .phase-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .phase-top b { font-size: 14px; } .phase-top .sub { flex: 1; }
-  .bar { height: 8px; border-radius: 999px; background: var(--todo-bg); overflow: hidden; margin: 8px 0 10px; display: flex; }
-  .bar i { display: block; height: 100%; }
-  .items { display: flex; flex-wrap: wrap; gap: 6px; }
-  .item { font-size: 12px; border: 1.5px solid var(--c); background: var(--cb); border-radius: 8px; padding: 3px 8px; }
-  .item b { font-family: ui-monospace, Menlo, monospace; color: var(--c); margin-right: 4px; }
-  .item.ok { text-decoration: none; }
-  footer { color: var(--muted); font-size: 12px; margin-top: 22px; }
-  @media (max-width: 640px) { .station::before { display: none; } }
+  .grid { display: grid; gap: 8px; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); }
+  .item { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 9px;
+          display: flex; flex-direction: column; gap: 4px; }
+  .item .hd { display: flex; align-items: center; gap: 7px; font-weight: 650; font-size: 13px; }
+  .item .hd svg.i { color: var(--c); }
+  .item .hd .st { margin-left: auto; }
+  .item ul { margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); display: grid; gap: 2px; }
+  .item li { display: flex; align-items: flex-start; gap: 5px; }
+  .item li .st { width: 12px; height: 12px; margin-top: 2px; }
+  .bar { margin-top: 8px; border: 1px dashed var(--c); border-radius: 8px; padding: 5px 9px; font-size: 12px;
+         color: var(--ink); display: flex; align-items: center; gap: 7px; justify-content: center; background: var(--panel); }
+  .bar svg.i { color: var(--c); width: 16px; height: 16px; }
+
+  .down { display: flex; flex-direction: column; align-items: center; margin: 2px 0; }
+  .down i { width: 2px; height: 14px; background: var(--arrow); }
+  .down b { width: 0; height: 0; border: 6px solid transparent; border-top-color: var(--arrow); border-bottom: 0; }
+  .down .tag { font: 600 11px ui-monospace, Menlo, monospace; color: var(--stream); border: 1px solid var(--line);
+               background: var(--panel); border-radius: 999px; padding: 2px 10px; margin: 3px 0; }
+  .row2 { display: grid; gap: 12px; grid-template-columns: 1fr 260px; align-items: stretch; }
+  .decide { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin: 4px 0; }
+  .diamond { width: 104px; height: 104px; display: grid; place-items: center; justify-self: center; }
+  .diamond div { width: 74px; height: 74px; transform: rotate(45deg); border: 2px solid var(--proc);
+                 background: var(--panel); display: grid; place-items: center; border-radius: 6px; }
+  .diamond span { transform: rotate(-45deg); font-size: 11.5px; font-weight: 700; text-align: center; line-height: 1.2; }
+  .h { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); --c: var(--proc); }
+  .h::before { content: ""; height: 2px; width: 28px; background: var(--arrow); }
+  .h .item { flex: 1; }
+  .life { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; }
+  .life .step { display: inline-flex; align-items: center; gap: 6px; background: var(--panel); border: 1px solid var(--line);
+                border-radius: 999px; padding: 4px 11px; font-size: 12.5px; font-weight: 600; }
+  .life .step svg.i { width: 16px; height: 16px; color: var(--agent); }
+  .life .arr { color: var(--arrow); }
+  .ext-title { margin: 26px 0 10px; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--gate);
+               display: flex; align-items: center; gap: 8px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .row2 { grid-template-columns: 1fr; }
+    .decide { grid-template-columns: 1fr; } .decide > :first-child { display: none; }
+    .h::before { display: none; }
+  }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.6 8.3l2.2 2.2 4.6-4.8" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="part" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"/></symbol>
+    <symbol id="plan" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-dasharray="2.6 2.2"/></symbol>
+    <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+    <symbol id="plug" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="stream" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.3 7.2l7.4 3.6M8.3 16.8l7.4-3.6"/></symbol>
+    <symbol id="gateway" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 16V8l8 8V8"/></symbol>
+    <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+    <symbol id="sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+    <symbol id="scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9h8M8 12h8M8 15h5"/></symbol>
+    <symbol id="wand" viewBox="0 0 24 24"><path d="M4 20L16 8M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 11l.6 1.4L21 13l-1.4.6L19 15l-.6-1.4L17 13l1.4-.6z"/></symbol>
+    <symbol id="tags" viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/></symbol>
+    <symbol id="table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 10v10M15 10v10"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></symbol>
+    <symbol id="layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></symbol>
+    <symbol id="user" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M16 11l2 2 4-4"/></symbol>
+    <symbol id="building" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/></symbol>
+    <symbol id="approve" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 14l2 2 4-4"/></symbol>
+    <symbol id="boxes" viewBox="0 0 24 24"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M4 6.5l8 4.5 8-4.5M12 11v9"/></symbol>
+    <symbol id="pen" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 17c1.5-2 2.5-2 3 0s1.5 2 3 0"/></symbol>
+    <symbol id="alert" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M12 8v5M12 16v.5"/></symbol>
+    <symbol id="bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="package" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></symbol>
+    <symbol id="receipt" viewBox="0 0 24 24"><path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+    <symbol id="db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+    <symbol id="bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="activity" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></symbol>
+    <symbol id="currency" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 8h6M9 11h6M11 8c3 0 3 3 0 3h-2l5 5"/></symbol>
+    <symbol id="route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
+    <symbol id="brain" viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V5a2 2 0 0 0-3-1zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/></symbol>
+    <symbol id="chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
+    <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></symbol>
+  </defs>
+</svg>
+
 <div class="page">
   <header>
     <div>
-      <h1>IT Procurement Platform — flow &amp; status</h1>
-      <div class="sub" id="updated"></div>
+      <h1>Agentic AI Procurement Platform</h1>
+      <div class="sub">From an incoming document to a signed contract and a matched invoice</div>
     </div>
-    <div class="sub" id="totals"></div>
+    <div class="theme" role="group" aria-label="Theme">
+      <button type="button" data-set="light">Light</button>
+      <button type="button" data-set="dark">Dark</button>
+      <button type="button" data-set="">System</button>
+    </div>
   </header>
   <div class="legend">
-    <span><i class="dot ok"></i>Done</span>
-    <span><i class="dot wip"></i>Works, roadmap item open</span>
-    <span><i class="dot stop"></i>Needs a person</span>
-    <span><i class="dot todo"></i>Not started</span>
+    <span><svg class="st ok"><use href="#ok"/></svg>Complete</span>
+    <span><svg class="st part"><use href="#part"/></svg>Partly built</span>
+    <span><svg class="st plan"><use href="#plan"/></svg>Planned</span>
   </div>
 
-  <h2>One purchase, start to finish</h2>
-  <div class="track" id="flow"></div>
-
-  <h2>Around the flow</h2>
-  <div class="cards" id="side"></div>
-
-  <h2>Roadmap</h2>
-  <div id="roadmap"></div>
-
-  <footer>Statuses are updated at every roadmap phase from TODO.md (dated evidence per item).
-    Hover a chip for its title.</footer>
+  <div id="chart"></div>
+  <footer>Status reflects the code at the last update of this page.</footer>
 </div>
 
 <script>
-// ── Update here at every phase ─────────────────────────────────────────
-const UPDATED = "16 Oct 2026 · branch anjali";
-
-// Roadmap items: status ok | wip | stop | todo  (TODO.md is the source)
-const ITEMS = {
-  "FR-01": ["ok", "Auto-send for signature"], "FR-02": ["ok", "Renewals from notice deadline"],
-  "FR-03": ["ok", "Pending-action reminders"], "FR-04": ["wip", "Risk model evaluated"],
-  "FR-05": ["todo", "Demo script"], "FR-06": ["ok", "Kafka log kept"], "FR-07": ["ok", "Searchable logs"],
-  "FR-08": ["todo", "Fallback on demand"], "FR-09": ["todo", "Business rules tested"],
-  "FR-10": ["todo", "Notification audit"], "FR-11": ["todo", "Extraction accuracy"],
-  "FR-12": ["todo", "Results & deck"], "FR-13": ["todo", "Clause model"], "FR-14": ["todo", "Sanctions + IFSC"],
-  "FR-29": ["todo", "Train classifier"], "FR-30": ["todo", "Risk signals from data"],
-  "FR-31": ["todo", "Notification retry"], "FR-32": ["todo", "Licence model tuned"],
-  "FR-33": ["stop", "Rotate keys, real secrets"],
-  "FR-15": ["todo", "PySpark job"], "FR-16": ["todo", "Helm on kind"], "FR-17": ["todo", "Data pages"],
-  "FR-18": ["todo", "Trace view"], "FR-19": ["todo", "Re-verify 26 Sep items"],
-  "FR-20": ["todo", "Delivery tracking"], "FR-21": ["todo", "Vendor scorecard"], "FR-22": ["todo", "Weekly report"],
-  "FR-23": ["todo", "SaaS overlap"], "FR-24": ["todo", "MCP server"],
-  "FR-25": ["todo", "CI runs tests"], "FR-26": ["todo", "Fresh-clone rehearsal"],
-  "FR-27": ["todo", "Security P1s"], "FR-28": ["todo", "Final docs"],
+// ── Statuses (ok | part | plan) — update at every phase ────────────────
+const S = {
+  portal: "ok", api: "ok", folder: "ok", email: "plan",
+  gateway: "ok", scan: "ok", store: "ok", stream: "ok",
+  preprocess: "plan", ocr: "ok", classifyCore: "ok", classifyMore: "plan", extract: "ok", validate: "ok", enrich: "ok", workers: "ok",
+  review: "ok", learning: "ok",
+  vendorMatch: "ok", onboarding: "part", bankGuard: "ok",
+  rules: "ok", routing: "ok", reminders: "ok",
+  reserve: "ok", backorder: "ok", reorder: "plan",
+  templates: "ok", esign: "ok", renewals: "ok",
+  riskModel: "ok", riskBeforeSign: "plan", riskHistory: "plan",
+  lifecycle: "ok", ruleEngine: "ok", notify: "ok", platform: "ok",
+  dropAuto: "ok", currency: "ok", match3: "ok", fraud: "ok", tracing: "ok",
+  eventLog: "ok", emailApprove: "ok", sod: "ok", licenceMl: "part", assistant: "part", clauseModel: "plan", sanctions: "plan",
 };
-const PHASES = [
-  ["R0", "by 24 Oct", "mentor feedback + every open box above",
-   ["FR-01","FR-02","FR-03","FR-04","FR-05","FR-06","FR-07","FR-08","FR-09","FR-10","FR-11","FR-12","FR-13","FR-14","FR-29","FR-30","FR-31","FR-32","FR-33"]],
-  ["R1", "by 31 Oct", "what the docs say we have", ["FR-15","FR-16","FR-17","FR-18","FR-19"]],
-  ["R2", "if time", "features other tools have", ["FR-20","FR-21","FR-22","FR-23","FR-24"]],
-  ["R3", "November", "testing, evidence, submission", ["FR-25","FR-26","FR-27","FR-28"]],
-];
-// The purchase flow. A stage is green when it works and has no open item.
-const FLOW = [
-  ["📄", "Upload / drop folder", "virus-scanned, stored", []],
-  ["🔍", "Read the document", "OCR 0.50 → 0.93", ["FR-11", "FR-29"]],
-  ["👀", "Review if unsure", "", ["FR-03"]],
-  ["🏢", "Vendor check", "match · bank guard", []],
-  ["📝", "Purchase request", "auto or from invoice", []],
-  ["✅", "Approval", "by spend tier", ["FR-03"]],
-  ["📃", "Contract", "PDF · notice reminders", ["FR-13"]],
-  ["✍️", "E-signature", "built-in, auto-sent", []],
-  ["📦", "Ordered → received", "", []],
-  ["💰", "Invoice matched", "3-way, in INR", []],
-];
-const SIDE = [
-  ["📊", "Vendor risk", "AUC 0.715 · red-team 12/12", ["FR-04", "FR-14", "FR-30"]],
-  ["🖥️", "Control Panel", "Kafka log kept & searchable · failed events", ["FR-06"]],
-  ["🔔", "Notifications", "email via shared mailer", ["FR-10", "FR-31"]],
-  ["🔑", "Licence usage ML", "anomaly → reclaim", ["FR-32"]],
-  ["💬", "Chatbot", "Anooj's area · fallback spec only", ["FR-08"]],
-  ["🔐", "Credentials", "rotate GSTIN key, real secrets", ["FR-33"]],
-];
 // ───────────────────────────────────────────────────────────────────────
 
-// Green when every item on it is done; red if one needs a person; else amber.
-const status = (ids) => {
-  const open = ids.filter((id) => ITEMS[id][0] !== "ok");
-  return open.length === 0 ? "ok" : open.some((id) => ITEMS[id][0] === "stop") ? "stop" : "wip";
+const icon = (id) => `<svg class="i"><use href="#${id}"/></svg>`;
+const mark = (s) => `<svg class="st ${s}"><use href="#${s}"/></svg>`;
+const combined = (keys) => {
+  const v = keys.map((k) => S[k]);
+  if (v.every((x) => x === "ok")) return "ok";
+  if (v.every((x) => x === "plan")) return "plan";
+  return "part";
 };
-const chips = (ids) => ids.filter((id) => ITEMS[id][0] !== "ok")
-  .map((id) => `<span class="chip ${ITEMS[id][0] === "stop" ? "stop" : "wip"}" title="${ITEMS[id][1]}">${id}</span>`).join("");
+// card with sub-points: [icon, title, [[key, text], ...]]
+const card = (ic, title, lines) => `<div class="item"><div class="hd">${icon(ic)}${title}${mark(combined(lines.map(([k]) => k)))}</div>
+  <ul>${lines.map(([k, t]) => `<li>${mark(S[k])}<span>${t}</span></li>`).join("")}</ul></div>`;
+// single feature: [icon, title, key, note]
+const tile = (ic, title, k, note) => `<div class="item"><div class="hd">${icon(ic)}${title}${mark(S[k])}</div>${note ? `<ul><li><span>${note}</span></li></ul>` : ""}</div>`;
+const down = (tag) => `<div class="down"><i></i>${tag ? `<span class="tag">${tag}</span><i></i>` : ""}<b></b></div>`;
 
-document.getElementById("updated").textContent = "Updated " + UPDATED;
-document.getElementById("flow").innerHTML = FLOW.map(([ic, name, note, ids]) =>
-  `<div class="station ${status(ids)}"><div class="badge">${ic}</div><div class="name">${name}</div>
-   ${note ? `<div class="note">${note}</div>` : ""}<div class="chips">${chips(ids)}</div></div>`).join("");
-document.getElementById("side").innerHTML = SIDE.map(([ic, name, note, ids]) =>
-  `<div class="card ${status(ids)}"><div class="ic">${ic}</div><div><div class="name">${name}</div>
-   <div class="note">${note}</div><div class="chips">${chips(ids)}</div></div></div>`).join("");
-document.getElementById("roadmap").innerHTML = PHASES.map(([ph, when, what, ids]) => {
-  const n = (s) => ids.filter((id) => ITEMS[id][0] === s).length;
-  const seg = ["ok", "wip", "stop"].map((s) => `<i class="${s}" style="width:${100 * n(s) / ids.length}%;background:var(--c)"></i>`).join("");
-  return `<div class="phase"><div class="phase-top"><b>${ph}</b><span class="sub">${what} · ${when}</span>
-    <span class="sub">${n("ok")} / ${ids.length} done</span></div><div class="bar">${seg}</div>
-    <div class="items">${ids.map((id) => `<span class="item ${ITEMS[id][0]}"><b>${id}</b>${ITEMS[id][1]}</span>`).join("")}</div></div>`;
-}).join("");
-const all = Object.values(ITEMS), done = all.filter(([s]) => s === "ok").length;
-document.getElementById("totals").textContent = `${done} of ${all.length} roadmap items done`;
+document.getElementById("chart").innerHTML = `
+  <section class="sec src"><h2>${icon("globe")}Sources</h2><div class="grid" style="--n:4">
+    ${tile("globe", "Web portal", "portal", "Batch upload, live progress")}
+    ${tile("plug", "APIs / systems", "api", "Same checks as the portal")}
+    ${tile("folder", "Shared folder", "folder", "Drop a file — no clicks")}
+    ${tile("mail", "Email", "email", "Attachments from a mailbox")}
+  </div></section>
+  ${down()}
+  <div class="row2">
+    <section class="sec gate"><h2>${icon("gateway")}API gateway · scan · store</h2><div class="grid" style="--n:3">
+      ${tile("gateway", "Gateway", "gateway", "Routing, rate limits, size caps")}
+      ${tile("shield", "Virus scan", "scan", "Every file, before storage")}
+      ${tile("db", "File storage", "store", "Originals kept in MinIO")}
+    </div></section>
+    <section class="sec stream"><h2>${icon("stream")}Message stream</h2>
+      ${tile("stream", "Kafka", "stream", "Documents, metadata and status events — saved with each change")}
+    </section>
+  </div>
+  ${down("document.ingested")}
+  <section class="sec proc"><h2>${icon("scan")}Document intelligence</h2><div class="grid" style="--n:6">
+    ${tile("wand", "Preprocess", "preprocess", "Deskew, denoise, resize")}
+    ${tile("scan", "OCR & layout", "ocr", "PaddleOCR · Docling · LayoutLMv3 cross-check")}
+    ${card("tags", "Classify", [["classifyCore", "PO · invoice · quote"], ["classifyMore", "Non-PO · others"]])}
+    ${tile("table", "Extract", "extract", "Headers, line items, totals")}
+    ${tile("check", "Validate", "validate", "Totals add up · GSTIN · duplicates")}
+    ${tile("layers", "Enrich", "enrich", "Vendor match · currency to INR")}
+  </div>
+  <div class="bar">${icon("bolt")}Parallel workers · automatic retries · dead-letter queue ${mark(S.workers)}</div></section>
+  ${down()}
+  <div class="decide">
+    <div></div>
+    <div class="diamond"><div><span>Confident<br>enough?</span></div></div>
+    <div class="h">no ${card("user", "Manual review", [["review", "Correct fields side by side"], ["learning", "Corrections teach the extractor"]])}</div>
+  </div>
+  ${down("document.classified · vendor.matched")}
+  <section class="sec agent"><h2>${icon("bolt")}Procurement agents</h2><div class="grid" style="--n:5">
+    ${card("building", "Vendor intelligence", [["vendorMatch", "Match & de-duplicate"], ["onboarding", "Onboarding & profile checks"], ["bankGuard", "Bank changes need a 2nd person"]])}
+    ${card("approve", "Approval", [["rules", "Rules by spend tier"], ["routing", "Routing & escalation"], ["reminders", "Reminders before the deadline"]])}
+    ${card("boxes", "Inventory", [["reserve", "Availability & reservation"], ["backorder", "Backorders"], ["reorder", "Reorder suggestions"]])}
+    ${card("pen", "Contract", [["templates", "Templates & versions"], ["esign", "E-signature, sent automatically"], ["renewals", "Renewals from notice deadline"]])}
+    ${card("alert", "Risk analysis", [["riskModel", "Evaluated model + hard checks"], ["riskBeforeSign", "Shown before signing"], ["riskHistory", "Delivery & compliance history"]])}
+  </div>
+  <div class="life">
+    <span class="step">${icon("approve")}Approved</span><span class="arr">→</span>
+    <span class="step">${icon("pen")}Signed</span><span class="arr">→</span>
+    <span class="step">${icon("package")}Ordered</span><span class="arr">→</span>
+    <span class="step">${icon("boxes")}Received</span><span class="arr">→</span>
+    <span class="step">${icon("receipt")}Invoice matched</span>${mark(S.lifecycle)}
+  </div>
+  <div class="bar">${icon("sliders")}Business rules — edited live, applied by every agent ${mark(S.ruleEngine)}</div></section>
+  ${down("approval · contract · risk · reminder events")}
+  <section class="sec notify"><h2>${icon("bell")}Notifications</h2><div class="grid" style="--n:3">
+    ${tile("mail", "Email", "notify", "A template per event")}
+    ${tile("bell", "Event-driven alerts", "notify", "Approvals, signatures, risk, renewals")}
+    ${tile("list", "Digests & summaries", "notify", "Order status summaries")}
+  </div></section>
+  ${down()}
+  <section class="sec shared"><h2>${icon("db")}Shared data & platform services</h2><div class="grid" style="--n:7">
+    ${tile("db", "PostgreSQL", "platform")}
+    ${tile("bolt", "Redis", "platform")}
+    ${tile("folder", "MinIO", "platform")}
+    ${tile("sliders", "Rule engine", "ruleEngine")}
+    ${tile("list", "Audit log", "platform")}
+    ${tile("clock", "Temporal", "platform")}
+    ${tile("activity", "Monitoring", "platform", "Metrics · logs")}
+  </div></section>
+
+  <div class="ext-title">${icon("star")}Extended scope — beyond the brief</div>
+  <section class="sec gate"><div class="grid" style="--n:4">
+    ${tile("folder", "Folder to signed contract", "dropAuto", "A dropped quote runs every agent unattended")}
+    ${tile("currency", "Multi-currency", "currency", "Rate captured once — value never drifts")}
+    ${tile("receipt", "3-way invoice match", "match3", "Line level, partial invoicing, payment hold")}
+    ${tile("eye", "Fraud guard", "fraud", "Look-alike vendors · first-seen bank details")}
+    ${tile("user", "Separation of duties", "sod", "Nobody approves their own request")}
+    ${tile("mail", "Approve from email", "emailApprove", "Single-use signed links")}
+    ${tile("route", "Request tracing", "tracing", "One id across every service's logs")}
+    ${tile("stream", "Event log & failed events", "eventLog", "Kept, searchable, nothing lost")}
+    ${tile("activity", "Licence usage ML", "licenceMl", "Anomalies → reclaim requests")}
+    ${tile("chat", "Assistant", "assistant", "Ask about requests and orders")}
+    ${tile("brain", "Clause extraction model", "clauseModel", "Legal-BERT, rules as fallback")}
+    ${tile("alert", "Sanctions screening", "sanctions", "Open sanctions lists, fuzzy match")}
+  </div></section>`;
+
+const root = document.documentElement;
+const buttons = document.querySelectorAll(".theme button");
+const apply = (t) => {
+  if (t) root.setAttribute("data-theme", t); else root.removeAttribute("data-theme");
+  buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === (t || ""))));
+  try { t ? localStorage.setItem("flow-theme", t) : localStorage.removeItem("flow-theme"); } catch (e) {}
+};
+buttons.forEach((b) => b.addEventListener("click", () => apply(b.dataset.set)));
+let saved = ""; try { saved = localStorage.getItem("flow-theme") || ""; } catch (e) {}
+apply(saved);
 </script>
 </body>
 </html>

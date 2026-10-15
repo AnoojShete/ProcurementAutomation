@@ -49,6 +49,48 @@ Team boundary still applies: email automation and the chatbot are
 Anooj's. Roadmap items that touch them go only as far as publishing an
 event or writing a spec for him.
 
+### Priority 1 — basic requirements still missing (checked Oct 16)
+
+The basic scope (document & vendor intelligence, approval & inventory,
+contract & risk; platform/infrastructure excluded) was checked against the
+code on Oct 16. Everything else in it is built; these are the gaps, done
+before any other roadmap item.
+
+- [ ] **BR-1 Email ingestion of documents.** *Now:* upload, API and the
+  drop folder feed the pipeline; nothing reads documents from a mailbox.
+  *Do:* poll a mailbox (IMAP; Mailpit in development) for attachments and
+  send them through the same scan → store → pipeline path as an upload,
+  recording the sender. Inbound only (outbound email stays with
+  notifications). *Done when:* an emailed PDF becomes a classified
+  document with its sender recorded, and a non-document attachment is
+  rejected with a reason.
+- [ ] **BR-2 Image preprocessing before OCR** (= FR-11's OpenCV part).
+  *Now:* OpenCV installed, never used. *Do:* resize, denoise, deskew /
+  rotation correction for scans and photos. *Done when:* a rotated or noisy
+  scan reads correctly (before/after numbers in `docs/results/`).
+- [ ] **BR-3 Classification: PO / Non-PO / Others.** *Now:* invoice, PO,
+  quote only; an unrecognised document is forced to "invoice". *Do:* an
+  `other` class for documents that are none of these (sent to review), and
+  invoices marked PO-backed or non-PO (does it cite a purchase order?).
+  *Done when:* tests for each class and the PO / non-PO flag.
+- [ ] **BR-4 Vendor onboarding and profile validation.** *Now:* vendors are
+  only created from documents. *Do:* an onboarding form (name, contacts,
+  GSTIN, bank details, category) that validates the profile (GSTIN format /
+  checksum, IFSC, duplicates / look-alikes) and routes bank details through
+  the existing two-person verification. *Done when:* a vendor can be
+  onboarded from the UI and invalid profiles are rejected with reasons.
+- [ ] **BR-5 Reorder suggestions.** *Now:* a 10 %-of-stock display
+  heuristic. *Do:* stored reorder point and reorder quantity per item
+  (rule-backed defaults), suggestions from stock + reservations +
+  backorders, shown on the inventory page. *Done when:* a backordered item
+  produces a suggestion with the quantity explained.
+- [ ] **BR-6 Vendor risk shown before signing.** *Now:* the contract page
+  doesn't show the vendor's risk. *Do:* the risk band, reasons and hard
+  overrides on the contract page and in the signing dialog; High needs an
+  explicit acknowledgement before signing. *Done when:* signing a contract
+  for a High-risk vendor requires that acknowledgement (test).
+- [ ] **BR-7 Risk from delivery delays and compliance history** (= FR-30).
+
 ### R0 — mentor feedback, 29 Aug
 
 - [x] **FR-01 Auto-send for signature after every approval** (29 Aug,
