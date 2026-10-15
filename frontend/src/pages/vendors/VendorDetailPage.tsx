@@ -40,7 +40,7 @@ export function VendorDetailPage() {
   const vendorContracts = useMemo(() => (allContracts ?? []).filter((c) => c.vendor_id === id), [allContracts, id]);
   const vendorDocuments = useMemo(() => (allDocuments ?? []).filter((d) => d.vendor_id === id), [allDocuments, id]);
   const totalSpend = useMemo(
-    () => vendorRequests.filter((r) => r.status === "approved" || r.status === "fulfilled").reduce((s, r) => s + (r.amount ?? 0), 0),
+    () => vendorRequests.filter((r) => ["approved", "ordered", "fulfilled"].includes(r.status ?? "")).reduce((s, r) => s + (r.amount ?? 0), 0),
     [vendorRequests],
   );
   const openRequests = vendorRequests.filter((r) => r.status === "pending_approval").length;

@@ -25,7 +25,8 @@ from app.services.ocr import DocumentUnreadableError
 from app.services.pipeline import LedgerUnavailableError
 
 # Expected, temporary failures of something the pipeline depends on.
-TRANSIENT_ERRORS = (LedgerUnavailableError, ConnectionError, TimeoutError, OSError)
+from app.services.fx import FxUnavailableError
+TRANSIENT_ERRORS = (LedgerUnavailableError, FxUnavailableError, ConnectionError, TimeoutError, OSError)
 from app.services.audit import write_audit_log
 from shared.eventing import staged
 from app.services.vendor_matching import find_or_create_vendor
@@ -100,6 +101,10 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         stage_durations_ms["vendor_learning_agent"] = _elapsed_ms(t0)
 
         t0 = time.perf_counter()
+        envelope = await pipeline.currency_agent(envelope)
+        stage_durations_ms["currency_agent"] = _elapsed_ms(t0)
+
+        t0 = time.perf_counter()
         envelope = await pipeline.invoice_matching_agent(db, pipeline_producer, envelope)
         stage_durations_ms["invoice_matching_agent"] = _elapsed_ms(t0)
 
@@ -125,6 +130,11 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         doc.document_date = _safe_date(fields.get("document_date"))
         doc.total = fields.get("total")
         doc.currency = fields.get("currency")
+        fx_info = envelope.get("fx") or {}
+        doc.total_inr = fx_info.get("total_inr")
+        doc.fx_rate = fx_info.get("rate")
+        doc.fx_rate_date = _safe_date(fx_info.get("rate_date"))
+        doc.fx_source = fx_info.get("source")
         
         extracted_data = dict(fields)
         extracted_data["crosscheck"] = envelope.get("crosscheck_result")
@@ -217,6 +227,44 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         return doc
 
 
+async def rematch_invoice(db: AsyncSession, kafka_producer, document_id: str) -> Optional[dict]:
+    """Books an invoice that had no purchase request to match when it was
+    processed — called once a request created from it is approved. Returns
+    the new match result, or None when there was nothing to do (not an
+    invoice, not processed yet, or already matched)."""
+    from app.services import fx
+    doc = await db.get(Document, document_id)
+    if doc is None or doc.document_type != "invoice" or doc.status != "classified":
+        return None
+    extracted = dict(doc.extracted or {})
+    if (extracted.get("invoice_match") or {}).get("status") in ("matched", "partial"):
+        return None
+    if doc.total is not None and doc.total_inr is None:
+        # Processed before amounts were converted: take the rate now, once.
+        await _reconvert(doc, "")
+    envelope = {
+        "document_id": doc.id, "document_type": "invoice", "vendor_id": doc.vendor_id,
+        "raw_text": doc.raw_text or "", "extracted_fields": extracted,
+        "fx": {"rate": float(doc.fx_rate or 1), "total_inr": float(doc.total_inr) if doc.total_inr is not None else None},
+        "payment_hold": extracted.get("payment_hold"), "payment_hold_reason": extracted.get("payment_hold_reason"),
+        "_agent_trail": [],
+    }
+    envelope = await pipeline.invoice_matching_agent(db, staged(kafka_producer, db), envelope)
+    # invoice_matching_agent updated `extracted` (the envelope's fields) in place.
+    for key in ("invoice_match", "unmatched_invoice"):
+        if envelope.get(key) is not None:
+            extracted[key] = envelope[key]
+    doc.extracted = extracted
+    doc.updated_at = datetime.now(timezone.utc)
+    await write_audit_log(
+        db, entity_type="document", entity_id=doc.id, action="invoice_rematched",
+        payload={"status": (envelope.get("invoice_match") or {}).get("status"),
+                 "purchase_request_id": envelope.get("matched_po_id")},
+    )
+    await db.commit()
+    return envelope.get("invoice_match")
+
+
 async def _record_failure(db: AsyncSession, document_id: str, message: str) -> Document:
     # Drop everything the pipeline wrote before failing (new vendor rows,
     # payment-change requests, staged events) — only the failure is kept.
@@ -263,6 +311,22 @@ async def list_review_queue(db: AsyncSession, limit: int = 50, uploaded_by: Opti
     return list(result.scalars().all())
 
 
+async def _reconvert(doc: Document, currency_before: str) -> None:
+    """A reviewer corrected the total or currency. Same currency: keep the
+    rate captured at processing time, so the value doesn't drift. Currency
+    changed: take the current rate for the new one."""
+    from app.services import fx
+    if doc.total is None:
+        doc.total_inr = None
+        return
+    if doc.fx_rate is not None and (doc.currency or "").upper() == currency_before:
+        doc.total_inr = round(float(doc.total) * float(doc.fx_rate), 2)
+        return
+    conversion = await fx.convert(float(doc.total), doc.currency)
+    doc.total_inr, doc.fx_rate = conversion.amount_base, conversion.rate
+    doc.fx_rate_date, doc.fx_source = conversion.rate_date, conversion.source
+
+
 async def submit_review(db: AsyncSession, kafka_producer, document_id: str, correction) -> Optional[Document]:
     """Apply a human correction: overwrite the corrected fields, mark every
     corrected field's confidence at 1.0 (human-verified), flip
@@ -285,6 +349,7 @@ async def submit_review(db: AsyncSession, kafka_producer, document_id: str, corr
         vendor_match = await find_or_create_vendor(db, correction.vendor_name)
         doc.vendor_id = vendor_match.vendor.id
 
+    currency_before = (doc.currency or "").upper()
     if correction.extracted_fields:
         for key, value in correction.extracted_fields.items():
             extracted[key] = value
@@ -297,6 +362,8 @@ async def submit_review(db: AsyncSession, kafka_producer, document_id: str, corr
             doc.document_number = correction.extracted_fields["document_number"]
         if "document_date" in correction.extracted_fields:
             doc.document_date = _safe_date(correction.extracted_fields["document_date"])
+        if "total" in correction.extracted_fields or "currency" in correction.extracted_fields:
+            await _reconvert(doc, currency_before)
 
     doc.extracted = extracted
     doc.confidence = confidence

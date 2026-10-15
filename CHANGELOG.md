@@ -3,6 +3,41 @@
 Newest first. Dates are 2026. Nothing below the Sep 25 merge has been
 committed yet (branch `anjali`); see TODO.md for open items.
 
+## Oct 15 — Extraction confidence, currency, request from an invoice, ordered status
+
+- **Confidence** (sample scanned invoice 0.50 → 0.93): image text quality is
+  PaddleOCR's own recognition score (was a letters-only heuristic that
+  scored every amount/date as noise); OCR blocks are put back into rows by
+  position; values are read from the column under their label ("Invoice
+  Number" / "INV-10012"); line items accept `$` and rate-before-qty;
+  subtotal − discount + tax = total and line items = subtotal are checked
+  (agree → confidence up, disagree → total distrusted); overall score is
+  weighted, and missing line items no longer count as 0. LayoutLMv3 now
+  gets the image's words and boxes (it got none for images before).
+- **Currency**: foreign-currency documents are converted to INR with the
+  ECB rate from Frankfurter, captured once at processing
+  (`documents.total_inr`, `fx_rate`, `fx_rate_date`, migration 0007) so
+  the value never drifts. Invoice matching uses the INR amount; a rate
+  that can't be fetched retries the document instead of guessing. The UI
+  shows "$2,450.00 ≈ ₹2,33,142 at 95.16 (14 Oct)".
+- **Request from an invoice**: an unmatched invoice offers "Create a
+  purchase request from this invoice" (wizard prefilled, INR amount).
+  When that request is approved, document-vendor-agent (new
+  `approval.decided` consumer) books the invoice against it.
+- **Ordered status**: signing the contract now sets `ordered`;
+  "Mark as received" (requester or staff, `POST /requests/{id}/receive`)
+  sets `fulfilled` and activates licences / releases stock — previously
+  signing marked the request fulfilled before anything was delivered.
+- **E-sign**: built-in e-sign only in the UI and as the default/auto-send
+  provider; DocuSign/Documenso code kept but unused.
+- **Self-approval** stays blocked for admins too (separation of duties);
+  the message now names who can approve it.
+- Request page no longer guesses an "attached" document by vendor or
+  uploader when the request has none (showed unrelated invoices).
+- Migration fix: the status-check upgrade tested `LIKE '%ordered%'`, which
+  `'backordered'` already matched, so it never applied; now matches the
+  quoted value.
+
 ## Oct 14 — Faster run.sh, invoices finish processing, OCR fixed
 
 - **run.sh**: one line per step with a percentage, an agent health table,

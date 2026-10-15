@@ -7,7 +7,9 @@ from shared.lifecycle import IllegalTransition, already_past, can_transition, ch
 @pytest.mark.parametrize("current,target", [
     ("pending_approval", "approved"),
     ("pending_approval", "rejected"),
-    ("approved", "fulfilled"),
+    ("approved", "ordered"),                # contract signed
+    ("ordered", "fulfilled"),               # goods received
+    ("ordered", "invoice_received"),        # invoice before delivery
     ("approved", "invoice_received"),       # invoice before the contract is signed
     ("fulfilled", "partially_invoiced"),
     ("partially_invoiced", "invoice_received"),
@@ -24,6 +26,8 @@ def test_legal(current, target):
     ("rejected", "invoice_received"),      # the old invoice.matched handler allowed this
     ("pending_approval", "invoice_received"),
     ("pending_approval", "fulfilled"),
+    ("approved", "fulfilled"),             # signing isn't delivery
+    ("fulfilled", "ordered"),
     ("invoice_received", "fulfilled"),     # never move backwards
     ("cancelled", "approved"),
     ("fulfilled", "approved"),
@@ -42,4 +46,6 @@ def test_already_past():
     assert already_past("invoice_received", "fulfilled")
     assert already_past("partially_invoiced", "fulfilled")
     assert not already_past("approved", "fulfilled")
+    assert not already_past("ordered", "fulfilled")
+    assert already_past("fulfilled", "ordered")
     assert not already_past("rejected", "fulfilled")

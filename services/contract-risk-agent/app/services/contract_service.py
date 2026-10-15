@@ -177,7 +177,7 @@ async def get_authorized_signatories(db: AsyncSession) -> list[str]:
 
 
 async def send_for_signature(
-    db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str], provider: str = "documenso",
+    db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str], provider: str = "builtin",
     signer_name: Optional[str] = None, automatic: bool = False,
 ) -> Contract:
     contract = await db.get(Contract, contract_id)

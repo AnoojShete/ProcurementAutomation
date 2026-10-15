@@ -36,6 +36,7 @@ export type SpendTier = "auto" | "manager" | "manager+finance";
 export type RequestStatus =
   | "pending_approval"
   | "approved"
+  | "ordered"
   | "rejected"
   | "fulfilled"
   | string;
@@ -194,6 +195,18 @@ export interface DocumentRecord {
   reviewed_by: string | null;
   reviewed_at: string | null;
   error_message: string | null;
+  /** Amount in INR and the exchange rate used, fixed when the document was
+   * processed. Null until then. */
+  fx?: DocumentFx | null;
+}
+
+export interface DocumentFx {
+  currency: string;
+  total: number | null;
+  total_inr: number;
+  rate: number | null;
+  rate_date: string | null;
+  source: string | null;
 }
 
 export type BatchUploadResult =

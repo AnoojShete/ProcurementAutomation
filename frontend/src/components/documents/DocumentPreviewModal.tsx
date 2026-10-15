@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Link } from "react-router-dom";
 import { documentsApi } from "@/api/documents";
-import { documentTypeLabel, formatCurrency, formatDateTime } from "@/lib/format";
+import { documentTypeLabel, formatDateTime } from "@/lib/format";
 import type { DocumentRecord } from "@/types/api";
+import { DocumentAmount } from "./DocumentAmount";
 
 interface DocumentPreviewModalProps {
   open: boolean;
@@ -94,7 +95,7 @@ export function DocumentPreviewModal({
               <span className="font-semibold text-slate-700">{documentTypeLabel(doc.document_type)}</span>
             )}
             {doc?.extracted_fields?.total != null && (
-              <span>Total: {formatCurrency(Number(doc.extracted_fields.total))}</span>
+              <span>Total: <DocumentAmount doc={doc} /></span>
             )}
             {doc?.uploaded_at && <span>{formatDateTime(doc.uploaded_at)}</span>}
           </div>

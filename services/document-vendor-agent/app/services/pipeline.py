@@ -333,10 +333,35 @@ def find_po_reference(text: str) -> Optional[str]:
     return m.group(1).upper() if m else None
 
 
+async def currency_agent(envelope: dict) -> dict:
+    """Snapshots the exchange rate for a foreign-currency document and
+    works out its total in the base currency (INR). Everything downstream
+    that compares money (invoice matching, approval tiers) uses that INR
+    amount; the document keeps its printed amount and currency too.
+    Raises FxUnavailableError (retried by process_document) rather than
+    guessing a rate."""
+    from app.services import fx
+    fields = envelope.get("extracted_fields", {})
+    conversion = await fx.convert(fields.get("total"), fields.get("currency"))
+    envelope["fx"] = {
+        "currency": (fields.get("currency") or fx.settings.base_currency).upper(),
+        "rate": conversion.rate,
+        "rate_date": conversion.rate_date.isoformat() if conversion.rate_date else None,
+        "source": conversion.source,
+        "total_inr": conversion.amount_base,
+    }
+    logger.info(
+        f"[currency_agent] document_id={envelope['document_id']} {envelope['fx']['currency']} "
+        f"{fields.get('total')} -> INR {conversion.amount_base} (rate {conversion.rate} on {conversion.rate_date})"
+    )
+    record_agent_result(envelope, "currency_agent", confidence=1.0)
+    return envelope
+
+
 async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dict) -> dict:
     """Three-way match through approval-inventory-agent's invoice ledger
     (POST /invoices/match): line quantities and unit prices against what is
-    still left to invoice on the vendor's approved/fulfilled requests, with
+    still left to invoice on the vendor's approved/ordered/fulfilled requests, with
     overbilling always flagged. The ledger books the match and moves the
     request in its own transaction; invoice.matched is then emitted for
     downstream consumers."""
@@ -346,7 +371,11 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
         return envelope
 
     fields = envelope.get("extracted_fields", {})
-    invoice_total = fields.get("total")
+    # Purchase requests are in INR: match on the converted amount
+    # (currency_agent), and convert line prices with the same rate.
+    fx_info = envelope.get("fx") or {}
+    rate = fx_info.get("rate") or 1.0
+    invoice_total = fx_info.get("total_inr", fields.get("total"))
     vendor_id = envelope.get("vendor_id")
 
     if invoice_total is None or not vendor_id:
@@ -374,7 +403,8 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
         "invoice_number": invoice_num,
         "total": float(invoice_total),
         "lines": [
-            {"description": li.get("description") or "", "quantity": li["quantity"], "unit_price": li["unit_price"]}
+            {"description": li.get("description") or "", "quantity": li["quantity"],
+             "unit_price": round(li["unit_price"] * rate, 2)}
             for li in (fields.get("line_items") or [])
             if li.get("quantity") and li.get("unit_price") is not None
         ],

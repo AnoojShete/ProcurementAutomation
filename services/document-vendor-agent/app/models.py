@@ -115,6 +115,12 @@ class Document(Base):
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     # Added by migration 0005: pipeline starts so far (retry limit).
     processing_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    # Added by migration 0007: total in INR and the rate used, fixed when
+    # the document was processed (app/services/fx.py).
+    total_inr: Mapped[Optional[float]] = mapped_column(Numeric(14, 2))
+    fx_rate: Mapped[Optional[float]] = mapped_column(Numeric(18, 8))
+    fx_rate_date: Mapped[Optional[date]] = mapped_column(Date)
+    fx_source: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

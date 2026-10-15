@@ -36,6 +36,9 @@ def test_not_assigned_to_this_level():
 def test_self_approval_blocked_even_for_admin():
     d = decide("admin@acme.test", requested_by="admin@acme.test")
     assert not d.allowed and d.code == "SEPARATION_OF_DUTIES"
+    # ...and says who can approve it instead of leaving the admin stuck.
+    assert "approver@acme.test" in d.reason and "lead@acme.test" in d.reason
+    assert "admin@acme.test" not in d.reason
 
 
 def test_same_person_cannot_approve_two_levels():

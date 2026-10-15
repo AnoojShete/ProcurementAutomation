@@ -13,7 +13,7 @@ export function SpendAnalysisPage() {
   const { data: requests, loading, error, reload } = useApi(() => requestsApi.list(200), []);
   const { data: vendors } = useApi(() => vendorsApi.list(200), []);
 
-  const approved = useMemo(() => (requests ?? []).filter((r) => r.status === "approved" || r.status === "fulfilled"), [requests]);
+  const approved = useMemo(() => (requests ?? []).filter((r) => ["approved", "ordered", "fulfilled"].includes(r.status ?? "")), [requests]);
 
   const byCategory = useMemo(() => {
     const map = new Map<string, number>();

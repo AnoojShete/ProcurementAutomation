@@ -76,8 +76,13 @@ def evaluate_authority(
         return AuthorityDecision(False, "NO_PENDING_LEVEL", "This request isn't waiting on an approval level.")
 
     if decision == "approved" and user == _norm(requested_by):
+        # Admins too: maker != checker. Say who can approve it instead.
+        others = sorted({a.user_email for a in assignments if a.level == level and _norm(a.user_email) != user})
+        who = f" It's waiting for {', '.join(others)} ({level.replace('_', ' ')})." if others else ""
         return AuthorityDecision(
-            False, "SEPARATION_OF_DUTIES", "You can't approve a request you raised yourself.", level,
+            False, "SEPARATION_OF_DUTIES",
+            f"You can't approve a request you raised yourself — another approver has to (separation of duties).{who}",
+            level,
         )
     if decision == "approved" and user in {_norm(p) for p in prior_approvers}:
         return AuthorityDecision(

@@ -8,7 +8,10 @@ kills the child process, not the API/worker process.
 
 Protocol:
   stdin:  raw image bytes (the entire file content)
-  stdout: extracted text (UTF-8), one line per OCR result line
+  stdout: JSON {"lines": [{"text", "confidence", "box": [x0, y0, x1, y1]}],
+          "width", "height"} (image size in pixels),
+          one entry per OCR result line, confidence = PaddleOCR's
+          recognition score (0-1)
   stderr: error messages (logged by parent on non-zero exit)
   exit 0: success (stdout contains text)
   exit 1: PaddleOCR not available / import failed
@@ -19,6 +22,7 @@ in the main process.
 """
 import contextlib
 import io
+import json
 import sys
 
 
@@ -56,14 +60,17 @@ def _run():
             for block in result:
                 if block:
                     for line in block:
-                        if line and len(line) >= 2:
-                            text_info = line[1]
-                            if text_info and len(text_info) >= 1:
-                                text = text_info[0]
-                                if text:
-                                    lines.append(text)
+                        # line = [polygon (4 points), (text, score)]
+                        if line and len(line) >= 2 and line[1] and line[1][0]:
+                            xs = [float(p[0]) for p in line[0]]
+                            ys = [float(p[1]) for p in line[0]]
+                            lines.append({
+                                "text": line[1][0],
+                                "confidence": float(line[1][1]) if len(line[1]) > 1 else 0.0,
+                                "box": [min(xs), min(ys), max(xs), max(ys)],
+                            })
 
-        print("\n".join(lines), end="")
+        print(json.dumps({"lines": lines, "width": img.width, "height": img.height}), end="")
         sys.exit(0)
 
     except Exception as e:

@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge, DocumentStatusBadge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
-import { documentTypeLabel, formatCurrency, formatDateTime } from "@/lib/format";
+import { documentTypeLabel, formatDateTime } from "@/lib/format";
 import type { DocumentRecord } from "@/types/api";
+import { DocumentAmount } from "./DocumentAmount";
 
 const FILE_ICON_BG: Record<string, string> = {
   pdf: "bg-danger-50 text-danger-600",
@@ -234,7 +235,7 @@ export function DocumentPreviewCard({
                 )}
                 {doc?.extracted_fields?.total != null && (
                   <span>
-                    Total: <b className="text-slate-900">{formatCurrency(Number(doc.extracted_fields.total))}</b>
+                    Total: <b className="text-slate-900"><DocumentAmount doc={doc} /></b>
                   </span>
                 )}
                 {doc?.uploaded_at && (

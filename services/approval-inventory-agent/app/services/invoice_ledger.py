@@ -5,7 +5,7 @@ requests of the same vendor whose total was within ±5% of the invoice
 total), which had three holes:
 
   - it only looked at `approved` requests, but a request moves to
-    `fulfilled` when its contract is signed — the usual time an invoice
+    `ordered` when its contract is signed — the usual time an invoice
     arrives — so those invoices could never match;
   - ±5% on the header total let a vendor overbill up to 5% on every
     invoice without anyone seeing it, and checked no lines or quantities;
@@ -34,7 +34,7 @@ from typing import Optional
 from sqlalchemy import select, text
 
 LINE_SIMILARITY_MIN = 0.55
-MATCHABLE_STATUSES = ("approved", "fulfilled", "partially_invoiced")
+MATCHABLE_STATUSES = ("approved", "ordered", "fulfilled", "partially_invoiced")
 
 
 @dataclass

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Copy, Download, FileWarning } from "lucide-react";
+import { DocumentAmount } from "@/components/documents/DocumentAmount";
 import { DocumentControls } from "@/components/controls/DocumentControls";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
@@ -126,7 +127,7 @@ export function DocumentDetailPage() {
         <DocumentStatusBadge status={doc.status} needsReview={doc.needs_review} />
       </div>
 
-      <DocumentControls extracted={doc.extracted_fields ?? {}} />
+      <DocumentControls extracted={doc.extracted_fields ?? {}} documentId={doc.id} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: Document Preview & Details */}
@@ -205,6 +206,11 @@ export function DocumentDetailPage() {
             </FieldRow>
             <FieldRow label="Total" confidence={confidences.total}>
               <input type="number" value={total} onChange={(e) => setTotal(e.target.value)} className="w-full rounded-lg border border-surface-border px-3 py-1.5 text-sm focus:border-brand-500" />
+              {doc.extracted_fields?.total != null && (
+                <p className="mt-1 text-xs text-slate-500">
+                  <DocumentAmount doc={doc} />
+                </p>
+              )}
             </FieldRow>
             <FieldRow label="Document Number" confidence={confidences.document_number}>
               <input value={docNumber} onChange={(e) => setDocNumber(e.target.value)} className="field" />

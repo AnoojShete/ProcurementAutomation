@@ -25,7 +25,7 @@ class GenerateContractRequest(BaseModel):
 
 class SendForSignatureRequest(BaseModel):
     signer_email: Optional[str] = None
-    provider: Optional[str] = "documenso"
+    provider: Optional[str] = "builtin"
 
 
 class SignContractRequest(BaseModel):

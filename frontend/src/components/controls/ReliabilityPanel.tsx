@@ -55,7 +55,7 @@ export function ReliabilityPanel({ showcase }: { showcase: boolean }) {
         ok: true,
         text: res.data.length
           ? `Repaired ${res.data.length} request(s) whose contract.signed event had been lost.`
-          : "Nothing to repair — every signed contract's request is already fulfilled.",
+          : "Nothing to repair — every signed contract's request is already ordered.",
       });
     });
 

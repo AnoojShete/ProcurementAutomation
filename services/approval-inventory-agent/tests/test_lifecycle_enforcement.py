@@ -21,8 +21,15 @@ def test_model_rejects_illegal_transition():
 def test_model_allows_legal_and_repeated_transition():
     req = PurchaseRequest(id="r1", request_type="saas", requested_by="a", department="IT", amount=1, status="approved")
     req.status = "approved"
+    req.status = "ordered"
     req.status = "fulfilled"
     assert req.status == "fulfilled"
+
+
+def test_signing_no_longer_skips_delivery():
+    req = PurchaseRequest(id="r1", request_type="saas", requested_by="a", department="IT", amount=1, status="approved")
+    with pytest.raises(IllegalTransition):
+        req.status = "fulfilled"
 
 
 def _session(contract, req, fulfilled_before=False):
@@ -40,45 +47,44 @@ def _session(contract, req, fulfilled_before=False):
     return session
 
 
-@pytest.mark.asyncio
-async def test_contract_signed_fulfils_approved_request(monkeypatch):
-    monkeypatch.setattr(consumer, "_activate_license_for_request", AsyncMock(return_value=True))
-    req = PurchaseRequest(id="r1", request_type="saas", requested_by="a", department="IT", amount=1, status="approved")
-    contract = SimpleNamespace(id="c1", purchase_request_id="r1", vendor_id=None)
-    session = _session(contract, req)
-    assert await consumer.apply_contract_signed(session, "c1") == "fulfilled+fulfilment_applied"
-    assert req.status == "fulfilled"
-    consumer._activate_license_for_request.assert_awaited_once()
-    assert session.add.call_args.args[0].action == consumer.FULFILMENT_MARKER
+def _req(status, request_type="saas"):
+    return PurchaseRequest(id="r1", request_type=request_type, requested_by="a", department="IT", amount=1, status=status)
+
+
+CONTRACT = SimpleNamespace(id="c1", purchase_request_id="r1", vendor_id=None)
 
 
 @pytest.mark.asyncio
-async def test_redelivered_contract_signed_does_nothing_twice(monkeypatch):
+async def test_contract_signed_orders_approved_request_without_fulfilling(monkeypatch):
     activate = AsyncMock(return_value=True)
     monkeypatch.setattr(consumer, "_activate_license_for_request", activate)
-    req = PurchaseRequest(id="r1", request_type="saas", requested_by="a", department="IT", amount=1, status="fulfilled")
-    contract = SimpleNamespace(id="c1", purchase_request_id="r1", vendor_id=None)
-    assert await consumer.apply_contract_signed(_session(contract, req, fulfilled_before=True), "c1") == "already_fulfilled"
-    activate.assert_not_called()
+    req = _req("approved")
+    session = _session(CONTRACT, req)
+    assert await consumer.apply_contract_signed(session, "c1") == "ordered"
+    assert req.status == "ordered"
+    activate.assert_not_called()   # nothing delivered yet
+    session.add.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_contract_signed_after_invoice_keeps_status_but_still_fulfils(monkeypatch):
-    activate = AsyncMock(return_value=True)
-    monkeypatch.setattr(consumer, "_activate_license_for_request", activate)
-    req = PurchaseRequest(id="r1", request_type="saas", requested_by="a", department="IT", amount=1, status="invoice_received")
-    contract = SimpleNamespace(id="c1", purchase_request_id="r1", vendor_id=None)
-    assert await consumer.apply_contract_signed(_session(contract, req), "c1") == "fulfilment_applied"
+async def test_redelivered_contract_signed_does_nothing_twice():
+    req = _req("ordered")
+    assert await consumer.apply_contract_signed(_session(CONTRACT, req), "c1") == "already_ordered"
+    assert req.status == "ordered"
+
+
+@pytest.mark.asyncio
+async def test_contract_signed_after_invoice_keeps_status():
+    req = _req("invoice_received")
+    assert await consumer.apply_contract_signed(_session(CONTRACT, req), "c1") == "already_invoice_received"
     assert req.status == "invoice_received"  # never moves backwards
-    activate.assert_awaited_once()          # but the license still gets activated
 
 
 @pytest.mark.asyncio
 async def test_contract_signed_for_rejected_request_is_dead_lettered_not_applied():
-    req = PurchaseRequest(id="r1", request_type="saas", requested_by="a", department="IT", amount=1, status="rejected")
-    contract = SimpleNamespace(id="c1", purchase_request_id="r1", vendor_id=None)
+    req = _req("rejected")
     with pytest.raises(PermanentEventError):
-        await consumer.apply_contract_signed(_session(contract, req), "c1")
+        await consumer.apply_contract_signed(_session(CONTRACT, req), "c1")
     assert req.status == "rejected"
 
 
@@ -86,3 +92,42 @@ async def test_contract_signed_for_rejected_request_is_dead_lettered_not_applied
 async def test_missing_contract_is_retryable():
     with pytest.raises(LookupError):
         await consumer.apply_contract_signed(_session(None, None), "c-missing")
+
+
+class TestReceived:
+    @pytest.mark.asyncio
+    async def test_receiving_an_ordered_request_fulfils_it(self, monkeypatch):
+        activate = AsyncMock(return_value=True)
+        monkeypatch.setattr(consumer, "_activate_license_for_request", activate)
+        req = _req("ordered")
+        session = _session(CONTRACT, req)
+        assert await consumer.apply_received(session, req, "alice@acme.test") == "fulfilled+fulfilment_applied"
+        assert req.status == "fulfilled"
+        activate.assert_awaited_once()
+        marker = session.add.call_args.args[0]
+        assert marker.action == consumer.FULFILMENT_MARKER and marker.performed_by == "alice@acme.test"
+
+    @pytest.mark.asyncio
+    async def test_invoice_before_delivery_keeps_status_but_still_fulfils(self, monkeypatch):
+        activate = AsyncMock(return_value=True)
+        monkeypatch.setattr(consumer, "_activate_license_for_request", activate)
+        req = _req("invoice_received")
+        assert await consumer.apply_received(_session(CONTRACT, req), req, "a") == "fulfilment_applied"
+        assert req.status == "invoice_received"
+        activate.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_cannot_receive_before_the_contract_is_signed(self):
+        req = _req("approved")
+        with pytest.raises(consumer.NotReceivable):
+            await consumer.apply_received(_session(CONTRACT, req), req, "a")
+        assert req.status == "approved"
+
+    @pytest.mark.asyncio
+    async def test_cannot_receive_twice(self, monkeypatch):
+        activate = AsyncMock(return_value=True)
+        monkeypatch.setattr(consumer, "_activate_license_for_request", activate)
+        req = _req("fulfilled")
+        with pytest.raises(consumer.NotReceivable):
+            await consumer.apply_received(_session(CONTRACT, req, fulfilled_before=True), req, "a")
+        activate.assert_not_called()

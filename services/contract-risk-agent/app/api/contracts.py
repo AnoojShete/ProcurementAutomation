@@ -104,7 +104,7 @@ async def generate_contract(
 async def send_for_signature(contract_id: str, data: SendForSignatureRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         contract = await contract_service.send_for_signature(
-            db, request.app.state.kafka_producer, contract_id, data.signer_email, provider=data.provider or "documenso"
+            db, request.app.state.kafka_producer, contract_id, data.signer_email, provider=data.provider or "builtin"
         )
     except contract_service.ContractGenerationError as e:
         raise HTTPException(status_code=400, detail=str(e))

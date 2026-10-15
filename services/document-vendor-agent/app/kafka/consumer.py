@@ -17,12 +17,13 @@ from datetime import datetime, timedelta, timezone
 from aiokafka import AIOKafkaConsumer
 from aiokafka.admin import AIOKafkaAdminClient, NewPartitions, NewTopic
 from shared.kafka_security import kafka_auth_kwargs
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 
 from app.config import settings
 from app.database import async_session_factory
 from app.models import Document
-from app.services.document_service import process_document
+from app.services.document_service import process_document, rematch_invoice
+from shared.eventing import deliver
 
 from shared.infra.retry import with_retry
 from shared.logging.context import CorrelationContext
@@ -34,6 +35,7 @@ TOPIC_DOCUMENT_INGESTED = "document.ingested"
 CONSUME_TOPICS = [
     TOPIC_DOCUMENT_INGESTED,  # published by this service's own API process
     "business_rule.updated",  # published by auth-service
+    "approval.decided",       # approval-inventory-agent: book invoices waiting for their request
 ]
 
 # A document still "pending" this long after its last change missed its
@@ -191,6 +193,15 @@ async def start_consumer(kafka_producer):
                         from shared.rules_engine import invalidate_rule
                         invalidate_rule(rule_key)
                         logger.info(f"Invalidated local rules_engine cache for key: {rule_key}")
+                elif event_type == "approval.decided":
+                    # In the background: deliver() retries with back-off, and
+                    # document processing mustn't wait behind it.
+                    task = asyncio.create_task(deliver(
+                        async_session_factory, "document-vendor-agent", msg.topic, event,
+                        lambda payload=payload: _handle_approval_decided(kafka_producer, payload),
+                    ))
+                    in_flight.add(task)
+                    task.add_done_callback(in_flight.discard)
                 else:
                     logger.warning(f"Unknown event type on topic {msg.topic}: {event_type}")
 
@@ -231,6 +242,44 @@ async def _run_document(kafka_producer, payload: dict, correlation_id: str | Non
         logger.error(f"Document pipeline task failed: {e}", exc_info=True)
     finally:
         slots.release()
+
+
+# Request statuses an invoice can be booked against (invoice_ledger.MATCHABLE_STATUSES).
+_BOOKABLE = ("approved", "ordered", "fulfilled", "partially_invoiced")
+
+
+class RequestNotApprovedYet(Exception):
+    """Final approval decided but the request's status hasn't caught up
+    (the approval workflow publishes before it saves). deliver() retries."""
+
+
+async def _handle_approval_decided(kafka_producer, payload: dict):
+    """A request was approved. If it was created from an invoice that had
+    nothing to match against ("Create a purchase request from this
+    invoice"), book that invoice now. approval.decided is sent per level,
+    so this waits for the request itself to be approved."""
+    if payload.get("decision") != "approved":
+        return
+    async with async_session_factory() as db:
+        row = (await db.execute(
+            text("SELECT document_id::text AS document_id, status, approval_chain FROM purchase_requests WHERE id = :id"),
+            {"id": payload.get("request_id")},
+        )).first()
+        if row is None or not row.document_id:
+            return
+        if row.status == "pending_approval":
+            chain = row.approval_chain or []
+            if chain and (payload.get("decision_level") or "").endswith(chain[-1]):
+                raise RequestNotApprovedYet(f"request {payload.get('request_id')} not marked approved yet")
+            return  # an earlier level: more approvals to come
+        if row.status not in _BOOKABLE:
+            return
+        result = await rematch_invoice(db, kafka_producer, row.document_id)
+        if result is not None:
+            logger.info(
+                f"invoice {row.document_id} re-matched after request {payload.get('request_id')} was approved: "
+                f"{result.get('status')}"
+            )
 
 
 async def _handle_document_ingested(kafka_producer, payload: dict):

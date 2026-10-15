@@ -12,12 +12,10 @@ import type { Contract, ContractTemplate, PurchaseRequest } from "@/types/api";
 
 const STAFF = ["approver", "finance", "admin"];
 
-type Provider = "builtin" | "documenso" | "docusign";
-const PROVIDERS: [Provider, string, string][] = [
-  ["builtin", "Built-in e-sign", "Sign inside the platform: typed or drawn signature, consent, and a SHA-256 seal in the audit log."],
-  ["documenso", "Documenso", "Self-hosted e-signature. Emails the signer a signing link when a Documenso instance is configured."],
-  ["docusign", "DocuSign (sandbox)", "DocuSign emails the signer once when DocuSign is configured (see Control Panel); otherwise simulated."],
-];
+// Signing is done with the built-in e-sign only: typed or drawn signature,
+// consent and a SHA-256 seal in the audit log. Works with no external
+// account; the DocuSign/Documenso clients stay in the backend, unused.
+const PROVIDER = "builtin";
 
 const TEMPLATES: [ContractTemplate, string][] = [
   ["hardware_purchase", "Hardware Purchase Agreement"],
@@ -72,7 +70,6 @@ export function ContractActions({
   const [sendOpen, setSendOpen] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
   const [certOpen, setCertOpen] = useState(false);
-  const [provider, setProvider] = useState<Provider>("builtin");
   const [signerEmail, setSignerEmail] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -126,8 +123,8 @@ export function ContractActions({
     if (!contract) return;
     setSending(true);
     const ok = await run(
-      () => contractsApi.sendForSignature(contract.id, signerEmail || undefined, provider),
-      provider === "builtin" ? "Ready to sign. Use “Sign now” to sign it in the platform." : `Sent to ${signerEmail} for signature.`,
+      () => contractsApi.sendForSignature(contract.id, signerEmail || undefined, PROVIDER),
+      `Ready for ${signerEmail} to sign. Use “Sign now” to sign it in the platform.`,
       "Couldn't send for signature.",
     );
     setSending(false);
@@ -242,27 +239,9 @@ export function ContractActions({
               className="field"
             />
           </div>
-          <fieldset>
-            <legend className="mb-1 font-medium text-slate-800">Provider</legend>
-            <div className="divide-y divide-surface-border rounded-md border border-surface-border">
-              {PROVIDERS.map(([value, name, desc]) => (
-                <label key={value} className="flex cursor-pointer items-start gap-2.5 px-3 py-2.5 hover:bg-surface-subtle">
-                  <input
-                    type="radio"
-                    name="provider"
-                    value={value}
-                    checked={provider === value}
-                    onChange={() => setProvider(value)}
-                    className="mt-0.5 accent-brand-500"
-                  />
-                  <span>
-                    <span className="block font-medium text-slate-900">{name}</span>
-                    <span className="block text-xs text-slate-500">{desc}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <p className="text-xs text-slate-500">
+            Signed with the built-in e-sign: typed or drawn signature, consent, and a SHA-256 seal in the audit log.
+          </p>
           <p className="text-xs text-slate-500">The signer receives the contract as a PDF, the same file as “Download PDF”.</p>
         </div>
       </Modal>

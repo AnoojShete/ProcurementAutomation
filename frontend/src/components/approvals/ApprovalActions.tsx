@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, ShieldAlert, XCircle } from "lucide-react";
+import { CheckCircle2, PackageCheck, ShieldAlert, XCircle } from "lucide-react";
 import { authorityApi } from "@/api/controls";
 import { requestsApi } from "@/api/requests";
 import { ApiError } from "@/api/client";
@@ -13,8 +13,44 @@ import type { PurchaseRequest } from "@/types/api";
 
 const STAFF = ["approver", "finance", "admin"];
 
+/** Ordered (contract signed) -> fulfilled, once the requester or staff
+ * confirms the goods/licences arrived. */
+function ReceiveAction({ request, onDecided }: { request: PurchaseRequest; onDecided?: (updated: PurchaseRequest) => void }) {
+  const { user } = useAuth();
+  const [acting, setActing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isOwner = (user?.email ?? "").toLowerCase() === (request.requested_by ?? "").toLowerCase();
+  if (!(isOwner || STAFF.includes(user?.role ?? ""))) {
+    return <p className="text-sm text-slate-600">Ordered — waiting for the requester to confirm delivery.</p>;
+  }
+  const receive = async () => {
+    setActing(true);
+    setError(null);
+    try {
+      const res = await requestsApi.receive(request.id);
+      onDecided?.(res.data);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Unable to mark the request as received.");
+    } finally {
+      setActing(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-slate-600">Ordered: the contract is signed and the order is with the vendor.</p>
+      <div>
+        <Button icon={<PackageCheck className="size-4" />} loading={acting} onClick={receive}>
+          Mark as received
+        </Button>
+      </div>
+      {error && <InlineError message={error} />}
+    </div>
+  );
+}
+
 /**
- * The approval agent's decision panel: approve / reject a purchase request.
+ * The approval agent's decision panel: approve / reject a purchase request,
+ * and confirm delivery once it's ordered.
  * The same component is used wherever a pending request shows up — the
  * request page, its lifecycle "Approval" step and the license page — so the
  * decision looks and behaves the same from every entry point. It talks only
@@ -48,6 +84,9 @@ export function ApprovalActions({
     return (
       <InlineInfo message="In the reclaim grace period: the license holder can still decline; otherwise it moves to approval." />
     );
+  }
+  if (request.status === "ordered") {
+    return <ReceiveAction request={request} onDecided={onDecided} />;
   }
   if (!pending) {
     const last = request.approval_history?.[request.approval_history.length - 1];

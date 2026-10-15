@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { AlertTriangle, BookOpenCheck, Lock, ShieldAlert } from "lucide-react";
+import { AlertTriangle, BookOpenCheck, FilePlus2, Lock, ShieldAlert } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/format";
 
 type Json = Record<string, any>;
@@ -22,9 +23,25 @@ function Row({ icon: Icon, tone, title, children }: { icon: typeof Lock; tone: "
   );
 }
 
+/** No request to book this invoice against yet: start one from the
+ * invoice (the wizard reads vendor, INR amount and items from it). Once
+ * that request is approved the invoice is booked against it. */
+function CreateRequestLink({ documentId }: { documentId?: string }) {
+  const { user } = useAuth();
+  if (!documentId || !(user?.role === "requester" || user?.role === "admin")) return null;
+  return (
+    <Link
+      to={`/app/requests/new?document=${documentId}`}
+      className="mt-2 inline-flex items-center gap-1.5 font-medium text-brand-700 hover:underline"
+    >
+      <FilePlus2 className="size-4" /> Create a purchase request from this invoice
+    </Link>
+  );
+}
+
 /** Findings from the payment, matching and learning controls, as stored
  * on the document by the pipeline. Renders nothing for a clean document. */
-export function DocumentControls({ extracted }: { extracted: Json }) {
+export function DocumentControls({ extracted, documentId }: { extracted: Json; documentId?: string }) {
   const match: Json | undefined = extracted.invoice_match;
   const lookalike: Json | undefined = extracted.lookalike_vendor;
   const learned: Json[] = extracted.learned_fields ?? [];
@@ -89,6 +106,9 @@ export function DocumentControls({ extracted }: { extracted: Json }) {
       items.push(
         <Row key="match" icon={AlertTriangle} tone="warn" title="No purchase request to match">
           {(match.issues ?? [])[0] ?? "No open purchase request for this vendor has a balance that fits."}
+          <div>
+            <CreateRequestLink documentId={documentId} />
+          </div>
         </Row>,
       );
     }

@@ -22,10 +22,23 @@ def build_confidence_scores(
     return scores
 
 
+# How much each score counts towards the overall one: the amount and who
+# it's from matter most for an invoice; line items are a bonus.
+WEIGHTS = {
+    "total": 0.30, "vendor_name": 0.20, "classification": 0.15,
+    "document_number": 0.15, "document_date": 0.10, "line_items": 0.10,
+}
+# Fields many genuine documents simply don't have; a 0 there means "not on
+# the document", not "misread", so it's left out instead of averaged in.
+OPTIONAL = {"line_items"}
+
+
 def overall_confidence(confidence_scores: Dict[str, float]) -> float:
-    if not confidence_scores:
+    scores = {k: v for k, v in confidence_scores.items() if not (k in OPTIONAL and not v)}
+    if not scores:
         return 0.0
-    return round(sum(confidence_scores.values()) / len(confidence_scores), 3)
+    weights = {k: WEIGHTS.get(k, 0.1) for k in scores}
+    return round(sum(scores[k] * w for k, w in weights.items()) / sum(weights.values()), 3)
 
 
 def load_threshold() -> float:

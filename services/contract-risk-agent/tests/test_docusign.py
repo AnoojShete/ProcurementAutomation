@@ -183,7 +183,7 @@ class TestAutoSend:
         assert run(contract_service.auto_send_for_signature(_db(), "producer", _contract())) == "sent"
         args, kwargs = self.send.await_args
         assert args[2:4] == ("c-1", "signer@example.com")
-        assert kwargs["provider"] == "docusign" and kwargs["automatic"] is True
+        assert kwargs["provider"] == "builtin" and kwargs["automatic"] is True  # built-in e-sign by default
 
     def test_never_sent_twice(self):
         assert run(contract_service.auto_send_for_signature(_db(already_tried=True), "p", _contract())) == "already_tried"

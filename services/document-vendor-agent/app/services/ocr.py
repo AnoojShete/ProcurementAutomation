@@ -30,6 +30,7 @@ Privacy/data-residency:
 import io
 import logging
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -56,7 +57,7 @@ class ExtractionResult:
     text: str
     method: str   # "docling" | "paddleocr" | "pdf_text"
     file_type: str  # "pdf" | "image"
-    text_quality: float  # 0-1 heuristic
+    text_quality: float  # 0-1: OCR recognition confidence (images) or text heuristic (PDFs)
     # Structured word/box output for LayoutLMv3 cross-check.
     # Each entry: {"word": str, "box": [x0,y0,x1,y1] in pixel coords}
     words_with_boxes: list = None
@@ -163,8 +164,10 @@ def _text_from_pdf_legacy(data: bytes) -> tuple[str, list]:
 # PaddleOCR — image path (subprocess-isolated)
 # ---------------------------------------------------------------------------
 
-def _text_from_image_paddleocr(data: bytes) -> str:
-    """Run PaddleOCR in a subprocess. Raises RuntimeError if it fails."""
+def _text_from_image_paddleocr(data: bytes) -> tuple[str, float, list]:
+    """Run PaddleOCR in a subprocess. Returns (text, mean recognition
+    confidence, words_with_boxes). Raises RuntimeError if it fails."""
+    import json
     try:
         proc = subprocess.run(
             [sys.executable, _WORKER_SCRIPT],
@@ -172,30 +175,94 @@ def _text_from_image_paddleocr(data: bytes) -> str:
             capture_output=True,
             timeout=120,
         )
-        if proc.returncode == 0:
-            return proc.stdout.decode("utf-8", errors="replace").strip()
-        else:
-            stderr = proc.stderr.decode("utf-8", errors="replace")[:300] if proc.stderr else ""
-            raise RuntimeError(f"PaddleOCR failed with exit {proc.returncode}: {stderr}")
     except subprocess.TimeoutExpired:
         raise RuntimeError("PaddleOCR timed out")
     except Exception as e:
         raise RuntimeError(f"PaddleOCR execution error: {e}")
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace")[-300:] if proc.stderr else ""
+        raise RuntimeError(f"PaddleOCR failed with exit {proc.returncode}: {stderr}")
+    out = json.loads(proc.stdout.decode("utf-8") or "{}")
+    lines = out.get("lines", [])
+    return _rows_to_text(lines), _ocr_confidence(lines), _words_with_boxes(
+        lines, out.get("width") or 1000, out.get("height") or 1000,
+    )
+
+
+def _words_with_boxes(lines: list, page_w: int, page_h: int) -> list:
+    """Per-word boxes for the LayoutLMv3 cross-check. PaddleOCR boxes whole
+    lines, so each word gets the slice of its line's box proportional to
+    its position in the text."""
+    words = []
+    for ln in lines:
+        x0, y0, x1, y1 = ln["box"]
+        text = ln["text"]
+        per_char = (x1 - x0) / max(len(text), 1)
+        pos = 0
+        for word in text.split():
+            start = text.index(word, pos)
+            pos = start + len(word)
+            words.append({
+                "word": word,
+                "box": [int(x0 + start * per_char), int(y0), int(x0 + pos * per_char), int(y1)],
+                "page_w": page_w, "page_h": page_h,
+            })
+    return words
+
+
+def _rows_to_text(lines: list) -> str:
+    """PaddleOCR returns one entry per text block, roughly top to bottom,
+    so a table row ("Services  $55.00  10  $550.00") comes out as four
+    separate lines. Put blocks whose vertical centres line up back on one
+    line, left to right, so the field patterns see the row as printed."""
+    if not lines:
+        return ""
+
+    def centre(ln):
+        return (ln["box"][1] + ln["box"][3]) / 2
+
+    def height(ln):
+        return max(ln["box"][3] - ln["box"][1], 1.0)
+
+    rows: list[list] = []
+    for ln in sorted(lines, key=centre):
+        row = rows[-1] if rows else None
+        if row is not None:
+            row_centre = sum(centre(x) for x in row) / len(row)
+            if abs(centre(ln) - row_centre) <= 0.5 * min(height(ln), min(height(x) for x in row)):
+                row.append(ln)
+                continue
+        rows.append([ln])
+    return "\n".join("  ".join(x["text"] for x in sorted(row, key=lambda x: x["box"][0])) for row in rows)
+
+
+def _ocr_confidence(lines: list) -> float:
+    """PaddleOCR's own recognition score, averaged over the characters it
+    read (a long line counts more than a stray mark)."""
+    chars = sum(len(ln["text"]) for ln in lines)
+    if not chars:
+        return 0.0
+    return round(sum(ln["confidence"] * len(ln["text"]) for ln in lines) / chars, 3)
 
 
 # ---------------------------------------------------------------------------
 # Text quality heuristic
 # ---------------------------------------------------------------------------
 
+_WORD_LIKE = re.compile(r"[A-Za-z]{2,}")
+# Amounts, dates, quantities, IDs: "$1,699.48", "26/3/2021", "10", "INV-10012".
+_NUMBER_LIKE = re.compile(r"^[\$₹€£(+\-]?[\d][\d,./:\-]*%?\)?$")
+
+
 def _text_quality(text: str) -> float:
-    """Fraction of whitespace-separated tokens that look like real words
-    (contain 2+ consecutive letters). Clean text ≈ 1.0; OCR noise ≈ 0."""
-    import re
+    """Fraction of whitespace-separated tokens that look like real words or
+    numbers. Clean text ≈ 1.0; OCR noise ≈ 0. Numbers count: an invoice is
+    mostly amounts and dates, which used to drag a clean read down to ~0.7."""
     tokens = text.split()
     if not tokens:
         return 0.0
-    word_like = sum(1 for t in tokens if re.search(r"[A-Za-z]{2,}", t))
-    return round(word_like / len(tokens), 3)
+    good = sum(1 for t in tokens if _WORD_LIKE.search(t) or _NUMBER_LIKE.match(t))
+    return round(good / len(tokens), 3)
 
 
 # ---------------------------------------------------------------------------
@@ -262,13 +329,13 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
 
     # Image path — use PaddleOCR
     try:
-        paddle_text = _text_from_image_paddleocr(data)
+        paddle_text, quality, words_with_boxes = _text_from_image_paddleocr(data)
     except Exception as e:
         logger.warning(f"PaddleOCR image extraction unavailable ({e}); returning low-quality fallback result")
-        paddle_text = ""
-    quality = _text_quality(paddle_text)
+        paddle_text, quality, words_with_boxes = "", 0.0, []
     return ExtractionResult(
         text=paddle_text, method="paddleocr", file_type="image", text_quality=quality,
+        words_with_boxes=words_with_boxes,
     )
 
 

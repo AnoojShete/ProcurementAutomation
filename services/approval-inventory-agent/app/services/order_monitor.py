@@ -9,8 +9,8 @@ answer "what's pending?" from the latest snapshot instead of querying
 every service. GET /orders/summary/latest serves it over HTTP.
 
 Buckets follow the purchase-request lifecycle:
-  pending_approval -> approved -> fulfilled (contract signed, waiting on
-  the vendor's delivery/invoice) -> invoice_received
+  pending_approval -> approved -> ordered (contract signed, waiting on the
+  vendor's delivery) -> fulfilled (received) -> invoice_received
 plus backordered (is_backordered) and rejected.
 """
 import asyncio
@@ -75,11 +75,11 @@ def build_summary(orders: list[OrderRow], now: datetime, since: datetime, cfg: d
     pending = [o for o in orders if o.status == "pending_approval"]
     overdue = [o for o in pending if o.sla_deadline and o.sla_deadline < now]
     # An approved request whose contract is already signed missed its
-    # contract.signed -> fulfilled update. It is waiting on the vendor like
-    # any fulfilled order, and flagged so someone can fix the record.
+    # contract.signed -> ordered update. It is waiting on the vendor like
+    # any ordered request, and flagged so someone can fix the record.
     out_of_sync = [o for o in orders if o.status == "approved" and o.contract_status == "signed"]
     awaiting_signature = [o for o in orders if o.status == "approved" and o.contract_status != "signed"]
-    awaiting_delivery = [o for o in orders if o.status in ("fulfilled", "partially_invoiced")] + out_of_sync
+    awaiting_delivery = [o for o in orders if o.status == "ordered"] + out_of_sync
     delivery_late_cutoff = now - timedelta(days=cfg["delivery_followup_days"])
     delivery_late = [o for o in awaiting_delivery if o.updated_at and o.updated_at < delivery_late_cutoff]
     backordered = [o for o in orders if o.is_backordered and o.status not in ("rejected", "invoice_received")]
@@ -90,7 +90,7 @@ def build_summary(orders: list[OrderRow], now: datetime, since: datetime, cfg: d
     new_requests = [o for o in orders if o.created_at and o.created_at >= since]
     completed = [o for o in orders if o.status == "invoice_received" and changed(o)]
     rejected = [o for o in orders if o.status == "rejected" and changed(o)]
-    approved_recently = [o for o in orders if o.status in ("approved", "fulfilled") and changed(o)]
+    approved_recently = [o for o in orders if o.status in ("approved", "ordered") and changed(o)]
 
     attention: list[dict] = []
     for o in sorted(overdue, key=lambda o: o.sla_deadline):
@@ -195,7 +195,7 @@ async def _load_orders(db) -> list[OrderRow]:
                      ORDER BY c.generated_at DESC NULLS LAST LIMIT 1) AS contract_status
             FROM purchase_requests pr
             LEFT JOIN vendors v ON v.id = pr.vendor_id
-            WHERE pr.status IN ('pending_approval', 'approved', 'fulfilled', 'partially_invoiced', 'backordered')
+            WHERE pr.status IN ('pending_approval', 'approved', 'ordered', 'fulfilled', 'partially_invoiced', 'backordered')
                OR COALESCE(pr.is_backordered, false)
                OR COALESCE(pr.updated_at, pr.created_at) >= now() - interval '7 days'
         """))
@@ -261,7 +261,7 @@ async def reconcile(performed_by: str = "order-monitor") -> list[dict]:
                 SELECT pr.id FROM purchase_requests pr
                 JOIN (SELECT purchase_request_id, sum(amount) AS invoiced FROM invoice_allocations
                       GROUP BY purchase_request_id) a ON a.purchase_request_id = pr.id
-                WHERE pr.status IN ('approved', 'fulfilled', 'partially_invoiced')
+                WHERE pr.status IN ('approved', 'ordered', 'fulfilled', 'partially_invoiced')
                   AND a.invoiced >= pr.amount * 0.99
             """))
         ).all()

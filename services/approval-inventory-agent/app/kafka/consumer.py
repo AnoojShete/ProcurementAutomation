@@ -186,7 +186,7 @@ async def create_request_from_dropped_quote(document_id: str, service_factory=No
 
 
 async def _handle_contract_signed(payload: dict, event: dict):
-    """Marks the purchase request 'fulfilled' once its contract is signed.
+    """Marks the purchase request 'ordered' once its contract is signed.
     Raises on failure so the event is retried / dead-lettered rather than
     lost (which is how requests used to get stuck at 'approved')."""
     contract_id = payload.get("contract_id")
@@ -206,17 +206,11 @@ async def apply_contract_signed(session, contract_id: str, source: str = "contra
     """The effect of a signed contract on its purchase request, shared by
     the Kafka handler and the reconciler. Caller commits.
 
-    Two parts, each applied at most once:
-      - status: approved -> fulfilled. If an invoice already moved the
-        request further (partially_invoiced / invoice_received), the status
-        stays where it is — the lifecycle never goes backwards.
-      - fulfilment: license activation / hardware stock release. Tracked by
-        an audit_log marker rather than by status, so it still happens when
-        the invoice beat the signature, and never twice.
-    """
+    status: approved -> ordered (with the vendor, not yet delivered). If an
+    invoice already moved the request further, the status stays where it
+    is — the lifecycle never goes backwards. Delivery is confirmed
+    separately (apply_received)."""
     from datetime import datetime, timezone
-    import uuid as _uuid
-    from app.models import AuditLog
 
     contract = (await session.execute(select(Contract).where(Contract.id == contract_id))).scalar_one_or_none()
     if contract is None:
@@ -232,37 +226,71 @@ async def apply_contract_signed(session, contract_id: str, source: str = "contra
     if req is None:
         raise PermanentEventError(f"purchase request {contract.purchase_request_id} for contract {contract_id} not found")
 
-    moved_on = already_past(req.status, "fulfilled")
-    if not moved_on and not can_transition(req.status, "fulfilled"):
+    if already_past(req.status, "ordered") or req.status == "ordered":
+        result = f"already_{req.status}"
+    elif not can_transition(req.status, "ordered"):
         raise PermanentEventError(
-            f"contract {contract_id} signed but request {req.id} is '{req.status}' — cannot fulfil"
+            f"contract {contract_id} signed but request {req.id} is '{req.status}' — cannot order"
         )
+    else:
+        req.status = "ordered"
+        req.updated_at = datetime.now(timezone.utc)
+        result = "ordered"
+    logger.info(f"contract.signed effect for request {req.id} ({source}): {result}")
+    return result
 
-    fulfilled_before = (
+
+class NotReceivable(ValueError):
+    """The request can't be marked received (not ordered yet, or already received)."""
+
+
+async def apply_received(session, req: PurchaseRequest, received_by: str) -> str:
+    """Someone confirmed the goods/licences arrived. Caller commits.
+
+    Two parts, each applied at most once:
+      - status: ordered -> fulfilled. If an invoice already moved the
+        request further, the status stays where it is.
+      - fulfilment: license activation / hardware stock release. Tracked by
+        an audit_log marker rather than by status, so it still happens when
+        the invoice beat the delivery, and never twice."""
+    from datetime import datetime, timezone
+    import uuid as _uuid
+    from app.models import AuditLog
+
+    received_before = (
         await session.execute(
             select(AuditLog.id).where(AuditLog.entity_id == req.id, AuditLog.action == FULFILMENT_MARKER).limit(1)
         )
     ).first() is not None
+    if received_before:
+        raise NotReceivable("this request was already marked as received")
+    if req.status != "ordered" and not already_past(req.status, "fulfilled"):
+        raise NotReceivable(
+            f"request is '{req.status}': it can be marked received once its contract is signed (status 'ordered')"
+        )
 
-    outcome = []
+    contract = (
+        await session.execute(select(Contract).where(Contract.purchase_request_id == req.id).limit(1))
+    ).scalar_one_or_none()
     now = datetime.now(timezone.utc)
-    if not moved_on and req.status != "fulfilled":
+    outcome = []
+    if req.status == "ordered":
         req.status = "fulfilled"
         req.updated_at = now
         outcome.append("fulfilled")
-    if not fulfilled_before:
-        if req.request_type in ("license", "saas"):
-            if not await _activate_license_for_request(session, req, contract):
-                logger.warning(f"No license found to activate for {req.request_type} request {req.id}")
-        elif req.request_type == "hardware":
-            await _fulfill_hardware_inventory(session, req)
-        session.add(AuditLog(
-            id=str(_uuid.uuid4()), entity_type="purchase_request", entity_id=req.id, action=FULFILMENT_MARKER,
-            performed_by=source, created_at=now, details={"contract_id": str(contract_id), "status": req.status},
-        ))
-        outcome.append("fulfilment_applied")
-    result = "+".join(outcome) or f"already_{req.status}"
-    logger.info(f"contract.signed effect for request {req.id} ({source}): {result}")
+    if req.request_type in ("license", "saas"):
+        if not await _activate_license_for_request(session, req, contract):
+            logger.warning(f"No license found to activate for {req.request_type} request {req.id}")
+    elif req.request_type == "hardware":
+        await _fulfill_hardware_inventory(session, req)
+    session.add(AuditLog(
+        id=str(_uuid.uuid4()), entity_type="purchase_request", entity_id=req.id, action=FULFILMENT_MARKER,
+        performed_by=received_by, created_at=now,
+        details={"contract_id": str(contract.id) if contract else None, "status": req.status, "event": "received"},
+    ))
+    outcome.append("fulfilment_applied")
+    result = "+".join(outcome)
+    logger.info(f"request {req.id} marked received by {received_by}: {result}")
     return result
 
 
@@ -302,7 +330,7 @@ async def _activate_license_for_request(session, req: PurchaseRequest, contract)
                 return True
 
     # Strategy 2: find any inactive license from the same vendor
-    vendor_id = contract.vendor_id or req.vendor_id
+    vendor_id = (contract.vendor_id if contract is not None else None) or req.vendor_id
     if vendor_id:
         lic_stmt = (
             select(License)

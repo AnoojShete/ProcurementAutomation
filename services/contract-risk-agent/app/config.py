@@ -58,7 +58,9 @@ class Settings(BaseSettings):
     # Drop-folder automation (shared/drop_folder.py): a contract generated
     # for a drop-folder request is sent for signature once, automatically.
     esign_auto_send: bool = True
-    esign_auto_provider: str = "docusign"
+    # Built-in e-sign: works without any external account. "docusign" /
+    # "documenso" still work when those are configured (esign_client.py).
+    esign_auto_provider: str = "builtin"
     # Who signs auto-sent contracts. Unset: the vendor's contact email; with
     # neither, the contract stays in draft and the control panel says why.
     esign_auto_signer_email: str | None = None

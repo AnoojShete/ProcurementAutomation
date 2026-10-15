@@ -65,6 +65,24 @@ def _serialize_document(doc: Document, user: CurrentUser | None = None) -> dict:
         "reviewed_by": doc.reviewed_by,
         "reviewed_at": doc.reviewed_at.isoformat() if doc.reviewed_at else None,
         "error_message": doc.error_message,
+        "fx": _fx(doc),
+    }
+
+
+def _fx(doc: Document) -> dict | None:
+    """The document's amount in INR and the rate used, fixed when it was
+    processed (app/services/fx.py). None until then."""
+    total_inr = getattr(doc, "total_inr", None)
+    if total_inr is None:
+        return None
+    rate_date = getattr(doc, "fx_rate_date", None)
+    return {
+        "currency": (getattr(doc, "currency", None) or "INR").upper(),
+        "total": float(doc.total) if getattr(doc, "total", None) is not None else None,
+        "total_inr": float(total_inr),
+        "rate": float(doc.fx_rate) if doc.fx_rate is not None else None,
+        "rate_date": rate_date.isoformat() if rate_date else None,
+        "source": getattr(doc, "fx_source", None),
     }
 
 

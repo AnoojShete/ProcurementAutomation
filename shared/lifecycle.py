@@ -18,7 +18,10 @@ REQUEST_TRANSITIONS: dict[str, frozenset] = {
     "pending_grace_period": frozenset({"pending_approval", "approved", "rejected", "cancelled"}),
     "backordered": frozenset({"pending_approval", "cancelled"}),
     # An invoice may arrive before or after the contract is signed.
-    "approved": frozenset({"fulfilled", "partially_invoiced", "invoice_received", "cancelled"}),
+    "approved": frozenset({"ordered", "partially_invoiced", "invoice_received", "cancelled"}),
+    # Contract signed: the order is with the vendor until someone confirms
+    # the goods/licences arrived ("Mark as received").
+    "ordered": frozenset({"fulfilled", "partially_invoiced", "invoice_received"}),
     "fulfilled": frozenset({"partially_invoiced", "invoice_received"}),
     "partially_invoiced": frozenset({"invoice_received"}),
     **{s: frozenset() for s in TERMINAL},
@@ -29,7 +32,7 @@ REQUEST_TRANSITIONS: dict[str, frozenset] = {
 # after the invoice was received): that's not an error, just nothing to do.
 PROGRESS = {
     "pending_grace_period": 0, "backordered": 0, "pending_approval": 0,
-    "approved": 1, "fulfilled": 2, "partially_invoiced": 3, "invoice_received": 4,
+    "approved": 1, "ordered": 2, "fulfilled": 3, "partially_invoiced": 4, "invoice_received": 5,
 }
 
 

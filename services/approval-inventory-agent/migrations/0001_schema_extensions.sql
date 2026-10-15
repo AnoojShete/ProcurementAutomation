@@ -259,4 +259,18 @@ CREATE INDEX IF NOT EXISTS idx_purchase_requests_status ON purchase_requests (st
 CREATE INDEX IF NOT EXISTS idx_purchase_requests_vendor ON purchase_requests (vendor_id);
 CREATE INDEX IF NOT EXISTS idx_approval_history_request ON approval_history (request_id);
 CREATE INDEX IF NOT EXISTS idx_invoice_matches_request ON invoice_matches (purchase_request_id);
-CREATE INDEX IF NOT EXISTS idx_invoice_matches_held ON invoice_matches (vendor_id) WHERE payment_hold
+CREATE INDEX IF NOT EXISTS idx_invoice_matches_held ON invoice_matches (vendor_id) WHERE payment_hold;
+
+-- 'ordered': contract signed, waiting on the vendor; 'fulfilled' now means
+-- the goods/licences were received. Widens the status check (no rows change).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_requests_status')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_requests_status'
+                     AND pg_get_constraintdef(oid) LIKE '%''ordered''%') THEN  -- quoted: 'backordered' also contains ordered
+    ALTER TABLE purchase_requests DROP CONSTRAINT ck_purchase_requests_status;
+    ALTER TABLE purchase_requests ADD CONSTRAINT ck_purchase_requests_status CHECK (status IN (
+      'pending_approval', 'pending_grace_period', 'backordered', 'approved', 'ordered', 'fulfilled',
+      'partially_invoiced', 'invoice_received', 'rejected', 'cancelled', 'split'));
+  END IF;
+END $$;

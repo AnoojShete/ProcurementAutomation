@@ -58,20 +58,10 @@ export function RequestDetailPage() {
   const { data: allDocs, reload: reloadDocs } = useApi(() => documentsApi.list(200), []);
   const attachedDoc = useMemo(() => {
     if (!request || !allDocs) return null;
-    if (request.document_id) {
-      const direct = allDocs.find((d) => d.id === request.document_id);
-      if (direct) return direct;
-    }
-    // Fallback: match by vendor_id or requested_by
-    if (request.vendor_id) {
-      const vendorDoc = allDocs.find((d) => d.vendor_id === request.vendor_id);
-      if (vendorDoc) return vendorDoc;
-    }
-    if (request.requested_by) {
-      const userDoc = allDocs.find((d) => d.uploaded_by === request.requested_by);
-      if (userDoc) return userDoc;
-    }
-    return null;
+    // Only the document the request was created with: guessing by vendor
+    // or uploader showed unrelated invoices as this request's attachment.
+    if (!request.document_id) return null;
+    return allDocs.find((d) => d.id === request.document_id) ?? null;
   }, [request, allDocs]);
 
   // ?step=<key> selects a lifecycle step (e.g. from the approval inbox).
@@ -221,7 +211,7 @@ export function RequestDetailPage() {
 
         <div className="flex flex-col gap-6">
           <ProcurementAssessment request={request} vendorRisk={vendorRisk} vendorRiskLoading={vendorRiskLoading} />
-          {["approved", "fulfilled", "partially_invoiced", "invoice_received"].includes(request.status ?? "") && (
+          {["approved", "ordered", "fulfilled", "partially_invoiced", "invoice_received"].includes(request.status ?? "") && (
             <InvoiceLedgerCard requestId={request.id} currency={request.currency ?? "INR"} />
           )}
 
@@ -354,11 +344,14 @@ function StageDetails({
         </div>
       );
     case "fulfillment":
+      if (request.status === "ordered") {
+        return <ApprovalActions request={request} onDecided={() => onChanged()} />;
+      }
       return (
         <p className="text-sm text-slate-700">
-          {request.status === "fulfilled" || request.status === "invoice_received"
-            ? "Fulfilled: the contract is signed and the order is complete."
-            : "Completes when the contract is signed (and, for invoices, when they're matched in the invoice ledger)."}
+          {["fulfilled", "partially_invoiced", "invoice_received"].includes(request.status ?? "")
+            ? "Fulfilled: the goods/licences were received."
+            : "After the contract is signed the request is ordered; it's fulfilled once someone confirms the goods/licences arrived."}
         </p>
       );
     default:

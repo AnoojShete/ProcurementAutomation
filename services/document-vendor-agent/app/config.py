@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     # Must not exceed clamd's StreamMaxLength (25 MB by default); a larger
     # stream is refused by clamd and would surface as a misleading 503.
     max_upload_bytes: int = 25 * 1024 * 1024
+    # Exchange rates for foreign-currency documents (app/services/fx.py):
+    # ECB reference rates via Frankfurter, no API key.
+    base_currency: str = "INR"
+    fx_api_url: str = "https://api.frankfurter.dev/v1"
+    fx_timeout_seconds: float = 8.0
     # POST /documents/upload/batch limits.
     max_batch_files: int = 20
     max_batch_bytes: int = 100 * 1024 * 1024

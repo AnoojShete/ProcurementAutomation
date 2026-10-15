@@ -206,7 +206,7 @@ def main():
     check("contract linked to request + vendor", c.get("purchase_request_id") == pr_id and c.get("vendor_id") == vendor_id,
           f"pr={c.get('purchase_request_id')} vendor={c.get('vendor_id')}")
     if cid:
-        r = requests.post(f"{GW}/contracts/{cid}/send-for-signature", headers=H(adm_t), json={"provider": "documenso"})
+        r = requests.post(f"{GW}/contracts/{cid}/send-for-signature", headers=H(adm_t), json={"provider": "builtin"})
         check("send for signature -> pending_signature", r.status_code == 200 and r.json()["data"]["status"] == "pending_signature", r.text[:150])
         body = {"provider_event_id": f"evt-{run}", "contract_id": cid, "signed_by": "vendor@zenith.example",
                 "signed_at": datetime.now(timezone.utc).isoformat()}
@@ -220,10 +220,16 @@ def main():
         c = requests.get(f"{GW}/contracts/{cid}", headers=H(adm_t)).json()["data"]
         check("contract status signed", c["status"] == "signed", c["status"])
         # The invoice already arrived, so signing must not move the request
-        # back from invoice_received to fulfilled (shared/lifecycle.py).
+        # back from invoice_received to ordered (shared/lifecycle.py).
         time.sleep(3)
         pr = requests.get(f"{GW}/requests/{pr_id}", headers=H(app_t)).json()["data"]
         check("contract.signed after invoice keeps request invoice_received", pr["status"] == "invoice_received", pr["status"])
+        # Goods received: the licence is activated; the status stays put.
+        r = requests.post(f"{GW}/requests/{pr_id}/receive", headers=H(app_t))
+        check("mark as received -> 200, status unchanged",
+              r.status_code == 200 and r.json()["data"]["status"] == "invoice_received", r.text[:150])
+        r = requests.post(f"{GW}/requests/{pr_id}/receive", headers=H(app_t))
+        check("marking received twice -> 409", r.status_code == 409, f"{r.status_code} {r.text[:100]}")
     r = requests.post(f"{GW}/vendors/{vendor_id}/risk/recompute", headers=H(fin_t))
     check("finance recomputes vendor risk -> 200", r.status_code == 200, r.text[:150])
     risk = requests.get(f"{GW}/vendors/{vendor_id}/risk", headers=H(adm_t)).json().get("data") or {}

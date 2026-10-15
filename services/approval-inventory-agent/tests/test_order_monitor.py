@@ -23,8 +23,8 @@ def test_buckets_and_attention():
         order(1, "pending_approval", sla_deadline=NOW - timedelta(hours=5)),
         order(2, "pending_approval", sla_deadline=NOW + timedelta(hours=20), created_at=NOW - timedelta(minutes=10)),
         order(3, "approved", updated_at=NOW - timedelta(days=5), contract_status="pending_signature"),
-        order(4, "fulfilled", updated_at=NOW - timedelta(days=20)),
-        order(5, "fulfilled", updated_at=NOW - timedelta(days=1)),
+        order(4, "ordered", updated_at=NOW - timedelta(days=20)),
+        order(5, "ordered", updated_at=NOW - timedelta(days=1)),
         order(6, "approved", is_backordered=True, updated_at=NOW - timedelta(hours=1)),
         order(7, "invoice_received", updated_at=NOW - timedelta(minutes=30)),
         order(8, "rejected", updated_at=NOW - timedelta(minutes=5)),
@@ -48,7 +48,7 @@ def test_buckets_and_attention():
 
 
 def test_quiet_period():
-    s = build_summary([order(1, "fulfilled", updated_at=NOW - timedelta(days=3))], NOW, SINCE, CFG)
+    s = build_summary([order(1, "ordered", updated_at=NOW - timedelta(days=3))], NOW, SINCE, CFG)
     assert s["attention"] == []
     assert s["summary_text"].endswith("Nothing needs attention.")
     assert "0 new requests" in s["summary_text"]

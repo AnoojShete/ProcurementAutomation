@@ -29,6 +29,7 @@ MIGRATIONS = (
     "0004_learning.sql",
     "0005_processing_attempts.sql",
     "0006_integrity.sql",
+    "0007_fx.sql",
 )
 
 

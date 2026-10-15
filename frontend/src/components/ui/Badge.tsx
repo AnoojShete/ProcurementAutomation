@@ -59,6 +59,7 @@ function label(key: string): string {
 const REQUEST_STATUS_TONE: Record<string, Tone> = {
   pending_approval: "warning",
   approved: "success",
+  ordered: "brand",
   rejected: "danger",
   fulfilled: "brand",
   partially_invoiced: "brand",

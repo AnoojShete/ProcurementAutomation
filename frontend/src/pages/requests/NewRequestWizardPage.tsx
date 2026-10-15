@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Building2, CheckCircle2, Info, Lock, Search, Sparkles, UploadCloud } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +35,41 @@ interface WizardState {
   document: DocumentRecord | null;
 }
 
+/** Fills the request from a processed document: vendor, amount in INR
+ * (foreign-currency documents carry their converted amount in `fx`),
+ * department and description. Only fills what's still empty. */
+function applyDocument(s: WizardState, doc: DocumentRecord, vendors: VendorSummary[] | null): WizardState {
+  const next = { ...s, document: doc };
+
+  const currency = String(doc.extracted_fields?.currency ?? "INR").toUpperCase();
+  const amountInr = doc.fx?.total_inr ?? (currency === "INR" ? doc.extracted_fields?.total : null);
+  if (amountInr != null && (!s.amount || s.amount === "0")) {
+    next.amount = String(Math.round(Number(amountInr) * 100) / 100);
+  }
+
+  if (!s.vendorId && vendors) {
+    let matched: VendorSummary | undefined;
+    if (doc.vendor_id) {
+      matched = vendors.find((v) => v.id === doc.vendor_id);
+    } else if (doc.vendor_name_raw) {
+      const raw = doc.vendor_name_raw.toLowerCase().trim();
+      matched = vendors.find((v) => v.name.toLowerCase().includes(raw) || raw.includes(v.name.toLowerCase()));
+    }
+    if (matched) {
+      next.vendorId = matched.id;
+      next.vendor = matched;
+    }
+  }
+
+  if (!next.department.trim()) {
+    next.department = (doc.extracted_fields?.department as string) || "General";
+  }
+  if (!next.description.trim() && doc.original_filename) {
+    next.description = `Auto-extracted from ${doc.original_filename}`;
+  }
+  return next;
+}
+
 function resolveSpendTier(amount: number) {
   if (amount <= 500) return SPEND_TIERS[0];
   if (amount <= 5000) return SPEND_TIERS[1];
@@ -60,6 +95,22 @@ export function NewRequestWizardPage() {
   const [submitted, setSubmitted] = useState<{ id: string; status: string; tier: string } | null>(null);
 
   const { data: vendors, loading: vendorsLoading } = useApi(() => vendorsApi.list(200), []);
+
+  // Started from a document ("Create a purchase request from this
+  // invoice"): fill everything from it and go straight to Review.
+  const [searchParams] = useSearchParams();
+  const fromDocument = searchParams.get("document");
+  const [prefillError, setPrefillError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!fromDocument || vendorsLoading) return;
+    documentsApi
+      .get(fromDocument)
+      .then((res) => {
+        setState((s) => applyDocument(s, res.data, vendors));
+        setStep(3);
+      })
+      .catch((e) => setPrefillError(e instanceof ApiError ? e.message : "Couldn't load that document."));
+  }, [fromDocument, vendorsLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const amountNum = Number(state.amount) || 0;
   const tier = resolveSpendTier(amountNum);
@@ -117,6 +168,7 @@ export function NewRequestWizardPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <NumberedStepper steps={STEPS} currentIndex={step} />
+      {prefillError && <InlineError message={prefillError} />}
 
       {step === 0 && <StepDetails state={state} setState={setState} onSkipToDocuments={() => jumpTo(2)} />}
       {step === 1 && (
@@ -339,47 +391,7 @@ function StepDocuments({
         attempts += 1;
         try {
           const doc = await documentsApi.get(res.data.document_id);
-          setState((s) => {
-            const next = { ...s, document: doc.data };
-
-            // 1. Auto-extract total / amount
-            const extractedTotal = doc.data.extracted_fields?.total;
-            if (extractedTotal != null && (!s.amount || s.amount === "0" || s.amount === "")) {
-              next.amount = String(extractedTotal);
-            }
-
-            // 2. Auto-extract vendor
-            if (!s.vendorId && vendors) {
-              if (doc.data.vendor_id) {
-                const matched = vendors.find((v) => v.id === doc.data.vendor_id);
-                if (matched) {
-                  next.vendorId = matched.id;
-                  next.vendor = matched;
-                }
-              } else if (doc.data.vendor_name_raw) {
-                const raw = doc.data.vendor_name_raw.toLowerCase().trim();
-                const matched = vendors.find(
-                  (v) => v.name.toLowerCase().includes(raw) || raw.includes(v.name.toLowerCase())
-                );
-                if (matched) {
-                  next.vendorId = matched.id;
-                  next.vendor = matched;
-                }
-              }
-            }
-
-            // 3. Auto-populate department if blank
-            if (!next.department.trim()) {
-              next.department = (doc.data.extracted_fields?.department as string) || "General";
-            }
-
-            // 4. Auto-populate description if blank
-            if (!next.description.trim() && doc.data.original_filename) {
-              next.description = `Auto-extracted from ${doc.data.original_filename}`;
-            }
-
-            return next;
-          });
+          setState((s) => applyDocument(s, doc.data, vendors));
 
           if (doc.data.status === "classified" || doc.data.status === "failed") {
             setPolling(false);

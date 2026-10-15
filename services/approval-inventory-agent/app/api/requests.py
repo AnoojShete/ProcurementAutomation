@@ -146,6 +146,27 @@ async def approve_request(
         return _error("INTERNAL_ERROR", "Failed to approve request", 500)
 
 
+@router.post("/{request_id}/receive", response_model=DataResponse)
+async def receive_request(
+    request_id: str,
+    approval_svc: ApprovalService = Depends(get_approval_service),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """The goods/licences arrived: ordered -> fulfilled, and licences are
+    activated / stock released. The requester (it's their order) or staff."""
+    from app.kafka.consumer import NotReceivable, apply_received
+    req = await approval_svc.get_request_with_history(request_id)
+    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+        return _error("NOT_FOUND", f"Request {request_id} not found", 404)
+    try:
+        await apply_received(approval_svc.db, req, user.email)
+        await approval_svc.db.commit()
+    except NotReceivable as e:
+        return _error("NOT_RECEIVABLE", str(e), 409)
+    req = await approval_svc.get_request_with_history(request_id)
+    return DataResponse(data=PurchaseRequestResponse.model_validate(req))
+
+
 @router.post("/{request_id}/reject", response_model=DataResponse)
 async def reject_request(
     request_id: str,
