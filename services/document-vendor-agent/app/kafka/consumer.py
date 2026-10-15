@@ -221,6 +221,7 @@ async def start_consumer(kafka_producer):
 
 
 async def _sweep_forever(kafka_producer):
+    from app.services.reminder_sweep import sweep_reminders
     while True:
         try:
             await requeue_stranded_documents(kafka_producer)
@@ -228,6 +229,13 @@ async def _sweep_forever(kafka_producer):
             raise
         except Exception as e:
             logger.warning(f"Stranded-document sweep failed: {e}", exc_info=True)
+        try:
+            # FR-03: reminders for stale reviews and pending bank-detail checks.
+            await sweep_reminders(async_session_factory, kafka_producer)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"Reminder sweep failed: {e}", exc_info=True)
         await asyncio.sleep(SWEEP_INTERVAL_SECONDS)
 
 

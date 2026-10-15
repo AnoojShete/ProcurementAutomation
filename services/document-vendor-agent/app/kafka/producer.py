@@ -23,6 +23,7 @@ TOPIC_DOCUMENT_CLASSIFIED = "document.classified"
 TOPIC_VENDOR_MATCHED = "vendor.matched"
 TOPIC_VENDOR_PAYMENT_DETAILS_FLAGGED = "vendor.payment_details_flagged"
 TOPIC_INVOICE_MATCHED = "invoice.matched"
+TOPIC_REMINDER_DUE = "reminder.due"
 
 
 class KafkaEventProducer:
@@ -105,3 +106,14 @@ class KafkaEventProducer:
         )
         event = build_event(TOPIC_INVOICE_MATCHED, self.service_name, payload)
         await self.publish(TOPIC_INVOICE_MATCHED, event)
+
+    async def publish_reminder_due(self, kind, entity_type, entity_id, waiting_since, threshold,
+                                   recipient_role, link, detail=None):
+        """reminder.due (FR-03, shared/reminders.py): someone has been waiting on an action."""
+        from shared.reminders import build_reminder_due_payload
+        payload = build_reminder_due_payload(
+            kind=kind, entity_type=entity_type, entity_id=entity_id, waiting_since=waiting_since,
+            threshold=threshold, recipient_role=recipient_role, link=link, detail=detail,
+        )
+        event = build_event(TOPIC_REMINDER_DUE, self.service_name, payload)
+        await self.publish(TOPIC_REMINDER_DUE, event)

@@ -10,9 +10,13 @@ with workflow.unsafe.imports_passed_through():
         record_approval_decision, publish_approval_decided_event,
         publish_notification_event, release_inventory_lock,
         release_hardware_reservations, set_reclaim_cooldown,
-        revoke_email_tokens_activity,
+        revoke_email_tokens_activity, publish_approval_reminder,
         NotificationInput
     )
+
+# Approvals started before Oct 16 replay the old wait (no reminders); new
+# ones wake at the reminder points (Temporal versioning).
+SLA_REMINDER_PATCH = "approval-sla-reminders"
 
 
 @dataclass
@@ -124,6 +128,58 @@ class ApprovalWorkflow:
         )
         return False  # Continue to next approver in chain
 
+    async def _wait_for_decision(self, level_index: int, sla_hours: int) -> bool:
+        """Pre-Oct 16 wait, kept so running workflows replay: a decision for
+        this level, or the SLA. Returns True on timeout."""
+        while True:
+            try:
+                await workflow.wait_condition(
+                    lambda: self._approval_signal is not None,
+                    timeout=timedelta(hours=sla_hours)
+                )
+            except asyncio.TimeoutError:
+                return True
+            if signal_applies(self._approval_signal, level_index):
+                return False
+            self._discard_stale_signal(level_index)
+
+    async def _wait_with_reminders(
+        self, request_id: str, approver_level: str, level_index: int, sla_hours: int, percents: list,
+    ) -> bool:
+        """Wait for a decision for this level, waking at each reminder point
+        (percent of the SLA) to publish reminder.due. A decision ends the
+        wait, so later reminders never go out. Returns True on SLA timeout."""
+        started = workflow.now()
+        deadline = started + timedelta(hours=sla_hours)
+        points = [(started + timedelta(hours=sla_hours * p / 100), p) for p in sorted(set(percents))]
+        while True:
+            wake = points[0][0] if points else deadline
+            try:
+                await workflow.wait_condition(
+                    lambda: self._approval_signal is not None,
+                    timeout=max(wake - workflow.now(), timedelta(seconds=0)),
+                )
+            except asyncio.TimeoutError:
+                if not points:
+                    return True
+                _, percent = points.pop(0)
+                await workflow.execute_activity(
+                    publish_approval_reminder,
+                    args=[request_id, approver_level, started.isoformat(), percent, sla_hours],
+                    start_to_close_timeout=timedelta(seconds=15),
+                )
+                continue
+            if signal_applies(self._approval_signal, level_index):
+                return False
+            self._discard_stale_signal(level_index)
+
+    def _discard_stale_signal(self, level_index: int) -> None:
+        workflow.logger.warning(
+            f"Discarding decision by {self._approval_signal.decided_by} authorised for level "
+            f"{self._approval_signal.level_index}; workflow is at level {level_index}"
+        )
+        self._approval_signal = None
+
     async def _handle_rejection(self, request_id: str, signal: ApprovalSignal, decision_level: str):
         """Record a rejection decision, publish the event, and release inventory."""
         await workflow.execute_activity(
@@ -201,23 +257,12 @@ class ApprovalWorkflow:
             # Wait for a decision meant for THIS level, or the SLA timeout.
             # A stale decision (authorised for an earlier level) is dropped
             # and the wait resumes.
-            timed_out = False
-            while True:
-                try:
-                    await workflow.wait_condition(
-                        lambda: self._approval_signal is not None,
-                        timeout=timedelta(hours=sla_hours)
-                    )
-                except asyncio.TimeoutError:
-                    timed_out = True
-                    break
-                if signal_applies(self._approval_signal, i):
-                    break
-                workflow.logger.warning(
-                    f"Discarding decision by {self._approval_signal.decided_by} authorised for level "
-                    f"{self._approval_signal.level_index}; workflow is at level {i}"
+            if workflow.patched(SLA_REMINDER_PATCH):
+                timed_out = await self._wait_with_reminders(
+                    request_id, approver_id, i, sla_hours, request.get("reminder_percents") or []
                 )
-                self._approval_signal = None
+            else:
+                timed_out = await self._wait_for_decision(i, sla_hours)
 
             if timed_out:
                 # SLA breached — escalate or reject if last

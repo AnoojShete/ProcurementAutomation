@@ -41,6 +41,8 @@ SAFE_KEYS = (
     "invoice_number", "po_number", "invoice_total",
     "recipient", "channel", "template_name", "priority", "related_entity_id",
     "rule_key", "changed_by", "source", "fields_changed",
+    # reminder.due (FR-03)
+    "kind", "entity_type", "entity_id", "threshold", "recipient_role", "waiting_hours", "notice_deadline",
 )
 
 
@@ -76,6 +78,12 @@ def describe(event_type: str, p: dict) -> str:
             return f"Invoice {p.get('invoice_number')} matched to PO {p.get('po_number')}"
         case "risk.score.updated":
             return f"Vendor {_short(p.get('vendor_id'))} risk {p.get('risk_band')}"
+        case "reminder.due":
+            return (f"Reminder: {str(p.get('kind', '')).replace('_', ' ')} on {p.get('entity_type')} "
+                    f"{_short(p.get('entity_id'))} ({p.get('threshold')}, waiting {p.get('waiting_hours')}h)")
+        case "contract.renewal.due":
+            return (f"Contract {_short(p.get('contract_id'))} renewal: {p.get('alert_level')} days before "
+                    f"notice deadline {p.get('notice_deadline') or '?'}")
     return event_type
 
 

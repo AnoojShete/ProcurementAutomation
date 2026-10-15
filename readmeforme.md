@@ -435,6 +435,11 @@ wrapped with the retry / dead-letter handler (TODO.md).
 - **Business rules**: 28 tunable rules edited live on an admin page with
   history; services refresh via Kafka.
 - **Order monitor**: hourly summary of open orders (`/api/orders/summary/latest`).
+- **Reminders** (`reminder.due`, `shared/reminders.py`): approvers at 50 % /
+  80 % of the SLA (Temporal timers, stopped by a decision); signers after
+  3 days; bank-detail verifiers and document reviewers after 24 h — all
+  business rules, each item reminded once per threshold. Emails for them
+  are notification-agent work (spec in TODO FR-03).
 - **Observability**: Prometheus metrics on every service, a provisioned
   Grafana dashboard (request rate, latency, errors, Kafka lag), JSON logs.
 

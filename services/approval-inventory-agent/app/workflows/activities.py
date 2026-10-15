@@ -66,11 +66,16 @@ async def fetch_request_details(request_id: str) -> dict:
         config = load_config()
         from shared.rules_engine import get_rule
         sla_hours = int(get_rule("approval.sla_escalation_hours", fallback=config.get("sla", {}).get("approval_timeout_hours", 48)))
+        # FR-03: remind the approver at these points of the SLA (rule).
+        percents = get_rule("approval.reminder_sla_percents", fallback=[50, 80])
+        if not isinstance(percents, list) or not all(isinstance(p, int) and 0 < p < 100 for p in percents):
+            percents = [50, 80]
 
         return {
             "id": req.id,
             "approval_chain": req.approval_chain or [],
             "sla_hours": sla_hours,
+            "reminder_percents": sorted(set(percents)),
             "request_type": req.request_type,
             "items": req.items,
         }
@@ -284,3 +289,22 @@ async def revoke_email_tokens_activity(request_id: str, step_index: Optional[int
         await revoke_tokens(session, request_id, step_index=step_index, reason=reason)
         await session.commit()
 
+
+@activity.defn
+async def publish_approval_reminder(
+    request_id: str, approver_level: str, waiting_since: str, percent: int, sla_hours: int,
+) -> None:
+    """reminder.due for an approver who hasn't decided at `percent` of the
+    SLA (FR-03). The workflow only calls this while the level is still
+    undecided, so a decision cancels the remaining reminders."""
+    producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
+    await producer.start()
+    try:
+        await producer.publish_reminder_due(
+            kind="approval_sla", entity_type="purchase_request", entity_id=request_id,
+            waiting_since=datetime.fromisoformat(waiting_since), threshold=f"{percent}%",
+            recipient_role=approver_level, link=f"/app/requests/{request_id}?step=approval",
+            detail=f"{percent}% of the {sla_hours}h approval SLA has passed",
+        )
+    finally:
+        await producer.stop()

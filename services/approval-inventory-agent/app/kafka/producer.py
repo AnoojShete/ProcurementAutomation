@@ -24,6 +24,7 @@ TOPIC_APPROVAL_DECIDED = "approval.decided"
 TOPIC_LICENSE_USAGE_UPDATED = "license.usage.updated"
 TOPIC_NOTIFICATION_SEND = "notification.send"
 TOPIC_ORDER_SUMMARY_GENERATED = "order.summary.generated"
+TOPIC_REMINDER_DUE = "reminder.due"
 
 
 class KafkaEventProducer:
@@ -151,3 +152,14 @@ class KafkaEventProducer:
         }
         event = build_event(TOPIC_ORDER_SUMMARY_GENERATED, self.service_name, payload)
         await self.publish(TOPIC_ORDER_SUMMARY_GENERATED, event)
+
+    async def publish_reminder_due(self, kind, entity_type, entity_id, waiting_since, threshold,
+                                   recipient_role, link, detail=None):
+        """reminder.due (FR-03, shared/reminders.py): someone has been waiting on an action."""
+        from shared.reminders import build_reminder_due_payload
+        payload = build_reminder_due_payload(
+            kind=kind, entity_type=entity_type, entity_id=entity_id, waiting_since=waiting_since,
+            threshold=threshold, recipient_role=recipient_role, link=link, detail=detail,
+        )
+        event = build_event(TOPIC_REMINDER_DUE, self.service_name, payload)
+        await self.publish(TOPIC_REMINDER_DUE, event)

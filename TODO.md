@@ -99,7 +99,7 @@ event or writing a spec for him.
   contract page; the old maths would give 2027-08-16. The 47 workflows
   started before the change keep their old end-date schedule by
   decision (not restarted).
-- [ ] **FR-03 Reminders for pending actions** (29 Aug overall #5;
+- [x] **FR-03 Reminders for pending actions** (29 Aug overall #5;
   Proposal §5.3 "reminders at 50 % and 80 % of SLA"). *Now:* only
   renewal reminders and SLA escalation exist; nothing reminds an approver
   before the SLA breaches, a signer whose contract waits, or a reviewer
@@ -111,6 +111,27 @@ event or writing a spec for him.
   are business rules. notification-agent templates for `reminder.due`. *Done when:* a test per source shows the event is published
   and not published after the action is taken; the event appears on the
   Control Panel.
+  *Decision (Oct 16):* approval reminders as versioned timers in the approval workflow (`workflow.patched`), checking every open workflow still replays.
+  *Evidence (Oct 16):* topic `reminder.due` (kafka-topics.yaml, acls.conf,
+  events.md; builder + once-per-threshold marker in `shared/reminders.py`).
+  Approvals: timers at `approval.reminder_sla_percents` of the SLA behind
+  `workflow.patched("approval-sla-reminders")` — `test_approval_reminders.py`
+  3 passed in Temporal's time-skipping server (no decision → 50 %, 80 %;
+  decision at 60 % → 50 % only; 2 fail without the timers); live with a
+  1 h SLA at 1 %/2 %: untouched request got both, request approved at
+  ~50 s got only the first. Signature (`contract.signature_reminder_days`),
+  bank-detail (`vendor.bank_verification_reminder_hours`) and review-queue
+  (`document.review_reminder_hours`) sweeps: `test_reminder_sweep.py` in
+  both services + `tests/test_reminders.py`; live: 143 stale reviews + 2
+  waiting contracts reminded once, still 145 after six more sweeps. Shown
+  on the Control Panel ("Reminder: approval sla on purchase_request …").
+  Suites: approval 118, contract-risk 105, document-vendor 217, auth 60.
+  Of the 5 open approval workflows, 4 replay on the new code; the 5th
+  (`approval-90261afb…`, started Sep 25) has failed every task with
+  TMPRL1100 since **Sep 27** — broken before this change (see P1).
+  *For Anooj (spec):* notification-agent should consume `reminder.due`
+  (add the read ACL with it) and send a template per `kind` to
+  `recipient_role`, linking to `link`.
 - [ ] **FR-04 Risk analysis on synthetic data, documented and
   evaluated** (29 Aug, Team A #3). *Now:* RandomForest on
   `ml/data/synthetic-vendors/vendor_risk_training_data.csv`, accuracy/AUC
@@ -172,6 +193,7 @@ event or writing a spec for him.
   line per request. *Done when:* one correlation id from an upload shows
   that request's log lines from all services in one Grafana query
   (screenshot into `docs/results/`).
+  *Decision (Oct 16):* add Loki + Promtail (pinned, 127.0.0.1 only).
 - [ ] **FR-08 Model routing and fallback, demonstrable** (29 Aug overall
   #2, #3; Team B #1, #5). *Now:* two routers write `model_routing_log`:
   extraction (Docling/Paddle → LayoutLMv3 cross-check) and clauses (regex →
@@ -232,6 +254,7 @@ event or writing a spec for him.
   `clause_router.py`, evaluated on a held-out CUAD slice → `docs/results/
   clauses.json`; **or** correct the docs to say rule-based. Ask before
   choosing (image size and CPU time).
+  *Decision (Oct 16):* add Legal-BERT (CUAD) as primary, rules as fallback.
 - [ ] **FR-14 Sanctions screening and the strategic-tier checks**
   (Agent doc §2.3; Overall doc §6). Moved from R1 on Oct 16. Also store IFSC results (`validate_ifsc` exists but nothing calls it or keeps its result) so the IFSC override in FR-04 can fire. *Now:* `vendor_tier_service.py`
   lists `opencorporates`, `sanctions_screening`, `risk_model` for
@@ -266,6 +289,7 @@ event or writing a spec for him.
   silently stopped for three days when its login failed. *Do:* wrap it,
   and make `/health` report unhealthy when the consumer has stopped.
   notification-agent is Anooj's service: spec + his OK first.
+  *Decision (Oct 16):* allowed to change notification-agent; Anooj to be told.
 - [ ] **FR-32 Licence-usage anomaly model, evaluated and tuned** (flow
   chart: "Needs tuning"). *Do:* the same treatment as FR-04 for the
   IsolationForest: precision/recall on the synthetic SSO logs' injected
@@ -356,6 +380,13 @@ event or writing a spec for him.
   `docs/project-flow.html`, and remove claims that are still not built.
 
 ## P1
+
+- [ ] Approval workflow `approval-90261afb-5b86-4463-bcf3-3fc6d422fb5d`
+  (started Sep 25) has failed every workflow task with a
+  non-determinism error (TMPRL1100) since Sep 27 — an earlier change to
+  `approval_workflow.py` without versioning. It can't progress or be
+  queried. Terminate or reset it (needs a decision). *Why: a request stuck
+  in pending_approval forever.*
 
 **Security audit follow-ups**
 - [ ] Upgrade FastAPI/Starlette (starlette 0.37.2 advisories), Pillow

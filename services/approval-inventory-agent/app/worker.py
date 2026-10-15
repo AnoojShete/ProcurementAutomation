@@ -14,7 +14,7 @@ from app.workflows.activities import (
     release_inventory_lock,
     release_hardware_reservations,
     set_reclaim_cooldown,
-    revoke_email_tokens_activity,
+    revoke_email_tokens_activity, publish_approval_reminder,
 )
 
 from app.workflows.approval_workflow import ApprovalWorkflow
@@ -62,6 +62,7 @@ async def main():
             release_hardware_reservations,
             set_reclaim_cooldown,
             revoke_email_tokens_activity,
+            publish_approval_reminder,
         ],
 
     )

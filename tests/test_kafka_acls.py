@@ -74,7 +74,12 @@ def test_each_topic_has_one_owner_except_shared_notifications():
         if p == "write":
             owners.setdefault(n, set()).add(u)
     shared = {n: o for n, o in owners.items() if len(o) > 1}
-    assert shared == {"notification.send": {"approval-inventory-agent", "contract-risk-agent"}}
+    # reminder.due is one event for "someone is waiting on you", published
+    # by whichever service owns the item (FR-03, shared/reminders.py).
+    assert shared == {
+        "notification.send": {"approval-inventory-agent", "contract-risk-agent"},
+        "reminder.due": {"approval-inventory-agent", "contract-risk-agent", "document-vendor-agent"},
+    }
     assert owners["contract.signed"] == {"contract-risk-agent"}
 
 
