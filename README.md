@@ -82,7 +82,8 @@ dead-letter queue instead of losing them.
 | 📊 **Risk model, measured** | Random forest on 2,000 synthetic vendors: **ROC-AUC 0.715** (best possible on these labels 0.739), red-team profiles **12/12**, missing data left out instead of guessed |
 | 🛡️ **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; invoices are held until bank details are verified |
 | ⚖️ **Separation of duties** | Nobody — not even an admin — approves their own request |
-| 🔁 **Reliable by design** | Long-running steps (approvals, renewals) are Temporal workflows that survive restarts |
+| 🔁 **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
+| 🔎 **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
 | ✅ **Tested** | Unit suites per service plus end-to-end runs through the gateway (invoice lifecycle **71/71**, document pipeline **52/52**) |
 
 ## Try it
@@ -104,7 +105,7 @@ Open **http://localhost:8080** and sign in as `requester@demo.example.com`
 **AI/ML** PaddleOCR · Docling · LayoutLMv3 · scikit-learn · MLflow &nbsp;·&nbsp;
 **Data** PostgreSQL · Redis · MinIO &nbsp;·&nbsp;
 **Frontend** React · TypeScript · Vite · Tailwind &nbsp;·&nbsp;
-**Ops** Docker Compose · nginx · Prometheus · Grafana · ClamAV
+**Ops** Docker Compose · nginx · Prometheus · Grafana · Loki · ClamAV
 
 ## More
 
