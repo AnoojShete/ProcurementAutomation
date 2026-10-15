@@ -19,7 +19,8 @@ ENV PIP_DEFAULT_TIMEOUT=120 \
 COPY services/document-vendor-agent/requirements.txt .
 # Extra PyTorch CPU index is declared inside requirements.txt with
 # --extra-index-url; pip respects it when reading from the file.
-RUN pip install --no-cache-dir --default-timeout=120 --retries=5 -r requirements.txt
+# BuildKit cache mount: a requirements change re-downloads only what changed.
+RUN --mount=type=cache,target=/root/.cache/pip pip install --default-timeout=120 --retries=5 -r requirements.txt
 
 FROM python:3.11-slim AS runtime
 WORKDIR /app
@@ -28,6 +29,11 @@ ENV PYTHONUNBUFFERED=1
 # HF_HOME points to a named Docker volume (see docker-compose.override.yml)
 # so the LayoutLMv3 model is cached across container rebuilds.
 ENV HF_HOME=/app/.cache/huggingface
+# torchvision and paddle ship their own zlib builds; whichever loads first
+# can be used by the others and fail with "inconsistent stream state" or a
+# segfault in inflateReset2 (PaddleOCR then returns no text). Preloading the
+# system zlib makes every library use the one copy.
+ENV LD_PRELOAD=libz.so.1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl \

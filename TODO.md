@@ -11,15 +11,6 @@ checked against the code on Sep 27; history is in CHANGELOG.md.
 
 ## P0
 
-- [ ] **Invoices never finish processing.** approval-inventory-agent's
-  ledger insert violates `fk_invoice_matches_vendor` (confirmed from the
-  logged 500): the document pipeline sends a vendor id it created inside
-  its own uncommitted transaction, which the ledger can't see. Every
-  invoice from a new vendor retries 5 times then fails;
-  `tests/e2e/document_pipeline.py` fails because of it. The FK was added
-  on Sep 26. Options: drop that one FK (the vendor row belongs to another
-  service's transaction), or commit the vendor before calling the ledger.
-  *Why: the core invoice path is down.* [Anjali]
 - [ ] **Rotate the GSTINCheck API key** (`67d40c75…`): committed as a
   default before Sep 25 and still in git history. Put the new one in
   `.env` only. *Why: leaked credential.* [Niraj]

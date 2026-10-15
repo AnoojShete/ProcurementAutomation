@@ -3,6 +3,43 @@
 Newest first. Dates are 2026. Nothing below the Sep 25 merge has been
 committed yet (branch `anjali`); see TODO.md for open items.
 
+## Oct 14 — Faster run.sh, invoices finish processing, OCR fixed
+
+- **run.sh**: one line per step with a percentage, an agent health table,
+  full output in `.run/run.log` (its tail shown on failure). Rebuilds only
+  images whose `services/<name>/` or `shared/` files changed (`--build`
+  forces, `--no-build` reuses); frontend only when it changed. Workers run
+  their service's image instead of building a copy; pip downloads are
+  cached across builds. Repeat runs: minutes → ~10s.
+- **Gateway was down**: nginx needs `chatbot-agent`, which run.sh didn't
+  start, so nginx exited at boot while the health check (which skipped
+  nginx) passed. run.sh now starts it and checks nginx.
+- **Uploads failed** with "an unexpected error occurred": `scan_upload`
+  used `settings` without importing it. Endpoint tests mocked the scan,
+  so `test_upload_scan.py` now runs the real one.
+- **OCR returned nothing for images**: torchvision and paddle bundle their
+  own zlib, and PaddleOCR died on import (`inconsistent stream state`) or
+  segfaulted in `inflateReset2`. The document image preloads the system
+  zlib (`LD_PRELOAD=libz.so.1`). PaddleOCR's download messages no longer
+  end up in the document text, and its models are kept in the
+  `paddleocr-models` volume.
+- **Invoices from a new vendor never finished** (P0,
+  `fk_invoice_matches_vendor`): a new vendor is now committed in its own
+  transaction before the ledger references it; retries reuse it instead of
+  creating duplicates. `document_pipeline.py` and `invoice_lifecycle.py`
+  pass again.
+- **Notifications stopped on Oct 11**: notification-agent's
+  `KAFKA_PASSWORD` was dropped from compose, so its consumer couldn't log
+  in and gave up. Restored; a root test checks every Kafka login has one.
+- **Document access** is owner-only again for requesters (staff see all);
+  it had been opened to every login on Oct 11.
+- Field extraction handles column layouts (labels row, then values row):
+  document numbers must contain a digit, with `INV-…`-style and date-token
+  fallbacks at lower confidence.
+- Missing `timezone` import in approval-inventory `models.py` (email
+  action tokens); `approval.decided` schema test includes
+  `decision_channel`.
+
 ## Oct 10 — Drop folder → DocuSign automation, Control Panel
 
 - **Drop folder** `./inbox`: the document worker ingests files put there

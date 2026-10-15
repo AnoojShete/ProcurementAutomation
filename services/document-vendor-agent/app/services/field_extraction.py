@@ -24,6 +24,17 @@ _DOC_NUMBER_PATTERNS = [
     r"\bqt#\s*:?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,})",
 ]
 
+# Fallbacks for column layouts, where OCR reads a row of labels and then a
+# row of values ("Date Issued / Invoice Number / Amount Due" then
+# "26/3/2021 / INV-10012 / $1,699.48"), so the label patterns above would
+# capture the next label instead of the value.
+_DOC_NUMBER_TOKENS = [
+    re.compile(r"\b((?:INV|BILL)[-/#]?\d[A-Za-z0-9\-\/]*)", re.IGNORECASE),
+    re.compile(r"\b((?:QT|QUO)[-/#]?\d[A-Za-z0-9\-\/]*)", re.IGNORECASE),
+    re.compile(r"\b(PO[-/#]?\d[A-Za-z0-9\-\/]*)", re.IGNORECASE),
+]
+_DATE_TOKEN = re.compile(r"\b(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})\b")
+
 _DATE_LABEL_PATTERN = re.compile(
     r"\b(?:invoice date|po date|quote date|date)\s*[:#]?\s*([A-Za-z0-9,\-\/ ]{6,25})",
     re.IGNORECASE,
@@ -183,9 +194,14 @@ def _extract_vendor_name(text: str) -> (Optional[str], float):
 
 def _extract_document_number(text: str) -> (Optional[str], float):
     for pattern in _DOC_NUMBER_PATTERNS:
-        m = re.search(pattern, text, re.IGNORECASE)
+        for m in re.finditer(pattern, text, re.IGNORECASE):
+            value = m.group(1).strip().rstrip(".,")
+            if any(ch.isdigit() for ch in value):  # not the next label ("Amount")
+                return value, 0.95
+    for pattern in _DOC_NUMBER_TOKENS:
+        m = pattern.search(text)
         if m:
-            return m.group(1).strip().rstrip(".,"), 0.95
+            return m.group(1).rstrip(".,"), 0.6
     return None, 0.0
 
 
@@ -198,7 +214,16 @@ def _extract_document_date(text: str) -> (Optional[str], float):
         parsed = dateutil_parser.parse(raw, fuzzy=True, dayfirst=False)
         return parsed.date().isoformat(), 0.9
     except (ValueError, OverflowError):
-        return raw, 0.3
+        pass
+    # The label is there but what follows isn't a date (a label row, see
+    # _DATE_TOKEN): take the first date-shaped value in the document.
+    token = _DATE_TOKEN.search(text)
+    if token:
+        try:
+            return dateutil_parser.parse(token.group(1), dayfirst=False).date().isoformat(), 0.5
+        except (ValueError, OverflowError):
+            pass
+    return raw, 0.3
 
 
 def _extract_date_by_pattern(pattern: re.Pattern, text: str) -> Optional[str]:

@@ -14,3 +14,5 @@ services/*/ml/data/
 frontend/dist/
 # Local secrets (DocuSign RSA key) and drop-folder contents
 secrets/
+# run.sh build stamps + log
+.run/

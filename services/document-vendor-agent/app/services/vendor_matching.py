@@ -55,7 +55,7 @@ class VendorMatchResult:
     closest_score: float = 0.0
 
 
-async def find_or_create_vendor(db: AsyncSession, raw_vendor_name: str) -> VendorMatchResult:
+async def find_or_create_vendor(db: AsyncSession, raw_vendor_name: str, session_factory=None) -> VendorMatchResult:
     normalized = normalize_vendor_name(raw_vendor_name)
     threshold = load_vendor_matching_config().get("fuzzy_match_threshold", 88)
 
@@ -82,8 +82,17 @@ async def find_or_create_vendor(db: AsyncSession, raw_vendor_name: str) -> Vendo
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
-    db.add(new_vendor)
-    await db.flush()
+    # Committed in its own transaction, not the caller's: later in the
+    # pipeline approval-inventory-agent stores an invoice match pointing at
+    # this vendor (fk_invoice_matches_vendor), and it can't see rows from a
+    # transaction that hasn't committed yet. A retry then finds this vendor
+    # instead of creating another one.
+    if session_factory is None:
+        from app.database import async_session_factory as session_factory
+    async with session_factory() as vendor_session:
+        vendor_session.add(new_vendor)
+        await vendor_session.commit()
+    new_vendor = await db.get(Vendor, new_vendor.id)
     return VendorMatchResult(
         vendor=new_vendor, match_type="new", match_confidence=1.0,
         closest_existing=best_vendor, closest_score=best_score,

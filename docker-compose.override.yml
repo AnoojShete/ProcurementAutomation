@@ -3,6 +3,7 @@ services:
 
   # --- contract-risk-agent (Anjali) ---
   contract-risk-agent:
+    image: ${COMPOSE_PROJECT_NAME}-contract-risk-agent
     build:
       context: .
       dockerfile: services/contract-risk-agent/Dockerfile
@@ -61,9 +62,9 @@ services:
       start_period: 120s
 
   contract-risk-agent-worker:
-    build:
-      context: .
-      dockerfile: services/contract-risk-agent/Dockerfile
+    # Same image as contract-risk-agent (built once, by that service).
+    image: ${COMPOSE_PROJECT_NAME}-contract-risk-agent
+    pull_policy: never
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
@@ -111,6 +112,7 @@ services:
 
   # --- approval-inventory-agent (Niraj) ---
   approval-inventory-agent:
+    image: ${COMPOSE_PROJECT_NAME}-approval-inventory-agent
     build:
       context: .
       dockerfile: services/approval-inventory-agent/Dockerfile
@@ -144,9 +146,9 @@ services:
       start_period: 60s
 
   approval-inventory-agent-worker:
-    build:
-      context: .
-      dockerfile: services/approval-inventory-agent/Dockerfile
+    # Same image as approval-inventory-agent (built once, by that service).
+    image: ${COMPOSE_PROJECT_NAME}-approval-inventory-agent
+    pull_policy: never
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
@@ -218,6 +220,7 @@ services:
 
   # --- document-vendor-agent (Vaidehi) ---
   document-vendor-agent:
+    image: ${COMPOSE_PROJECT_NAME}-document-vendor-agent
     build:
       context: .
       dockerfile: services/document-vendor-agent/Dockerfile
@@ -277,9 +280,9 @@ services:
       start_period: 60s
 
   document-vendor-agent-worker:
-    build:
-      context: .
-      dockerfile: services/document-vendor-agent/Dockerfile
+    # Same image as document-vendor-agent (built once, by that service).
+    image: ${COMPOSE_PROJECT_NAME}-document-vendor-agent
+    pull_policy: never
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
@@ -305,11 +308,13 @@ services:
       # Signs the service token for the invoice -> PO search call.
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
     # docling-models: Docling layout/table models (~300MB).
-    # hf-cache: LayoutLMv3 model (~1GB) + PaddleOCR weights.
-    # Both downloaded once ever and reused across container rebuilds.
+    # hf-cache: LayoutLMv3 model (~1GB).
+    # paddleocr-models: PaddleOCR detection/recognition weights (~20MB).
+    # All downloaded once ever and reused across container rebuilds.
     volumes:
       - docling-models:/root/.cache/huggingface
       - hf-cache:/app/.cache/huggingface
+      - paddleocr-models:/root/.paddleocr
       # Drop folder: files put in ./inbox are ingested automatically
       # (app/services/inbox_watcher.py).
       - ./inbox:/inbox
@@ -340,6 +345,7 @@ services:
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
       KAFKA_USERNAME: notification-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_NOTIFICATION_AGENT:-dev-kafka-notification-agent}
       # Email delivery (shared/mailer.py): EMAIL_MODE=dev (Mailpit) or EMAIL_MODE=smtp (real provider)
       EMAIL_MODE: ${EMAIL_MODE:-dev}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -431,3 +437,4 @@ volumes:
   # Shared between the API and worker containers so the model is downloaded
   # exactly once, whichever container starts first.
   hf-cache:
+  paddleocr-models:

@@ -109,3 +109,18 @@ class TestClientCredentials:
             kafka_auth_kwargs()
         monkeypatch.setenv("APP_ENV", "development")
         assert kafka_auth_kwargs()["sasl_plain_username"] == "contract-risk-agent"
+
+
+def test_every_kafka_login_in_compose_has_a_password():
+    """A service given KAFKA_USERNAME but no KAFKA_PASSWORD can't log in:
+    the broker closes the connection, the consumer gives up after its
+    retries, and that service silently stops receiving events (happened to
+    notification-agent when its env block was edited)."""
+    import yaml
+    compose = yaml.safe_load((ROOT / "docker-compose.override.yml").read_text())
+    for name, svc in compose["services"].items():
+        env = svc.get("environment") or {}
+        if isinstance(env, list):
+            env = dict(item.split("=", 1) for item in env)
+        if "KAFKA_USERNAME" in env:
+            assert env.get("KAFKA_PASSWORD"), f"{name}: KAFKA_USERNAME set without KAFKA_PASSWORD"

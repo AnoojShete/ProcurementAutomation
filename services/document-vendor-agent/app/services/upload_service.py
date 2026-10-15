@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models import Document
 from app.services import storage
 from app.services.audit import write_audit_log

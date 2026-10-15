@@ -41,8 +41,8 @@ def _visible_extracted(extracted: dict, user: CurrentUser | None) -> dict:
 
 
 def _can_access(doc: Document, user: CurrentUser) -> bool:
-    # Documents and previews are viewable across any authenticated login
-    return True
+    # Staff see every document; a requester only what they uploaded.
+    return user.role in STAFF_ROLES or (doc.uploaded_by or "").lower() == user.email.lower()
 
 
 def _serialize_document(doc: Document, user: CurrentUser | None = None) -> dict:

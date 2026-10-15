@@ -6,7 +6,7 @@ The shared schema is the source of truth — never modify init.sql, use
 Alembic migrations for any extensions.
 """
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List
 from sqlalchemy import String, Integer, Float, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID

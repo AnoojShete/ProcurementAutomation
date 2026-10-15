@@ -17,6 +17,7 @@ Protocol:
 Called only for image files (PNG/JPEG/TIFF). PDFs go through Docling
 in the main process.
 """
+import contextlib
 import io
 import sys
 
@@ -27,8 +28,12 @@ def _run():
     if not image_bytes:
         sys.exit(2)
 
+    # stdout carries only the extracted text: PaddleOCR prints model
+    # download progress ("download https://... to ...") there, which would
+    # otherwise become part of the document's text.
     try:
-        from paddleocr import PaddleOCR  # noqa
+        with contextlib.redirect_stdout(sys.stderr):
+            from paddleocr import PaddleOCR  # noqa
     except ImportError:
         # PaddleOCR not installed
         sys.exit(1)
@@ -42,8 +47,9 @@ def _run():
 
         # use_angle_cls=True handles rotated text; lang='en' for IT invoices.
         # show_log=False keeps stdout clean (only extracted text goes there).
-        ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-        result = ocr.ocr(img_array, cls=True)
+        with contextlib.redirect_stdout(sys.stderr):
+            ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+            result = ocr.ocr(img_array, cls=True)
 
         lines = []
         if result:

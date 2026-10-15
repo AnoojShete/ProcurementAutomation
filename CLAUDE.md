@@ -34,7 +34,7 @@ purpose (its recipients are placeholder role addresses).
 ## Commands
 
 ```bash
-./run.sh                                  # whole stack (install.sh → build → services → nginx → health)
+./run.sh [--build|--no-build|--verbose]   # whole stack; rebuilds only changed images; full log in .run/run.log
 ./scripts/seed-demo-data.sh               # demo vendor, request, licenses, inventory
 ./scripts/test-service.sh <svc>|all       # service pytest suite inside its image (mounts source)
 # root tests (shared/ code, config checks):
@@ -75,6 +75,8 @@ ad-hoc pass (undefined names).
   re-runs the one-shot `redpanda-init`, and containers depending on it may
   be removed rather than restarted. Run `docker compose up -d` (and restart
   nginx) afterwards and check `docker compose ps`.
+- **Workers have no `build:`**: `<svc>-worker` runs the `<svc>` image, so
+  rebuild via the service: `docker compose up -d --build <svc> <svc>-worker`.
 - **Restart nginx after recreating any service** — it resolves upstream IPs
   once at boot, so a recreated container gets 502s until nginx restarts.
 - **Gateway rate limits** (per IP): login/register/verify/reset/change

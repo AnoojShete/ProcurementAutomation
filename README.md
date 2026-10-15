@@ -88,11 +88,18 @@ Then open **http://localhost:8080** and sign in with a
 
 What `run.sh` does: `install.sh` (creates `.env` from `.env.example` if
 missing, starts infrastructure, applies `shared/db/init.sql`, creates Kafka
-users/topics/ACLs and the MinIO bucket) → builds every image → builds the
-frontend in a `node:20-alpine` container → starts the services (each
-applies its own migrations on start) → recreates nginx last → waits for
-health checks. The first run takes several minutes (image builds);
-later runs are much faster.
+users/topics/ACLs and the MinIO bucket) → builds the images that need it →
+builds the frontend in a `node:20-alpine` container if it changed → starts
+the services (each applies its own migrations on start) → recreates nginx
+last → waits for health checks. It prints one line per step plus an agent
+health table; full output goes to `.run/run.log` and its tail is shown on
+failure.
+
+Images are rebuilt only when files under `services/<name>/` or `shared/`
+changed since their last build, so the first run takes several minutes and
+later runs take seconds. `./run.sh --build` rebuilds everything,
+`./run.sh --no-build` just starts the existing images, `--verbose` shows all
+output. Each worker runs its service's image (it isn't built separately).
 
 `scripts/ensure-docker.sh` starts Docker Desktop / the daemon if it isn't
 running. `make run | up | down | logs | reset | test | e2e` are shortcuts

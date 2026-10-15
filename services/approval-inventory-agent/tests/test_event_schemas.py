@@ -66,11 +66,12 @@ class TestEventSchemas:
         
         required_keys = {
             "request_id", "decision", "decided_by", "decision_level",
-            "escalated", "decided_at", "comments"
+            "escalated", "decided_at", "comments", "decision_channel"
         }
         assert set(payload.keys()) == required_keys
         assert payload["decision"] in ("approved", "rejected")
         assert isinstance(payload["escalated"], bool)
+        assert payload["decision_channel"] == "portal"  # default; "email" for email-link decisions
     
     def test_license_usage_updated_payload_keys(self):
         """license.usage.updated payload must have exact keys per shared schema."""
