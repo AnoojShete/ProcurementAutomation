@@ -171,7 +171,29 @@ before any other roadmap item.
   fails 3. Limit: only the built-in e-sign is gated — the only signing
   path in use since Oct 15; an external provider (DocuSign / Documenso,
   switched off) would need the check at send time.
-- [ ] **BR-7 Risk from delivery delays and compliance history** (= FR-30).
+- [x] **BR-7 Risk from delivery delays and compliance history** (= FR-30).
+  *Evidence (Oct 16):* `app/services/risk_signals.py` (contract-risk-agent):
+  tenure from the vendor's first record and on-time delivery (contract
+  signed → first "received" marker, within the rule
+  `vendor.expected_delivery_days`, 14, auth migration 0009) are
+  recomputed before every score; a sweep re-scores vendors with a
+  delivery since their last score. Compliance (certification, breaches,
+  geography, financial stability): `PATCH /vendors/{id}/risk-signals`
+  (finance/admin, before/after in the audit log, re-scores). Vendor page:
+  "Risk Signals" card. Live: Acme IT Supplies (5 of 5 delivered on time)
+  scores on 4 of 6 signals from history alone; a good compliance record →
+  Low 0.27 on 6 of 6, a poor one → Medium 0.42; requester 403. Drift
+  check now compares each vendor's latest score where ≥ 3 signals were on
+  file (46 vendors with too little data are left out and counted).
+  **Drift is explained, not re-baselined:** it still reports PSI 6.4, from
+  7 informed vendors spread over 10 bins — mostly empty bins, and demo
+  vendors that don't look like the synthetic training population. A
+  minimum sample (e.g. 30 vendors) before PSI is reported would be the
+  fix; that changes what the check reports, so it's left for a decision.
+  Tests: `test_risk_signals.py` (7); dropping the refresh before scoring
+  fails one. Also fixed: the vendor page showed its skeleton on every
+  reload, unmounting cards and losing their confirmations (Recompute
+  Risk's too).
 
 ### R0 — mentor feedback, 29 Aug
 
@@ -424,7 +446,7 @@ before any other roadmap item.
   classifier.json`; keep keywords as the fallback (FR-08 router). *Done
   when:* accuracy per class for both is in the results file and the ML
   classifier is used only if it's better.
-- [ ] **FR-30 Risk signals from platform data** (flow chart: "no vendor
+- [x] **FR-30 Risk signals from platform data** (done as BR-7, see above) (flow chart: "no vendor
   has risk signals recorded"; follows FR-04). *Now:* `vendor_risk_features`
   is empty, so every live score is "0 of 6 signals" and the drift check
   flags PSI 7.2. *Do:* fill what the platform knows — tenure from the

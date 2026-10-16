@@ -436,6 +436,17 @@ it otherwise (409 `risk_acknowledgement_required`) and the signature
 certificate records the band and the acknowledgement
 (`contract_service.signing_risk`).
 
+**Risk signals.** Before every score the model's inputs are refreshed
+from platform history: tenure (since the vendor's first record) and
+on-time delivery (contract signed → goods received within
+`vendor.expected_delivery_days`, default 14). A sweep re-scores vendors
+after a delivery. Finance records the compliance signals (security
+certification, breach disclosures, high-risk geography, financial
+stability) on the vendor page — audit-logged, re-scores at once
+(`app/services/risk_signals.py`, `PATCH /vendors/{id}/risk-signals`).
+The drift check compares each vendor's latest score with ≥ 3 signals on
+file against the training distribution.
+
 The DocuSign client is kept but unused (built-in e-sign only since
 Oct 15). To try it anyway: the DocuSign block in `.env.example`,
 `APP_ESIGN_AUTO_PROVIDER: docusign` in contract-risk-agent's environment

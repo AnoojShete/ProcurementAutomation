@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import uuid
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import load_risk_config
 from app.models import RiskScore, VendorRiskFeatures
 from app.metrics import risk_assessment_total
+
+logger = logging.getLogger(__name__)
 
 ML_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "ml")
 ARTIFACT_DIR = os.path.join(ML_DIR, "artifacts")
@@ -144,7 +147,11 @@ def _top_factors(model, features: dict, feature_order: list[str], top_n: int = 3
 
 
 async def score_vendor(db: AsyncSession, kafka_producer, vendor_id: str) -> RiskScore:
+    from app.services.risk_signals import refresh_platform_signals
     model, feature_order, version = _load_model()
+    # BR-7: tenure and on-time delivery from platform history, every time.
+    await refresh_platform_signals(db, vendor_id)
+    await db.flush()
     features = await _load_features(db, vendor_id)
     gstin_status = (await db.execute(
         text("SELECT gstin_verification_status FROM vendors WHERE id = :id"), {"id": vendor_id}
@@ -190,6 +197,41 @@ async def score_vendor(db: AsyncSession, kafka_producer, vendor_id: str) -> Risk
                 related_entity_id=vendor_id,
             )
     return row
+
+
+_DELIVERED_SINCE_SCORED = text("""
+    SELECT DISTINCT pr.vendor_id::text
+    FROM purchase_requests pr
+    JOIN audit_log a ON a.entity_id = pr.id AND a.action = 'contract_fulfilment_applied'
+    WHERE pr.vendor_id IS NOT NULL
+      AND a.created_at > COALESCE((SELECT MAX(scored_at) FROM risk_scores r WHERE r.vendor_id = pr.vendor_id),
+                                  'epoch'::timestamptz)
+""")
+
+
+async def rescore_after_deliveries(session_factory, kafka_producer) -> int:
+    """Re-scores vendors with an order received since their last score, so
+    on-time delivery reaches the score without waiting for a recompute."""
+    async with session_factory() as db:
+        vendor_ids = [r[0] for r in (await db.execute(_DELIVERED_SINCE_SCORED)).all()]
+    for vendor_id in vendor_ids:
+        async with session_factory() as db:
+            await score_vendor(db, kafka_producer, vendor_id)
+    if vendor_ids:
+        logger.info(f"Re-scored {len(vendor_ids)} vendor(s) after deliveries")
+    return len(vendor_ids)
+
+
+async def run_delivery_rescore(session_factory, kafka_producer, interval_seconds: int = 300):
+    import asyncio
+    while True:
+        try:
+            await rescore_after_deliveries(session_factory, kafka_producer)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"Delivery re-score sweep failed: {e}", exc_info=True)
+        await asyncio.sleep(interval_seconds)
 
 
 async def latest_risk_score(db: AsyncSession, vendor_id: str) -> RiskScore | None:

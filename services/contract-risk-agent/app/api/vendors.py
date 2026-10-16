@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime, timezone
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +12,7 @@ from app.database import get_db
 from app.models import Vendor, RiskScoreOutcome
 from app.schemas import DataResponse, LogOutcomeRequest, OffboardVendorRequest
 from app.services import risk_service, offboard_service, drift_service
-from shared.auth import require_role
+from shared.auth import CurrentUser, require_role
 
 router = APIRouter()
 
@@ -72,6 +75,51 @@ async def recompute_vendor_risk(vendor_id: str, request: Request, db: AsyncSessi
         raise HTTPException(status_code=404, detail="vendor not found")
     row = await risk_service.score_vendor(db, request.app.state.kafka_producer, vendor_id)
     return DataResponse(data=_serialize_risk(row))
+
+
+class ComplianceSignalsBody(BaseModel):
+    """Finance's compliance record (BR-7). Omitted fields stay as they are."""
+    security_cert_flag: Optional[bool] = None
+    geo_risk_flag: Optional[bool] = None
+    breach_disclosure_count: Optional[int] = Field(None, ge=0, le=1000)
+    financial_stability_score: Optional[float] = Field(None, ge=0, le=1)
+
+
+async def _signals(db, vendor_id: str) -> dict:
+    from app.models import VendorRiskFeatures
+    from app.services.risk_signals import COMPLIANCE_FIELDS, platform_signals
+    row = await db.get(VendorRiskFeatures, vendor_id)
+    compliance = {f: (getattr(row, f) if row else None) for f in COMPLIANCE_FIELDS}
+    if compliance["financial_stability_score"] is not None:
+        compliance["financial_stability_score"] = float(compliance["financial_stability_score"])
+    return {"platform": await platform_signals(db, vendor_id), "compliance": compliance,
+            "updated_at": row.updated_at.isoformat() if row and row.updated_at else None}
+
+
+@router.get("/{vendor_id}/risk-signals", response_model=DataResponse)
+async def get_risk_signals(vendor_id: str, db: AsyncSession = Depends(get_db)):
+    """What the risk model knows about a vendor: platform history (tenure,
+    on-time delivery) and finance's compliance record."""
+    if await db.get(Vendor, vendor_id) is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    return DataResponse(data=await _signals(db, vendor_id))
+
+
+@router.patch("/{vendor_id}/risk-signals", response_model=DataResponse)
+async def update_risk_signals(vendor_id: str, body: ComplianceSignalsBody, request: Request,
+                              db: AsyncSession = Depends(get_db),
+                              user: CurrentUser = Depends(require_role("finance", "admin"))):
+    """Records compliance signals (audit-logged) and re-scores the vendor."""
+    from app.services.risk_signals import update_compliance_signals
+    if await db.get(Vendor, vendor_id) is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    changes = body.model_dump(exclude_none=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail={"code": "nothing_to_update", "message": "No signal given."})
+    await update_compliance_signals(db, vendor_id, changes, user.email)
+    await db.commit()
+    row = await risk_service.score_vendor(db, request.app.state.kafka_producer, vendor_id)
+    return DataResponse(data={"risk": _serialize_risk(row), "signals": await _signals(db, vendor_id)})
 
 
 @router.post(

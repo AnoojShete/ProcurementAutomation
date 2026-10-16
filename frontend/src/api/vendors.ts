@@ -35,7 +35,29 @@ export interface ProfileCheck {
   needs_confirmation: string[];
 }
 
+export interface ComplianceSignals {
+  security_cert_flag: boolean | null;
+  geo_risk_flag: boolean | null;
+  breach_disclosure_count: number | null;
+  financial_stability_score: number | null;
+}
+
+export interface RiskSignals {
+  platform: {
+    vendor_tenure_months: number | null;
+    on_time_delivery_rate: number | null;
+    deliveries: number;
+    deliveries_on_time: number;
+    expected_delivery_days: number;
+  };
+  compliance: ComplianceSignals;
+  updated_at: string | null;
+}
+
 export const vendorsApi = {
+  riskSignals: (vendorId: string) => api.get<RiskSignals>(`/vendors/${vendorId}/risk-signals`),
+  updateRiskSignals: (vendorId: string, body: Partial<ComplianceSignals>) =>
+    api.patch<{ risk: VendorRisk; signals: RiskSignals }>(`/vendors/${vendorId}/risk-signals`, body),
   validateOnboarding: (profile: VendorProfileInput) => api.post<ProfileCheck>("/vendors/onboard/validate", profile),
   onboard: (profile: VendorProfileInput) =>
     api.post<{ id: string; name: string; payment_details_pending_verification: boolean }>("/vendors/onboard", profile),

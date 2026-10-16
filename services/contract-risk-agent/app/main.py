@@ -46,10 +46,13 @@ async def lifespan(app: FastAPI):
     docusign_task = asyncio.create_task(run_status_poller(async_session_factory, app.state.kafka_producer))
     # FR-03: reminder.due for contracts waiting too long for signature.
     reminder_task = asyncio.create_task(run_reminder_sweeps(async_session_factory, app.state.kafka_producer))
+    # BR-7: re-score vendors after a delivery so on-time rate stays current.
+    from app.services.risk_service import run_delivery_rescore
+    rescore_task = asyncio.create_task(run_delivery_rescore(async_session_factory, app.state.kafka_producer))
 
     yield
 
-    for task in (consumer_task, relay_task, docusign_task, reminder_task):
+    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task):
         task.cancel()
         try:
             await task
