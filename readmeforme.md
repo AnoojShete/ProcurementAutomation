@@ -73,6 +73,51 @@ Shared contracts:
   inside WSL (`run.ps1` / `run.bat` re-launch it there — not re-verified
   in the Sep 27 audit).
 
+## Run on Linux (Ubuntu VM in UTM on a Mac)
+
+Measured Oct 16: the running stack uses ~3.2 GB RAM idle and more while
+reading scans; its images are ~15 GB, plus build cache and data volumes.
+
+1. **Create the VM.** UTM → Create a New Virtual Machine →
+   **Virtualize** (not Emulate: an Apple Silicon Mac runs ARM64 Linux at
+   full speed, emulated x86 would be far too slow) → Linux → the
+   **Ubuntu Server 24.04 LTS ARM64** ISO. Give it **4+ CPU cores, 10 GB
+   RAM (8 GB minimum), 80 GB disk**; network "Shared Network". Install
+   with the defaults and tick **Install OpenSSH server**.
+2. **Install Docker and git** (inside the VM):
+   ```bash
+   sudo apt update && sudo apt install -y git curl python3-venv
+   curl -fsSL https://get.docker.com | sudo sh
+   sudo usermod -aG docker $USER && newgrp docker   # or log out and back in
+   docker run --rm hello-world
+   ```
+3. **Get the code and start it:**
+   ```bash
+   git clone https://github.com/AnoojShete/ProcurementAutomation.git
+   cd ProcurementAutomation && git checkout anjali   # the branch with the latest work
+   ./run.sh                          # first run builds everything: 20-40 min on 4 cores
+   ./scripts/download-models.sh      # optional: LayoutLMv3 cross-check (~500 MB)
+   ./scripts/seed-demo-data.sh       # demo vendor, requests, licences, stock
+   ```
+   `.env` is created from `.env.example`; don't copy the Mac's `.env`
+   (it holds real keys).
+4. **Open it from the Mac.** Find the VM's address with `ip -4 addr`
+   (e.g. `192.168.64.5`). Simplest is an SSH tunnel, so every link and
+   email works as `localhost` (only the app on :8080 listens outside the
+   VM; Grafana, Mailpit, Temporal UI, MinIO listen inside it only):
+   ```bash
+   ssh -N -L 8080:localhost:8080 -L 8025:localhost:8025 -L 3000:localhost:3000 \
+       -L 8088:localhost:8088 -L 9001:localhost:9001 <user>@192.168.64.5
+   ```
+   then http://localhost:8080 (stop the Mac's own stack first, or use
+   other local ports). Without the tunnel, http://192.168.64.5:8080 also
+   works for the app, but email links point at `APP_BASE_URL`
+   (`localhost:8080`).
+5. **Tests in the VM:** `./scripts/test-service.sh all`, and for the e2e
+   scripts `python3 -m venv .venv && . .venv/bin/activate && pip install
+   -r tests/e2e/requirements.txt`, then `make e2e` etc. (wait a minute
+   between suites — gateway rate limits).
+
 ## Setup
 
 ```bash

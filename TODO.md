@@ -585,7 +585,8 @@ before any other roadmap item.
 - [ ] Scanned PDFs pay Docling's cold model load (~60 s) per document,
   since extraction runs in a killable child process. Keep a warm process
   pool. *Why: throughput.*
-- [ ] Images OCR badly on Apple Silicon: PaddleOCR crashes in the aarch64
+- [x] (Fixed — zlib clash, `LD_PRELOAD=libz.so.1`; Oct 16 BR-2 evaluation
+  read the PNGs at 6/6 fields on arm64.) Images OCR badly on Apple Silicon: PaddleOCR crashes in the aarch64
   worker image, so PNG/JPG uploads fail with "couldn't read any text".
   Reproduce: `docker compose exec document-vendor-agent-worker python -c
   "from paddleocr import PaddleOCR"`. *Why: image uploads don't work on
@@ -680,7 +681,7 @@ before any other roadmap item.
 - [ ] `seed_demo_users.py` prints the demo password to stdout; fine
   locally, not in a shared log pipeline.
 - [ ] Remove the dead `vendorsApi.logOutcome` frontend call or wire it up.
-- [ ] Repo cleanup: `install.sh` points to a `README-VM.md` that doesn't
+- [ ] Repo cleanup (README-VM.md reference fixed Oct 16): `install.sh` points to a `README-VM.md` that doesn't
   exist; `docker-compose.override.yml.example` is a stale 15-line stub;
   `infra/k8s/` is empty; `frontend/legacy-static/` is unused.
 - [ ] External data for vendor risk (OpenCorporates, SEC EDGAR, SSL Labs),
