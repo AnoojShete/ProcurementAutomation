@@ -99,7 +99,10 @@ _PAYMENT_TERMS_PATTERN = re.compile(
 )
 
 _TAX_PATTERN = re.compile(
-    r"\b(?:tax|total tax|vat|gst|cgst\s*\+\s*sgst|igst)\s*[:#]?\s*\+?\s*(?:INR|Rs\.?|USD|\$|₹)?\s*([\d,]+\.\d{2})",
+    # An optional rate between label and amount: "Tax (18%): …", "GST @ 18%: …".
+    r"\b(?:tax|total tax|vat|gst|cgst\s*\+\s*sgst|igst)\s*"
+    r"(?:\(\s*\d+(?:\.\d+)?\s*%\s*\)|@\s*\d+(?:\.\d+)?\s*%)?"
+    r"\s*[:#]?\s*\+?\s*(?:INR|Rs\.?|USD|\$|₹)?\s*([\d,]+\.\d{2})",
     re.IGNORECASE,
 )
 # An invoice that cites a purchase order is PO-backed; one that doesn't is

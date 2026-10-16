@@ -194,7 +194,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-09 | Business rules validated | PENDING | P1 | — | auth-service | Every rule has validation + test | Core |
 | FR-10 | Notification coverage audit | PENDING | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
 | FR-04 | Risk analysis remainder (red-team vs agent doc) | PARTIAL | P2 | — | contract-risk-agent `ml/` | Part B "Done when" met | Core |
-| FR-11 | Layout-analysis accuracy incl. noisy scans | PARTIAL | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
+| FR-11 | Layout-analysis accuracy, schema-validated output | COMPLETE (noisy scans: known limit) | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
 | FR-13 | Clause extraction with Legal-BERT, rules fallback | PENDING | P2 | model | contract-risk-agent | Evaluated on sample contracts | Core |
 | FR-14 | Sanctions screening + strategic-tier checks | PENDING | P2 | data source | contract-risk-agent | Sanctions override in risk | Core |
 | FR-29 | Train the document classifier | PENDING | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
@@ -641,7 +641,7 @@ before any other roadmap item.
   used `shared/mailer.py` since Oct 11, and portal links exist in the
   consumer. *Done when:* the table is in the repo, and the P1 Platform
   lines are corrected or closed.
-- [ ] **FR-11 Document layout analysis accuracy** (29 Aug overall #9; Team
+- [x] **FR-11 Document layout analysis accuracy** (29 Aug overall #9; Team
   B #6; Team C #1, #4). *Now:* Oct 15 confidence work (sample scan 0.50
   → 0.93). OpenCV is in `requirements.txt` but no code imports `cv2`.
   There's no accuracy measurement over a document set. TODO still says
@@ -654,6 +654,18 @@ before any other roadmap item.
   extraction output in `shared/schemas/`. Re-check the aarch64 OCR line
   and close it. *Done when:* before/after numbers are in the results
   file; the schema is validated in a test.
+  *Evidence (Oct 16):* before/after numbers in `docs/results/extraction.md`
+  (BR-2: images 47 → 49 % of fields; preprocessing on, denoise off — it
+  made noisy scans worse, so noisy scans stay a known limitation); the
+  aarch64 OCR line is closed (P1). `shared/schemas/extraction-output.schema.json`
+  (JSON Schema 2020-12, no unknown fields) validated in
+  `tests/test_extraction_schema.py` (40 tests: 24 generated documents,
+  empty text per type, unknown field rejected). Found while writing it:
+  "Tax (18%): …" lines were never read, so every generated GST invoice
+  reported its amounts as a *mismatch*; the tax pattern now accepts a rate
+  ("(18%)", "@ 18%"); generated invoices add up. Reverting the pattern
+  fails 3 tests.
+
 - [ ] **FR-12 Presentation draft and template-shaped documentation** (29
   Aug overall #10, #11; 18 Jul #2, #3). *Now:* the submitted Overall and
   Agent docs follow the templates, but every "Results and Evaluation"

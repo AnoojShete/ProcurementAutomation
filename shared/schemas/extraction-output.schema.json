@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://procurement.local/schemas/extraction-output.schema.json",
+  "title": "Extracted document fields",
+  "description": "Output of document-vendor-agent field extraction (ExtractedFields.to_dict in app/services/field_extraction.py), stored as documents.extracted_fields. Common fields for every document type plus the type-specific ones; nothing else is allowed, so a new field must be added here first (FR-11).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["vendor_name_raw", "document_number", "document_date", "total", "currency", "line_items"],
+  "$defs": {
+    "date": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "money": { "type": ["number", "null"] },
+    "text": { "type": ["string", "null"] }
+  },
+  "properties": {
+    "vendor_name_raw": { "$ref": "#/$defs/text" },
+    "document_number": { "$ref": "#/$defs/text" },
+    "document_date": { "$ref": "#/$defs/date" },
+    "total": { "$ref": "#/$defs/money" },
+    "currency": { "type": ["string", "null"], "pattern": "^[A-Z]{3}$" },
+    "subtotal": { "$ref": "#/$defs/money" },
+    "discount": { "$ref": "#/$defs/money" },
+    "bank_account_number": { "$ref": "#/$defs/text" },
+    "routing_code": { "$ref": "#/$defs/text" },
+    "payment_beneficiary_name": { "$ref": "#/$defs/text" },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["line_total"],
+        "properties": {
+          "description": { "type": "string" },
+          "item_description": { "type": "string" },
+          "category": { "type": ["string", "null"] },
+          "quantity": { "type": ["number", "null"] },
+          "unit_price": { "type": ["number", "null"] },
+          "line_total": { "type": "number" }
+        }
+      }
+    },
+    "amount_check": {
+      "description": "Do the amounts add up: subtotal - discount + tax = total; line items = subtotal (or total).",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "checks"],
+          "properties": {
+            "status": { "enum": ["consistent", "mismatch"] },
+            "checks": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["check", "ok", "expected", "found"],
+                "properties": {
+                  "check": { "type": "string" },
+                  "ok": { "type": "boolean" },
+                  "expected": { "type": "number" },
+                  "found": { "type": "number" }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "po_number": { "$ref": "#/$defs/text" },
+    "requested_delivery_date": { "$ref": "#/$defs/date" },
+    "cost_center": { "$ref": "#/$defs/text" },
+    "invoice_number": { "$ref": "#/$defs/text" },
+    "invoice_date": { "$ref": "#/$defs/date" },
+    "due_date": { "$ref": "#/$defs/date" },
+    "payment_terms": { "$ref": "#/$defs/text" },
+    "tax_amount": { "$ref": "#/$defs/money" },
+    "matched_po_number": { "$ref": "#/$defs/text" },
+    "po_reference": { "$ref": "#/$defs/text" },
+    "po_backed": { "type": "boolean" },
+    "quote_number": { "$ref": "#/$defs/text" },
+    "valid_until": { "$ref": "#/$defs/date" },
+    "is_binding": { "type": "boolean" }
+  }
+}
