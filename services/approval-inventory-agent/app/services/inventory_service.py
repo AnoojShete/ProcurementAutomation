@@ -238,6 +238,9 @@ async def split_backorder(
         immediate_amount = float(original_request.amount)
         backorder_amount = 0
 
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
     # Create immediate child request
     immediate_req = PurchaseRequest(
         id=str(uuid.uuid4()),
@@ -253,6 +256,8 @@ async def split_backorder(
         items=immediate_items,
         backorder_parent_id=original_request.id,
         is_backordered=False,
+        created_at=now,
+        updated_at=now,
     )
     db.add(immediate_req)
 
@@ -272,6 +277,8 @@ async def split_backorder(
         backorder_parent_id=original_request.id,
         is_backordered=True,
         comments=f"Backordered: {total_requested - available_qty} units pending stock",
+        created_at=now,
+        updated_at=now,
     )
     db.add(backorder_req)
 

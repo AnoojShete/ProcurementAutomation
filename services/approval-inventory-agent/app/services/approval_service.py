@@ -274,7 +274,13 @@ class ApprovalService:
                     f"Failed to start Temporal workflow (will retry): {e}"
                 )
 
-        return req
+        # Reload with its history: after a backorder split `req` is a child
+        # whose approval_history was never loaded, and serialising it would
+        # lazy-load outside the async context (the API returned 400 while
+        # the request had in fact been created).
+        stmt = (select(PurchaseRequest).options(selectinload(PurchaseRequest.approval_history))
+                .where(PurchaseRequest.id == req.id).execution_options(populate_existing=True))
+        return (await self.db.execute(stmt)).scalar_one()
 
     async def process_decision(
         self, request_id: str, decision: str, action: ApprovalAction,
