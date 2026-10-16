@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     temporal_task_queue: str = "approval-task-queue"
     service_name: str = "approval-inventory-agent"
     service_port: int = 8002
-    anomaly_watch_threshold: float = 0.5
-    anomaly_anomalous_threshold: float = 0.75
+    anomaly_watch_threshold: float = 0.34      # FR-32: from docs/results/licence-anomaly.md
+    anomaly_anomalous_threshold: float = 0.39  # FR-32: from docs/results/licence-anomaly.md
     # Demo-only fault-injection endpoints under /ops/showcase. On in
     # development (APP_ENV) unless APP_SHOWCASE_MODE says otherwise.
     showcase_mode: bool = Field(default_factory=is_development)

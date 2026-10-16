@@ -37,7 +37,7 @@ dead request.
 - [x] Audit which events send notifications [FR-10] **[O]**
 - [ ] Clause extraction with Legal-BERT [FR-13] **[O]**
 - [ ] Sanctions screening override [FR-14] **[O]**
-- [ ] Evaluate and tune the licence anomaly model [FR-32] **[O]**
+- [x] Evaluate and tune the licence anomaly model [FR-32] **[O]**
 
 **Done when:** the demo script runs end to end on a fresh seed and the
 presentation draft is reviewed.

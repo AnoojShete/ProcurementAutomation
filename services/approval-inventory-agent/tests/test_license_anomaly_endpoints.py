@@ -40,12 +40,12 @@ class TestLicenseAnomalyEndpoints:
             assert calculate_anomaly_status(None) == "insufficient_history"
 
     def test_default_thresholds(self):
-        """Default thresholds must be 0.5 (watch) and 0.75 (anomalous)."""
+        """Defaults are the evaluated thresholds (FR-32, docs/results/licence-anomaly.md)."""
         env_clean = {k: v for k, v in os.environ.items() if "ANOMALY" not in k}
         with patch.dict(os.environ, env_clean, clear=True):
             watch_th, anomalous_th = get_anomaly_thresholds()
-            assert watch_th == 0.5
-            assert anomalous_th == 0.75
+            assert watch_th == 0.34
+            assert anomalous_th == 0.39
 
     async def test_compute_utilisation_enrichment(self, mock_db_session):
         """Verify compute_utilisation returns anomaly_score, anomaly_status, top_factors (with direction), and days_since_last_login."""
@@ -112,7 +112,7 @@ class TestLicenseAnomalyEndpoints:
             if lic_id == lic1.id:
                 return {"anomaly_score": 0.85, "anomaly_status": "anomalous"}
             elif lic_id == lic2.id:
-                return {"anomaly_score": 0.60, "anomaly_status": "watch"}
+                return {"anomaly_score": 0.36, "anomaly_status": "watch"}   # between 0.34 and 0.39
             elif lic_id == lic3.id:
                 return {"anomaly_score": 0.20, "anomaly_status": "normal"}
             else:

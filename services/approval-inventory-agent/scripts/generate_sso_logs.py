@@ -1,87 +1,60 @@
-import json
-import random
-import os
-from datetime import datetime, timedelta
+"""Generates data/synthetic-sso-logs/sso_login_events.json — the login
+history of the five demo licences (scripts/seed-demo-data.sh seeds them with
+these app names and seat counts).
 
-def generate_sso_logs():
-    """Generate synthetic SSO login events for testing license utilisation scoring."""
-    random.seed(42)
-    apps = [
-        "Microsoft 365 E3",
-        "JetBrains All Products Pack",
-        "Docker Pro",
-        "Slack Enterprise",
-        "Notion Team"
-    ]
-    
+Each licence gets a known usage pattern from the same simulator the anomaly
+model is trained and evaluated on (ml/usage_population.py), so what the
+licence page shows can be checked against what was generated:
+
+  Microsoft 365 E3             steady            → normal
+  Slack Enterprise             steady            → normal
+  JetBrains All Products Pack  weekend_dip       → normal (developers off at weekends)
+  Docker Pro                   sudden_dropoff    → anomalous
+  Notion Team                  gradual_decline   → anomalous
+
+The data ends on a fixed date (a snapshot); the scanner scores it relative to
+its latest event, not today's date.
+
+Run from the service root:  python scripts/generate_sso_logs.py
+"""
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+import numpy as np
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(_HERE), "ml"))
+from usage_population import simulate  # noqa: E402
+
+END = datetime(2026, 10, 15, 23, 59, tzinfo=timezone.utc)
+SEED = 42
+DEMO_LICENCES = [  # (app_name, seats as seeded, pattern)
+    ("Microsoft 365 E3", 50, "steady"),
+    ("Slack Enterprise", 45, "steady"),
+    ("JetBrains All Products Pack", 120, "weekend_dip"),
+    ("Docker Pro", 60, "sudden_dropoff"),
+    ("Notion Team", 200, "gradual_decline"),
+]
+
+
+def generate_sso_logs() -> str:
+    rng = np.random.default_rng(SEED)
     logs = []
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=90)
-    
-    users = [f"user{i}@company.com" for i in range(1, 51)]
-    
-    for app in apps:
-        active_users = users[:20]
-        occasional_users = users[20:35]
-        inactive_users = users[35:45]
-        # never_logged_in = users[45:]
-        
-        for user in active_users:
-            current = start_date
-            while current < end_date:
-                if random.random() < 0.8:  # 80% chance to login on a given day
-                    logs.append({
-                        "user_email": user,
-                        "app_name": app,
-                        "login_timestamp": (current + timedelta(hours=random.randint(8, 18))).isoformat(),
-                        "session_duration_minutes": random.randint(30, 480)
-                    })
-                current += timedelta(days=1)
-                
-        for user in occasional_users:
-            current = start_date
-            while current < end_date:
-                if random.random() < 0.1:  # 10% chance
-                    logs.append({
-                        "user_email": user,
-                        "app_name": app,
-                        "login_timestamp": (current + timedelta(hours=random.randint(8, 18))).isoformat(),
-                        "session_duration_minutes": random.randint(15, 120)
-                    })
-                current += timedelta(days=1)
-                
-        for user in inactive_users:
-            current = start_date
-            # Only login in the first 30 days of the 90 day period
-            while current < start_date + timedelta(days=30):
-                if random.random() < 0.05:
-                    logs.append({
-                        "user_email": user,
-                        "app_name": app,
-                        "login_timestamp": (current + timedelta(hours=random.randint(8, 18))).isoformat(),
-                        "session_duration_minutes": random.randint(10, 60)
-                    })
-                current += timedelta(days=1)
-                
-    output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "synthetic-sso-logs")
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, "sso_login_events.json")
-    
-    # Sort logs by timestamp
-    logs.sort(key=lambda x: x["login_timestamp"])
-    
-    with open(output_path, "w") as f:
-        json.dump(logs, f, indent=2)
-        
-    print(f"Generated {len(logs)} SSO login events to {output_path}")
-    print("Utilisation summary:")
-    for app in apps:
-        app_logs = [l for l in logs if l["app_name"] == app]
-        unique_users_30d = set(
-            l["user_email"] for l in app_logs 
-            if datetime.fromisoformat(l["login_timestamp"]) > end_date - timedelta(days=30)
-        )
-        print(f"  {app}: {len(unique_users_30d)} unique users in last 30 days")
+    for app, seats, pattern in DEMO_LICENCES:
+        logs += simulate(rng, app, pattern, seats, END)
+    logs.sort(key=lambda e: e["login_timestamp"])
+    out_dir = os.path.join(_HERE, "..", "..", "..", "data", "synthetic-sso-logs")
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, "sso_login_events.json")
+    with open(path, "w") as f:
+        json.dump(logs, f, separators=(",", ":"))
+    print(f"Generated {len(logs)} SSO login events to {path}")
+    for app, seats, pattern in DEMO_LICENCES:
+        print(f"  {app:30s} {seats:4d} seats  {pattern:16s} {sum(1 for e in logs if e['app_name'] == app):6d} events")
+    return path
+
 
 if __name__ == "__main__":
     generate_sso_logs()

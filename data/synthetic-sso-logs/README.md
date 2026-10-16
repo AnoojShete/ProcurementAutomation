@@ -2,22 +2,32 @@
 
 ## What's committed (and used)
 
-`sso_login_events.json` holds **7,986 login events for 5 licenses**
-(Microsoft 365 E3, Slack Enterprise, JetBrains All Products Pack, Docker
-Pro, Notion Team; about 1,600 each) over 90 days (Jun 27 – Sep 24, 2026).
-It was produced by `services/approval-inventory-agent/scripts/generate_sso_logs.py`
-(seeded, `random.seed(42)`). The approval-inventory-agent image copies it,
-trains the IsolationForest at build time, and the usage scanner reads it.
+`sso_login_events.json` holds **15,621 login events for the 5 demo
+licences** over the 90 days ending **15 Oct 2026** (a snapshot — the
+scanner scores it relative to its latest event, not today's date). It is
+produced by `services/approval-inventory-agent/scripts/generate_sso_logs.py`
+(seed 42) from the same simulator the anomaly model is trained and
+evaluated on (`ml/usage_population.py`). Each licence has a known pattern,
+so the licence page can be checked against it:
+
+| Licence | Seats | Pattern | Expected status |
+|---|---|---|---|
+| Microsoft 365 E3 | 50 | steady | normal |
+| Slack Enterprise | 45 | steady | normal |
+| JetBrains All Products Pack | 120 | weekend dip | normal |
+| Docker Pro | 60 | sudden drop-off | anomalous |
+| Notion Team | 200 | gradual decline | anomalous |
 
 Each event:
 
 ```json
 {"user_email": "user1@company.com", "app_name": "Microsoft 365 E3",
- "login_timestamp": "2026-06-27T07:19:32.570324", "session_duration_minutes": 409}
+ "login_timestamp": "2026-07-18T09:41:00+00:00", "session_duration_minutes": 212}
 ```
 
-`app_name` must match a license's `app_name` for that license to be scored
-(`./scripts/seed-demo-data.sh` seeds these five).
+`app_name` and the seat counts match what `./scripts/seed-demo-data.sh`
+seeds. The model itself is **not** trained on these five licences any more
+but on 360 simulated ones (`docs/results/licence-anomaly.md`).
 
 ## The other generator (not what's committed)
 

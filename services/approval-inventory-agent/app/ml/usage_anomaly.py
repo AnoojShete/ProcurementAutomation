@@ -170,6 +170,13 @@ class UsageAnomalyScorer:
             "variance_daily_logins",
             "days_since_last_login",
             "weekend_ratio",
+            # Scale-free versions (FR-32): shares of seats / of the 90-day
+            # users, so a big licence doesn't look unusual just for its size.
+            # The trained bundle's "features" list says which columns it uses.
+            "utilisation_7d",
+            "utilisation_90d",
+            "retention_7d",
+            "retention_30d",
         ]
 
         parsed = []
@@ -241,6 +248,10 @@ class UsageAnomalyScorer:
             variance_daily,
             days_since,
             weekend_ratio,
+            active_7d / max(total_seats, 1),
+            active_90d / max(total_seats, 1),
+            active_7d / max(active_90d, 1),
+            active_30d / max(active_90d, 1),
         ]], dtype=float)
 
         return vec, FEATURE_COLUMNS

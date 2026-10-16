@@ -43,6 +43,10 @@ const FEATURE_LABELS: Record<string, string> = {
   utilisation_ratio: "Seat utilisation against licensed total",
   variance_daily_logins: "Daily login consistency and volatility",
   weekend_ratio: "Weekend vs weekday usage distribution",
+  utilisation_7d: "Share of seats used in the last 7 days",
+  utilisation_90d: "Share of seats used in the last 90 days",
+  retention_7d: "Share of this quarter's users still active this week",
+  retention_30d: "Share of this quarter's users active this month",
 };
 
 export function LicenseDetailPage() {

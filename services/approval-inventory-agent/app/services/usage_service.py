@@ -58,6 +58,26 @@ def _load_sso_events() -> list[dict]:
         return []
 
 
+def _events_as_of(events: list[dict], now: datetime) -> datetime:
+    """The time the login data describes: its latest event, or now if that
+    is later. A live feed's latest login is effectively now; the committed
+    synthetic log is a snapshot, and scoring it against today's date made
+    every licence look more abandoned with each passing day (FR-32)."""
+    latest = None
+    for ev in events:
+        raw = ev.get("login_timestamp") or ev.get("ts")
+        if not raw:
+            continue
+        try:
+            ts = datetime.fromisoformat(raw)
+        except ValueError:
+            continue
+        ts = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+        if latest is None or ts > latest:
+            latest = ts
+    return min(now, latest) if latest else now
+
+
 class UsageService:
     """License utilisation analytics with ML anomaly-driven reclaim automation.
 
@@ -187,7 +207,7 @@ class UsageService:
             license_id=str(lic.id),
             sso_events=license_events,
             total_seats=lic.total_seats,
-            now=now,
+            now=_events_as_of(sso_events, now),
         )
 
         anomaly_score = anomaly_result.get("anomaly_score")
@@ -425,9 +445,10 @@ class UsageService:
                 except Exception:
                     pass
 
+        as_of = _events_as_of(sso_events, now)
         history = []
         for i in range(days - 1, -1, -1):
-            day_dt = now - timedelta(days=i)
+            day_dt = as_of - timedelta(days=i)
             day_str = day_dt.strftime("%Y-%m-%d")
             active_count = len(daily_users.get(day_str, set()))
             history.append({"date": day_str, "active_seats": active_count})

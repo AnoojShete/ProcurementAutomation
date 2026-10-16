@@ -40,7 +40,6 @@ import pandas as pd
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
-from generate_usage_dataset import build_features, FEATURE_COLUMNS, OUT_CSV, main as generate_main
 
 ARTIFACT_DIR = os.path.join(_HERE, "artifacts")
 MODEL_PATH    = os.path.join(ARTIFACT_DIR, "model.joblib")
@@ -50,7 +49,8 @@ BASELINE_PATH = os.path.join(ARTIFACT_DIR, "baseline_distribution.json")
 # IsolationForest hyper-parameters
 N_ESTIMATORS  = 200
 MAX_SAMPLES   = "auto"
-CONTAMINATION = 0.2   # ~20 % of our licenses are anomalous (decline/drop-off)
+CONTAMINATION = 0.3   # share of anomalous patterns in the training population (usage_population.MIX)
+
 RANDOM_STATE  = 42
 
 
@@ -82,21 +82,21 @@ def _normalise_scores(raw_scores: np.ndarray) -> tuple[np.ndarray, float, float]
 def train():
     os.makedirs(ARTIFACT_DIR, exist_ok=True)
 
-    # ── Load / generate features ─────────────────────────────────────────────
-    if not os.path.exists(OUT_CSV):
-        print("Feature CSV not found — running generate_usage_dataset.py first…")
-        generate_main()
+    # ── Training data ────────────────────────────────────────────────────────
+    # FR-32: a seeded population of simulated licences with known usage
+    # patterns (ml/usage_population.py) — not the five demo licences, which
+    # made the model call one in five anomalous whatever their usage.
+    # Same population and training split as ml/evaluate_usage_anomaly.py, so
+    # this is the evaluated model and its thresholds apply unchanged.
+    from usage_population import FEATURES, columns, training_split
+    X_all, y_all, pats_all, names, tr, _, _ = training_split()
+    X = X_all[tr][:, columns(names, FEATURES)]
+    y, pats = y_all[tr], pats_all[tr]
+    app_names = [f"{p}-{i}" for i, p in enumerate(pats)]
+    FEATURE_COLUMNS = FEATURES
 
-    df = pd.read_csv(OUT_CSV)
-    if df.empty or not all(c in df.columns for c in FEATURE_COLUMNS):
-        print("Feature CSV missing expected columns — regenerating…")
-        generate_main()
-        df = pd.read_csv(OUT_CSV)
-
-    app_names = df["app_name"].tolist()
-    X = df[FEATURE_COLUMNS].values.astype(float)
-
-    print(f"Training IsolationForest on {len(X)} license samples, {len(FEATURE_COLUMNS)} features…")
+    print(f"Training IsolationForest on {len(X)} simulated licences ({int(y.sum())} with an anomalous pattern), "
+          f"features: {', '.join(FEATURES)}")
 
     # ── Train ────────────────────────────────────────────────────────────────
     from sklearn.ensemble import IsolationForest
@@ -126,14 +126,8 @@ def train():
         shap_ok = False
 
     # Print a per-license summary for inspection
-    print(f"\n{'App name':30s} {'anomaly_score':>14s}  {'top factor':>25s}")
-    print("-" * 75)
-    for i, app in enumerate(app_names):
-        score = norm_scores[i]
-        sv = shap_values[i]
-        top_idx = int(np.argmax(np.abs(sv)))
-        top_feat = FEATURE_COLUMNS[top_idx] if shap_ok else "n/a"
-        print(f"  {app:28s}  {score:.4f}        {top_feat}")
+    for pattern in sorted(set(pats)):
+        print(f"  {pattern:18s} mean anomaly score {norm_scores[pats == pattern].mean():.3f}")
 
     # ── Save artifacts ───────────────────────────────────────────────────────
     version = datetime.now(timezone.utc).strftime("v%Y%m%d%H%M%S")

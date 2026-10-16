@@ -127,7 +127,7 @@ How the pieces interact:
 | Risk shown before signing | COMPLETE | `signing_risk()` (BR-6) | External e-sign path would need the check at send time | — |
 | Vendor risk model | PARTIAL | RF + overrides + platform signals (FR-04, BR-7) | Red-team vs agent doc, sanctions (FR-14), drift min-sample decision | decision |
 | Clause extraction with a model | PENDING | rules only | Legal-BERT + rules fallback (FR-13) | model download |
-| Licence-usage anomaly model | PARTIAL | IsolationForest + SHAP | Evaluate and tune (FR-32) | — |
+| Licence-usage anomaly model | COMPLETE | IsolationForest + SHAP on 360 simulated licences, ROC-AUC 0.95 (FR-32) | Real usage data | — |
 | Notifications | COMPLETE | notification-agent (SMTP / Mailpit), retry + DLQ, health (FR-31) | Coverage audit (FR-10) | — |
 | Email automation, chatbot | OUT OF SCOPE | Anooj's | — | — |
 | Observability (metrics, logs, correlation id) | COMPLETE | Prometheus, Grafana, Loki (FR-07) | — | — |
@@ -198,7 +198,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-13 | Clause extraction with Legal-BERT, rules fallback | PENDING | P2 | model | contract-risk-agent | Evaluated on sample contracts | Core |
 | FR-14 | Sanctions screening + strategic-tier checks | PENDING | P2 | data source | contract-risk-agent | Sanctions override in risk | Core |
 | FR-29 | Train the document classifier | PENDING | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
-| FR-32 | Licence anomaly model evaluated and tuned | PENDING | P2 | — | approval-inventory-agent | `docs/results/licence-anomaly.json` | Core |
+| FR-32 | Licence anomaly model evaluated and tuned | COMPLETE | P2 | — | approval-inventory-agent | `docs/results/licence-anomaly.json` | Core |
 | DRIFT-1 | Decide minimum sample before PSI is reported | PENDING (decision) | P2 | user | `drift_service.py` | Rule chosen and documented | Core |
 | FR-15/16 | PySpark / Kubernetes claims | BLOCKED (decision) | P3 | user | — | Built or removed from docs | Core |
 | FR-17/18/19 | DB & storage pages, trace view, re-verify minutes | PENDING | P2 | — | frontend | Part B "Done when" | Core |
@@ -784,12 +784,38 @@ before any other roadmap item.
   consumer isn't exposed yet (other services have `/ops/dlq/.../replay`).
   Anooj to be told (his service).
 
-- [ ] **FR-32 Licence-usage anomaly model, evaluated and tuned** (flow
+- [x] **FR-32 Licence-usage anomaly model, evaluated and tuned** (flow
   chart: "Needs tuning"). *Do:* the same treatment as FR-04 for the
   IsolationForest: precision/recall on the synthetic SSO logs' injected
   anomalies → `docs/results/licence-anomaly.json`, threshold chosen from
   that curve (business rule), and the reasons shown on the licence page.
   *Done when:* the results file exists and the threshold is justified in it.
+  *Evidence (Oct 16):* the model had been trained on **5 rows** (one per
+  demo licence) with contamination 0.2, so it called one licence in five
+  anomalous whatever its usage. Now: `ml/usage_population.py` simulates
+  licences with known patterns (steady, weekend dip, low but stable →
+  normal; gradual decline, sudden drop-off, abandoned → anomalous); the
+  trainer and `ml/evaluate_usage_anomaly.py` share one seeded 360/120/120
+  split, so the shipped model is the evaluated one. Scale-free features
+  (shares of seats / of the quarter's users) were added; the feature set
+  is picked on validation (`scale_free`). `docs/results/licence-anomaly.{json,md}`:
+  test ROC-AUC **0.954**, AP **0.873** vs the previous 5-licence model
+  0.659 / 0.549, original features on the population 0.849 / 0.744, and a
+  utilisation rule 0.687 / 0.608. Thresholds chosen on validation —
+  anomalous 0.39 (precision ≥ 0.90; on test 0.83, recall 0.69), watch 0.34
+  (recall ≥ 0.90; test 0.83) — via auth migration 0012 (only where the
+  admin hadn't changed them) and the code fallbacks. Also fixed: scoring
+  used today's date against a log that ended Sep 24, so every licence
+  looked more abandoned each day; it now scores as of the data's latest
+  event. Demo data regenerated with a known pattern per licence (Docker
+  Pro drop-off and Notion decline → anomalous; the other three normal) —
+  live: exactly that, ₹2.05 lakh potential savings. Tests:
+  `test_usage_population.py` (5; switching back to the original features
+  fails 3); two threshold tests updated to the evaluated values. Limits:
+  synthetic data only; gradual declines are the hardest (36 % flagged
+  anomalous, 71 % watch); the top SHAP factor is "weekend ratio" for every
+  licence, the second one carries the story.
+
 - [ ] **FR-33 P0 credentials** (flow chart: P0 red box): rotate the
   GSTINCheck key and set real secrets before any shared deploy. Only a
   person can do this (no key rotation by the assistant).
@@ -931,7 +957,7 @@ before any other roadmap item.
   remove the dead path. *Why: docs and pitch mention ML classification.*
 
 **Approvals / inventory**
-- [ ] Anomaly model ranking looks wrong on the seeded data (a license at
+- [x] (Fixed by FR-32, Oct 16: trained on 360 simulated licences, not 5.) Anomaly model ranking looks wrong on the seeded data (a license at
   76 % utilisation scores anomalous). Tune before quoting savings.
 - [ ] Two different SSO log generators: the committed dataset comes from
   `services/approval-inventory-agent/scripts/generate_sso_logs.py`
