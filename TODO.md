@@ -14,7 +14,8 @@ Oct 16.
 > dated *Evidence* line to its Part B entry, and refresh A.6 (next
 > actions). Keep `IMPLEMENTATION_PLAN.md` ticks in step. Record new
 > decisions in A.4. At each roadmap phase also update
-> `docs/project-flow.html`, `README.md` and `readmeforme.md`.
+> `docs/project-flow.html` (its `S` statuses **and** the `DELIVERABLES`
+> list behind the progress circle), `README.md` and `readmeforme.md`.
 
 ---
 
@@ -186,7 +187,7 @@ evidence for FR/BR items are in Part B under the same ID.
 |---|---|---|---|---|---|---|---|
 | OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | BLOCKED (permission) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
 | SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
-| FR-05 | Demo script | PENDING | P1 | — | `docs/` | Script runs a reviewer through every agent | Core |
+| FR-05 | Demo script | PARTIAL (walkthrough in `docs/showcase.html`; rehearsal on a fresh seed left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
 | FR-12 | Presentation draft, template-shaped docs | PENDING | P1 | FR-05 | `docs/` | Draft reviewed by team | Core |
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | PENDING | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
 | FR-08 | Model routing and fallback, demonstrable | PENDING | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |

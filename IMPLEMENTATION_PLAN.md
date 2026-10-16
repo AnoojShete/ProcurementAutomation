@@ -29,7 +29,7 @@ dead request.
 
 ## Phase 1 — Finish what the presentation needs (by Oct 31)
 
-- [ ] Write the demo script walking through every agent [FR-05] **[E]**
+- [ ] Rehearse the demo script in `docs/showcase.html` on a fresh seed [FR-05] **[E]**
 - [ ] Draft the presentation from the templates [FR-12] **[E]**
 - [ ] Add retry + DLQ to the notification consumer; tell Anooj [FR-31] **[E]**
 - [ ] Make model routing/fallback visible in a demo [FR-08] **[E]**
