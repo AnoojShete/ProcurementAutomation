@@ -1,0 +1,633 @@
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{ragged2e}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\geometry{
+    left=1.25in,
+    right=1in,
+    top=1in,
+    bottom=1in
+}
+
+\begin{document}
+
+\chapter{Design of the System}
+
+This chapter describes the requirements, development approach, system
+models, resource requirements, and architecture of the Agentic AI-Based
+IT Procurement Intelligence Platform. It presents the functional and
+non-functional requirements, the principal data flows, the system
+layers, and the user-interface design. Diagram positions are identified
+where the source report refers to figures that must be inserted or
+regenerated.
+
+\section{Requirement Engineering}
+
+Requirement engineering involves identifying the capabilities expected
+from the platform, documenting them clearly, and checking that they
+remain consistent throughout development. In this project, it was
+particularly important because the system is divided into services that
+must interoperate through shared event formats, database structures,
+REST response conventions, and authentication rules.
+
+\subsection{Requirement Elicitation}
+
+Requirements were identified from the following sources:
+
+\begin{itemize}
+    \item \textbf{Review of existing practices and literature:}
+    The review in Chapter 2 and the problem analysis in Chapter 3
+    identified recurring procurement challenges, including repeated
+    manual data entry, unverified vendor details, duplicate invoices,
+    delayed approvals, underused software licences, missed contract
+    renewals, and infrequent vendor-risk reviews.
+
+    \item \textbf{Stakeholder analysis:}
+    The principal users are requesters, approvers and finance users,
+    procurement/legal personnel, and system administrators. In the
+    implemented demonstration application, the four roles are
+    requester, approver, finance, and admin.
+
+    \item \textbf{Guide and team discussions:}
+    Discussions were used to prioritise features and distinguish the
+    implemented scope from features dependent on external accounts or
+    providers. Live GSTIN lookups, sanctions screening, and integration
+    with a real e-signature provider may be affected by external
+    dependencies or future scope.
+
+    \item \textbf{Review of tools and datasets:}
+    Document-processing tools, workflow engines, and relevant datasets
+    were reviewed to understand their expected inputs, outputs, and
+    practical limitations.
+\end{itemize}
+
+The gathered requirements were then grouped into functional and
+non-functional requirements.
+
+\subsection{Software Lifecycle Model}
+
+The project followed an iterative and incremental development approach.
+This approach was suitable because thresholds, approval rules, model
+behaviour, and integration details required testing and refinement
+during implementation.
+
+The main practices were:
+
+\begin{itemize}
+    \item \textbf{Contract-first design:}
+    Shared interfaces were agreed upon before parallel service
+    development. These included the Kafka event envelope and topic
+    payloads, the base database schema, the REST response envelope,
+    and authentication middleware.
+
+    \item \textbf{Service-wise increments:}
+    Work was divided across document and vendor, approval and inventory,
+    contract and risk, and platform/notification responsibilities.
+
+    \item \textbf{Integration iterations:}
+    The services were connected behind a common API gateway.
+    Integration testing helped identify issues involving gateway
+    routing, Kafka connectivity, and database migrations.
+
+    \item \textbf{Continuous testing:}
+    Service-level tests and end-to-end checks were used during
+    development rather than postponing all testing until the end.
+
+    \item \textbf{Repeatable deployment:}
+    The project uses a \texttt{run.sh} script for bringing up the
+    containerised stack, supporting consistent demonstrations and
+    verification.
+\end{itemize}
+
+\textbf{Figure 4.1:} Iterative and incremental development cycle.
+Insert or regenerate the diagram showing contract-first design,
+service-wise increments, integration iteration, testing, and
+demonstration, with guide feedback informing subsequent iterations.
+
+\subsection{Requirement Analysis}
+
+The requirements are grouped into functional requirements, which
+describe what the system should do, and non-functional requirements,
+which describe expected qualities and constraints.
+
+\subsubsection{Functional Requirements}
+
+\begin{longtable}{|p{0.8in}|p{3.8in}|p{1.5in}|}
+\hline
+\textbf{ID} & \textbf{Requirement} & \textbf{Responsible Service} \\
+\hline
+FR1 & Users can log in and receive access and refresh tokens. Protected
+endpoints verify the token and user role, except specified health and
+metrics endpoints. & Platform/Authentication \\
+\hline
+FR2 & Uploaded purchase orders, invoices, and quotations are scanned
+for malware before storage. An upload is rejected if the scanner is
+unavailable. & Document and Vendor \\
+\hline
+FR3 & Documents are classified as purchase orders, invoices, or
+quotations. Relevant vendor, line-item, total, date, and document-number
+fields are extracted. & Document and Vendor \\
+\hline
+FR4 & Extracted fields receive confidence scores. Results below the
+configured threshold, with a default of 0.8, are sent for human review.
+& Document and Vendor \\
+\hline
+FR5 & Vendor records are matched and duplicate documents are detected
+using vendor, amount tolerance, and date-window checks.
+& Document and Vendor \\
+\hline
+FR6 & Changes to vendor bank or payment details remain pending until
+verified by a different user. & Document and Vendor \\
+\hline
+FR7 & Purchase requests follow approval routes based on spending tiers,
+with service-level-agreement (SLA) timers and escalation.
+& Approval and Inventory \\
+\hline
+FR8 & Approval and rejection decisions are applied through a durable
+workflow, and the requester can see the resulting status.
+& Approval and Inventory \\
+\hline
+FR9 & Inventory is reserved using locks to prevent concurrent requests
+from reserving the same unit. Oversubscribed requests can be split into
+immediate and back-ordered portions. & Approval and Inventory \\
+\hline
+FR10 & Licence utilisation is calculated, and a reclaim request can be
+created when utilisation falls below a configured threshold.
+& Approval and Inventory \\
+\hline
+FR11 & Contracts are generated from templates. Renewal type, notice
+period, and end date are extracted, and reminders are scheduled for
+60, 30, and 15 days before the notice deadline. & Contract and Risk \\
+\hline
+FR12 & The system sends contracts for signature and accepts signed-document
+callbacks only when the HMAC signature is valid and the callback is not
+a replay. & Contract and Risk \\
+\hline
+FR13 & Vendor risk is represented by a score and band, with contributing
+factors listed and urgent alerts raised for a High band.
+& Contract and Risk \\
+\hline
+FR14 & The risk model is monitored for drift; automatic retraining is
+not performed. & Contract and Risk \\
+\hline
+FR15 & Vendor offboarding revokes access, flags active contracts for
+review, and sets a data-retention flag rather than deleting records.
+& Contract and Risk \\
+\hline
+FR16 & The notification service consumes events, sends templated email
+alerts, prioritises urgent items, supports periodic digests for routine
+items, and maintains a searchable notification log. & Notification \\
+\hline
+FR17 & The frontend provides role-specific navigation and dashboards,
+purchase-request submission, approval inbox, document review, vendor,
+contract and inventory views, and notification history. & Frontend \\
+\hline
+\end{longtable}
+
+\subsubsection{Non-Functional Requirements}
+
+\begin{longtable}{|p{1.5in}|p{4.8in}|}
+\hline
+\textbf{Category} & \textbf{Requirement} \\
+\hline
+Security & JWT-based authentication and backend role-based access
+control; fail-closed malware scanning; HMAC-verified webhooks; and
+dual control for payment-detail changes. \\
+\hline
+Reliability & Approval and renewal workflows are durable. Kafka
+consumers are designed for idempotent processing, and webhook replays
+are rejected. \\
+\hline
+Consistency & Endpoints follow a common response envelope, and shared
+database changes use idempotent service migrations. \\
+\hline
+Performance & Uploads return promptly while document extraction and other
+heavy processing run asynchronously. \\
+\hline
+Traceability & A correlation ID follows events and logs. Prometheus
+metrics and Grafana dashboards support monitoring of request rate,
+latency, errors, and service availability. \\
+\hline
+Portability & The stack is containerised and intended to run on macOS,
+Linux, and Windows through WSL2. \\
+\hline
+Maintainability & The platform separates responsibilities by service,
+uses shared contracts, and includes service-level and end-to-end tests. \\
+\hline
+Explainability & Risk scores display contributing factors, and
+low-confidence extraction results are made available for human review. \\
+\hline
+\end{longtable}
+
+\textbf{Constraints and assumptions:} Payment execution, ERP
+integration, tax identifiers other than GSTIN and IFSC, and automatic
+model retraining are outside the stated scope. Parts of the training
+data are synthetic, and the availability of live external lookups
+depends on free-tier quotas and external services.
+
+\subsection{UML Diagrams and Data Flow Diagrams}
+
+The diagrams in this section should be numbered consistently and
+referenced in the text. Insert the actual diagrams as images or
+recreate them in the final document.
+
+\subsubsection{Use Case Diagram}
+
+The use case diagram is presented in Figure 3.4 in Chapter 3. It
+identifies the System Admin, Requester, Approver, and Procurement/Legal
+Officer and groups the main activities into authentication and business
+rules, purchase and inventory, vendor intelligence, contract and risk,
+and notifications.
+
+\subsubsection{Data Flow Diagram -- Level 0}
+
+The Level 0 context diagram should represent the platform as one
+process and show its interactions with the external entities identified
+in the project. Insert the Level 0 diagram here and ensure its external
+entities and labelled data flows are legible.
+
+\subsubsection{Data Flow Diagram -- Level 1}
+
+The Level 1 diagram decomposes the platform into the processes listed
+in Table 4.2. Processes 2.0--6.0 exchange events through the
+Kafka-compatible messaging layer; they should not be shown as direct
+synchronous calls unless such a call is implemented.
+
+\begin{longtable}{|p{0.65in}|p{1.4in}|p{2in}|p{2.3in}|}
+\hline
+\textbf{Process} & \textbf{Name} & \textbf{Inputs} & \textbf{Outputs} \\
+\hline
+1.0 & Authenticate & Login credentials or refresh token &
+Access/refresh tokens and user role \\
+\hline
+2.0 & Ingest and extract documents & Uploaded file and request details &
+Classified/extracted document, vendor match, review-queue items \\
+\hline
+3.0 & Approve and reserve & Purchase request and approval/rejection
+signal & Decision, stock/licence reservations, escalations \\
+\hline
+4.0 & Manage contracts & Approved request and signed callback &
+Generated contract, signature status, renewal reminders \\
+\hline
+5.0 & Score vendor risk & Vendor data and outcomes &
+Risk score, band, contributing factors, drift flag \\
+\hline
+6.0 & Notify & Events from processes 2.0--5.0 &
+Emails, digests, notification log \\
+\hline
+\end{longtable}
+
+\subsubsection{Sequence Diagram}
+
+The sequence diagram should show the purchase-request journey from the
+requester and frontend/gateway through document intake, Kafka, the
+approval API and worker, Temporal, the contract service, and the
+notification service, ending with the signed-contract event and
+request-status update.
+
+\subsubsection{Activity Diagram: Document Processing}
+
+The document-processing activity flow begins with upload and malware
+scanning. The upload is rejected if the file is flagged or the scanner
+is unavailable. A clean file proceeds through parsing, classification,
+field extraction, vendor matching, duplicate checking, and confidence
+scoring. Results meeting the threshold can be completed; lower-confidence
+results are sent to a human review queue.
+
+\textbf{Figure 4.2:} Activity diagram of document processing. Insert
+the regenerated diagram with readable decision branches and labels.
+
+\subsubsection{Class/Entity Relationship Diagram}
+
+The principal entities identified in the report are User, Vendor,
+PurchaseRequest, Document, ExtractedField, ApprovalRecord,
+InventoryItem, LicenseUsage, Contract, RiskScore, Notification, and
+RenewalReminder. The diagram should show the relationships described in
+the project: a requester raises purchase requests; requests refer to
+vendors and can have documents and approval records; vendors can have
+documents, contracts, and risk scores; documents have extracted fields;
+contracts have renewal reminders; and inventory items are associated
+with licence-usage records.
+
+The exact table definitions are maintained in the shared database
+schema and service migrations.
+
+\textbf{Figure 4.3:} Entity relationship diagram. Insert the regenerated
+diagram and check that cardinalities and relationship labels are
+readable and consistent with the actual database schema.
+
+\subsection{Cost Analysis}
+
+The project uses open-source software, so the report identifies no
+additional software-licence cost. Development is based on existing
+student laptops. The principal potential costs are team effort, external
+API usage beyond free tiers, optional cloud hosting, and a production
+email/domain service. The estimates below are indicative and should be
+updated if actual quotations or usage figures become available.
+
+\begin{longtable}{|p{1.5in}|p{3.5in}|p{1.4in}|}
+\hline
+\textbf{Item} & \textbf{Basis} & \textbf{Indicative Cost} \\
+\hline
+Software licences & Python, FastAPI, PostgreSQL, Redis, Redpanda/Kafka,
+MinIO, Temporal, MLflow, Prometheus, Grafana, ClamAV, Docling, React,
+Docker and other listed open-source tools & Rs. 0 \\
+\hline
+Development hardware & Existing student laptops & Rs. 0 additional \\
+\hline
+External APIs & Free tiers where available; usage depends on provider
+limits & Depends on usage \\
+\hline
+Team effort & Part-time project work by team members & Not monetised \\
+\hline
+Optional cloud hosting & Pilot virtual machine with approximately
+8 vCPU and 16 GB RAM, plus storage and backups &
+Approx. Rs. 6,000--10,000 per month \\
+\hline
+Domain and email delivery & Production SMTP service in place of
+development mail tooling & A few hundred rupees per month at pilot
+volume \\
+\hline
+\end{longtable}
+
+A meaningful break-even estimate requires measured monthly document
+volume, average licence costs, and an estimate of time saved or duplicate
+payments avoided. Those figures are not specified here, so no
+return-on-investment claim is made.
+
+\subsection{Hardware and Software Requirements}
+
+The stack runs multiple containers concurrently. The document parser
+and ClamAV can be resource-intensive; therefore, the recommended
+configuration is expected to provide a smoother development and
+demonstration experience.
+
+\begin{longtable}{|p{1.5in}|p{2in}|p{2.5in}|}
+\hline
+\textbf{Component} & \textbf{Minimum} & \textbf{Recommended} \\
+\hline
+Processor & 4 cores & 8 cores \\
+\hline
+Memory & 8 GB RAM & 16 GB RAM \\
+\hline
+Storage & 25 GB free & 50 GB free for images, model files, and
+database volumes \\
+\hline
+Network & Required for initial builds, image pulls, and ClamAV
+definition updates & Broadband connection \\
+\hline
+GPU & Not required & Optional for heavier OCR or transformer workloads \\
+\hline
+\end{longtable}
+
+\begin{longtable}{|p{1.7in}|p{4.3in}|}
+\hline
+\textbf{Category} & \textbf{Requirement} \\
+\hline
+Operating system & macOS, Ubuntu/Linux, or Windows 10/11 with WSL2 \\
+\hline
+Container runtime & Docker Engine or Docker Desktop with Docker Compose \\
+\hline
+Backend & Python with FastAPI, SQLAlchemy, Alembic, pytest,
+scikit-learn, rapidfuzz, and Jinja2 \\
+\hline
+Frontend & React, TypeScript, Vite, and Tailwind CSS; the frontend is
+built in a Node 20 container \\
+\hline
+Data and messaging & PostgreSQL, Redis, Redpanda (Kafka API), and MinIO \\
+\hline
+Workflow and ML & Temporal and MLflow \\
+\hline
+Document processing & Docling, pdfplumber, Tesseract OCR, and ClamAV \\
+\hline
+Monitoring and mail & Prometheus, Grafana, and Mailpit \\
+\hline
+Gateway & Nginx \\
+\hline
+Browser & A current version of Chrome, Edge, Firefox, or Safari \\
+\hline
+\end{longtable}
+\section{System Architecture}
+
+The Agentic AI-Based IT Procurement Intelligence Platform follows a
+modular, event-driven architecture. The system is divided into
+independent services, each responsible for a specific procurement
+function. This separation improves maintainability, supports parallel
+development, and allows background tasks to be processed independently
+of user-facing requests.
+
+The frontend communicates with backend services through a common API
+gateway. Synchronous HTTP requests are used for operations that require
+an immediate response, while inter-service communication primarily
+uses a Kafka-compatible messaging layer. Temporal supports durable
+workflows such as approvals, escalations, and contract-renewal
+processes.
+
+PostgreSQL stores application records, Redis supports caching and
+locking, and MinIO stores uploaded documents. Background workers
+process events and execute tasks that may take longer to complete.
+This design allows the application to return responses to users
+without waiting for every downstream operation to finish.
+
+\subsection{UI/UX Design}
+
+The frontend is implemented as a React and TypeScript single-page
+application using Vite and Tailwind CSS. Nginx serves the frontend
+and routes API requests to the appropriate backend services. Serving
+the frontend and API through a common entry point simplifies access
+to the application.
+
+The interface is designed around the responsibilities of the four
+implemented roles: requester, approver, finance, and administrator.
+
+The following design principles guide the user interface:
+
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{Role-aware navigation:}
+    The interface provides navigation appropriate to requesters,
+    approvers, finance users, and administrators. Frontend route
+    checks improve usability but do not replace backend
+    authorization.
+
+    \item \textbf{Clear asynchronous status:}
+    The interface communicates the status of document classification,
+    extraction, approvals, and other operations that may take time
+    to complete.
+
+    \item \textbf{Transparent system limitations:}
+    The interface should distinguish successful operations from
+    pending or failed operations. It should not indicate that an
+    action succeeded when the backend is unavailable.
+
+    \item \textbf{Human review:}
+    Users can review extracted document fields and their confidence
+    scores. Where correction is supported, users can correct the
+    extracted information before proceeding.
+
+    \item \textbf{Demonstration support:}
+    The login interface supports demonstration through demo-role
+    switching, allowing the different role-specific workflows to
+    be presented during project evaluation.
+\end{enumerate}
+
+The principal screens and their purposes are summarised in
+Table 4.3.
+
+\begin{longtable}{|p{1.35in}|p{1.35in}|p{3in}|}
+\hline
+\textbf{Screen} & \textbf{User Role} & \textbf{Purpose} \\
+\hline
+Login & All roles & Sign in or select a demonstration role. \\
+\hline
+Requester Dashboard & Requester & View submitted purchase requests and their current status. \\
+\hline
+New Request Wizard & Requester & Enter request details, select a vendor, optionally upload a document, review extracted fields, and submit the request. \\
+\hline
+Approval Inbox & Approver, Finance & Review pending requests and approve or reject them according to assigned permissions. \\
+\hline
+Document Review & Approver, Finance, Admin & Review extracted document fields and confidence scores, and correct and save fields where supported. \\
+\hline
+Vendor Profile & Finance, Admin & View vendor risk information and the payment-change verification queue, along with supported vendor actions. \\
+\hline
+Contracts & Admin & Generate contracts, manage the signature workflow, and view contract-renewal timelines. \\
+\hline
+Inventory & Approver, Admin & View hardware stock and software-licence utilisation. \\
+\hline
+Notification Log & All, subject to permissions & View sent, queued, and failed notifications. \\
+\hline
+Global Search & All, subject to permissions & Search available purchase requests, vendors, contracts, and documents. \\
+\hline
+\end{longtable}
+
+\textbf{Figure 4.4: Main-screen wireframes of the platform.}
+
+Insert screenshots or labelled wireframes of the login screen,
+new-request wizard, approval inbox, and vendor profile. Replace
+this instruction with the actual figure before submitting the
+final report.
+
+\subsection{Block Diagram}
+
+The block diagram represents the major components of the platform
+and the relationships between them. It should show the frontend,
+gateway, application services, background workers, messaging and
+workflow components, data stores, and monitoring tools.
+
+The main architectural layers are described in Table 4.4.
+
+\begin{longtable}{|p{1.4in}|p{4.3in}|}
+\hline
+\textbf{Layer} & \textbf{Components and Responsibilities} \\
+\hline
+Clients & The browser-based React application and API clients access the platform through the API gateway on port 8080. \\
+\hline
+Gateway & Nginx serves the frontend and routes API paths to the appropriate backend services, providing a common entry point. \\
+\hline
+Application Services & The Document and Vendor Agent runs on port 8001; the Approval and Inventory Agent on port 8002; the Contract and Risk Agent on port 8003; the Notification Agent on port 8004; and the Authentication Service on port 8005. Authentication and role-based middleware protect application endpoints, except for specifically designated health and metrics endpoints. \\
+\hline
+Background Workers & Each domain service can use a background worker to consume events and perform asynchronous processing and workflow-related tasks. \\
+\hline
+Messaging and Orchestration & Redpanda provides a Kafka-compatible event-messaging interface. Temporal supports durable workflows for approvals, escalations, and contract renewals. \\
+\hline
+Data and Platform Services & PostgreSQL stores application records, Redis supports caching and locks, and MinIO stores documents. ClamAV scans files for malware, MLflow supports model tracking, and Mailpit supports development email testing. \\
+\hline
+Observability & Prometheus collects metrics and Grafana provides dashboards for monitoring request rates, latency, errors, and service availability. \\
+\hline
+\end{longtable}
+
+\textbf{Figure 4.5: Block diagram of the proposed system architecture.}
+
+Insert a clean block diagram based on the architecture described
+above. Verify that the service names, ports, gateway routes,
+workers, event bus, workflow engine, data stores, and monitoring
+components correspond to the implemented system.
+
+\subsection{Main Data Paths}
+
+The principal data paths in the system are described below.
+
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{User access:}
+    The browser accesses the frontend through Nginx. API requests
+    are routed to the appropriate backend service.
+
+    \item \textbf{Document processing:}
+    The Document and Vendor Agent scans an uploaded file for
+    malware. Accepted files are stored in MinIO, and an ingestion
+    event is published. Background processing extracts and
+    classifies document information and publishes the resulting
+    classification and vendor-matching information.
+
+    \item \textbf{Approval processing:}
+    The Approval and Inventory Agent interacts with the workflow
+    engine to initiate or progress approval workflows. Background
+    workers execute workflow-related tasks, apply decisions, and
+    publish relevant events.
+
+    \item \textbf{Contract processing:}
+    The Contract and Risk Agent processes approved requests,
+    generates contracts, and handles signed-document callbacks.
+    The callback is accepted only after the required HMAC
+    signature validation and replay checks. A contract-signed
+    event is published, allowing the Approval and Inventory
+    Agent to update the purchase-request status.
+
+    \item \textbf{Risk assessment and notifications:}
+    The Contract and Risk Agent publishes relevant risk-score
+    and renewal events. The Notification Agent consumes
+    applicable events and sends email notifications through
+    the configured SMTP service.
+
+    \item \textbf{Data access and supporting services:}
+    Application services use PostgreSQL for persistent records.
+    Redis supports approval and contract locking, MinIO stores
+    documents, and MLflow supports tracking of contract and
+    risk-model experiments.
+\end{enumerate}
+
+These data paths illustrate how synchronous API operations,
+event-driven communication, and durable workflows work together
+to support procurement activities.
+
+\section{Chapter 4 Review Checklist Before Submission}
+
+Before submitting this chapter for final review, verify the following
+items:
+
+\begin{enumerate}[label=\arabic*.]
+    \item Replace every instruction to insert a diagram, wireframe,
+    or screenshot with the actual figure, or remove the placeholder
+    if the figure is not included in the final scope.
+
+    \item Ensure that figure numbers and table numbers are unique
+    and sequential throughout the report. Check consistency with
+    the numbering used in Chapter 3.
+
+    \item Verify service names, ports, user roles, event names,
+    software versions, and system behaviour against the actual
+    implementation.
+
+    \item Recheck the cost estimates and any statements about
+    external services, free-tier limits, and third-party
+    integrations. Clearly identify estimates that have not been
+    confirmed through actual quotations or usage data.
+
+    \item Confirm that the functional and non-functional
+    requirements describe implemented features accurately and
+    distinguish implemented functionality from planned or
+    externally dependent features.
+
+    \item Update the table of contents, list of figures, and
+    list of tables after integrating the chapter into the
+    complete report.
+\end{enumerate}
+
+\end{document}

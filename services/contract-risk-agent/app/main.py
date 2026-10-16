@@ -52,6 +52,10 @@ async def lifespan(app: FastAPI):
     # FR-14: refresh a downloaded sanctions list daily (never downloads first).
     from app.services.sanctions import run_daily_refresh
     sanctions_task = asyncio.create_task(run_daily_refresh())
+    # FR-13: load the Legal-BERT clause model now (~6 s) rather than on the
+    # first contract; without a downloaded model this just logs a warning.
+    from app.services import clause_model
+    app.state.clause_model_warmup = asyncio.create_task(asyncio.to_thread(clause_model.available))
 
     yield
 

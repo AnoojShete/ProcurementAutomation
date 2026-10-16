@@ -134,8 +134,9 @@ ad-hoc pass (undefined names).
   the stack is running, otherwise those tests skip.
 - zsh is the user's shell: unquoted `$VAR` doesn't word-split, and globs
   with no match are errors.
-- LayoutLMv3 is loaded from the local cache only; run
-  `./scripts/download-models.sh` once or the cross-check is skipped.
+- LayoutLMv3 and Legal-BERT (CUAD) are loaded from the local cache only;
+  run `./scripts/download-models.sh` once, or the LayoutLMv3 cross-check is
+  skipped and clause extraction uses the regex rules.
 
 ## Working style the user expects
 

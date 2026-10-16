@@ -25,12 +25,13 @@ shap.TreeExplainer (which supports tree-based ensembles natively).
 
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X)   # shape (1, n_features)
-    # Positive SHAP → feature pushes the instance toward anomaly
-    # Negative SHAP → feature pushes the instance toward normal/inlier
+    # SHAP explains score_samples(), where HIGHER = more normal (longer
+    # isolation path). So a negative SHAP value pushes toward anomaly.
 
 Top factors are sorted by |SHAP| descending; we return the top N_TOP (3).
-Contribution is the raw SHAP value (not absolute), so the caller can tell
-the direction.  This matches the {feature, contribution} shape already used
+`contribution` is the risk contribution, -SHAP: positive = pushes the
+licence toward "anomalous", negative = toward normal. (Until 16 Oct 2026
+the raw SHAP value was returned, so the UI showed every direction reversed.)  This matches the {feature, contribution} shape already used
 by risk.score.updated.
 
 Score normalisation
@@ -355,8 +356,8 @@ class UsageAnomalyScorer:
                 top_factors = [
                     {
                         "feature": feat_names[i],
-                        "contribution": round(float(sv[i]), 6),
-                        "direction": "increasing_risk" if float(sv[i]) > 0 else "decreasing_risk",
+                        "contribution": round(-float(sv[i]), 6),
+                        "direction": "increasing_risk" if float(sv[i]) < 0 else "decreasing_risk",
                     }
                     for i in top_indices
                     if abs(sv[i]) > 1e-9   # skip zero-contribution features

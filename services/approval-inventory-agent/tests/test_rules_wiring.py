@@ -162,6 +162,13 @@ def test_license_anomaly_anomalous_threshold(rule):
     assert anomaly_status_for(0.8) == "watch"
     rule("license.anomaly_anomalous_threshold", 0.7)
     assert anomaly_status_for(0.8) == "anomalous"
+    # A reclaim is proposed exactly when the page says "anomalous".
+    from app.services.usage_service import UsageService
+    assert UsageService.should_trigger_reclaim_ml(0.7) is True
+    assert UsageService.should_trigger_reclaim_ml(0.69) is False
+    assert UsageService.should_trigger_reclaim_ml(None) is False
+    rule("license.anomaly_anomalous_threshold", 0.39)
+    assert UsageService.should_trigger_reclaim_ml(0.5) is True
 
 
 def _reorder(point_pct=None, qty_pct=None):

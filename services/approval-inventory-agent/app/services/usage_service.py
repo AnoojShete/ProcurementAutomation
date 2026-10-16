@@ -7,9 +7,9 @@ detects unusual decline patterns. The flat utilisation-threshold check has
 been replaced by an IsolationForest anomaly score (computed by
 app/ml/usage_anomaly.py using SHAP TreeExplainer for attribution).
 
-Trigger logic (replaces the old flat threshold):
-  anomaly_score > anomaly_threshold  →  create reclaim request
-  (configurable in config.yaml: utilisation.anomaly_threshold, default 0.6)
+Trigger logic (replaces the old flat threshold): a licence whose status is
+"anomalous" — anomaly_score ≥ the rule license.anomaly_anomalous_threshold,
+the same line the licence page uses — gets a reclaim request.
 
 The raw utilisation_score is still computed and published in
 license.usage.updated events alongside the anomaly_score + top_factors.
@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import cast, select, func
 from sqlalchemy.dialects.postgresql import JSONB
 from app.models import License, LicenseUsage, PurchaseRequest, ApprovalHistory, AuditLog
+from shared.eventing import staged
 from app.config import load_config, settings
 from app.kafka.producer import KafkaEventProducer
 from app.ml.usage_anomaly import get_scorer
@@ -119,19 +120,14 @@ class UsageService:
         return utilisation_score < threshold
 
     @staticmethod
-    def should_trigger_reclaim_ml(
-        anomaly_score: float, threshold: float = 0.6
-    ) -> bool:
-        """Check whether the ML anomaly score exceeds the reclaim threshold.
-
-        Args:
-            anomaly_score: IsolationForest anomaly score (0.0 normal, 1.0 anomalous).
-            threshold: Above this value triggers reclaim (default 0.6).
-
-        Returns:
-            True if a reclaim should be created.
-        """
-        return anomaly_score > threshold
+    def should_trigger_reclaim_ml(anomaly_score: Optional[float]) -> bool:
+        """A reclaim is proposed exactly when the licence page calls the
+        licence "anomalous" (rule license.anomaly_anomalous_threshold). It
+        used to compare against config.yaml's 0.6, a value from before the
+        model was retrained (FR-32), so licences shown as anomalous never got
+        a reclaim."""
+        from app.config import anomaly_status_for
+        return anomaly_status_for(anomaly_score) == "anomalous"
 
     @staticmethod
     def should_trigger_warning(utilisation_score: float, threshold: float = 0.5) -> bool:
@@ -269,16 +265,13 @@ class UsageService:
         """Scan all active licenses and auto-create reclaim requests for anomalous ones.
 
         Replaces the old flat utilisation-threshold check with an ML anomaly score
-        from the IsolationForest model. For each license above the anomaly_threshold:
+        from the IsolationForest model. For each license whose status is anomalous:
           1. Compute current utilisation + anomaly_score + top_factors
           2. Publish license.usage.updated event (with all fields)
           3. Create a 'reclaim' type purchase request (if none open already)
 
         This is designed to run periodically (e.g., via a scheduled task).
         """
-        config = load_config()
-        anomaly_threshold = config.get("utilisation", {}).get("anomaly_threshold", 0.6)
-
         stmt = select(License).where(License.status == "active")
         result = await db.execute(stmt)
         licenses = result.scalars().all()
@@ -292,20 +285,21 @@ class UsageService:
             utilisation_score = usage_data["utilisation_score"]
 
             # Publish utilisation + anomaly update regardless of threshold
-            try:
-                await producer.publish_license_usage_updated(usage_data)
-            except Exception as e:
-                logger.error(f"Failed to publish license usage for {lic.id}: {e}")
+            # (through the outbox; the relay sends it).
+            outbox = staged(producer, db)
+            if outbox is not None:
+                await outbox.publish_license_usage_updated(usage_data)
+                await db.commit()
 
             # ── ML-driven reclaim trigger ──────────────────────────────────
             now = datetime.now(timezone.utc)
             if lic.reclaim_cooldown_until and lic.reclaim_cooldown_until > now:
                 continue
 
-            if UsageService.should_trigger_reclaim_ml(anomaly_score, anomaly_threshold):
+            if UsageService.should_trigger_reclaim_ml(anomaly_score):
                 logger.info(
                     f"License {lic.app_name} ({lic.id}) anomaly_score={anomaly_score:.3f} "
-                    f"exceeds threshold {anomaly_threshold} — creating reclaim request. "
+                    f"is anomalous — creating reclaim request. "
                     f"top_factors={usage_data['top_factors']}"
                 )
 
@@ -359,8 +353,10 @@ class UsageService:
                 db.add(reclaim_request)
                 await db.flush()
 
-                try:
-                    await producer.publish_notification(
+                # Committed with the reclaim request below (outbox).
+                outbox = staged(producer, db)
+                if outbox is not None:
+                    await outbox.publish_notification(
                         recipient="license_owner",
                         channel="email",
                         template_name="license_reclaim_warning",
@@ -370,8 +366,6 @@ class UsageService:
                         priority="urgent",
                         related_entity_id=reclaim_request.id,
                     )
-                except Exception as e:
-                    logger.error(f"Failed to publish notification for reclaim {reclaim_request.id}: {e}")
 
                 try:
                     from temporalio.client import Client

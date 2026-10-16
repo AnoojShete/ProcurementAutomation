@@ -16,7 +16,7 @@ documents.
 | **Approval & Inventory** | [samples/approval-inventory-agent.json](samples/approval-inventory-agent.json), [samples/inventory-and-licences.json](samples/inventory-and-licences.json) | [05 approval queue](screens/05-approval-queue.png), [06 request lifecycle](screens/06-request-lifecycle.png), [07 inventory & reorder](screens/07-inventory-reorder.png), [08 licence anomaly](screens/08-licence-anomaly.png) | Licence anomaly model ROC-AUC 0.954 vs 0.659 before ([licence-anomaly.md](licence-anomaly.md)); invoice lifecycle through all agents e2e 71/71 |
 | **Contract & Risk** | [samples/contract-risk-agent-contract.json](samples/contract-risk-agent-contract.json), [samples/contract-risk-agent-risk.json](samples/contract-risk-agent-risk.json) | [09 contract](screens/09-contract.png), [03 vendor risk](screens/03-vendor-risk.png) | Vendor risk model ROC-AUC 0.715 (best possible on these labels 0.739), red-team profiles 12/12 ([risk-model.md](risk-model.md)) |
 | **Notification** | [samples/notification-agent.json](samples/notification-agent.json) | [13 notifications](screens/13-notifications.png) | 11 of 17 event topics consumed; coverage and gaps in [../notifications.md](../notifications.md); failed events retried and dead-lettered (FR-31) |
-| **Auth & business rules** | [samples/auth-service-rule.json](samples/auth-service-rule.json) | [11 business rules](screens/11-business-rules.png) | 47 rules, 36 enforced, each with a behaviour test ([../business-rules.md](../business-rules.md)) |
+| **Auth & business rules** | [samples/auth-service-rule.json](samples/auth-service-rule.json) | [11 business rules](screens/11-business-rules.png) | 47 rules, 37 enforced, each with a behaviour test ([../business-rules.md](../business-rules.md)) |
 | **Platform** | — | [10 control panel](screens/10-control-panel.png), [12 system health](screens/12-system-health.png), [logs by correlation id](logs-correlation.png) | Gateway e2e (`make e2e`) 17/17; model fallback shown on demand ([../model-routing.md](../model-routing.md)) |
 
 ## Tests (16 Oct 2026)
@@ -33,7 +33,7 @@ documents.
 | `tests/e2e/invoice_lifecycle.py` | 71 / 71 |
 | `tests/e2e/document_pipeline.py --quick` | 52 / 52 |
 
-Every fix in TODO.md was also checked by reverting it and watching a test fail.
+Every fix in [docs/TODO.md](../TODO.md) was also checked by reverting it and watching a test fail.
 
 ## Regenerating
 
@@ -41,7 +41,7 @@ Every fix in TODO.md was also checked by reverting it and watching a test fail.
 |---|---|
 | Samples | `python scripts/presentation_samples.py` (stack running, demo data seeded) |
 | Screenshots | `python tests/e2e/presentation_screens.py` (after the samples) |
-| Extraction | see readmeforme.md → Document pipeline |
+| Extraction | see [docs/readmeforme.md](../readmeforme.md) → Document pipeline |
 | Classifier | `python /app/ml/train_classifier.py --out /out` in the document-vendor-agent image |
 | Licence anomaly | `python ml/evaluate_usage_anomaly.py --out /out` in the approval-inventory-agent image |
 | Risk model | `python ml/evaluate_risk_model.py` in the contract-risk-agent image |

@@ -42,6 +42,7 @@ run_one() {
     -e APP_ENV=development \
     -v "$ROOT_DIR/services/$svc:/app" \
     -v "$ROOT_DIR/shared:/app/shared" \
+    -v "$ROOT_DIR/data:/data:ro" \
     -w /app \
     --entrypoint sh \
     "$image" \

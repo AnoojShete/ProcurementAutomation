@@ -80,7 +80,7 @@ MLflow experiment `usage_anomaly_detector`: http://localhost:5050 (the
 container listens on 5000 inside the Docker network).
 
 On the seeded data the ranking is questionable (a license at 76 %
-utilisation scores as anomalous) — tracked in TODO.md.
+utilisation scores as anomalous) — tracked in docs/TODO.md.
 
 ## Tests
 

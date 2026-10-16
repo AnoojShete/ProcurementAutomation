@@ -26,3 +26,8 @@ aiofiles==24.1.0
 reportlab==4.2.2
 cryptography==43.0.1
 rapidfuzz==3.9.6
+# FR-13: Legal-BERT clause model. Same CPU-only torch and transformers as
+# document-vendor-agent (see the notes there).
+transformers==5.12.1
+torch==2.6.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu

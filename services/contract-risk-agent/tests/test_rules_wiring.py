@@ -127,27 +127,25 @@ def test_risk_psi_moderate_threshold(rule, tmp_path):
     assert _drift(tmp_path)["moderate_drift_detected"] is True
 
 
-def _clause_route():
+def _clause_route(found):
+    """Routes with the Legal-BERT path stubbed to return `found`."""
     from app.services import clause_router
-    one_of_three = {"renewal_type": "auto", "notice_period_days": None, "contract_end_date": None}
-    with patch.object(clause_router, "extract_clauses", return_value=one_of_three), \
+    with patch.object(clause_router.clause_model, "available", return_value=True), \
+            patch.object(clause_router, "_model_clauses", return_value=found), \
             patch.object(clause_router, "_log_to_db", lambda *a: None):
-        return run(clause_router.route_clause_extraction(MagicMock(), "c-1", "text")).route_name
+        return run(clause_router.route_clause_extraction(MagicMock(), "c-1", "text"))
+
+
+ONE_OF_THREE = {"renewal_type": "auto", "notice_period_days": None, "contract_end_date": None}
+ALL_THREE = {"renewal_type": "auto", "notice_period_days": 30, "contract_end_date": "2027-01-01"}
 
 
 def test_contract_clause_extraction_fallback_threshold(rule):
     rule("contract.clause_extraction_fallback_threshold", 0.4)   # 1 of 3 clauses = 0.33
-    assert _clause_route() == "keyword_fallback"
+    r = _clause_route(ONE_OF_THREE)
+    assert r.route_name == "regex_fallback" and r.fallback_reason == "low_confidence"
     rule("contract.clause_extraction_fallback_threshold", 0.3)
-    assert _clause_route() == "regex_primary"
-
-
-def _clause_result():
-    from app.services import clause_router
-    all_three = {"renewal_type": "auto", "notice_period_days": 30, "contract_end_date": "2027-01-01"}
-    with patch.object(clause_router, "extract_clauses", return_value=all_three), \
-            patch.object(clause_router, "_log_to_db", lambda *a: None):
-        return run(clause_router.route_clause_extraction(MagicMock(), "c-1", "text"))
+    assert _clause_route(ONE_OF_THREE).route_name == "legal_bert_primary"
 
 
 def test_dev_force_model_fallback(rule, monkeypatch):
@@ -155,12 +153,12 @@ def test_dev_force_model_fallback(rule, monkeypatch):
     fallback (reason "forced") — in development only."""
     rule("contract.clause_extraction_fallback_threshold", 0.4)
     rule("dev.force_model_fallback", [])
-    assert _clause_result().route_name == "regex_primary"
+    assert _clause_route(ALL_THREE).route_name == "legal_bert_primary"
     rule("dev.force_model_fallback", ["clauses"])
-    r = _clause_result()
-    assert r.route_name == "keyword_fallback" and r.fallback_reason == "forced"
+    r = _clause_route(ALL_THREE)
+    assert r.route_name == "regex_fallback" and r.fallback_reason == "forced"
     monkeypatch.setenv("APP_ENV", "production")
-    assert _clause_result().route_name == "regex_primary"
+    assert _clause_route(ALL_THREE).route_name == "legal_bert_primary"
 
 
 def test_risk_sanctions_match_threshold_pct(rule):

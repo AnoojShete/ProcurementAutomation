@@ -92,6 +92,13 @@ async def lifespan(app: FastAPI):
 
     gauge_task = asyncio.create_task(_refresh_approval_pending_gauge())
 
+    # Publishes events committed to the outbox (shared/eventing/outbox.py).
+    from shared.eventing import kafka_sender, run_relay
+    relay_task = asyncio.create_task(run_relay(
+        async_session_factory, app.state.kafka_producer.service_name,
+        kafka_sender(app.state.kafka_producer.producer),
+    ))
+
     order_monitor_task = asyncio.create_task(
         run_order_monitor(app.state.kafka_producer, app.state.redis)
     )
@@ -99,7 +106,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown — cancel background tasks gracefully
-    for task in (consumer_task, scanner_task, gauge_task, order_monitor_task):
+    for task in (consumer_task, scanner_task, gauge_task, order_monitor_task, relay_task):
         task.cancel()
         try:
             await task

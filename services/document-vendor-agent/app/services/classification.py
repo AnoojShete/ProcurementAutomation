@@ -1,8 +1,9 @@
-"""Rule-based / keyword document classifier: PO vs invoice vs quote.
+"""Document classifier: PO vs invoice vs quote vs other.
 
-Deliberately simple (keyword scoring, not ML) — the task calls for a
-rule-based classifier, and it's easy to reason about / extend as new
-vendor templates show up.
+An ML model (TF-IDF + logistic regression, ml/train_classifier.py, FR-29)
+answers when it is at least ML_MIN_CONFIDENCE sure; otherwise the keyword
+classifier below does. The keywords are simple to reason about and extend
+as new vendor templates show up.
 """
 import re
 from dataclasses import dataclass

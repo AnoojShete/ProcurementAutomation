@@ -10,7 +10,7 @@ behind one nginx gateway that also serves the React frontend.
 A student team project (Anjali, Vaidehi, Niraj, Anooj). It's a working,
 tested prototype, not a production deployment — see [TODO.md](TODO.md)
 for what's open (with the roadmap), `git log` for what changed, and
-[docs/showcase.html](docs/showcase.html) for how to present it (full walkthrough for external evaluators, what's-new run for mentors).
+[docs/showcase.html](showcase.html) for how to present it (full walkthrough for external evaluators, what's-new run for mentors).
 
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
@@ -48,7 +48,7 @@ its one-shot `redpanda-init`, Temporal + Temporal UI, MinIO, ClamAV,
 Mailpit, MLflow, Prometheus, Grafana, kafka-exporter, nginx.
 
 Shared contracts:
-- Kafka events: [`shared/schemas/events.md`](shared/schemas/events.md)
+- Kafka events: [`shared/schemas/events.md`](../shared/schemas/events.md)
   (envelope + payload per topic), topic list `shared/kafka-topics.yaml`,
   per-service permissions `infra/redpanda/acls.conf`.
 - REST envelope: `{"data": …, "meta": …}` or
@@ -603,5 +603,5 @@ work).
 
 All data is synthetic; see each folder's README under `data/`
 (`synthetic-invoices`, `synthetic-vendors`, `synthetic-sso-logs`,
-`synthetic-classification`) and [`data/README.md`](data/README.md) for
+`synthetic-classification`) and [`data/README.md`](../data/README.md) for
 the retention policy and which tables hold personal data.

@@ -349,14 +349,5 @@ def test_top_factors_shape_contract(trained_scorer):
             assert isinstance(factor["contribution"], float)
 
 
-# ── Test 5: should_trigger_reclaim_ml ─────────────────────────────────────────
-
-def test_should_trigger_reclaim_ml_boundary():
-    """Verify the ML-threshold boundary semantics (strictly above, not at)."""
-    from app.services.usage_service import UsageService
-
-    assert UsageService.should_trigger_reclaim_ml(0.61, threshold=0.6) is True
-    assert UsageService.should_trigger_reclaim_ml(0.60, threshold=0.6) is False   # exactly at → no reclaim
-    assert UsageService.should_trigger_reclaim_ml(0.59, threshold=0.6) is False
-    assert UsageService.should_trigger_reclaim_ml(1.00, threshold=0.6) is True
-    assert UsageService.should_trigger_reclaim_ml(0.00, threshold=0.6) is False
+# ── Test 5: reclaims follow the anomalous rule — see
+#    tests/test_rules_wiring.py::test_license_anomaly_anomalous_threshold ─────

@@ -24,7 +24,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if ! docker compose version >/dev/null 2>&1; then
-  echo "Docker Compose plugin not available. On Ubuntu ensure 'docker compose' is installed (see \"Run on Linux\" in readmeforme.md)." >&2
+  echo "Docker Compose plugin not available. On Ubuntu ensure 'docker compose' is installed (see \"Run on Linux\" in docs/readmeforme.md)." >&2
   exit 1
 fi
 

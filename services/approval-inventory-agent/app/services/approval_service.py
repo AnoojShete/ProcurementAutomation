@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from shared.eventing import staged
 from app.config import load_spend_tiers, load_config, settings
 from app.models import PurchaseRequest, ApprovalHistory, AuditLog, Inventory
 from app.schemas import CreatePurchaseRequest, ApprovalAction
@@ -193,17 +194,18 @@ class ApprovalService:
             updated_at=now,
         )
         self.db.add(req)
+        # Events go through the outbox in the same transaction as the change
+        # they announce (shared/eventing/outbox.py), so a Kafka outage or a
+        # crash after commit can't lose them; the relay retries until sent.
+        outbox = staged(self.producer, self.db)
+        if nothing_in_stock and outbox is not None:
+            # Announced like a backordered split portion; it enters approval
+            # when stock arrives (backordered -> pending_approval).
+            await outbox.publish_approval_requested(req)
         await self.db.commit()
         await self.db.refresh(req)
 
         if nothing_in_stock:
-            # Announced like a backordered split portion; it enters approval
-            # when stock arrives (backordered -> pending_approval).
-            try:
-                await self.producer.publish_approval_requested(req)
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).error(f"Failed to publish approval.requested for backorder {req.id}: {e}")
             return await self._reloaded(req.id)
 
         if is_backordered and data.request_type == "hardware":
@@ -213,22 +215,14 @@ class ApprovalService:
 
             # GAP-A8 fix: also publish approval.requested for the backordered portion
             # so notification-agent and other services know about it.
-            if backorder_req:
-                try:
-                    await self.producer.publish_approval_requested(backorder_req)
-                except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).error(
-                        f"Failed to publish approval.requested for backorder {backorder_req.id}: {e}"
-                    )
+            if backorder_req and outbox is not None:
+                await outbox.publish_approval_requested(backorder_req)
 
-        # 5. Publish approval.requested Kafka event for the immediate / main request
-        try:
-            await self.producer.publish_approval_requested(req)
-        except Exception as e:
-            # Don't fail the request if Kafka is temporarily unavailable
-            import logging
-            logging.getLogger(__name__).error(f"Failed to publish approval.requested: {e}")
+        # 5. approval.requested for the immediate / main request (outbox: sent
+        # by the relay once Kafka is reachable).
+        if outbox is not None:
+            await outbox.publish_approval_requested(req)
+            await self.db.commit()
 
         # 6. If auto-approved, immediately approve and publish decided event
         if tier_name == "auto":
@@ -258,16 +252,11 @@ class ApprovalService:
                 details={"tier": "auto", "amount": float(data.amount)},
             )
             self.db.add(audit)
+            outbox = staged(self.producer, self.db)
+            if outbox is not None:
+                await outbox.publish_approval_decided(req.id, "approved", "system", "auto", False, None, now)
             await self.db.commit()
             await self.db.refresh(req)
-
-            try:
-                await self.producer.publish_approval_decided(
-                    req.id, "approved", "system", "auto", False, None, now
-                )
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).error(f"Failed to publish approval.decided: {e}")
         else:
             # 7. Start Temporal approval workflow for non-auto tiers
             try:
@@ -431,16 +420,15 @@ class ApprovalService:
             },
         )
         self.db.add(audit)
-        await self.db.commit()
-
-        # Publish event
-        try:
-            await self.producer.publish_approval_decided(
+        # approval.decided starts contract generation — it must not be lost
+        # (it used to be sent after the commit with errors ignored).
+        outbox = staged(self.producer, self.db)
+        if outbox is not None:
+            await outbox.publish_approval_decided(
                 req.id, decision, action.decided_by, decision_level,
                 False, action.comments, now, decision_channel=channel
             )
-        except Exception:
-            pass
+        await self.db.commit()
 
     async def decline_reclaim(self, request_id: str, requested_by: str) -> PurchaseRequest:
         from app.models import License

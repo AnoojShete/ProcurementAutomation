@@ -51,7 +51,11 @@ FEATURES = FEATURE_SETS["scale_free"]
 
 def simulate(rng: np.random.Generator, app_name: str, pattern: str, seats: int, end: datetime) -> list[dict]:
     """Login events for one licence over the DAYS before `end`."""
-    start = end - timedelta(days=DAYS)
+    # Days start at midnight: with a non-midnight `end` (the demo log ends
+    # 23:59) the 8:00–19:00 login times used to spill into the next day, so
+    # Friday logins were stamped Saturday and a weekend-dip licence had ~20 %
+    # weekend logins instead of ~1 %.
+    start = (end - timedelta(days=DAYS)).replace(hour=0, minute=0, second=0, microsecond=0)
     in_use = rng.uniform(0.25, 0.45) if pattern == "low_stable" else rng.uniform(0.65, 0.95)
     users = [f"user{i}@company.com" for i in range(max(1, int(seats * in_use)))]
     p_weekday = rng.uniform(0.55, 0.9)

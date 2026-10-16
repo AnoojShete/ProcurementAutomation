@@ -35,7 +35,7 @@ The rest of this file documents the repo-root `scripts/generate_sso_logs.py`,
 a richer generator with 8 licenses and 4 usage patterns. **Its output is not
 the committed file**; running it overwrites `sso_login_events.json` with a
 different license set, and the seeded licenses would then have no history.
-Reconciling the two generators is tracked in TODO.md.
+Reconciling the two generators is tracked in docs/TODO.md.
 
 ## Event schema (root generator)
 

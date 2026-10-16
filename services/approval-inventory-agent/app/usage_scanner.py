@@ -95,9 +95,15 @@ async def _ingest_sso_logs_and_publish(producer: KafkaEventProducer):
     logger.info(f"Loaded {len(sso_events)} SSO login events from {SSO_LOG_PATH}")
 
     now = datetime.now(timezone.utc)
-    cutoff_30d = now - timedelta(days=30)
-    cutoff_60d = now - timedelta(days=60)
-    cutoff_90d = now - timedelta(days=90)
+    # Windows are measured back from the data's latest login, not today:
+    # the demo log is a snapshot, and against today's date every licence
+    # drifted to 0 active seats within a month — which then proposed a
+    # reclaim of every licence. A live feed's latest login is ~now anyway.
+    from app.services.usage_service import _events_as_of
+    as_of = _events_as_of(sso_events, now)
+    cutoff_30d = as_of - timedelta(days=30)
+    cutoff_60d = as_of - timedelta(days=60)
+    cutoff_90d = as_of - timedelta(days=90)
 
     # Aggregate: {(app_name, user_email): {"30d": int, "60d": int, "90d": int, "last": datetime}}
     aggregated: dict[tuple, dict] = {}

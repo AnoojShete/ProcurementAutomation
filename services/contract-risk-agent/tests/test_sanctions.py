@@ -28,8 +28,6 @@ uk-5,LegalEntity,Sea Breeze Shipping Limited,,,ir,,,,,,UK HMT,,,
 @pytest.fixture
 def index():
     built = sanctions.build_index(CSV, "test-v1")
-    for i, e in enumerate(built["entries"]):
-        pass
     flat, owners = [], []
     for i, e in enumerate(built["entries"]):
         for n in e["names"]:
