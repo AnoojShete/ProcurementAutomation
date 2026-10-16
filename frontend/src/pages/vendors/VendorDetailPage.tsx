@@ -19,6 +19,7 @@ import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Modal } from "@/components/ui/Modal";
 import { RiskGauge } from "@/components/vendors/RiskGauge";
 import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
+import { RiskSignalsCard } from "@/components/vendors/RiskSignalsCard";
 import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { ApiError } from "@/api/client";
 
@@ -84,7 +85,7 @@ export function VendorDetailPage() {
     return events.sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""));
   }, [vendor, paymentChanges, risk, vendorContracts]);
 
-  if (loading) return <Skeleton className="h-96" />;
+  if (loading && !vendors) return <Skeleton className="h-96" />;  // first load only: a reload must not unmount the cards
   if (error || !vendor) return <ErrorState message={error ?? "Vendor not found."} onRetry={reloadVendors} />;
 
   return (
@@ -178,6 +179,12 @@ export function VendorDetailPage() {
           </CardBody>
         </Card>
       </div>
+
+      <RiskSignalsCard
+        vendorId={vendor.id}
+        canEdit={user?.role === "finance" || user?.role === "admin"}
+        onRescored={() => { reloadRisk(); reloadVendors(); }}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
