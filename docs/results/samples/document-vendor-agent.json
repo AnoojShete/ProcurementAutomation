@@ -1,0 +1,131 @@
+{
+  "agent": "document-vendor-agent",
+  "input": {
+    "file": "invoice_68E70E.pdf",
+    "uploaded_by": "requester@demo.example.com",
+    "source": "upload"
+  },
+  "output": {
+    "id": "74b22452-0738-495f-83e9-076adc43125e",
+    "status": "classified",
+    "document_type": "invoice",
+    "vendor_id": "b1c0a6a6-e8dd-498e-bd68-0f0de7b7ba0b",
+    "vendor_name_raw": "Zenith Test Systems 68E70E Pvt Ltd",
+    "extracted_fields": {
+      "total": 3894.0,
+      "currency": "INR",
+      "discount": null,
+      "due_date": null,
+      "subtotal": 3300.0,
+      "po_backed": false,
+      "crosscheck": {
+        "available": true,
+        "disagrees": false,
+        "docling_fields": {
+          "total": 3894.0,
+          "vendor_name": "Zenith Test Systems 68E70E Pvt Ltd",
+          "invoice_number": "INV-68E70E"
+        },
+        "layoutlm_fields": {
+          "total": null,
+          "vendor_name": null,
+          "invoice_number": null
+        },
+        "disagreement_details": {}
+      },
+      "line_items": [
+        {
+          "category": "software",
+          "quantity": 2.0,
+          "line_total": 3300.0,
+          "unit_price": 1650.0,
+          "description": "Microsoft 365 E3 Seat License",
+          "item_description": "Microsoft 365 E3 Seat License"
+        }
+      ],
+      "tax_amount": 594.0,
+      "amount_check": {
+        "checks": [
+          {
+            "ok": true,
+            "check": "subtotal - discount + tax = total",
+            "found": 3894.0,
+            "expected": 3894.0
+          },
+          {
+            "ok": true,
+            "check": "line items add up to subtotal",
+            "found": 3300.0,
+            "expected": 3300.0
+          }
+        ],
+        "status": "consistent"
+      },
+      "invoice_date": "2026-10-16",
+      "payment_hold": false,
+      "po_reference": null,
+      "routing_code": null,
+      "document_date": "2026-10-16",
+      "invoice_match": {
+        "issues": [],
+        "status": "matched",
+        "allocations": [
+          {
+            "amount": 3894.0,
+            "line_no": 0,
+            "quantity": 2.0,
+            "description": "Microsoft 365 E3 Seat License"
+          }
+        ],
+        "remaining_after": 0.0,
+        "remaining_before": 3894.0,
+        "purchase_request_id": "a74bfdd6-6327-4d16-b82e-8811185a1164"
+      },
+      "matched_po_id": "a74bfdd6-6327-4d16-b82e-8811185a1164",
+      "payment_terms": null,
+      "invoice_number": "INV-68E70E",
+      "document_number": "INV-68E70E",
+      "vendor_name_raw": "Zenith Test Systems 68E70E Pvt Ltd",
+      "review_threshold": {
+        "mode": "default",
+        "clean": 0,
+        "reviews": 0,
+        "threshold": 0.8
+      },
+      "matched_po_number": "PO-A74BFDD6",
+      "unmatched_invoice": false,
+      "bank_account_number": null,
+      "payment_hold_reason": null,
+      "payment_beneficiary_name": null
+    },
+    "confidence_scores": {
+      "total": 0.922,
+      "line_items": 0.922,
+      "vendor_name": 0.8,
+      "document_date": 0.847,
+      "classification": 0.941,
+      "document_number": 0.894
+    },
+    "overall_confidence": 0.889,
+    "needs_review": false,
+    "is_likely_duplicate": false,
+    "duplicate_of_document_id": null,
+    "file_type": "pdf",
+    "original_filename": "invoice_68E70E.pdf",
+    "uploaded_by": "requester@demo.example.com",
+    "uploaded_at": "2026-10-16T08:53:28.331410+00:00",
+    "reviewed_by": null,
+    "reviewed_at": null,
+    "error_message": null,
+    "fx": {
+      "currency": "INR",
+      "total": 3894.0,
+      "total_inr": 3894.0,
+      "rate": 1.0,
+      "rate_date": "2026-10-16",
+      "source": "same currency"
+    },
+    "source": "upload",
+    "source_sender": null
+  }
+}

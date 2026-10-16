@@ -1,0 +1,20 @@
+{
+  "agent": "notification-agent",
+  "input": {
+    "event_type": "approval.requested"
+  },
+  "output": {
+    "id": "8f2fa635-b00a-4af3-9e59-f77a7be19b29",
+    "recipient": "dept_manager@users.procurement.local",
+    "channel": "email",
+    "event_type": "approval.requested",
+    "template_name": "approval_requested",
+    "subject": "Action required: approve 3000.0 INR hardware request from requester@demo.example.com (IT)",
+    "priority": "urgent",
+    "related_entity_id": "559d8c83-2eaa-4557-b577-f061d6034958",
+    "status": "sent",
+    "error": null,
+    "sent_at": "2026-10-16T08:53:32.517951Z",
+    "created_at": "2026-10-16T08:53:32.517951Z"
+  }
+}

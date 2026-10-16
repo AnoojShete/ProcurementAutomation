@@ -188,7 +188,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | BLOCKED (permission) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
 | SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
 | FR-05 | Demo script | PARTIAL (walkthrough in `docs/showcase.html`; rehearsal on a fresh seed left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
-| FR-12 | Presentation draft, template-shaped docs | PENDING | P1 | FR-05 | `docs/` | Draft reviewed by team | Core |
+| FR-12 | Presentation draft, template-shaped docs | COMPLETE (team pastes into templates) | P1 | FR-05 | `docs/results/`, `docs/presentation-outline.md` | Draft reviewed by team | Core |
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
 | FR-08 | Model routing and fallback, demonstrable | COMPLETE | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
 | FR-09 | Business rules validated | COMPLETE | P1 | — | auth-service | Every rule has validation + test | Core |
@@ -712,7 +712,7 @@ before any other roadmap item.
   ("(18%)", "@ 18%"); generated invoices add up. Reverting the pattern
   fails 3 tests.
 
-- [ ] **FR-12 Presentation draft and template-shaped documentation** (29
+- [x] **FR-12 Presentation draft and template-shaped documentation** (29
   Aug overall #10, #11; 18 Jul #2, #3). *Now:* the submitted Overall and
   Agent docs follow the templates, but every "Results and Evaluation"
   section says "to be completed". *Do:* a `docs/results/` folder
@@ -723,6 +723,19 @@ before any other roadmap item.
   outline (problem, solution, architecture, implementation, results) in
   `docs/presentation-outline.md`. *Done when:* each agent has a sample,
   a screenshot and a metric to paste into the Word doc.
+  *Evidence (Oct 16):* `docs/results/README.md` — per agent a sample
+  (`docs/results/samples/`, written read-only from the running stack by
+  `scripts/presentation_samples.py`), screenshots (`docs/results/screens/`,
+  13, by `tests/e2e/presentation_screens.py`) and its metrics, plus the
+  test and e2e counts. `docs/presentation-outline.md`: 14-slide deck with
+  the picture and number per slide, and what to paste into the Word
+  templates (run.sh / install.sh in the appendix). Pasting into the
+  Fractal templates is for the team (templates aren't in the repo).
+  e2e re-run: `make e2e` 17/17 (the rule-mutation step used a watch
+  threshold above the new anomalous one — now 0.3), invoice lifecycle
+  71/71 (the "needs review" email check now follows whether the document
+  needed review — with the ML classifier clean invoices often don't),
+  document pipeline 52/52.
 
 #### Added to R0 on Oct 16 (every yellow/red box on the flow chart)
 

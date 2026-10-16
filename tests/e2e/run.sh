@@ -138,9 +138,10 @@ if [ "$MAILPIT_HIT" = "yes" ]; then ok "Mailpit has recent messages (notificatio
 step "Prompt 7: Mid-test Business Rule Mutation via Admin API"
 PATCH_RULE=$(curl -s -X PATCH "$GATEWAY/api/admin/business-rules/license.anomaly_watch_threshold" \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"new_value": 0.55, "justification": "E2E threshold mutation test without restart"}')
-UPDATED_VAL=$(echo "$PATCH_RULE" | json data.current_value)
-if [ "$UPDATED_VAL" = "0.55" ]; then ok "rule mutated mid-test to 0.55"; else bad "failed to mutate rule: $PATCH_RULE"; fi
+  -d '{"new_value": 0.3, "justification": "E2E threshold mutation test without restart"}')
+# 0.3 stays below the anomalous threshold (0.39 since FR-32), as the rules API requires.
+UPDATED_VAL=$(echo "$PATCH_RULE" | json data.current_value 2>/dev/null || true)
+if [ "$UPDATED_VAL" = "0.3" ]; then ok "rule mutated mid-test to 0.3"; else bad "failed to mutate rule: $PATCH_RULE"; fi
 
 step "Prompt 7: Verify History Audit Trail"
 HIST=$(curl -s "$GATEWAY/api/admin/business-rules/history?rule_key=license.anomaly_watch_threshold" \

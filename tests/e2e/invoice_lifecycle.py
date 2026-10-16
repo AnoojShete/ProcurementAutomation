@@ -267,7 +267,12 @@ def main():
 
     # ── notification-agent ───────────────────────────────────────────────
     step("notification-agent")
-    want = {"approval.requested", "approval.decided", "contract.generated", "contract.signed", "risk.score.updated", "document.classified"}
+    want = {"approval.requested", "approval.decided", "contract.generated", "contract.signed", "risk.score.updated"}
+    # document.classified only emails when a document needs review; with the
+    # ML classifier (FR-29) clean documents like these often don't.
+    reviewed = [x for x in (q, d) if x.get("needs_review")]
+    if reviewed:
+        want.add("document.classified")
     def seen():
         log = requests.get(f"{GW}/notifications/log?limit=200", headers=H(adm_t)).json()["data"]
         mine = [n for n in log if pr_id in json.dumps(n) or vendor_id in json.dumps(n) or (cid and cid in json.dumps(n))
@@ -276,6 +281,8 @@ def main():
     got = poll(seen, lambda s: want <= s, timeout=30, interval=2)
     for ev in sorted(want):
         check(f"notification for {ev}", ev in got, f"got {sorted(got)}")
+    if not reviewed:
+        check("no 'needs review' email for documents that didn't need review", "document.classified" not in got, f"got {sorted(got)}")
     mp = requests.get(f"{MAILPIT}/api/v1/messages?limit=50").json()
     check("Mailpit has emails", mp.get("total", 0) > 0)
 

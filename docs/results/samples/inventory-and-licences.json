@@ -1,0 +1,307 @@
+{
+  "agent": "approval-inventory-agent",
+  "input": "GET /api/inventory/ (stock + licence usage)",
+  "output": {
+    "hardware": [
+      {
+        "id": "44444444-0000-0000-0000-000000000004",
+        "sku": "DOCK-DELL-WD19",
+        "name": "Dell WD19S Dock",
+        "category": "accessory",
+        "total_quantity": 25,
+        "available_quantity": 0,
+        "reserved_quantity": 0,
+        "unit_cost": 18500.0,
+        "currency": "INR",
+        "location": "Mumbai Office",
+        "reorder": {
+          "reorder_point": 5,
+          "reorder_quantity": 7,
+          "point_source": "rule",
+          "quantity_source": "rule",
+          "backordered_units": 8,
+          "needs_reorder": true,
+          "suggested_quantity": 20,
+          "explanation": "0 on the shelf, 8 backordered \u2192 8 owed. Order 8 owed + 5 to reach the reorder point (5) + 7 reorder quantity = 20."
+        }
+      },
+      {
+        "id": "44444444-0000-0000-0000-000000000001",
+        "sku": "LAPTOP-DELL-5540",
+        "name": "Dell Latitude 5540",
+        "category": "laptop",
+        "total_quantity": 20,
+        "available_quantity": 12,
+        "reserved_quantity": 0,
+        "unit_cost": 85000.0,
+        "currency": "INR",
+        "location": "Pune HQ",
+        "reorder": {
+          "reorder_point": 4,
+          "reorder_quantity": 5,
+          "point_source": "rule",
+          "quantity_source": "rule",
+          "backordered_units": 0,
+          "needs_reorder": false,
+          "suggested_quantity": 0,
+          "explanation": "12 on the shelf; above the reorder point (4)."
+        }
+      },
+      {
+        "id": "44444444-0000-0000-0000-000000000002",
+        "sku": "LAPTOP-MBP-14",
+        "name": "MacBook Pro 14 (M3)",
+        "category": "laptop",
+        "total_quantity": 8,
+        "available_quantity": 2,
+        "reserved_quantity": 0,
+        "unit_cost": 169900.0,
+        "currency": "INR",
+        "location": "Pune HQ",
+        "reorder": {
+          "reorder_point": 2,
+          "reorder_quantity": 2,
+          "point_source": "rule",
+          "quantity_source": "rule",
+          "backordered_units": 0,
+          "needs_reorder": true,
+          "suggested_quantity": 2,
+          "explanation": "2 on the shelf. Order 2 reorder quantity = 2."
+        }
+      },
+      {
+        "id": "44444444-0000-0000-0000-000000000003",
+        "sku": "MON-DELL-U2723",
+        "name": "Dell UltraSharp 27 U2723",
+        "category": "monitor",
+        "total_quantity": 30,
+        "available_quantity": 25,
+        "reserved_quantity": 0,
+        "unit_cost": 42000.0,
+        "currency": "INR",
+        "location": "Pune HQ",
+        "reorder": {
+          "reorder_point": 6,
+          "reorder_quantity": 8,
+          "point_source": "rule",
+          "quantity_source": "rule",
+          "backordered_units": 0,
+          "needs_reorder": false,
+          "suggested_quantity": 0,
+          "explanation": "25 on the shelf; above the reorder point (6)."
+        }
+      }
+    ],
+    "licenses": [
+      {
+        "id": "33333333-0000-0000-0000-000000000002",
+        "vendor_id": "11111111-1111-1111-1111-111111111111",
+        "vendor_name": "Acme IT Supplies Inc",
+        "app_name": "Slack Enterprise",
+        "total_seats": 45,
+        "active_seats_30d": 36,
+        "active_seats_60d": 36,
+        "active_seats_90d": 40,
+        "utilisation_score": 0.8,
+        "anomaly_score": 0.265718,
+        "anomaly_status": "normal",
+        "top_factors": [
+          {
+            "feature": "weekend_ratio",
+            "contribution": -2.009907,
+            "direction": "decreasing_risk"
+          },
+          {
+            "feature": "retention_7d",
+            "contribution": 0.436504,
+            "direction": "increasing_risk"
+          },
+          {
+            "feature": "retention_30d",
+            "contribution": 0.308041,
+            "direction": "increasing_risk"
+          }
+        ],
+        "model_version": "v20261016101821",
+        "last_scored_at": "2026-10-16T10:28:40.483784+00:00",
+        "days_since_last_login": 0,
+        "cost_per_seat": "1250.0",
+        "currency": "INR",
+        "assigned_seats": 44,
+        "reclaim_cooldown_until": null,
+        "period_start": "2026-04-01",
+        "period_end": "2027-03-31",
+        "status": "active"
+      },
+      {
+        "id": "33333333-0000-0000-0000-000000000003",
+        "vendor_id": "11111111-1111-1111-1111-111111111111",
+        "vendor_name": "Acme IT Supplies Inc",
+        "app_name": "Docker Pro",
+        "total_seats": 60,
+        "active_seats_30d": 49,
+        "active_seats_60d": 49,
+        "active_seats_90d": 49,
+        "utilisation_score": 0.8167,
+        "anomaly_score": 0.506373,
+        "anomaly_status": "anomalous",
+        "top_factors": [
+          {
+            "feature": "weekend_ratio",
+            "contribution": -1.536093,
+            "direction": "decreasing_risk"
+          },
+          {
+            "feature": "retention_7d",
+            "contribution": -1.348257,
+            "direction": "decreasing_risk"
+          },
+          {
+            "feature": "utilisation_7d",
+            "contribution": -0.514212,
+            "direction": "decreasing_risk"
+          }
+        ],
+        "model_version": "v20261016101821",
+        "last_scored_at": "2026-10-16T10:28:40.505014+00:00",
+        "days_since_last_login": 0,
+        "cost_per_seat": "750.0",
+        "currency": "INR",
+        "assigned_seats": 55,
+        "reclaim_cooldown_until": null,
+        "period_start": "2026-04-01",
+        "period_end": "2027-03-31",
+        "status": "active"
+      },
+      {
+        "id": "33333333-0000-0000-0000-000000000005",
+        "vendor_id": "11111111-1111-1111-1111-111111111111",
+        "vendor_name": "Acme IT Supplies Inc",
+        "app_name": "Notion Team",
+        "total_seats": 200,
+        "active_seats_30d": 89,
+        "active_seats_60d": 133,
+        "active_seats_90d": 165,
+        "utilisation_score": 0.445,
+        "anomaly_score": 0.495295,
+        "anomaly_status": "anomalous",
+        "top_factors": [
+          {
+            "feature": "weekend_ratio",
+            "contribution": -1.585553,
+            "direction": "decreasing_risk"
+          },
+          {
+            "feature": "retention_7d",
+            "contribution": -0.673357,
+            "direction": "decreasing_risk"
+          },
+          {
+            "feature": "retention_30d",
+            "contribution": -0.644517,
+            "direction": "decreasing_risk"
+          }
+        ],
+        "model_version": "v20261016101821",
+        "last_scored_at": "2026-10-16T10:28:40.525692+00:00",
+        "days_since_last_login": 0,
+        "cost_per_seat": "800.0",
+        "currency": "INR",
+        "assigned_seats": 180,
+        "reclaim_cooldown_until": "2026-10-25T16:54:03.689075+00:00",
+        "period_start": "2026-04-01",
+        "period_end": "2027-03-31",
+        "status": "active"
+      },
+      {
+        "id": "33333333-0000-0000-0000-000000000004",
+        "vendor_id": "11111111-1111-1111-1111-111111111111",
+        "vendor_name": "Acme IT Supplies Inc",
+        "app_name": "JetBrains All Products Pack",
+        "total_seats": 120,
+        "active_seats_30d": 88,
+        "active_seats_60d": 88,
+        "active_seats_90d": 88,
+        "utilisation_score": 0.7333,
+        "anomaly_score": 0.276826,
+        "anomaly_status": "normal",
+        "top_factors": [
+          {
+            "feature": "weekend_ratio",
+            "contribution": -2.046542,
+            "direction": "decreasing_risk"
+          },
+          {
+            "feature": "retention_7d",
+            "contribution": 0.441507,
+            "direction": "increasing_risk"
+          },
+          {
+            "feature": "utilisation_ratio",
+            "contribution": 0.325972,
+            "direction": "increasing_risk"
+          }
+        ],
+        "model_version": "v20261016101821",
+        "last_scored_at": "2026-10-16T10:28:40.550722+00:00",
+        "days_since_last_login": 0,
+        "cost_per_seat": "2400.0",
+        "currency": "INR",
+        "assigned_seats": 110,
+        "reclaim_cooldown_until": "2026-10-25T17:03:34.737966+00:00",
+        "period_start": "2026-04-01",
+        "period_end": "2027-03-31",
+        "status": "active"
+      },
+      {
+        "id": "33333333-0000-0000-0000-000000000001",
+        "vendor_id": "11111111-1111-1111-1111-111111111111",
+        "vendor_name": "Acme IT Supplies Inc",
+        "app_name": "Microsoft 365 E3",
+        "total_seats": 50,
+        "active_seats_30d": 44,
+        "active_seats_60d": 44,
+        "active_seats_90d": 45,
+        "utilisation_score": 0.88,
+        "anomaly_score": 0.32611,
+        "anomaly_status": "normal",
+        "top_factors": [
+          {
+            "feature": "weekend_ratio",
+            "contribution": -1.998977,
+            "direction": "decreasing_risk"
+          },
+          {
+            "feature": "retention_7d",
+            "contribution": 0.419531,
+            "direction": "increasing_risk"
+          },
+          {
+            "feature": "retention_30d",
+            "contribution": 0.291726,
+            "direction": "increasing_risk"
+          }
+        ],
+        "model_version": "v20261016101821",
+        "last_scored_at": "2026-10-16T10:28:40.576722+00:00",
+        "days_since_last_login": 0,
+        "cost_per_seat": "2100.0",
+        "currency": "INR",
+        "assigned_seats": 48,
+        "reclaim_cooldown_until": "2026-10-29T20:31:36.603844+00:00",
+        "period_start": "2026-04-01",
+        "period_end": "2027-03-31",
+        "status": "active"
+      }
+    ],
+    "anomaly_summary": {
+      "total_licenses": 5,
+      "anomalous": 2,
+      "watch": 0,
+      "normal": 3,
+      "insufficient_history": 0,
+      "last_scoring_run": "2026-10-16T10:28:40.707109+00:00",
+      "potential_annual_savings": 205000.0
+    }
+  }
+}
