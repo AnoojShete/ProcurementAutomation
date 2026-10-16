@@ -553,13 +553,25 @@ before any other roadmap item.
 
 ## P1
 
-- [ ] A hardware request with **nothing** in stock is split into a
+- [x] (Fixed Oct 16: with nothing in stock the request is created as
+  `backordered` itself — no split, no approval workflow, announced with
+  approval.requested like a backordered portion; checked live. The 5
+  empty requests from the BR-5 checks were deleted. Their approval
+  workflows are still running — terminating them needs the same
+  permission as the item below.) A hardware request with **nothing** in stock is split into a
   backordered child and an empty "immediate" child (0 items, ₹0) that
   still goes to the approval queue (`inventory_service.split_backorder`).
   Skip the immediate child when no units are available — needs a check of
   what the approval workflow and events expect. *Why: approvers see ₹0
   requests with no items.*
-- [ ] Approval workflow `approval-90261afb-5b86-4463-bcf3-3fc6d422fb5d`
+- [ ] (Oct 16: decided — terminate it; the terminate command was blocked by
+  Claude Code's permission check, so it is still Running. Run:
+  `docker compose exec temporal sh -c 'tctl --address $(hostname -i):7233
+  --ns default workflow terminate -w approval-<id> -r "<reason>"'` for it
+  and for the five `approval-` workflows of the deleted empty requests:
+  0dd86364…, d56a14dd…, 85bb3920…, 0eaef1d6…, 40227bd7…. Its request
+  stays `pending_approval` — cancel or reject it afterwards.)
+  Approval workflow `approval-90261afb-5b86-4463-bcf3-3fc6d422fb5d`
   (started Sep 25) has failed every workflow task with a
   non-determinism error (TMPRL1100) since Sep 27 — an earlier change to
   `approval_workflow.py` without versioning. It can't progress or be

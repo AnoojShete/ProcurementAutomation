@@ -165,7 +165,10 @@ class ApprovalService:
                             await reserve_stock(self.db, self.redis, sku, req_id, item_avail)
                         inventory_reservation_total.labels(status="backordered").inc()
 
-        # 4. Insert into DB
+        # 4. Insert into DB. Nothing in stock at all: the request itself waits
+        # for stock — no split into an empty ₹0 "immediate" request that
+        # would sit in the approval queue.
+        nothing_in_stock = is_backordered and data.request_type == "hardware" and total_available == 0
         now = datetime.now(timezone.utc)
         req = PurchaseRequest(
             id=req_id,
@@ -183,14 +186,25 @@ class ApprovalService:
             sla_deadline=sla_deadline,
             items=data.items,
             is_backordered=is_backordered,
-            comments=data.comments,
-            status="pending_approval",
+            comments=(f"Backordered: no stock; {data.comments}" if data.comments else "Backordered: no stock")
+            if nothing_in_stock else data.comments,
+            status="backordered" if nothing_in_stock else "pending_approval",
             created_at=now,
             updated_at=now,
         )
         self.db.add(req)
         await self.db.commit()
         await self.db.refresh(req)
+
+        if nothing_in_stock:
+            # Announced like a backordered split portion; it enters approval
+            # when stock arrives (backordered -> pending_approval).
+            try:
+                await self.producer.publish_approval_requested(req)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to publish approval.requested for backorder {req.id}: {e}")
+            return await self._reloaded(req.id)
 
         if is_backordered and data.request_type == "hardware":
             immediate_req, backorder_req = await split_backorder(self.db, req, total_available)
@@ -274,12 +288,15 @@ class ApprovalService:
                     f"Failed to start Temporal workflow (will retry): {e}"
                 )
 
-        # Reload with its history: after a backorder split `req` is a child
-        # whose approval_history was never loaded, and serialising it would
-        # lazy-load outside the async context (the API returned 400 while
-        # the request had in fact been created).
+        return await self._reloaded(req.id)
+
+    async def _reloaded(self, request_id: str) -> PurchaseRequest:
+        """The request with its history loaded. After a backorder split the
+        returned request is a child whose approval_history was never loaded,
+        and serialising it would lazy-load outside the async context (the
+        API returned 400 while the request had in fact been created)."""
         stmt = (select(PurchaseRequest).options(selectinload(PurchaseRequest.approval_history))
-                .where(PurchaseRequest.id == req.id).execution_options(populate_existing=True))
+                .where(PurchaseRequest.id == request_id).execution_options(populate_existing=True))
         return (await self.db.execute(stmt)).scalar_one()
 
     async def process_decision(
