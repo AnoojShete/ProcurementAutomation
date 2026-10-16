@@ -128,7 +128,7 @@ How the pieces interact:
 | Vendor risk model | PARTIAL | RF + overrides + platform signals (FR-04, BR-7) | Red-team vs agent doc, sanctions (FR-14), drift min-sample decision | decision |
 | Clause extraction with a model | PENDING | rules only | Legal-BERT + rules fallback (FR-13) | model download |
 | Licence-usage anomaly model | PARTIAL | IsolationForest + SHAP | Evaluate and tune (FR-32) | — |
-| Notifications | PARTIAL | notification-agent → Mailpit | Retry + DLQ (FR-31; Anooj informed) | — |
+| Notifications | COMPLETE | notification-agent (SMTP / Mailpit), retry + DLQ, health (FR-31) | Coverage audit (FR-10) | — |
 | Email automation, chatbot | OUT OF SCOPE | Anooj's | — | — |
 | Observability (metrics, logs, correlation id) | COMPLETE | Prometheus, Grafana, Loki (FR-07) | — | — |
 | Failed-events / Kafka log | COMPLETE | Control Panel (FR-06) | — | — |
@@ -189,7 +189,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
 | FR-05 | Demo script | PARTIAL (walkthrough in `docs/showcase.html`; rehearsal on a fresh seed left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
 | FR-12 | Presentation draft, template-shaped docs | PENDING | P1 | FR-05 | `docs/` | Draft reviewed by team | Core |
-| FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | PENDING | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
+| FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
 | FR-08 | Model routing and fallback, demonstrable | PENDING | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
 | FR-09 | Business rules validated | PENDING | P1 | — | auth-service | Every rule has validation + test | Core |
 | FR-10 | Notification coverage audit | PENDING | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
@@ -704,13 +704,28 @@ before any other roadmap item.
   certification / breaches / geography, audit-logged; re-score on change.
   *Done when:* a vendor with platform history scores on ≥ 3 signals, the
   form updates the score, and the drift check is re-baselined or explained.
-- [ ] **FR-31 Notification consumer retry + dead-letter** (flow chart:
+- [x] **FR-31 Notification consumer retry + dead-letter** (flow chart:
   "No retry / DLQ"; P1 Platform line). *Now:* notification-agent's Kafka
   consumer isn't wrapped with `shared/eventing.deliver`, and on Oct 14 it
   silently stopped for three days when its login failed. *Do:* wrap it,
   and make `/health` report unhealthy when the consumer has stopped.
   notification-agent is Anooj's service: spec + his OK first.
   *Decision (Oct 16):* allowed to change notification-agent; Anooj to be told.
+  *Evidence (Oct 16):* `app/kafka/consumer.py` runs every event through
+  `shared/eventing.deliver` (`event_inbox` dedupe, 3 attempts with
+  backoff, then `event_dlq` — shown on Control Panel → Failed events);
+  `dispatch()` raises on failure instead of logging and moving on.
+  `CONSUMER_STATE` tracks starting / running / stopped; `/health` returns
+  **503** with the error when the consumer has stopped (Docker's
+  `curl -f` healthcheck then marks it unhealthy). `init_db` now creates
+  the shared inbox/DLQ tables itself. Tests: `test_consumer_reliability.py`
+  (7): failing handler → 3 attempts → dead-lettered; failed Kafka login →
+  stopped; health 200/200/503; making health ignore the consumer fails
+  one. Live: healthy, `kafka_consumer: running`; a risk recompute was
+  consumed through deliver and queued as a digest. DLQ replay for this
+  consumer isn't exposed yet (other services have `/ops/dlq/.../replay`).
+  Anooj to be told (his service).
+
 - [ ] **FR-32 Licence-usage anomaly model, evaluated and tuned** (flow
   chart: "Needs tuning"). *Do:* the same treatment as FR-04 for the
   IsolationForest: precision/recall on the synthetic SSO logs' injected

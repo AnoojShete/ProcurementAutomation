@@ -42,3 +42,7 @@ async def init_db():
                 statement = statement.strip()
                 if statement:
                     await conn.execute(text(statement))
+
+    # Shared event inbox (dedupe) and dead-letter tables used by deliver().
+    from shared.eventing import ensure_schema
+    await ensure_schema(engine)

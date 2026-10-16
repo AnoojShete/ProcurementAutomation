@@ -16,7 +16,6 @@ import asyncio
 import logging
 import os
 import httpx
-from sqlalchemy import text
 
 from aiokafka import AIOKafkaConsumer
 from shared.kafka_security import kafka_auth_kwargs
@@ -71,7 +70,35 @@ CONSUME_TOPICS = [
 ]
 
 
+CONSUMER_NAME = "notification-agent"
+
+# Whether the consumer loop is alive — read by /health. Before this, a
+# failed Kafka login ended the loop silently and the service still
+# reported healthy (it stopped sending for three days on Oct 14).
+CONSUMER_STATE: dict = {"status": "starting", "error": None, "since": None}
+
+
+def _set_state(status: str, error: str | None = None) -> None:
+    from datetime import datetime, timezone
+    CONSUMER_STATE.update(status=status, error=error, since=datetime.now(timezone.utc).isoformat())
+
+
+async def dispatch(topic: str, event: dict) -> None:
+    """Handles one event; raises on failure so deliver() retries it and
+    finally dead-letters it (event_dlq) instead of dropping it."""
+    event_type, payload, schema_version = parse_envelope(event)
+    if schema_version != 1:
+        logger.info(f"event {event_type} has schema_version={schema_version} (handled as v1-compatible)")
+    handler = _HANDLERS.get(event_type)
+    if handler is None:
+        logger.warning(f"Unhandled event type on topic {topic}: {event_type}")
+        return
+    async with async_session_factory() as db:
+        await handler(db, payload)
+
+
 async def start_consumer(app):
+    from shared.eventing import deliver
     consumer = AIOKafkaConsumer(
         *CONSUME_TOPICS,
         bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -84,53 +111,32 @@ async def start_consumer(app):
         **kafka_auth_kwargs(),
     )
 
+    _set_state("starting")
     try:
         await with_retry(consumer.start, name="Kafka consumer")
+        _set_state("running")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
         async for msg in consumer:
-            try:
-                correlation_id = msg.value.get("correlation_id") if isinstance(msg.value, dict) else None
-                if correlation_id:
-                    CorrelationContext.set(correlation_id)
-                
-                event_id = msg.value.get("event_id") if isinstance(msg.value, dict) else None
-                if event_id:
-                    async with async_session_factory() as db:
-                        res = await db.execute(
-                            text("SELECT 1 FROM processed_kafka_events WHERE event_id = :e"),
-                            {"e": event_id}
-                        )
-                        if res.first() is not None:
-                            logger.info(f"Skipping already-processed event {event_id} on {msg.topic}")
-                            continue
-
-                event_type, payload, schema_version = parse_envelope(msg.value)
-                if schema_version != 1:
-                    logger.info(f"event {event_type} has schema_version={schema_version} (handled as v1-compatible)")
-
-                handler = _HANDLERS.get(event_type)
-                if handler is None:
-                    logger.warning(f"Unhandled event type on topic {msg.topic}: {event_type}")
-                    continue
-
-                async with async_session_factory() as db:
-                    await handler(db, payload)
-
-                if event_id:
-                    async with async_session_factory() as db:
-                        await db.execute(
-                            text("INSERT INTO processed_kafka_events (event_id, topic) VALUES (:e, :t) ON CONFLICT (event_id) DO NOTHING"),
-                            {"e": event_id, "t": msg.topic}
-                        )
-                        await db.commit()
-
-            except Exception as e:
-                logger.error(f"Error processing message: {e}", exc_info=True)
+            event = msg.value if isinstance(msg.value, dict) else {}
+            correlation_id = event.get("correlation_id")
+            if correlation_id:
+                CorrelationContext.set(correlation_id)
+            # Dedupe (event_inbox), retry with backoff, then event_dlq.
+            await deliver(
+                async_session_factory, CONSUMER_NAME, msg.topic, event,
+                lambda event=event, topic=msg.topic: dispatch(topic, event),
+            )
 
     except asyncio.CancelledError:
+        _set_state("stopped", "cancelled")
         logger.info("Kafka consumer loop cancelled")
+    except Exception as e:
+        _set_state("stopped", f"{type(e).__name__}: {e}")
+        logger.error(f"Kafka consumer stopped: {e}", exc_info=True)
     finally:
+        if CONSUMER_STATE["status"] != "stopped":
+            _set_state("stopped", "consumer loop ended")
         await consumer.stop()
         logger.info("Kafka consumer stopped")
 
