@@ -142,21 +142,16 @@
   .claim { font-size: 15px; line-height: 1.5; border: 1.5px dashed var(--gate); border-radius: 10px; padding: 12px 14px; background: var(--panel); }
   @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } .gap dl { grid-template-columns: 1fr; } }
 
-  /* ── progress donut (deliverables only) ─────────────────────────────── */
-  .progress { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 26px; margin: 16px 0 6px;
-              background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
-  .donut { position: relative; width: 132px; height: 132px; flex: none; }
-  .donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-  .donut .ctr { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
-  .donut .ctr b { display: block; font-size: 27px; line-height: 1; }
-  .donut .ctr span { font-size: 11px; color: var(--muted); }
-  .pgroups { display: grid; gap: 7px; min-width: 240px; flex: 1; }
-  .pg { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
-  .pg i { width: 12px; height: 12px; border-radius: 3px; }
-  .pg .bar2 { grid-column: 2 / 4; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; margin-top: -3px; }
-  .pg .bar2 > div { height: 100%; border-radius: 999px; }
-  .pg small { color: var(--muted); font-variant-numeric: tabular-nums; }
-  .progress details { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+  /* ── progress bar (deliverables only) ────────────────────────────────── */
+  .progress { margin: 16px 0 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+  .progress .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .progress .top b { font-size: 22px; } .progress .top span { color: var(--muted); font-size: 12.5px; }
+  .track { display: flex; height: 14px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 8px 0 7px; }
+  .track > div { height: 100%; transition: width .6s ease; }
+  .keys { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+  .keys span { display: inline-flex; align-items: center; gap: 6px; } .keys i { width: 10px; height: 10px; border-radius: 3px; }
+  .keys b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .progress details { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
   .progress details summary { cursor: pointer; }
   .progress details ul { columns: 3 240px; margin: 6px 0 0; padding-left: 0; list-style: none; }
   .progress details li { display: flex; gap: 6px; align-items: flex-start; break-inside: avoid; margin: 2px 0; color: var(--ink); }
@@ -510,26 +505,13 @@ const sum = (items) => items.reduce((a, [, st]) => a + W[st], 0);
 const total = DELIVERABLES.reduce((a, g) => a + g.items.length, 0);
 const done = DELIVERABLES.reduce((a, g) => a + sum(g.items), 0);
 const pct = Math.round((done / total) * 100);
-const R = 52, C = 2 * Math.PI * R;
-let offset = 0;
-const arcs = DELIVERABLES.map((g) => {
-  const len = (sum(g.items) / total) * C;
-  const arc = `<circle cx="66" cy="66" r="${R}" fill="none" stroke="${g.color}" stroke-width="16" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-offset}"/>`;
-  offset += len;
-  return arc;
-}).join("");
 const fmt = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
 document.getElementById("progress").innerHTML = `
-  <div class="donut" role="img" aria-label="${pct}% of deliverables done">
-    <svg viewBox="0 0 132 132"><circle cx="66" cy="66" r="${R}" fill="none" stroke="var(--line)" stroke-width="16"/>${arcs}</svg>
-    <div class="ctr"><div><b>${pct}%</b><span>deliverables</span></div></div>
+  <div class="top"><div><b>${pct}%</b> of deliverables done</div><span>${fmt(done)} of ${total} · partly done counts ½ · add-ons (Extended scope, optional R2) not counted</span></div>
+  <div class="track" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Deliverables done">
+    ${DELIVERABLES.map((g) => `<div style="width:${(sum(g.items) / total) * 100}%;background:${g.color}" title="${g.group}: ${fmt(sum(g.items))} / ${g.items.length}"></div>`).join("")}
   </div>
-  <div class="pgroups">
-    ${DELIVERABLES.map((g) => `<div class="pg"><i style="background:${g.color}"></i><span>${g.group}</span>
-      <small>${fmt(sum(g.items))} / ${g.items.length}</small>
-      <div class="bar2"><div style="width:${(sum(g.items) / g.items.length) * 100}%;background:${g.color}"></div></div></div>`).join("")}
-    <div class="muted" style="font-size:12px;color:var(--muted)">${fmt(done)} of ${total} deliverables · partly done counts ½ · add-ons (Extended scope, optional R2) not counted</div>
-  </div>
+  <div class="keys">${DELIVERABLES.map((g) => `<span><i style="background:${g.color}"></i>${g.group} <b>${fmt(sum(g.items))} / ${g.items.length}</b></span>`).join("")}</div>
   <details><summary>What counts</summary><ul>${DELIVERABLES.flatMap((g) => g.items.map(([t, st]) => `<li>${mark(st)}<span>${t}</span></li>`)).join("")}</ul></details>`;
 
 const root = document.documentElement;
