@@ -22,9 +22,12 @@ The following Hugging Face datasets are compatible and can be loaded via the `da
 
 ## Is it used?
 
-Not at runtime yet. `services/document-vendor-agent/ml/train_classifier.py`
-trains a model to `ml/artifacts/classifier.joblib`, and
-`app/services/classification.py` uses that model when the file exists —
-but no trained model is committed or built into the image, so the pipeline
-always uses the keyword classifier. Tracked in TODO.md.
-
+Yes, since 16 Oct 2026 (FR-29) — as part of the training data. The
+classifier is trained at image build by
+`services/document-vendor-agent/ml/train_classifier.py` on these 105 rows
+**plus** a harder generated corpus (`ml/classification_corpus.py`: invoices,
+POs and quotes with OCR noise or no title, and *other* paperwork such as
+delivery notes, statements and credit notes). On their own these rows are
+too easy — every one carries its title, so any classifier scores ~100 %.
+The model is kept only if it beats the keyword classifier on held-out
+documents; results in `docs/results/classifier.md`.

@@ -114,7 +114,7 @@ How the pieces interact:
 | Gateway, auth, roles, business rules | COMPLETE | nginx, auth-service, rules engine | Security P1/P2 hardening (Part B) | — |
 | Document intake: upload, drop folder, email | COMPLETE | `upload_service.py`, `inbox_watcher.py`, `email_intake.py` (BR-1) | — | ClamAV, MinIO |
 | OCR / extraction | PARTIAL | pdfplumber, Docling, PaddleOCR, preprocessing on (BR-2) | Noisy scans worse with preprocessing (44 % vs 47 %); low-quality JPGs 0–1/6 fields (FR-11); Docling cold start | — |
-| Classification incl. "other", PO-backed / non-PO | COMPLETE (rules) / PARTIAL (ML) | keyword classifier (BR-3) | Train the ML classifier (FR-29) | labelled data |
+| Classification incl. "other", PO-backed / non-PO | COMPLETE | ML classifier (kept only because it beat keywords, FR-29) with keyword fallback (BR-3) | Real documents to evaluate on | — |
 | LayoutLMv3 cross-check | PARTIAL | `layoutlm_crosscheck.py` | Runs only if model downloaded | `scripts/download-models.sh` |
 | Review routing (confidence) | COMPLETE (heuristic) | `confidence.py`: weighted score × OCR quality, threshold 0.8, force-review rules | Calibrated, risk-controlled gate = research RS-01…RS-12 | RS data |
 | Learning from corrections | PARTIAL | per-vendor hints + thresholds (`learning.py`) | Classifier retraining; evaluation (RS-10, optional) | — |
@@ -197,7 +197,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-11 | Layout-analysis accuracy, schema-validated output | COMPLETE (noisy scans: known limit) | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
 | FR-13 | Clause extraction with Legal-BERT, rules fallback | PENDING | P2 | model | contract-risk-agent | Evaluated on sample contracts | Core |
 | FR-14 | Sanctions screening + strategic-tier checks | PENDING | P2 | data source | contract-risk-agent | Sanctions override in risk | Core |
-| FR-29 | Train the document classifier | PENDING | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
+| FR-29 | Train the document classifier | COMPLETE | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
 | FR-32 | Licence anomaly model evaluated and tuned | COMPLETE | P2 | — | approval-inventory-agent | `docs/results/licence-anomaly.json` | Core |
 | DRIFT-1 | Decide minimum sample before PSI is reported | PENDING (decision) | P2 | user | `drift_service.py` | Rule chosen and documented | Core |
 | FR-15/16 | PySpark / Kubernetes claims | BLOCKED (decision) | P3 | user | — | Built or removed from docs | Core |
@@ -745,7 +745,7 @@ before any other roadmap item.
   from the list. *Done when:* precision tests (a near-match is flagged, an
   unrelated company isn't); the strategic tier's checklist shows real
   results. Closes part of the P2 "external data" item.
-- [ ] **FR-29 Train the document classifier** (flow chart: "ML classifier
+- [x] **FR-29 Train the document classifier** (flow chart: "ML classifier
   not trained"). *Now:* `classification.py` is a keyword classifier; an ML
   classifier is wired in but no trained model ships. *Do:* train it on
   `data/synthetic-classification` (+ the invoices/quotes/POs we generate),
@@ -753,6 +753,26 @@ before any other roadmap item.
   classifier.json`; keep keywords as the fallback (FR-08 router). *Done
   when:* accuracy per class for both is in the results file and the ML
   classifier is used only if it's better.
+  *Evidence (Oct 16):* `ml/classification_corpus.py` builds 1,260 labelled
+  documents (generated invoices / POs / quotes in clean, OCR-noise and
+  missing-title variants, layout drawn independently of type — the shared
+  generator ties them, invoice=A/po=B/quote=C, which first let the model
+  learn the layout; plus delivery notes, statements listing invoices,
+  receipts, letters, credit notes, GRNs as *other*). `ml/train_classifier.py`
+  (TF-IDF char 2–5 + logistic regression, 4 classes) runs at image build
+  and keeps the model only if the shipped router (ML ≥ 0.6, else keywords)
+  beats the keywords on validation **and** on document kinds held out of
+  training. `docs/results/classifier.md`: test macro-F1 keywords 0.912 →
+  shipped 1.0 (missing title 0.85 → 1.0); held-out layout + two unseen kinds
+  of paperwork 0.844 → 1.0 (missing title 0.60 → 1.0). Kept. On the
+  pipeline's own corpus (`eval_extraction.py`) document type is unchanged
+  (PDFs 100 %, images 50 % — the misses are unreadable JPGs). "other" now
+  always forces review whichever classifier answered (BR-3 relied on the
+  keyword path's 0.5 confidence). Tests: `test_classifier_routing.py` (4;
+  dropping the "other" review fails one); document-vendor 312. Limits: all
+  layouts share field labels ("Invoice Number", "PO#"), so real documents
+  will vary more than this test.
+
 - [x] **FR-30 Risk signals from platform data** (done as BR-7, see above) (flow chart: "no vendor
   has risk signals recorded"; follows FR-04). *Now:* `vendor_risk_features`
   is empty, so every live score is "0 of 6 signals" and the drift check
@@ -951,7 +971,7 @@ before any other roadmap item.
   Reproduce: `docker compose exec document-vendor-agent-worker python -c
   "from paddleocr import PaddleOCR"`. *Why: image uploads don't work on
   the team's Macs.*
-- [ ] The ML document classifier (`ml/train_classifier.py` →
+- [x] (Done by FR-29, Oct 16.) The ML document classifier (`ml/train_classifier.py` →
   `classifier.joblib`) is wired in but no model is trained or shipped, so
   classification is always keyword-based. Train it in the image build or
   remove the dead path. *Why: docs and pitch mention ML classification.*

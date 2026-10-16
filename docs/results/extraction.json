@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-16T03:15:18+00:00",
+  "generated_at": "2026-10-16T10:31:46+00:00",
   "pdfs": {
     "doc_type": 1.0,
     "vendor": 1.0,
@@ -134,7 +134,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 0.0
+      "seconds": 0.5
     },
     {
       "file": "01_po_delltechnologiesindi_PO-2026-00002.pdf",
@@ -196,7 +196,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 42.8
+      "seconds": 58.6
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -217,7 +217,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.7
+      "seconds": 5.8
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -234,7 +234,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.0
+      "seconds": 4.9
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -256,7 +256,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.7
+      "seconds": 5.2
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -273,7 +273,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.9
+      "seconds": 5.0
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -294,7 +294,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.0
+      "seconds": 5.0
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -311,7 +311,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 3.7
+      "seconds": 4.3
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -332,7 +332,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 3.8
+      "seconds": 4.6
     },
     {
       "file": "05_quote_freshworksinc_QT-2026-00006.pdf",
@@ -409,7 +409,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.0
+      "seconds": 4.0
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -430,7 +430,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.0
+      "seconds": 4.7
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -447,7 +447,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.3
+      "seconds": 4.0
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -469,7 +469,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 2.9
+      "seconds": 4.2
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -486,7 +486,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 2.9
+      "seconds": 4.2
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -507,7 +507,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 2.9
+      "seconds": 4.1
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -524,7 +524,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.6
+      "seconds": 3.6
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -545,7 +545,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.8
+      "seconds": 3.8
     },
     {
       "file": "10_po_lenovoindiapvtltd_PO-2026-00011.pdf",
@@ -622,7 +622,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.7
+      "seconds": 5.0
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -643,7 +643,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.7
+      "seconds": 5.0
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -660,7 +660,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.7
+      "seconds": 5.1
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -682,7 +682,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.9
+      "seconds": 5.2
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -699,7 +699,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.2
+      "seconds": 5.3
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -720,7 +720,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.1
+      "seconds": 5.2
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -737,7 +737,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.2
+      "seconds": 4.3
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -758,7 +758,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 4.1
+      "seconds": 4.9
     },
     {
       "file": "15_invoice_atlassianptyltd_INV-2026-00016.pdf",
@@ -820,7 +820,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.7
+      "seconds": 3.7
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -842,7 +842,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.9
+      "seconds": 3.8
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -859,7 +859,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.8
+      "seconds": 3.7
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -881,7 +881,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.9
+      "seconds": 3.9
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -898,7 +898,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 1.8
+      "seconds": 2.3
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -919,7 +919,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.1
+      "seconds": 2.7
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -936,7 +936,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.0
+      "seconds": 2.6
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -958,7 +958,7 @@
         "total": false,
         "currency": true
       },
-      "seconds": 2.9
+      "seconds": 3.6
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -975,7 +975,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.8
+      "seconds": 3.6
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -997,7 +997,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 3.2
+      "seconds": 3.9
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1014,7 +1014,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.9
+      "seconds": 3.5
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1036,7 +1036,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.9
+      "seconds": 3.8
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1053,7 +1053,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 1.8
+      "seconds": 2.3
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1074,7 +1074,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.4
+      "seconds": 3.1
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1091,7 +1091,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 1.6
+      "seconds": 2.0
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1113,7 +1113,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.7
+      "seconds": 3.5
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1130,7 +1130,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.8
+      "seconds": 3.6
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1152,7 +1152,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.9
+      "seconds": 3.8
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1169,7 +1169,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.8
+      "seconds": 3.6
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1191,7 +1191,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.9
+      "seconds": 3.8
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1208,7 +1208,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 1.7
+      "seconds": 2.3
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1229,7 +1229,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.2
+      "seconds": 3.0
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1246,7 +1246,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 1.9
+      "seconds": 2.4
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1268,7 +1268,7 @@
         "total": false,
         "currency": false
       },
-      "seconds": 2.7
+      "seconds": 3.4
     }
   ]
 }

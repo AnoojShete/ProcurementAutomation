@@ -89,7 +89,12 @@ def classification_agent(envelope: dict) -> dict:
         f"[classification_agent] document_id={envelope['document_id']} "
         f"type={result.document_type} confidence={result.confidence}"
     )
-    record_agent_result(envelope, "classification_agent", confidence=result.confidence)
+    if result.document_type == "other":
+        # BR-3: paperwork that isn't an invoice / PO / quote always goes to a
+        # person, however sure the classifier is (the ML model can be).
+        envelope["needs_review_forced"] = True
+    record_agent_result(envelope, "classification_agent", confidence=result.confidence,
+                        validation_status="needs_review" if result.document_type == "other" else "valid")
     return envelope
 
 

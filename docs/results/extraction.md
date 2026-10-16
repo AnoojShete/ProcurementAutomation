@@ -1,6 +1,6 @@
 # Extraction accuracy
 
-Generated 2026-10-16T03:15:18+00:00 by `services/document-vendor-agent/scripts/eval_extraction.py` on `data/synthetic-invoices` (ground truth in `manifest.json`). Image documents are also tested as rotated (4°), noisy and half-resolution copies.
+Generated 2026-10-16T10:31:46+00:00 by `services/document-vendor-agent/scripts/eval_extraction.py` on `data/synthetic-invoices` (ground truth in `manifest.json`). Image documents are also tested as rotated (4°), noisy and half-resolution copies.
 
 ## Overall
 

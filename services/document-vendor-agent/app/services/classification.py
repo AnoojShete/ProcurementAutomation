@@ -42,8 +42,11 @@ class ClassificationResult:
     needs_review: bool = False
 
 
+import logging
 import os
 import joblib
+
+logger = logging.getLogger(__name__)
 
 _MODEL = None
 _MODEL_PATH = os.path.join(
@@ -56,7 +59,7 @@ def _load_model():
         try:
             _MODEL = joblib.load(_MODEL_PATH)
         except Exception as e:
-            print(f"Failed to load model: {e}")
+            logger.warning(f"Document classifier model couldn't be loaded ({e}); using keywords")
     return _MODEL
 
 
@@ -82,6 +85,12 @@ def _classify_with_keywords(text: str) -> ClassificationResult:
     return ClassificationResult(document_type=best_type, confidence=confidence, scores=raw_scores, needs_review=True)
 
 
+# FR-29: the ML model (ml/train_classifier.py, built into the image only if
+# it beat the keywords — docs/results/classifier.md) answers when it is at
+# least this sure; otherwise the keyword classifier does.
+ML_MIN_CONFIDENCE = 0.6
+
+
 def classify_document(text: str) -> ClassificationResult:
     model = _load_model()
     if model:
@@ -96,7 +105,7 @@ def classify_document(text: str) -> ClassificationResult:
             
             scores = {cls: float(prob) for cls, prob in zip(classes, probas)}
             
-            if confidence >= 0.6:
+            if confidence >= ML_MIN_CONFIDENCE:
                 return ClassificationResult(
                     document_type=best_type,
                     confidence=confidence,
@@ -104,7 +113,7 @@ def classify_document(text: str) -> ClassificationResult:
                     needs_review=False
                 )
         except Exception as e:
-            print(f"Model prediction failed: {e}")
+            logger.warning(f"Document classifier model failed ({e}); using keywords")
             
     # Fallback
     return _classify_with_keywords(text)

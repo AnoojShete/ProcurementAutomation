@@ -50,6 +50,13 @@ COPY services/document-vendor-agent/config.yaml .
 COPY services/document-vendor-agent/migrations/ ./migrations/
 COPY services/document-vendor-agent/app/ ./app/
 
+# FR-29: train the document classifier at build time. It is saved — and so
+# used — only if it beats the keyword classifier on held-out documents.
+COPY services/document-vendor-agent/ml/ ./ml/
+COPY services/document-vendor-agent/scripts/synthetic_invoice_lib.py ./scripts/
+COPY data/synthetic-classification/ ./data/synthetic-classification/
+RUN python ml/train_classifier.py
+
 EXPOSE 8001
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--log-level", "info"]
