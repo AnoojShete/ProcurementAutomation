@@ -32,7 +32,7 @@ dead request.
 - [ ] Rehearse the demo script in `docs/showcase.html` on a fresh seed [FR-05] **[E]**
 - [ ] Draft the presentation from the templates [FR-12] **[E]**
 - [x] Add retry + DLQ to the notification consumer; tell Anooj [FR-31] **[E]**
-- [ ] Make model routing/fallback visible in a demo [FR-08] **[E]**
+- [x] Make model routing/fallback visible in a demo [FR-08] **[E]**
 - [x] Add validation + tests for every business rule [FR-09] **[E]**
 - [x] Audit which events send notifications [FR-10] **[O]**
 - [ ] Clause extraction with Legal-BERT [FR-13] **[O]**

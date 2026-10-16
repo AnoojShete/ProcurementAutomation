@@ -245,6 +245,7 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
       <div class="card"><h3>Payment protection</h3>Look-alike vendor and first-seen bank details → payment hold.</div>
       <div class="card"><h3>Invoice matching</h3>An invoice 2 % over the agreed price → held for review.</div>
       <div class="card"><h3>Learning</h3>Correct a field twice for one vendor; the third document arrives pre-filled.</div>
+      <div class="card"><h3>Model fallback</h3>Business Rules → <i>Force Model Fallback (demo)</i> = <code>["extraction"]</code>, upload a document, then System Health → Model Routing Log shows <code>layoutlmv3_fallback · forced</code> with its duration. Set it back to <code>[]</code>. (<a href="model-routing.md">model-routing.md</a>)</div>
       <div class="card"><h3>Research direction</h3><a href="project-flow.html#research">project-flow.html#research</a> — calibrated, risk-controlled automation (planned).</div>
     </div>
 
@@ -297,9 +298,11 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
       <tr><td>Kafka monitoring that survives a restart</td><td><span class="pill g">done</span></td><td>Control Panel → Kafka log + Failed events (FR-06)</td></tr>
       <tr><td>Application logs you can search</td><td><span class="pill g">done</span></td><td>Grafana → Logs: one correlation id across services (FR-07)</td></tr>
       <tr><td>Risk analysis documented and evaluated</td><td><span class="pill a">mostly</span></td><td><code>docs/results/risk-model.md</code>; now with delivery history and compliance record (FR-04, BR-7)</td></tr>
-      <tr><td>Document layout accuracy</td><td><span class="pill a">measured</span></td><td><code>docs/results/extraction.md</code>: preprocessing helps clean/rotated scans, not noisy ones (FR-11, BR-2)</td></tr>
+      <tr><td>Document layout accuracy</td><td><span class="pill g">done</span></td><td><code>docs/results/extraction.md</code>: preprocessing helps clean/rotated scans, not noisy ones (FR-11, BR-2)</td></tr>
       <tr><td>Demo script, presentation</td><td><span class="pill a">in progress</span></td><td>This page is the demo guide; slides next (FR-05, FR-12)</td></tr>
-      <tr><td>Model routing &amp; fallback, rules validated, notification coverage</td><td><span class="pill n">next</span></td><td>FR-08, FR-09, FR-10 — planned before end of October</td></tr>
+      <tr><td>Model routing &amp; fallback, shown on demand</td><td><span class="pill g">done</span></td><td>Force-fallback rule → System Health routing log (FR-08)</td></tr>
+      <tr><td>Business rules validated</td><td><span class="pill g">done</span></td><td><code>docs/business-rules.md</code>: 47 rules, a behaviour test for each enforced one (FR-09)</td></tr>
+      <tr><td>Notification coverage</td><td><span class="pill g">done</span></td><td><code>docs/notifications.md</code>; gaps handed over (FR-10)</td></tr>
       <tr><td>Clause model, sanctions screening</td><td><span class="pill n">next</span></td><td>FR-13, FR-14</td></tr>
     </table></div>
 
@@ -317,6 +320,7 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
       <div class="step ct"><div class="hd"><b>Risk before signing</b><span class="time">2 min</span></div><dl><dt>Do</dt><dd>Contract page risk panel; Sign stays disabled for High / unscored until acknowledged; certificate records it. Vendor page → Risk Signals: delivery history + compliance record re-scores live.</dd></dl></div>
       <div class="step ag"><div class="hd"><b>Reorder suggestions</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Inventory → Reorder Suggestions with the arithmetic; edit a reorder point.</dd></dl></div>
       <div class="step pl"><div class="hd"><b>Operations</b><span class="time">2 min</span></div><dl><dt>Do</dt><dd>Control Panel → Kafka log, Failed events; Grafana Logs by correlation id; a reminder email in Mailpit.</dd></dl></div>
+      <div class="step pl"><div class="hd"><b>Model fallback on demand</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Force Model Fallback rule → upload → System Health routing log shows the forced LayoutLMv3 fallback and its duration; reset the rule.</dd></dl></div>
       <div class="step ad"><div class="hd"><b>Research direction</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Open <a href="project-flow.html#research">project-flow.html#research</a>: the gap, the method, RQ1.</dd></dl></div>
     </div>
 

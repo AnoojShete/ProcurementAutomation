@@ -140,3 +140,24 @@ def test_contract_clause_extraction_fallback_threshold(rule):
     assert _clause_route() == "keyword_fallback"
     rule("contract.clause_extraction_fallback_threshold", 0.3)
     assert _clause_route() == "regex_primary"
+
+
+def _clause_result():
+    from app.services import clause_router
+    all_three = {"renewal_type": "auto", "notice_period_days": 30, "contract_end_date": "2027-01-01"}
+    with patch.object(clause_router, "extract_clauses", return_value=all_three), \
+            patch.object(clause_router, "_log_to_db", lambda *a: None):
+        return run(clause_router.route_clause_extraction(MagicMock(), "c-1", "text"))
+
+
+def test_dev_force_model_fallback(rule, monkeypatch):
+    """FR-08: forcing the clause router's primary to fail shows the
+    fallback (reason "forced") — in development only."""
+    rule("contract.clause_extraction_fallback_threshold", 0.4)
+    rule("dev.force_model_fallback", [])
+    assert _clause_result().route_name == "regex_primary"
+    rule("dev.force_model_fallback", ["clauses"])
+    r = _clause_result()
+    assert r.route_name == "keyword_fallback" and r.fallback_reason == "forced"
+    monkeypatch.setenv("APP_ENV", "production")
+    assert _clause_result().route_name == "regex_primary"

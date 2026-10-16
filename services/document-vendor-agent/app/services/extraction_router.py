@@ -100,6 +100,16 @@ def _layoutlm_image_fallback(data: bytes, extraction: ExtractionResult) -> tuple
     return f"Vendor: {vendor or ''}\nInvoice: {number or ''}\nTotal: {total or ''}", 0.4
 
 
+def _fallback_forced(router: str) -> bool:
+    """FR-08 demo switch: the rule dev.force_model_fallback lists routers
+    whose primary should be treated as failed, so the fallback can be shown
+    on demand. Honoured only in development (APP_ENV=development)."""
+    from shared.rules_engine import get_rule
+    from shared.runtime_env import is_development
+    forced = get_rule("dev.force_model_fallback", fallback=[])
+    return is_development() and isinstance(forced, list) and router in forced
+
+
 async def route_extraction(db: AsyncSession, document_id: str, data: bytes, filename: str, content_type: str = "") -> ExtractionRoutingResult:
     """Extract text in an isolated, time-limited process
     (ocr.extract_text_isolated). If the file can't be read in time, or at
@@ -127,7 +137,8 @@ async def route_extraction(db: AsyncSession, document_id: str, data: bytes, file
         )
 
     fallback_threshold = float(get_rule("document.extraction_fallback_confidence_threshold", 0.5))
-    if extraction.text_quality >= fallback_threshold or extraction.file_type != "image":
+    forced = _fallback_forced("extraction")
+    if not forced and (extraction.text_quality >= fallback_threshold or extraction.file_type != "image"):
         if extraction.method == "pdf_text":
             route_name, model_used = "docling_text", "pdfplumber"
         elif extraction.file_type == "image":
@@ -157,7 +168,7 @@ async def route_extraction(db: AsyncSession, document_id: str, data: bytes, file
     duration_ms += (time.perf_counter() - start_time) * 1000
     result = ExtractionRoutingResult(
         route_name="layoutlmv3_fallback", model_used="layoutlmv3", fallback_triggered=True,
-        fallback_reason="low_confidence", confidence=fallback_confidence,
+        fallback_reason="forced" if forced else "low_confidence", confidence=fallback_confidence,
         extraction_result=ExtractionResult(
             text=fallback_text, method="layoutlmv3_fallback", file_type=extraction.file_type,
             text_quality=fallback_confidence, words_with_boxes=extraction.words_with_boxes,

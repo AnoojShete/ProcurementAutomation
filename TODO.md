@@ -190,7 +190,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-05 | Demo script | PARTIAL (walkthrough in `docs/showcase.html`; rehearsal on a fresh seed left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
 | FR-12 | Presentation draft, template-shaped docs | PENDING | P1 | FR-05 | `docs/` | Draft reviewed by team | Core |
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
-| FR-08 | Model routing and fallback, demonstrable | PENDING | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
+| FR-08 | Model routing and fallback, demonstrable | COMPLETE | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
 | FR-09 | Business rules validated | COMPLETE | P1 | — | auth-service | Every rule has validation + test | Core |
 | FR-10 | Notification coverage audit | COMPLETE (gaps listed for Anooj) | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
 | FR-04 | Risk analysis remainder (red-team vs agent doc) | PARTIAL | P2 | — | contract-risk-agent `ml/` | Part B "Done when" met | Core |
@@ -615,7 +615,7 @@ before any other roadmap item.
   one Grafana query: `docs/results/logs-correlation.png`.
   `tests/test_correlation.py` 5 passed. Note: on this Mac something else
   answers `localhost:3000`; Grafana is at `http://127.0.0.1:3000`.
-- [ ] **FR-08 Model routing and fallback, demonstrable** (29 Aug overall
+- [x] **FR-08 Model routing and fallback, demonstrable** (29 Aug overall
   #2, #3; Team B #1, #5). *Now:* two routers write `model_routing_log`:
   extraction (Docling/Paddle → LayoutLMv3 cross-check) and clauses (regex →
   keyword, both rules). The chatbot uses one Ollama model with no
@@ -626,6 +626,20 @@ before any other roadmap item.
   fires. A real ML primary for clauses is FR-11. *Done when:* a test per
   router forces the primary to fail and asserts the fallback row; the
   demo script has a "fallback" scenario.
+  *Evidence (Oct 16):* rule `dev.force_model_fallback` (auth migration
+  0011, validated to `"extraction"`/`"clauses"`, honoured only with
+  `APP_ENV=development`) forces the extraction router to its LayoutLMv3
+  fallback and the clause router to its fallback, reason `forced`. System
+  Health's routing log now shows duration. `docs/model-routing.md` lists
+  every router, primary, fallback and when it fires — honestly: the clause
+  "fallback" is the same regex extractor until FR-13, and the classifier's
+  ML path is untrained until FR-29. Tests: `test_dev_force_model_fallback`
+  in document-vendor and contract-risk (forced → fallback; ignored in
+  production), auth validation; making the router ignore the rule fails
+  one. Live: rule `["extraction"]` → uploaded PDF logged
+  `layoutlmv3_fallback · forced · 3,347 ms`; invalid value 400; reset to
+  `[]`. Demo step added to `docs/showcase.html`.
+
 - [x] **FR-09 Business rules validated** (29 Aug overall #1; Team B #7).
   *Now:* `shared/rules_engine` and the Business Rules page exist; there's
   no list of what each rule changes or a test for each rule. *Do:*

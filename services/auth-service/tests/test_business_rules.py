@@ -284,3 +284,18 @@ class TestInternalAndRBAC:
 
         resp = client.get("/admin/business-rules", headers=headers)
         assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,ok", [([], True), (["extraction"], True), (["extraction", "clauses"], True),
+                                      (["chatbot"], False), ("extraction", False)])
+async def test_force_model_fallback_accepts_only_known_routers(value, ok):
+    """FR-08: the demo switch only names routers that honour it."""
+    rule = BusinessRule(rule_key="dev.force_model_fallback", value_type="json", min_value=None, max_value=None,
+                        current_value=[])
+    if ok:
+        await _validate_rule_value(AsyncMock(), rule, value)
+    else:
+        with pytest.raises(HTTPException) as exc:
+            await _validate_rule_value(AsyncMock(), rule, value)
+        assert exc.value.status_code == 400

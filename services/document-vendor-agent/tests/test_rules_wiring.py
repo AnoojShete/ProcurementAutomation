@@ -213,3 +213,18 @@ def test_monitor_event_log_retention_days(rule):
     assert _pruned_days() == 14
     rule("monitor.event_log_retention_days", 3)
     assert _pruned_days() == 3
+
+
+def test_dev_force_model_fallback(rule, monkeypatch):
+    """FR-08: forcing the extraction router's primary to fail shows the
+    LayoutLMv3 fallback (reason "forced"), even for a good reading — in
+    development only."""
+    rule("document.extraction_fallback_confidence_threshold", 0.5)
+    rule("dev.force_model_fallback", [])
+    assert _route(0.95)[0].fallback_triggered is False
+    rule("dev.force_model_fallback", ["extraction"])
+    forced = _route(0.95)[0]
+    assert forced.fallback_triggered is True and forced.fallback_reason == "forced"
+    assert forced.route_name == "layoutlmv3_fallback"
+    monkeypatch.setenv("APP_ENV", "production")
+    assert _route(0.95)[0].fallback_triggered is False

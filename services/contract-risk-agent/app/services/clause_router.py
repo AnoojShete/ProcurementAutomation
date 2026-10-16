@@ -50,6 +50,16 @@ def _log_to_db(db: AsyncSession, document_id: str, result: ClauseRoutingResult):
     except Exception:
         pass
 
+def _fallback_forced(router: str) -> bool:
+    """FR-08 demo switch: the rule dev.force_model_fallback lists routers
+    whose primary should be treated as failed, so the fallback can be shown
+    on demand. Honoured only in development (APP_ENV=development)."""
+    from shared.rules_engine import get_rule
+    from shared.runtime_env import is_development
+    forced = get_rule("dev.force_model_fallback", fallback=[])
+    return is_development() and isinstance(forced, list) and router in forced
+
+
 async def route_clause_extraction(db: AsyncSession, contract_id: str, contract_text: str) -> ClauseRoutingResult:
     """Routes clause extraction with fallback logic."""
     start_time = time.perf_counter()
@@ -68,7 +78,10 @@ async def route_clause_extraction(db: AsyncSession, contract_id: str, contract_t
         
         from shared.rules_engine import get_rule
         fallback_threshold = float(get_rule("contract.clause_extraction_fallback_threshold", fallback=0.4))
-        if confidence < fallback_threshold:
+        if _fallback_forced("clauses"):
+            fallback_triggered = True
+            fallback_reason = "forced"
+        elif confidence < fallback_threshold:
             fallback_triggered = True
             fallback_reason = "low_confidence"
             
