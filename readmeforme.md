@@ -10,7 +10,7 @@ behind one nginx gateway that also serves the React frontend.
 A student team project (Anjali, Vaidehi, Niraj, Anooj). It's a working,
 tested prototype, not a production deployment — see [TODO.md](TODO.md)
 for what's open (with the roadmap), `git log` for what changed, and
-[SHOWCASE.md](SHOWCASE.md) for a presentation-oriented overview.
+[docs/showcase.html](docs/showcase.html) for how to present it (full walkthrough for external evaluators, what's-new run for mentors).
 
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)

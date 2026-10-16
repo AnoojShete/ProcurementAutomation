@@ -91,6 +91,56 @@
     .h::before { display: none; }
   }
   @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ── tabs ───────────────────────────────────────────────────────────── */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 14px 0 0; flex-wrap: wrap; }
+  .tabs a { padding: 8px 14px; border-radius: 8px 8px 0 0; color: var(--muted); text-decoration: none; font-weight: 600;
+            font-size: 13.5px; border: 1px solid transparent; border-bottom: 0; display: inline-flex; gap: 7px; align-items: center; }
+  .tabs a svg.i { width: 16px; height: 16px; }
+  .tabs a[aria-selected="true"] { color: var(--ink); background: var(--panel); border-color: var(--line); margin-bottom: -1px; }
+  [hidden] { display: none !important; }
+
+  /* ── research tab ───────────────────────────────────────────────────── */
+  .rs { --c: var(--proc); }
+  .rs a { color: var(--src); }
+  .rs h2.t { margin: 26px 0 10px; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--c);
+             display: flex; align-items: center; gap: 8px; }
+  .rs h2.t svg.i { width: 18px; height: 18px; }
+  .rs p { margin: 6px 0; }
+  .rs .lead { font-size: 15px; line-height: 1.5; max-width: 900px; }
+  .rs .muted { color: var(--muted); font-size: 12.5px; }
+  .cards { display: grid; gap: 10px; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+  .card h3 { margin: 0 0 6px; font-size: 13.5px; display: flex; align-items: center; gap: 7px; }
+  .card h3 svg.i { color: var(--c); width: 18px; height: 18px; }
+  .card ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+  .card li { margin: 2px 0; }
+  .card.hl { border: 1.5px solid var(--gate); background: color-mix(in srgb, var(--gate) var(--tint), var(--panel)); }
+  .card.warn { border: 1.5px solid var(--part); background: color-mix(in srgb, var(--part) var(--tint), var(--panel)); }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line);
+          color: var(--muted); background: var(--panel); white-space: nowrap; }
+  .pill.g { color: var(--ok); border-color: var(--ok); } .pill.a { color: var(--part); border-color: var(--part); }
+  .pill.n { color: var(--plan); border-color: var(--plan); }
+  .tbl { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+         overflow: hidden; font-size: 12.5px; }
+  .tblwrap { overflow-x: auto; border-radius: 10px; }
+  .tbl th, .tbl td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl th { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--line) 35%, var(--panel)); }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl td.c { text-align: center; }
+  .tbl tr.me td { background: color-mix(in srgb, var(--gate) var(--tint), var(--panel)); font-weight: 600; }
+  .y { color: var(--ok); font-weight: 700; } .x { color: #c2412d; font-weight: 700; } .q { color: var(--plan); font-weight: 700; } .h2 { color: var(--part); font-weight: 700; }
+  .pipe { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
+  .pipe .box { flex: 1 1 150px; background: var(--panel); border: 1.5px solid var(--c); border-radius: 9px; padding: 8px 10px; font-size: 12.5px; }
+  .pipe .box b { display: block; font-size: 13px; margin-bottom: 2px; }
+  .pipe .box.e { --c: var(--agent); } .pipe .box.g { --c: var(--gate); } .pipe .box.r { --c: var(--notify); }
+  .pipe .ar { align-self: center; color: var(--arrow); font-weight: 700; }
+  .gap { border-left: 4px solid var(--c); }
+  .gap dl { display: grid; grid-template-columns: 150px 1fr; gap: 4px 10px; margin: 6px 0 0; font-size: 12.5px; }
+  .gap dt { color: var(--muted); font-weight: 600; } .gap dd { margin: 0; }
+  ol.refs { font-size: 12.5px; padding-left: 22px; } ol.refs li { margin: 3px 0; }
+  .claim { font-size: 15px; line-height: 1.5; border: 1.5px dashed var(--gate); border-radius: 10px; padding: 12px 14px; background: var(--panel); }
+  @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } .gap dl { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -133,6 +183,10 @@
     <symbol id="chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
     <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></symbol>
+    <symbol id="book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></symbol>
+    <symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 15h9"/></symbol>
+    <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+    <symbol id="flow" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/><path d="M6.5 9v4a2 2 0 0 0 2 2H14"/></symbol>
   </defs>
 </svg>
 
@@ -140,7 +194,7 @@
   <header>
     <div>
       <h1>Agentic AI Procurement Platform</h1>
-      <div class="sub">From an incoming document to a signed contract and a matched invoice</div>
+      <div class="sub">From an incoming document to a signed contract and a matched invoice · status and research direction</div>
     </div>
     <div class="theme" role="group" aria-label="Theme">
       <button type="button" data-set="light">Light</button>
@@ -148,6 +202,11 @@
       <button type="button" data-set="">System</button>
     </div>
   </header>
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <a href="#flow" role="tab" id="t-flow" aria-controls="tab-flow"><svg class="i"><use href="#flow"/></svg>Project flow</a>
+    <a href="#research" role="tab" id="t-research" aria-controls="tab-research"><svg class="i"><use href="#book"/></svg>Research gap analysis</a>
+  </nav>
+  <div id="tab-flow" role="tabpanel" aria-labelledby="t-flow">
   <div class="legend">
     <span><svg class="st ok"><use href="#ok"/></svg>Complete</span>
     <span><svg class="st part"><use href="#part"/></svg>Partly built</span>
@@ -156,6 +215,131 @@
 
   <div id="chart"></div>
   <footer>Status reflects the code at the last update of this page.</footer>
+  </div>
+  <div id="tab-research" role="tabpanel" aria-labelledby="t-research" hidden>
+  <div class="rs">
+    <p class="muted" style="margin-top:14px">Literature and product search on <b>16 Oct 2026</b> · every reference checked against Crossref, DataCite, arXiv or the publisher page · status: <b>planned, no experiments run yet</b>. Full text: <a href="../RESEARCH_GAP_ANALYSIS.md">RESEARCH_GAP_ANALYSIS.md</a> · <a href="../RESEARCH_PAPER_PLAN.md">RESEARCH_PAPER_PLAN.md</a></p>
+
+    <h2 class="t"><svg class="i"><use href="#target"/></svg>The question in one line</h2>
+    <p class="lead">When can a procurement document — an invoice, PO or quote — go straight to approval and payment <b>without a person checking it</b>, while keeping wrong documents below a chosen error budget? And how much does checking it against <b>company records</b> (vendor master, purchase orders, ledger, tax and bank registries) help compared with judging the document alone?</p>
+
+    <div class="cards" style="--n:3;margin-top:12px">
+      <div class="card"><h3><svg class="i"><use href="#scan"/></svg>Today in our platform</h3>
+        <ul><li>A hand-weighted average of field confidences × OCR quality, threshold <b>0.8</b> (never calibrated)</li>
+            <li>About ten hard "force review" rules: look-alike vendor, PO mismatch, duplicate, LayoutLMv3 disagreement…</li>
+            <li>No guarantee on how many wrong documents slip through</li></ul></div>
+      <div class="card"><h3><svg class="i"><use href="#book"/></svg>What research has (2026)</h3>
+        <ul><li>Calibrated confidence + statistical error control for straight-through processing</li>
+            <li>But it judges each document <b>on its own</b>, field by field</li>
+            <li>Its own rule checks "add little signal" on invoices</li></ul></div>
+      <div class="card"><h3><svg class="i"><use href="#building"/></svg>What products do</h3>
+        <ul><li>Rossum, SAP Ariba, Coupa match invoices to vendor master data and POs</li>
+            <li>With hand-set thresholds and tolerances</li>
+            <li>No published error rates or calibration</li></ul></div>
+    </div>
+
+    <h2 class="t"><svg class="i"><use href="#bolt"/></svg>The gap we found</h2>
+    <div class="claim">No study we found measures what <b>enterprise evidence</b> — vendor-master match, PO and ledger balance, earlier invoices, GSTIN/IFSC registries — adds to a <b>calibrated, risk-controlled</b> decision to process a document without review, at the level payments actually happen: <b>the whole document</b>. Our pipeline already computes all of this evidence and stores it per stage.</div>
+
+    <h2 class="t"><svg class="i"><use href="#flow"/></svg>Proposed method</h2>
+    <div class="pipe">
+      <div class="box"><b>Read &amp; extract</b>OCR, classify, fields (existing pipeline)</div><span class="ar">→</span>
+      <div class="box"><b>Document evidence</b>OCR quality · field confidence · format, arithmetic, checksums · LayoutLMv3 agreement</div><span class="ar">+</span>
+      <div class="box e"><b>Enterprise evidence</b>vendor master · GSTIN/IFSC · PO &amp; ledger balance · duplicates · bank details</div><span class="ar">→</span>
+      <div class="box g"><b>Calibrated gate</b>p(document correct) → Learn-then-Test threshold: error ≤ α with probability 1−δ</div><span class="ar">→</span>
+      <div class="box r"><b>Accept or review</b>review page shows the evidence; corrections can recalibrate (optional)</div>
+    </div>
+    <p class="muted">Ships behind a business rule (<code>document.review_policy</code>); today's heuristic stays the default until results justify switching.</p>
+
+    <h2 class="t"><svg class="i"><use href="#flask"/></svg>Research questions</h2>
+    <div class="tblwrap"><table class="tbl">
+      <tr><th>RQ</th><th>Question</th><th>Hypothesis</th><th>Compared with</th></tr>
+      <tr><td><b>RQ1</b></td><td>Does enterprise evidence let more documents skip review at the same error budget?</td><td>≥ 5 percentage points more documents auto-processed at α = 2 %, error still ≤ α</td><td>Current heuristic · document-only calibrated gate · rules-only matcher</td></tr>
+      <tr><td><b>RQ2</b></td><td>Is deciding per document better than combining per-field decisions?</td><td>Higher coverage at the same document-level error</td><td>All-fields-pass, union bound, minimum field confidence</td></tr>
+      <tr><td><b>RQ3</b></td><td>What if company records are stale or incomplete?</td><td>Gain shrinks gradually but stays positive up to a reported noise level</td><td>Same systems at each noise level</td></tr>
+      <tr><td><b>RQ4</b> <span class="pill n">optional</span></td><td>Do reviewer corrections keep the guarantee as new vendors appear?</td><td>Recalibration keeps error ≤ α per time window; a static gate does not</td><td>Static calibration</td></tr>
+    </table></div>
+    <p class="muted">Data: a seeded "procurement world" (vendor master, POs, ledger, ~3,000 documents with controlled scan damage and business errors) built on our synthetic generator, plus a check on public invoices (DocILE or FATURA). Metrics: share auto-processed at α, real error of accepted documents, risk–coverage area, AUROC, calibration error, ₹ at risk, coverage per vendor, added latency. A negative result is possible and would be reported.</p>
+
+    <h2 class="t"><svg class="i"><use href="#table"/></svg>Who does what — capability matrix</h2>
+    <div class="tblwrap"><table class="tbl">
+      <tr><th>Capability</th><th>Jin et al. 2026</th><th>Rombach &amp; Mehdiyev 2026</th><th>ConfBench 2026</th><th>Rossum</th><th>SAP Ariba</th><th>Our platform today</th><th>Proposed</th></tr>
+      <tr><td>Calibrated probability of being correct</td><td class="c y">✔</td><td class="c y">✔</td><td class="c y">✔</td><td class="c q">?</td><td class="c x">✘</td><td class="c x">✘</td><td class="c y">✔</td></tr>
+      <tr><td>Statistical error guarantee for auto-accepted items</td><td class="c y">✔ field</td><td class="c y">✔ field</td><td class="c x">✘</td><td class="c q">?</td><td class="c x">✘</td><td class="c x">✘</td><td class="c y">✔ document</td></tr>
+      <tr><td>Checks inside the document (format, arithmetic, checksum)</td><td class="c y">✔</td><td class="c x">✘</td><td class="c x">✘</td><td class="c y">✔</td><td class="c h2">◐</td><td class="c y">✔</td><td class="c y">✔</td></tr>
+      <tr><td>Vendor master / PO / ledger evidence</td><td class="c x">✘</td><td class="c x">✘</td><td class="c x">✘</td><td class="c y">✔ rules</td><td class="c y">✔ rules</td><td class="c y">✔ rules</td><td class="c y">✔ calibrated</td></tr>
+      <tr><td>Measured contribution of that evidence</td><td class="c x">✘</td><td class="c x">✘</td><td class="c x">✘</td><td class="c q">?</td><td class="c q">?</td><td class="c x">✘</td><td class="c y">✔</td></tr>
+      <tr><td>Decision for the whole document</td><td class="c x">✘</td><td class="c h2">◐</td><td class="c x">✘</td><td class="c h2">◐</td><td class="c y">✔</td><td class="c y">✔</td><td class="c y">✔</td></tr>
+      <tr><td>Reviewer feedback updates the decision</td><td class="c x">proposed</td><td class="c x">✘</td><td class="c x">✘</td><td class="c q">?</td><td class="c q">?</td><td class="c h2">◐</td><td class="c h2">optional</td></tr>
+    </table></div>
+    <p class="muted"><span class="y">✔</span> documented · <span class="x">✘</span> not done · <span class="q">?</span> not documented (unknown, not absent) · <span class="h2">◐</span> partly. Commercial tools may do more internally than their public docs show.</p>
+
+    <h2 class="t"><svg class="i"><use href="#building"/></svg>Products reviewed</h2>
+    <div class="tblwrap"><table class="tbl">
+      <tr><th>System</th><th>Decides per</th><th>What unlocks automation</th><th>Uses company records</th><th>Threshold</th></tr>
+      <tr><td><a href="https://knowledge-base.rossum.ai/docs/automation-rules-overview">Rossum</a></td><td>Field (document if all pass)</td><td>Confidence, built-in / history / custom checks</td><td><a href="https://knowledge-base.rossum.ai/docs/master-data-hub">Master Data Hub</a>, <a href="https://knowledge-base.rossum.ai/docs/po-matching-with-line-items-extension">PO matching</a></td><td>Manual, default 97.5 %</td></tr>
+      <tr><td><a href="https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept-accuracy-confidence">Azure AI Document Intelligence</a></td><td>Field</td><td>Field confidence</td><td>Not documented</td><td>User-chosen (≥ 80 % suggested)</td></tr>
+      <tr><td><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/a2i-json-humantaskactivationconditions-textract-example.html">AWS Textract + A2I</a></td><td>Key / form</td><td>Confidence, missing key, sampling</td><td>Not documented</td><td>Manual</td></tr>
+      <tr><td><a href="https://docs.uipath.com/action-center/automation-suite/2023.4/user-guide/create-document-validation-action">UiPath Document Understanding</a></td><td>Field</td><td>OCR + extraction confidence</td><td>Not documented</td><td>Manual ("guidance only")</td></tr>
+      <tr><td><a href="https://learning.sap.com/courses/sap-ariba-procurement-overview-1/understanding-invoice-reconciliation-1">SAP Ariba</a></td><td>Invoice</td><td>2-/3-way match exceptions</td><td>PO, receipts</td><td>Manual tolerances</td></tr>
+      <tr><td>Coupa</td><td>Invoice</td><td>Price / quantity / amount tolerances</td><td>PO, receipts</td><td>Only third-party descriptions found</td></tr>
+      <tr class="me"><td>Our platform</td><td>Document</td><td>Weighted confidence + 10 force-review rules</td><td>Vendor master, PO/ledger, duplicates, GSTIN/IFSC</td><td>Fixed 0.8, uncalibrated</td></tr>
+    </table></div>
+
+    <h2 class="t"><svg class="i"><use href="#alert"/></svg>Gaps, with the evidence against them too</h2>
+    <div class="cards" style="--n:3">
+      <div class="card gap hl"><h3>G1 · Enterprise evidence <span class="pill g">primary</span></h3>
+        <dl><dt>Evidence</dt><dd>Closest paper's checks are all inside the document (read in full); none of the 2026 papers uses company records.</dd>
+            <dt>Against</dt><dd>Products already match master data and POs; document rule checks added little in Jin et al.</dd>
+            <dt>Still open</dt><dd>Calibrated, measured, with an error guarantee.</dd>
+            <dt>Novelty</dt><dd><span class="pill a">potentially underexplored</span></dd></dl></div>
+      <div class="card gap"><h3>G2 · Whole-document decisions <span class="pill">complementary</span></h3>
+        <dl><dt>Evidence</dt><dd>Jin et al. report per field only ("the reporting unit is a field extraction").</dd>
+            <dt>Against</dt><dd>A union bound over fields gives a document guarantee — conservatively.</dd>
+            <dt>Still open</dt><dd>Payment acts on documents; ₹-weighted risk.</dd>
+            <dt>Novelty</dt><dd><span class="pill n">incremental</span></dd></dl></div>
+      <div class="card gap"><h3>G3 · Feedback under drift <span class="pill n">optional</span></h3>
+        <dl><dt>Evidence</dt><dd>Jin et al. propose refreshing from audited samples but don't test it.</dd>
+            <dt>Against</dt><dd>Adaptive / non-exchangeable conformal methods exist in general.</dd>
+            <dt>Still open</dt><dd>No procurement evaluation; new vendors arrive constantly.</dd>
+            <dt>Novelty</dt><dd><span class="pill n">incremental</span></dd></dl></div>
+    </div>
+    <p class="muted">Considered and not chosen: a better vendor-risk model (established field, synthetic data), invoice-fraud detection (no labelled data), licence anomalies (no ground truth), LLM agent orchestration (not a contribution by itself), a new extraction model (crowded field).</p>
+
+    <h2 class="t"><svg class="i"><use href="#book"/></svg>Research by theme</h2>
+    <div class="cards" style="--n:2">
+      <div class="card"><h3>Selective prediction &amp; error control</h3><ul>
+        <li><a href="https://arxiv.org/abs/1705.08500">Geifman &amp; El-Yaniv 2017</a> — abstain to hold a chosen error rate (risk–coverage).</li>
+        <li><a href="https://arxiv.org/abs/2006.01862">Mozannar &amp; Sontag 2020</a> — learning when to defer to a human.</li>
+        <li><a href="https://proceedings.mlr.press/v70/guo17a.html">Guo et al. 2017</a> — modern networks are poorly calibrated; temperature scaling.</li>
+        <li><a href="https://doi.org/10.1214/24-AOAS1998">Angelopoulos et al. 2025</a> — Learn-then-Test: thresholds with a finite-sample guarantee.</li>
+        <li><a href="https://proceedings.iclr.cc/paper_files/paper/2024/hash/f3549ef9b5ff520a7e41ff3cc306ab2b-Abstract-Conference.html">Angelopoulos et al. 2024</a> — conformal risk control.</li></ul></div>
+      <div class="card"><h3>Calibrated straight-through processing (closest)</h3><ul>
+        <li><a href="https://arxiv.org/abs/2609.20110">Jin et al. 2026</a> — perception/layout/validation + risk control; 39–72 % fields auto-approved at ≤ 10 % error on DocILE, FATURA, VRDU; document-internal checks only, per field.</li>
+        <li><a href="https://doi.org/10.1007/s10032-026-00572-y">Rombach &amp; Mehdiyev 2026</a> (IJDAR) — conformal sets for receipts, 98.3 % coverage at α = 0.02.</li>
+        <li><a href="https://arxiv.org/abs/2608.01792">Roy et al. 2026</a> — ConfBench: VLM confidence from near-perfect to badly over-confident.</li>
+        <li><a href="https://arxiv.org/abs/2206.02628">Nguyen et al. 2022</a> — HYCEDIS confidence engine.</li>
+        <li><a href="https://doi.org/10.21203/rs.3.rs-10721490/v1">Xu 2026</a> — multi-signal calibration (preprint, details not independently verified).</li></ul></div>
+      <div class="card"><h3>Document understanding &amp; datasets</h3><ul>
+        <li><a href="https://doi.org/10.1145/3394486.3403172">LayoutLM 2020</a>, <a href="https://doi.org/10.1145/3503161.3548112">LayoutLMv3 2022</a>, <a href="https://doi.org/10.1007/978-3-031-19815-1_29">Donut 2022</a></li>
+        <li><a href="https://arxiv.org/abs/2009.09941">PP-OCR 2020</a>, <a href="https://arxiv.org/abs/2408.09869">Docling 2024</a> — the engines we use</li>
+        <li><a href="https://doi.org/10.1109/ICDAR.2019.00244">SROIE</a>, <a href="https://mlanthology.org/neuripsw/2019/park2019neuripsw-cord">CORD</a>, <a href="https://arxiv.org/abs/2302.05658">DocILE</a>, <a href="https://arxiv.org/abs/2311.11856">FATURA</a>, <a href="https://doi.org/10.1145/3580305.3599929">VRDU</a> — none links invoices to POs or a vendor master</li>
+        <li><a href="https://doi.org/10.1016/j.iswa.2023.200285">Krieger et al. 2023</a> — extractors struggle on rarely seen suppliers</li></ul></div>
+      <div class="card"><h3>AI in procurement &amp; supply risk</h3><ul>
+        <li><a href="https://doi.org/10.1016/j.pursup.2023.100823">Guida et al. 2023</a>, <a href="https://doi.org/10.1016/j.pursup.2024.100896">Spreitzenbarth et al. 2024</a>, <a href="https://doi.org/10.1007/s10462-025-11336-1">Balkan &amp; Akyuz 2025</a>, <a href="https://doi.org/10.1016/j.digbus.2025.100160">Lakhal et al. 2025</a> — AI in procurement is early and focused on procure-to-pay automation</li>
+        <li><a href="https://doi.org/10.1016/j.future.2019.07.059">Baryannis et al. 2019</a>, <a href="https://arxiv.org/abs/2401.10895">Jahin et al. 2026</a> — supply-risk ML is mature (why risk scoring isn't our contribution)</li>
+        <li><a href="https://doi.org/10.4121/uuid:d06aff4b-79f0-45e6-8ec8-e19730c248f1">BPI Challenge 2019</a> — real purchase-order event log, but no documents</li></ul></div>
+    </div>
+
+    <h2 class="t"><svg class="i"><use href="#eye"/></svg>Honest limits</h2>
+    <div class="cards" style="--n:3">
+      <div class="card warn"><h3>Synthetic company records</h3>The generator decides how detectable errors are — so we vary injection and noise rates, run a public-data check, and don't claim real-world proof.</div>
+      <div class="card warn"><h3>Our extractor isn't a VLM</h3>Absolute numbers won't match Jin et al.; only comparisons between gates on the same documents are claimed.</div>
+      <div class="card warn"><h3>Fast-moving field</h3>Three of the closest papers appeared Mar–Sep 2026. The search was web + Crossref, not direct IEEE/ACM database queries; it is re-run before submission.</div>
+    </div>
+    <footer>Tasks for this research are RS-01…RS-12 in TODO.md; the personal checklist is IMPLEMENTATION_PLAN.md.</footer>
+  </div>
+  </div>
 </div>
 
 <script>
@@ -284,6 +468,17 @@ const apply = (t) => {
 buttons.forEach((b) => b.addEventListener("click", () => apply(b.dataset.set)));
 let saved = ""; try { saved = localStorage.getItem("flow-theme") || ""; } catch (e) {}
 apply(saved);
+
+// Tabs: #flow (default) / #research — links can open a tab directly.
+const showTab = () => {
+  const id = location.hash === "#research" ? "research" : "flow";
+  for (const t of ["flow", "research"]) {
+    document.getElementById("tab-" + t).hidden = t !== id;
+    document.getElementById("t-" + t).setAttribute("aria-selected", String(t === id));
+  }
+};
+window.addEventListener("hashchange", showTab);
+showTab();
 </script>
 </body>
 </html>

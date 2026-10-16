@@ -259,7 +259,7 @@ explanations, LLM agent orchestration.
 
 ## P0
 
-- [ ] **Rotate the GSTINCheck API key** (`67d40c75…`): committed as a
+- [ ] (Oct 16: the same key was re-supplied and put in `.env` only — not committed; it is still in git history, so rotating it is still needed.) **Rotate the GSTINCheck API key** (`67d40c75…`): committed as a
   default before Sep 25 and still in git history. Put the new one in
   `.env` only. *Why: leaked credential.*
 - [ ] **Any non-local deployment**: set `APP_ENV=production` and real
