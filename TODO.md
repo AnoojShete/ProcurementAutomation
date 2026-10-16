@@ -1,8 +1,256 @@
 # TODO
 
-Open work, grouped by priority, each with why it matters. What changed
-and when is in `git log`; finished roadmap items keep a dated evidence
-line here. Started Sep 27, 2026; roadmap added Oct 15; updated every phase.
+Working context **and** task register for this repo. Part A is the
+context a new session needs (what the project is, how it fits together,
+what works, what's decided, what's next). Part B keeps every item's
+detail and dated evidence. Research planning lives in
+`RESEARCH_GAP_ANALYSIS.md` and `RESEARCH_PAPER_PLAN.md`; the short
+personal checklist is `IMPLEMENTATION_PLAN.md`. What changed and when is
+in `git log`. Started Sep 27, 2026; roadmap added Oct 15; Part A added
+Oct 16.
+
+> **Maintenance (for every session):** update this file, don't recreate
+> it. When an item changes, update its status in the A.5 register, add a
+> dated *Evidence* line to its Part B entry, and refresh A.6 (next
+> actions). Keep `IMPLEMENTATION_PLAN.md` ticks in step. Record new
+> decisions in A.4. At each roadmap phase also update
+> `docs/project-flow.html`, `README.md` and `readmeforme.md`.
+
+---
+
+# Part A — Project context
+
+## A.1 Project overview
+
+- **Name:** IT Procurement Intelligence Platform (repo
+  `ProcurementAutomation`). Student team project, Fractal Analytics
+  2026–27 (Anjali, Vaidehi, Niraj, Anooj).
+- **Problem:** company procurement of software and hardware is a chain of
+  manual hand-offs — retyping invoices, chasing approvers, drafting
+  contracts, checking invoices against orders by eye. It is slow, and the
+  risky cases (fake or duplicate invoices, changed bank details,
+  unreliable vendors) are easy to miss.
+- **Users:** requesters (ask for purchases), approvers (decide by spend
+  tier), finance (vendors, bank-detail verification, invoices, compliance
+  signals), admins (business rules, users, monitoring). Stakeholders:
+  Fractal mentors and evaluators.
+- **Objectives:** read procurement documents automatically, route
+  approvals with enforced authority, manage inventory and licences,
+  generate and sign contracts, score vendor risk, and keep people in the
+  loop only where a decision is needed — with every action audited.
+- **Core use cases:** document intake (upload / email / drop folder) →
+  classification and extraction → vendor match → request → approval →
+  contract → signature → ordered → received → invoice matched.
+- **Scope:** Team A/B/C basic requirements (document & vendor
+  intelligence, approval & inventory, contract & risk). Out of scope for
+  this repo's authors: email automation and the chatbot (Anooj's),
+  Team D platform requirements.
+- **Non-functional requirements in force:** identity only from the JWT;
+  outbox for events; retries + DLQ; idempotent migrations; audit of every
+  control; runs on one machine with Docker Compose; `APP_ENV=production`
+  refuses default secrets.
+- **Stage (Oct 16, 2026):** all basic requirements built (BR-1…BR-7);
+  development ends **end of October** (mentor deadline), testing in
+  November, submission in December. A research paper on calibrated
+  automation is planned (RS-xx tasks).
+
+## A.2 Architecture and implementation context
+
+```mermaid
+flowchart LR
+  U[Browser<br/>React/Vite] --> N[nginx gateway :8080]
+  N --> AU[auth-service :8005<br/>accounts · roles · business rules]
+  N --> DV[document-vendor-agent :8001<br/>+ worker]
+  N --> AI[approval-inventory-agent :8002<br/>+ worker]
+  N --> CR[contract-risk-agent :8003<br/>+ worker]
+  N --> NO[notification-agent :8004]
+  DV & AI & CR & NO <--> K[(Kafka / Redpanda<br/>outbox · DLQ)]
+  DV & AI & CR & AU --> P[(PostgreSQL<br/>shared)]
+  DV --> M[(MinIO files)]
+  DV --> CL[ClamAV]
+  AI & CR --> T[Temporal<br/>approvals · renewals · reminders]
+  NO --> MP[Mailpit / SMTP]
+  DV & AI & CR --> O[Prometheus · Grafana · Loki]
+```
+
+How the pieces interact:
+- **Documents** (`services/document-vendor-agent`): `upload_service.py`
+  scans (ClamAV), stores (MinIO), records and emits an outbox event; the
+  worker runs `app/services/pipeline.py` — extraction in a killable
+  subprocess (`ocr.py`: pdfplumber / Docling / PaddleOCR, `preprocess.py`
+  for scans), `classification.py`, `field_extraction.py`, LayoutLMv3
+  cross-check, `vendor_matching.py` (+ GSTIN/IFSC, bank-detail
+  quarantine), FX (`fx.py`), learned hints (`learning.py`), invoice ledger
+  match, duplicates, then `confidence.py` decides review vs automatic.
+  Each stage's result is stored in `pipeline_checkpoints`. Inbound email
+  (`email_intake.py`), vendor onboarding (`vendor_onboarding.py`).
+- **Approvals & inventory** (`services/approval-inventory-agent`):
+  `approval_service.py` (spend tiers, authority, SoD, backorders),
+  Temporal approval workflow with SLA reminders, `inventory_service.py`,
+  `reorder.py`, `invoice_ledger.py`, `order_monitor.py`; status changes
+  validated by `shared/lifecycle.py`.
+- **Contracts & risk** (`services/contract-risk-agent`):
+  `contract_service.py` (generation, built-in e-sign, risk gate before
+  signing), renewal workflow, `risk_service.py` (random forest + hard
+  overrides), `risk_signals.py` (platform history + compliance record),
+  `drift_service.py`.
+- **Auth & rules** (`services/auth-service`): JWT, accounts, business
+  rules table (Alembic migrations seed rules; `shared/rules_engine.get_rule`).
+- **Frontend** (`frontend/src`): one home page per item; each agent's
+  actions are one component under `components/<agent>/`.
+- **Endpoints often needed:** `/api/documents/upload`,
+  `/api/vendors/onboard[/validate]`, `/api/vendors/{id}/risk[-signals]`,
+  `/api/requests/` (+ `/receive`), `/api/inventory/`
+  (+ `/{id}/reorder-settings`), `/api/contracts/{id}` (+ `/sign`),
+  `/api/business-rules`.
+- **Config:** `.env` from `.env.example` (never commit real secrets);
+  migrations per service as listed in `CLAUDE.md`.
+
+## A.3 Current implementation status
+
+| Component or feature | Status | Existing implementation | Remaining work | Dependencies |
+|---|---|---|---|---|
+| Gateway, auth, roles, business rules | COMPLETE | nginx, auth-service, rules engine | Security P1/P2 hardening (Part B) | — |
+| Document intake: upload, drop folder, email | COMPLETE | `upload_service.py`, `inbox_watcher.py`, `email_intake.py` (BR-1) | — | ClamAV, MinIO |
+| OCR / extraction | PARTIAL | pdfplumber, Docling, PaddleOCR, preprocessing on (BR-2) | Noisy scans worse with preprocessing (44 % vs 47 %); low-quality JPGs 0–1/6 fields (FR-11); Docling cold start | — |
+| Classification incl. "other", PO-backed / non-PO | COMPLETE (rules) / PARTIAL (ML) | keyword classifier (BR-3) | Train the ML classifier (FR-29) | labelled data |
+| LayoutLMv3 cross-check | PARTIAL | `layoutlm_crosscheck.py` | Runs only if model downloaded | `scripts/download-models.sh` |
+| Review routing (confidence) | COMPLETE (heuristic) | `confidence.py`: weighted score × OCR quality, threshold 0.8, force-review rules | Calibrated, risk-controlled gate = research RS-01…RS-12 | RS data |
+| Learning from corrections | PARTIAL | per-vendor hints + thresholds (`learning.py`) | Classifier retraining; evaluation (RS-10, optional) | — |
+| Vendor match, onboarding, bank-detail dual control | COMPLETE | `vendor_matching.py`, `vendor_onboarding.py` (BR-4), payment hold | — | — |
+| FX conversion to INR | COMPLETE | `fx.py` (Frankfurter, rate captured once) | — | internet |
+| Approvals, authority, SoD, SLA reminders | COMPLETE | approval workflow (Temporal) | Terminate 6 stale workflows (P1) | person with permission |
+| Inventory, backorders, reorder suggestions | COMPLETE | `inventory_service.py`, `reorder.py` (BR-5) | — | — |
+| Invoice ledger / matching | COMPLETE | `invoice_ledger.py`, `invoice_matches` | — | — |
+| Contracts: generation, built-in e-sign, renewals | COMPLETE | `contract_service.py`, renewal workflow (FR-01, FR-02) | — | — |
+| Risk shown before signing | COMPLETE | `signing_risk()` (BR-6) | External e-sign path would need the check at send time | — |
+| Vendor risk model | PARTIAL | RF + overrides + platform signals (FR-04, BR-7) | Red-team vs agent doc, sanctions (FR-14), drift min-sample decision | decision |
+| Clause extraction with a model | PENDING | rules only | Legal-BERT + rules fallback (FR-13) | model download |
+| Licence-usage anomaly model | PARTIAL | IsolationForest + SHAP | Evaluate and tune (FR-32) | — |
+| Notifications | PARTIAL | notification-agent → Mailpit | Retry + DLQ (FR-31; Anooj informed) | — |
+| Email automation, chatbot | OUT OF SCOPE | Anooj's | — | — |
+| Observability (metrics, logs, correlation id) | COMPLETE | Prometheus, Grafana, Loki (FR-07) | — | — |
+| Failed-events / Kafka log | COMPLETE | Control Panel (FR-06) | — | — |
+| CI | PARTIAL | builds images only | Run tests in CI (FR-25) | — |
+| Kubernetes / PySpark claims | BLOCKED | none | Needs an architecture decision (FR-15, FR-16) | user decision |
+| Credentials for any shared deploy | BLOCKED | dev defaults | Rotate GSTINCheck key; real secrets (P0) | a person |
+| Linux (Ubuntu VM) run | UNVERIFIED | steps in `readmeforme.md` | Fresh-clone rehearsal (FR-26) | VM |
+| Research: calibrated document gate | PENDING | — | RS-01…RS-12 | — |
+
+## A.4 Decisions, constraints and known limitations
+
+Decisions to keep (change only after discussion):
+- One shared PostgreSQL; each service owns its migrations (raw SQL or
+  Alembic with its own version table). Never edit `shared/db/init.sql`.
+- Events only through the transactional outbox; consumers wrapped with
+  `deliver` (retry + DLQ).
+- Identity from the JWT only; nobody approves their own request (admins
+  included).
+- Built-in e-sign only (since Oct 15); signing leads to `ordered`, then
+  "received" → `fulfilled`.
+- Currency: convert to INR via Frankfurter, keep the original value and
+  rate.
+- Image preprocessing on by default (rule `document.image_preprocessing`),
+  denoise off, upscale capped at 1.5× — measured (BR-2).
+- A zero-stock hardware request is created `backordered` (no ₹0 split).
+- High-risk / unscored vendors need an explicit acknowledgement to sign.
+- Team boundary: email automation and the chatbot are Anooj's.
+- Research (Oct 16): primary contribution is the calibrated,
+  enterprise-evidence document gate (`RESEARCH_GAP_ANALYSIS.md` §8); it
+  ships behind a business rule with the current heuristic as default
+  until results support switching.
+
+Constraints: development ends end of October 2026; November = testing;
+December = submission. One machine (Docker Compose, ~3.2 GB RAM idle).
+All vendor / risk / document data is synthetic.
+
+Known limitations: noisy scans read worse after preprocessing; drift
+check reports PSI on only 7 informed vendors; external e-sign providers
+not gated by the risk check; Kafka without TLS; the confidence threshold
+is uncalibrated (the research addresses this).
+
+Assumptions to validate: that enterprise evidence adds signal beyond the
+document (RS hypothesis H1 — could be false); that DocILE's terms permit
+our use (RS-08).
+
+## A.5 Task register
+
+Priority: **P0** blocks essential work · **P1** needed for the system or
+the main research claim · **P2** valuable follow-up · **P3** optional.
+"Core" = needed for the system, "Research" = for the paper. Details and
+evidence for FR/BR items are in Part B under the same ID.
+
+### Core functionality and existing features
+
+| ID | Task | Status | Pri | Depends on | Files | Acceptance | For |
+|---|---|---|---|---|---|---|---|
+| OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | BLOCKED (permission) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
+| SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
+| FR-05 | Demo script | PENDING | P1 | — | `docs/` | Script runs a reviewer through every agent | Core |
+| FR-12 | Presentation draft, template-shaped docs | PENDING | P1 | FR-05 | `docs/` | Draft reviewed by team | Core |
+| FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | PENDING | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
+| FR-08 | Model routing and fallback, demonstrable | PENDING | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
+| FR-09 | Business rules validated | PENDING | P1 | — | auth-service | Every rule has validation + test | Core |
+| FR-10 | Notification coverage audit | PENDING | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
+| FR-04 | Risk analysis remainder (red-team vs agent doc) | PARTIAL | P2 | — | contract-risk-agent `ml/` | Part B "Done when" met | Core |
+| FR-11 | Layout-analysis accuracy incl. noisy scans | PARTIAL | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
+| FR-13 | Clause extraction with Legal-BERT, rules fallback | PENDING | P2 | model | contract-risk-agent | Evaluated on sample contracts | Core |
+| FR-14 | Sanctions screening + strategic-tier checks | PENDING | P2 | data source | contract-risk-agent | Sanctions override in risk | Core |
+| FR-29 | Train the document classifier | PENDING | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
+| FR-32 | Licence anomaly model evaluated and tuned | PENDING | P2 | — | approval-inventory-agent | `docs/results/licence-anomaly.json` | Core |
+| DRIFT-1 | Decide minimum sample before PSI is reported | PENDING (decision) | P2 | user | `drift_service.py` | Rule chosen and documented | Core |
+| FR-15/16 | PySpark / Kubernetes claims | BLOCKED (decision) | P3 | user | — | Built or removed from docs | Core |
+| FR-17/18/19 | DB & storage pages, trace view, re-verify minutes | PENDING | P2 | — | frontend | Part B "Done when" | Core |
+| FR-20…24 | R2 competitive features (delivery alerts, scorecard, report, SaaS overlap, MCP) | PENDING | P3 | R0 + R1 done, and only if asked | — | Part B "Done when" | Core |
+
+### Testing, deployment and documentation (R3, November)
+
+| ID | Task | Status | Pri | Depends on | Acceptance | For |
+|---|---|---|---|---|---|---|
+| FR-25 | CI runs the service suites and root tests | PENDING | P1 | — | CI fails on a failing test | Core |
+| TEST-1 | Fix pre-existing failing root tests (`test_mailer`; `test_email_action` needs `redis` — Anooj) | PENDING | P1 | — | Root suite green | Core |
+| FR-26 | Fresh-clone rehearsal on Ubuntu (UTM) | UNVERIFIED | P1 | VM | `docs/results/fresh-clone.md` with times | Core |
+| FR-27 | Security P1s (dependency upgrades etc.) | PENDING | P1 | — | Part B list closed | Core |
+| FR-28 | Final documentation pass | PENDING | P1 | all | Templates filled | Both |
+
+### Research (selected contribution — see `RESEARCH_PAPER_PLAN.md`)
+
+| ID | Task | Status | Pri | Depends on | Files | Acceptance | For |
+|---|---|---|---|---|---|---|---|
+| RS-01 | Evidence export: one row per (document, field) and per document from `pipeline_checkpoints` + envelope | PENDING | P1 | — | new `scripts/export_evidence.py` (document-vendor-agent) | Exports document-internal and enterprise features with document id | Research |
+| RS-02 | Procurement-world generator: vendor master (incl. look-alikes), POs, ledger, invoices/POs/quotes, controlled visual + business error injection, seeded | PENDING | P1 | — | extend `scripts/synthetic_invoice_lib.py` | ~3k docs, ~100 vendors, manifest with ground truth + injection labels | Research |
+| RS-03 | Batch harness: seed a world into the stack, run documents through the real pipeline, collect evidence + labels | PENDING | P1 | RS-01, RS-02 | new `scripts/eval_selective.py` | One command produces the labelled dataset | Research |
+| RS-04 | Calibrators (logistic, hist-gradient-boosting) + LTT gate at document level | PENDING | P1 | RS-03 | new `app/services/selective_gate.py` | Gate returns accept/defer with p and evidence | Research |
+| RS-05 | Baselines B0 (current), B1 doc-only calibrated, B2 rules-only | PENDING | P1 | RS-03 | eval script | All four systems scored on same splits | Research |
+| RS-06 | RQ1 + RQ2 experiments, 20 vendor-grouped splits, bootstrap CIs | PENDING | P1 | RS-04, RS-05 | `docs/results/selective.{json,md}` | Results file with coverage at α, risk, AURC | Research |
+| RS-07 | Ablations per evidence group; RQ3 robustness to stale master data | PENDING | P1 | RS-06 | same | Ablation + noise-sensitivity tables | Research |
+| RS-08 | External validity on DocILE (check terms) or FATURA with derived context | PENDING | P2 | RS-04 | same | Run reported, or reason it could not be | Research |
+| RS-09 | Failure analysis of accepted-but-wrong documents | PENDING | P1 | RS-06 | same | Categorised examples in results | Research |
+| RS-10 | (optional) Drift + reviewer-feedback recalibration (RQ4) | PENDING | P3 | RS-06 | `learning.py` | Per-window risk table | Research |
+| RS-11 | Integrate gate behind rule `document.review_policy` (heuristic default); review page shows evidence | PENDING | P2 | RS-06 | `confidence.py`, frontend review page | Switchable live, heuristic default unchanged | Both |
+| RS-12 | Paper: figures, tables, draft, literature re-check | PENDING | P1 | RS-06…RS-09 | `RESEARCH_PAPER_PLAN.md` | Draft with traceable numbers | Research |
+
+Proposed but **not selected** (assessed in `RESEARCH_GAP_ANALYSIS.md` §6–7):
+better vendor-risk model, invoice-fraud detector, counterfactual
+explanations, LLM agent orchestration.
+
+## A.6 Immediate next actions
+
+1. **OPS-1** — terminate the six stale approval workflows (command in
+   Part B P1) and cancel request `90261afb`. Needs your permission.
+2. **FR-05 → FR-12** — demo script and presentation draft (mentor
+   deadline end of October).
+3. **FR-31** — notification retry + DLQ (last open R0 reliability gap).
+4. **RS-02** — extend the synthetic generator into a procurement world
+   (vendor master, POs, ledger, injections); start with 300 documents to
+   test the harness.
+5. **RS-01 / RS-03** — evidence export and the batch harness, so the
+   first B0-vs-B1 numbers exist before November.
+6. **RS-08 prep** — read DocILE's terms of use; decide DocILE vs FATURA.
+
+---
+
+# Part B — Items in detail (with dated evidence)
 
 - **P0**: broken now, or a security exposure. Fix before the next demo /
   any shared deployment.

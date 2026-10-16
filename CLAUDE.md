@@ -3,8 +3,11 @@
 Context for an agent working in this repo. `readmeforme.md` is the full
 technical reference (setup, config, testing, internals); `README.md` is the
 short public overview for people outside the project; TODO.md is the open
-work and the roadmap (dated evidence per finished item); `git log` is what
-changed. `docs/project-flow.html` is the visual status — update it, README.md
+work and the roadmap (Part A: context, status, decisions, task register,
+next actions; Part B: dated evidence per item); `IMPLEMENTATION_PLAN.md`
+is the owner's short checklist; `RESEARCH_GAP_ANALYSIS.md` and
+`RESEARCH_PAPER_PLAN.md` hold the research direction (RS-xx tasks);
+`git log` is what changed. `docs/project-flow.html` is the visual status — update it, README.md
 and TODO.md at every roadmap phase.
 
 ## What this is
