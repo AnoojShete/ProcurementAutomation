@@ -1,23 +1,23 @@
 {
   "agent": "contract-risk-agent",
   "input": {
-    "purchase_request_id": "a74bfdd6-6327-4d16-b82e-8811185a1164",
+    "purchase_request_id": "5e879bca-dbaa-400b-88da-7f1abf1b3867",
     "template": "saas_subscription"
   },
   "output": {
-    "id": "f59a13d4-6c47-4cc4-823c-ec27af32cc35",
-    "purchase_request_id": "a74bfdd6-6327-4d16-b82e-8811185a1164",
-    "vendor_id": "b1c0a6a6-e8dd-498e-bd68-0f0de7b7ba0b",
+    "id": "e02eb1d8-73f7-4b55-aba3-89c03e0a2bcb",
+    "purchase_request_id": "5e879bca-dbaa-400b-88da-7f1abf1b3867",
+    "vendor_id": "5818e2de-639a-42d4-a5a5-82bbfec9c23f",
     "template_used": "saas_subscription",
     "version": 1,
     "status": "signed",
     "renewal_type": "auto",
     "notice_period_days": 30,
     "contract_end_date": "2027-10-16",
-    "generated_at": "2026-10-16T08:53:29.381916+00:00",
-    "signed_at": "2026-10-16T08:53:29.407827+00:00",
+    "generated_at": "2026-10-16T14:36:16.306168+00:00",
+    "signed_at": "2026-10-16T14:36:17.766950+00:00",
     "signed_by": "vendor@zenith.example",
-    "esign_provider_ref": "builtin-ref-5d27c404052b0085",
+    "esign_provider_ref": "builtin-ref-7351bc21f05ef822",
     "reconciliation_status": null,
     "contract_text": "<omitted>",
     "sent_automatically": false,
@@ -58,7 +58,7 @@
         }
       ],
       "overrides": [],
-      "scored_at": "2026-10-16T08:53:32.481607+00:00",
+      "scored_at": "2026-10-16T14:36:20.835238+00:00",
       "acknowledgement_required": false,
       "acknowledgement_reason": null
     }

@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -18,6 +19,8 @@ from app.services.temporal_client import start_renewal_workflow
 from app.metrics import contract_generation_total
 from shared.drop_folder import INBOX_UPLOADER
 from shared.eventing import staged
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
 _jinja_env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=select_autoescape(disabled_extensions=("j2",)))
@@ -138,6 +141,17 @@ async def generate_contract_for_request(
     from app.services.clause_router import route_clause_extraction
     router_result = await route_clause_extraction(db, contract_id, contract_text)
     clauses = router_result.clauses.copy() if isinstance(router_result.clauses, dict) else router_result.clauses.__dict__
+    # The notice period and end date were written into this text by us, so
+    # those values stay authoritative; the extractor's reading is a check,
+    # and a disagreement is recorded in the audit log instead of silently
+    # overwriting the contract's real terms. Renewal type comes from the
+    # extractor (the template's wording decides it).
+    written = {"notice_period_days": notice_period_days, "contract_end_date": contract_end_date}
+    clause_mismatches = {
+        field: {"written": str(value), "extracted": str(clauses[field])}
+        for field, value in written.items()
+        if clauses.get(field) is not None and clauses[field] != value
+    }
 
     contract = Contract(
         id=contract_id,
@@ -148,8 +162,8 @@ async def generate_contract_for_request(
         status="draft",
         contract_text=contract_text,
         renewal_type=clauses["renewal_type"],
-        notice_period_days=clauses["notice_period_days"] or notice_period_days,
-        contract_end_date=clauses["contract_end_date"] or contract_end_date,
+        notice_period_days=notice_period_days,
+        contract_end_date=contract_end_date,
         generated_at=generated_at,
         created_at=generated_at,
         updated_at=generated_at,
@@ -157,8 +171,11 @@ async def generate_contract_for_request(
     db.add(contract)
     await write_audit_log(
         db, "contract", contract_id, "generated",
-        {"purchase_request_id": purchase_request_id, "template_used": template_name},
+        {"purchase_request_id": purchase_request_id, "template_used": template_name,
+         "clause_model": router_result.model_used, "clause_mismatches": clause_mismatches},
     )
+    if clause_mismatches:
+        logger.warning(f"Contract {contract_id}: {router_result.model_used} read {clause_mismatches} — kept the written values")
     # Events go into the outbox in the same transaction as the contract, so
     # a crash after commit can't lose them (shared/eventing/outbox.py).
     outbox = staged(kafka_producer, db)

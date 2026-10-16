@@ -97,3 +97,35 @@ def test_renewal_type_from(text, kind):
 ])
 def test_end_date_from(text, when):
     assert end_date_from(text) == when
+
+
+def test_generated_contract_keeps_the_terms_it_was_written_with():
+    """The notice period and end date are written into the contract by us;
+    a misreading extractor must not change them — the disagreement goes to
+    the audit log instead."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from app.services import contract_service
+
+    misread = clause_router.ClauseRoutingResult(
+        route_name="legal_bert_primary", model_used="legal-bert-cuad", fallback_triggered=False,
+        fallback_reason=None, confidence=1.0, duration_ms=1.0,
+        clauses={"renewal_type": "auto", "notice_period_days": 90, "contract_end_date": date(2030, 1, 1)},
+    )
+    pr = SimpleNamespace(id="pr-1", vendor_id=None, department="IT", items=[], amount=1000, currency="INR",
+                         requested_by="req@x")
+    db = MagicMock()
+    db.get = AsyncMock(return_value=pr)
+    db.commit, db.refresh = AsyncMock(), AsyncMock()
+    audit = AsyncMock()
+    with patch.object(clause_router, "route_clause_extraction", AsyncMock(return_value=misread)), \
+            patch.object(contract_service, "write_audit_log", audit), \
+            patch.object(contract_service, "staged", return_value=None), \
+            patch.object(contract_service, "start_renewal_workflow", AsyncMock()), \
+            patch.object(contract_service, "load_config", return_value={"renewal": {"default_notice_period_days": 30}}):
+        contract = run(contract_service.generate_contract_for_request(db, None, "pr-1", "saas_subscription"))
+    assert contract.notice_period_days == 30
+    assert contract.contract_end_date != date(2030, 1, 1)
+    assert contract.renewal_type == "auto"
+    details = audit.await_args.args[4]
+    assert set(details["clause_mismatches"]) == {"notice_period_days", "contract_end_date"}

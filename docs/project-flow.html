@@ -8,20 +8,20 @@
   :root {
     --bg: #f4f6f9; --panel: #ffffff; --ink: #172033; --muted: #5d6879; --line: #d6dce5; --arrow: #8e99a8;
     --src: #1f5fbf; --stream: #7a3fa3; --proc: #2563c9; --gate: #1d8a4a; --agent: #d9730d; --notify: #d1336b; --shared: #4b5563;
-    --ok: #1d8a4a; --part: #b7791f; --plan: #8b95a3;
+    --ok: #1d8a4a; --part: #b7791f; --plan: #8b95a3; --extra: #a16207;
     --tint: 8%;
   }
   :root[data-theme="dark"] {
     --bg: #0e1218; --panel: #161c24; --ink: #e6ebf1; --muted: #9aa5b4; --line: #2a333f; --arrow: #5d6876;
     --src: #6aa1f5; --stream: #b98ae0; --proc: #7aa7f2; --gate: #4cc27f; --agent: #f2a250; --notify: #f07aa0; --shared: #a3adba;
-    --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796;
+    --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796; --extra: #f5c542;
     --tint: 14%;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #0e1218; --panel: #161c24; --ink: #e6ebf1; --muted: #9aa5b4; --line: #2a333f; --arrow: #5d6876;
       --src: #6aa1f5; --stream: #b98ae0; --proc: #7aa7f2; --gate: #4cc27f; --agent: #f2a250; --notify: #f07aa0; --shared: #a3adba;
-      --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796;
+      --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796; --extra: #f5c542;
       --tint: 14%;
     }
   }
@@ -80,8 +80,13 @@
                 border-radius: 999px; padding: 4px 11px; font-size: 12.5px; font-weight: 600; }
   .life .step svg.i { width: 16px; height: 16px; color: var(--agent); }
   .life .arr { color: var(--arrow); }
-  .ext-title { margin: 26px 0 10px; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--gate);
-               display: flex; align-items: center; gap: 8px; }
+  /* Extended scope: built beyond the brief, shown inside the agent/step it belongs to */
+  .item li.extra { background: color-mix(in srgb, var(--extra) var(--tint), transparent); border-left: 3px solid var(--extra);
+                   border-radius: 4px; padding: 2px 5px; color: var(--ink); }
+  .item li.extra .xs, .legend .xs { width: 12px; height: 12px; margin-top: 2px; flex: none; color: var(--extra); fill: currentColor; }
+  .item.extra { border: 1.5px dashed var(--extra); }
+  .item.extra .hd::after { content: "extra"; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+                           color: var(--extra); order: 1; }
   footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
 
   @media (max-width: 900px) {
@@ -226,6 +231,7 @@
     <span><svg class="st ok"><use href="#ok"/></svg>Complete</span>
     <span><svg class="st part"><use href="#part"/></svg>Partly built</span>
     <span><svg class="st plan"><use href="#plan"/></svg>Planned</span>
+    <span style="border-left:3px solid var(--extra);padding-left:6px"><svg class="xs"><use href="#star"/></svg>Extended scope — built beyond the brief, shown in the agent and step it belongs to</span>
   </div>
 
   <div id="chart"></div>
@@ -371,7 +377,7 @@ const S = {
   riskModel: "ok", riskBeforeSign: "ok", riskHistory: "ok",
   lifecycle: "ok", ruleEngine: "ok", notify: "ok", platform: "ok",
   dropAuto: "ok", currency: "ok", match3: "ok", fraud: "ok", tracing: "ok",
-  eventLog: "ok", emailApprove: "ok", sod: "ok", licenceMl: "ok", assistant: "part", clauseModel: "plan", sanctions: "ok",
+  eventLog: "ok", emailApprove: "ok", sod: "ok", licenceMl: "ok", assistant: "part", clauseModel: "ok", sanctions: "ok",
 };
 // ───────────────────────────────────────────────────────────────────────
 
@@ -383,18 +389,22 @@ const combined = (keys) => {
   if (v.every((x) => x === "plan")) return "plan";
   return "part";
 };
-// card with sub-points: [icon, title, [[key, text], ...]]
+// card with sub-points: [icon, title, [[key, text, extra?], ...]] — extra = extended scope (highlighted)
+const line = ([k, t, extra]) => extra
+  ? `<li class="extra" title="Extended scope — beyond the brief"><svg class="xs"><use href="#star"/></svg>${mark(S[k])}<span>${t}</span></li>`
+  : `<li>${mark(S[k])}<span>${t}</span></li>`;
 const card = (ic, title, lines) => `<div class="item"><div class="hd">${icon(ic)}${title}${mark(combined(lines.map(([k]) => k)))}</div>
-  <ul>${lines.map(([k, t]) => `<li>${mark(S[k])}<span>${t}</span></li>`).join("")}</ul></div>`;
-// single feature: [icon, title, key, note]
-const tile = (ic, title, k, note) => `<div class="item"><div class="hd">${icon(ic)}${title}${mark(S[k])}</div>${note ? `<ul><li><span>${note}</span></li></ul>` : ""}</div>`;
+  <ul>${lines.map(line).join("")}</ul></div>`;
+// single feature: [icon, title, key, note, extra?]
+const tile = (ic, title, k, note, extra) => `<div class="item${extra ? " extra" : ""}"><div class="hd">${icon(ic)}${title}${mark(S[k])}</div>${note ? `<ul><li><span>${note}</span></li></ul>` : ""}</div>`;
+const X = true;   // marks an extended-scope line
 const down = (tag) => `<div class="down"><i></i>${tag ? `<span class="tag">${tag}</span><i></i>` : ""}<b></b></div>`;
 
 document.getElementById("chart").innerHTML = `
   <section class="sec src"><h2>${icon("globe")}Sources</h2><div class="grid" style="--n:4">
     ${tile("globe", "Web portal", "portal", "Batch upload, live progress")}
     ${tile("plug", "APIs / systems", "api", "Same checks as the portal")}
-    ${tile("folder", "Shared folder", "folder", "Drop a file — no clicks")}
+    ${card("folder", "Shared folder", [["folder", "Drop a file — no clicks"], ["dropAuto", "Folder to signed contract: a dropped quote runs every agent unattended", X]])}
     ${tile("mail", "Email", "email", "Attachments from a mailbox")}
   </div></section>
   ${down()}
@@ -405,7 +415,7 @@ document.getElementById("chart").innerHTML = `
       ${tile("db", "File storage", "store", "Originals kept in MinIO")}
     </div></section>
     <section class="sec stream"><h2>${icon("stream")}Message stream</h2>
-      ${tile("stream", "Kafka", "stream", "Documents, metadata and status events — saved with each change")}
+      ${card("stream", "Kafka", [["stream", "Documents, metadata and status events — saved with each change"], ["eventLog", "Event log & failed events: kept, searchable, nothing lost", X]])}
     </section>
   </div>
   ${down("document.ingested")}
@@ -415,7 +425,7 @@ document.getElementById("chart").innerHTML = `
     ${card("tags", "Classify", [["classifyCore", "PO · invoice · quote"], ["classifyMore", "Non-PO · others"]])}
     ${tile("table", "Extract", "extract", "Headers, line items, totals")}
     ${tile("check", "Validate", "validate", "Totals add up · GSTIN · duplicates")}
-    ${tile("layers", "Enrich", "enrich", "Vendor match · currency to INR")}
+    ${card("layers", "Enrich", [["enrich", "Vendor match"], ["currency", "Multi-currency: rate captured once, value never drifts", X]])}
   </div>
   <div class="bar">${icon("bolt")}Parallel workers · automatic retries · dead-letter queue ${mark(S.workers)}</div></section>
   ${down()}
@@ -426,11 +436,11 @@ document.getElementById("chart").innerHTML = `
   </div>
   ${down("document.classified · vendor.matched")}
   <section class="sec agent"><h2>${icon("bolt")}Procurement agents</h2><div class="grid" style="--n:5">
-    ${card("building", "Vendor intelligence", [["vendorMatch", "Match & de-duplicate"], ["onboarding", "Onboarding & profile checks"], ["bankGuard", "Bank changes need a 2nd person"]])}
-    ${card("approve", "Approval", [["rules", "Rules by spend tier"], ["routing", "Routing & escalation"], ["reminders", "Reminders before the deadline"]])}
-    ${card("boxes", "Inventory", [["reserve", "Availability & reservation"], ["backorder", "Backorders"], ["reorder", "Reorder suggestions"]])}
-    ${card("pen", "Contract", [["templates", "Templates & versions"], ["esign", "E-signature, sent automatically"], ["renewals", "Renewals from notice deadline"]])}
-    ${card("alert", "Risk analysis", [["riskModel", "Evaluated model + hard checks"], ["riskBeforeSign", "Shown before signing"], ["riskHistory", "Delivery & compliance history"]])}
+    ${card("building", "Vendor intelligence", [["vendorMatch", "Match & de-duplicate"], ["onboarding", "Onboarding & profile checks"], ["bankGuard", "Bank changes need a 2nd person"], ["fraud", "Fraud guard: look-alike vendors, first-seen bank details", X]])}
+    ${card("approve", "Approval", [["rules", "Rules by spend tier"], ["routing", "Routing & escalation"], ["reminders", "Reminders before the deadline"], ["sod", "Separation of duties: nobody approves their own request", X], ["emailApprove", "Approve from email: single-use signed links", X]])}
+    ${card("boxes", "Inventory", [["reserve", "Availability & reservation"], ["backorder", "Backorders"], ["reorder", "Reorder suggestions"], ["licenceMl", "Licence usage ML: anomalies → reclaim requests", X], ["match3", "3-way invoice match: line level, partial invoices, payment hold", X]])}
+    ${card("pen", "Contract", [["templates", "Templates & versions"], ["esign", "E-signature, sent automatically"], ["renewals", "Renewals from notice deadline"], ["clauseModel", "Legal-BERT clause extraction (CUAD), rules as fallback", X]])}
+    ${card("alert", "Risk analysis", [["riskModel", "Evaluated model + hard checks"], ["riskBeforeSign", "Shown before signing"], ["riskHistory", "Delivery & compliance history"], ["sanctions", "Sanctions screening: consolidated lists, fuzzy match", X]])}
   </div>
   <div class="life">
     <span class="step">${icon("approve")}Approved</span><span class="arr">→</span>
@@ -454,30 +464,19 @@ document.getElementById("chart").innerHTML = `
     ${tile("sliders", "Rule engine", "ruleEngine")}
     ${tile("list", "Audit log", "platform")}
     ${tile("clock", "Temporal", "platform")}
-    ${tile("activity", "Monitoring", "platform", "Metrics · logs")}
-  </div></section>
-
-  <div class="ext-title">${icon("star")}Extended scope — beyond the brief</div>
-  <section class="sec gate"><div class="grid" style="--n:4">
-    ${tile("folder", "Folder to signed contract", "dropAuto", "A dropped quote runs every agent unattended")}
-    ${tile("currency", "Multi-currency", "currency", "Rate captured once — value never drifts")}
-    ${tile("receipt", "3-way invoice match", "match3", "Line level, partial invoicing, payment hold")}
-    ${tile("eye", "Fraud guard", "fraud", "Look-alike vendors · first-seen bank details")}
-    ${tile("user", "Separation of duties", "sod", "Nobody approves their own request")}
-    ${tile("mail", "Approve from email", "emailApprove", "Single-use signed links")}
-    ${tile("route", "Request tracing", "tracing", "One id across every service's logs")}
-    ${tile("stream", "Event log & failed events", "eventLog", "Kept, searchable, nothing lost")}
-    ${tile("activity", "Licence usage ML", "licenceMl", "Anomalies → reclaim requests")}
-    ${tile("chat", "Assistant", "assistant", "Ask about requests and orders")}
-    ${tile("brain", "Clause extraction model", "clauseModel", "Legal-BERT, rules as fallback")}
-    ${tile("alert", "Sanctions screening", "sanctions", "Open sanctions lists, fuzzy match")}
+    ${card("activity", "Monitoring", [["platform", "Metrics · logs"], ["tracing", "Request tracing: one id across every service's logs", X]])}
+  </div>
+  <div class="grid" style="--n:1;margin-top:8px">
+    ${tile("chat", "Assistant", "assistant", "Ask about requests and orders in plain language (local LLM via Ollama)", X)}
   </div></section>`;
 
 
 // ── Deliverables progress (add-ons excluded) — update with TODO.md ──────
 // Counted: the basic requirements (main flow above), what the 29 Aug
 // mentor feedback asked for (R0), and the November submission work (R3).
-// Not counted: "Extended scope" tiles and optional R2 features.
+// Not counted: extended-scope lines (★, highlighted in the chart), optional R2 features, and the November
+// submission work (FR-25…28: CI, fresh-clone rehearsal, security, final docs —
+// tracked in TODO.md R3); this bar should reach 100 % before the evaluation.
 // ok = 1, part = ½, plan = 0.
 const DELIVERABLES = [
   { group: "Basic requirements", color: "var(--ok)", items: [
@@ -493,11 +492,8 @@ const DELIVERABLES = [
     ["FR-04 Risk analysis documented", "part"], ["FR-05 Demo script", "part"], ["FR-06 Persistent Kafka monitoring", "ok"],
     ["FR-07 Searchable logs", "ok"], ["FR-08 Model routing & fallback", "ok"], ["FR-09 Business rules validated", "ok"],
     ["FR-10 Notification coverage", "ok"], ["FR-11 Layout accuracy", "ok"], ["FR-12 Presentation", "ok"],
-    ["FR-13 Clause model", "plan"], ["FR-14 Sanctions screening", "ok"], ["FR-29 Trained classifier", "ok"],
+    ["FR-13 Clause model", "ok"], ["FR-14 Sanctions screening", "ok"], ["FR-29 Trained classifier", "ok"],
     ["FR-31 Notification retry + DLQ", "ok"], ["FR-32 Licence model tuned", "ok"],
-  ]},
-  { group: "Submission (Nov)", color: "var(--stream)", items: [
-    ["FR-25 Tests in CI", "plan"], ["FR-26 Fresh-clone rehearsal", "plan"], ["FR-27 Security fixes", "plan"], ["FR-28 Final documentation", "plan"],
   ]},
 ];
 const W = { ok: 1, part: 0.5, plan: 0 };
@@ -507,7 +503,7 @@ const done = DELIVERABLES.reduce((a, g) => a + sum(g.items), 0);
 const pct = Math.round((done / total) * 100);
 const fmt = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
 document.getElementById("progress").innerHTML = `
-  <div class="top"><div><b>${pct}%</b> of deliverables done</div><span>${fmt(done)} of ${total} · partly done counts ½ · add-ons (Extended scope, optional R2) not counted</span></div>
+  <div class="top"><div><b>${pct}%</b> of deliverables done</div><span>${fmt(done)} of ${total} · partly done counts ½ · add-ons and November submission work not counted</span></div>
   <div class="track" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Deliverables done">
     ${DELIVERABLES.map((g) => `<div style="width:${(sum(g.items) / total) * 100}%;background:${g.color}" title="${g.group}: ${fmt(sum(g.items))} / ${g.items.length}"></div>`).join("")}
   </div>

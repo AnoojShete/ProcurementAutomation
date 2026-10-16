@@ -29,13 +29,13 @@ dead request.
 
 ## Phase 1 — Finish what the presentation needs (by Oct 31)
 
-- [ ] Rehearse the demo script in `docs/showcase.html` on a fresh seed [FR-05] **[E]**
+- [ ] Rehearse the demo script in `docs/showcase.html` on a fresh seed — a teammate, using its screenshots; `python tests/e2e/showcase_screens.py` the day before [FR-05] **[E]**
 - [x] Draft the presentation from the templates [FR-12] **[E]** — paste into the Word templates left
 - [x] Add retry + DLQ to the notification consumer; tell Anooj [FR-31] **[E]**
 - [x] Make model routing/fallback visible in a demo [FR-08] **[E]**
 - [x] Add validation + tests for every business rule [FR-09] **[E]**
 - [x] Audit which events send notifications [FR-10] **[O]**
-- [ ] Clause extraction with Legal-BERT [FR-13] **[O]**
+- [x] Clause extraction with Legal-BERT [FR-13] **[O]**
 - [x] Sanctions screening override [FR-14] **[O]**
 - [x] Evaluate and tune the licence anomaly model [FR-32] **[O]**
 
@@ -132,5 +132,4 @@ ablation table. Everything else strengthens it.
 
 - RQ4 drift / feedback study [RS-10]
 - External-validity run [RS-08] (then state it as a limitation)
-- FR-10, FR-13, FR-14, FR-32
 - PySpark / Kubernetes [FR-15/16]

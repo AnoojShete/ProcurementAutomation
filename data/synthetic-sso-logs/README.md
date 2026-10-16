@@ -3,20 +3,28 @@
 ## What's committed (and used)
 
 `sso_login_events.json` holds **15,621 login events for the 5 demo
-licences** over the 90 days ending **15 Oct 2026** (a snapshot — the
-scanner scores it relative to its latest event, not today's date). It is
+licences** over the 90 days 17 Jul – 14 Oct 2026 (a snapshot — scoring and
+the usage scanner count from its latest event, not today's date). It is
 produced by `services/approval-inventory-agent/scripts/generate_sso_logs.py`
 (seed 42) from the same simulator the anomaly model is trained and
 evaluated on (`ml/usage_population.py`). Each licence has a known pattern,
 so the licence page can be checked against it:
 
-| Licence | Seats | Pattern | Expected status |
-|---|---|---|---|
-| Microsoft 365 E3 | 50 | steady | normal |
-| Slack Enterprise | 45 | steady | normal |
-| JetBrains All Products Pack | 120 | weekend dip | normal |
-| Docker Pro | 60 | sudden drop-off | anomalous |
-| Notion Team | 200 | gradual decline | anomalous |
+| Licence | Seats | Pattern | Score (live) | Status |
+|---|---|---|---|---|
+| Microsoft 365 E3 | 50 | steady | 0.14 | normal |
+| Slack Enterprise | 45 | steady | 0.02 | normal |
+| JetBrains All Products Pack | 120 | weekend dip | 0.15 | normal |
+| Docker Pro | 60 | sudden drop-off (last 1–4 weeks) | 0.32 | normal — just under watch (0.34) |
+| Notion Team | 200 | gradual decline | 0.31 | normal — just under watch (0.34) |
+
+The two declining licences score highest, but neither crosses the watch
+line: the model catches 87 % of simulated drop-offs and 71 % of declines
+(`docs/results/licence-anomaly.md`), and these two are among the misses.
+Thresholds were chosen on validation data and are not tuned to the demo.
+(Until 16 Oct the log was generated with logins spilling into the next
+day, which gave every licence ~20 % weekend use and pushed these two over
+the line — that was an artefact, now fixed.)
 
 Each event:
 

@@ -14,7 +14,7 @@ documents.
 |---|---|---|---|
 | **Document & Vendor** | [samples/document-vendor-agent.json](samples/document-vendor-agent.json) | [01 documents](screens/01-documents.png), [02 document detail](screens/02-document-detail.png), [03 vendor risk](screens/03-vendor-risk.png), [04 risk signals](screens/04-vendor-risk-signals.png) | Extraction: PDFs 100 % of fields, images 49 % ([extraction.md](extraction.md)); classifier macro-F1 keywords 0.912 → shipped 1.0, on held-out document kinds 0.844 → 1.0 ([classifier.md](classifier.md)); document pipeline e2e 52/52 |
 | **Approval & Inventory** | [samples/approval-inventory-agent.json](samples/approval-inventory-agent.json), [samples/inventory-and-licences.json](samples/inventory-and-licences.json) | [05 approval queue](screens/05-approval-queue.png), [06 request lifecycle](screens/06-request-lifecycle.png), [07 inventory & reorder](screens/07-inventory-reorder.png), [08 licence anomaly](screens/08-licence-anomaly.png) | Licence anomaly model ROC-AUC 0.954 vs 0.659 before ([licence-anomaly.md](licence-anomaly.md)); invoice lifecycle through all agents e2e 71/71 |
-| **Contract & Risk** | [samples/contract-risk-agent-contract.json](samples/contract-risk-agent-contract.json), [samples/contract-risk-agent-risk.json](samples/contract-risk-agent-risk.json) | [09 contract](screens/09-contract.png), [03 vendor risk](screens/03-vendor-risk.png) | Vendor risk model ROC-AUC 0.715 (best possible on these labels 0.739), red-team profiles 12/12 ([risk-model.md](risk-model.md)) |
+| **Contract & Risk** | [samples/contract-risk-agent-contract.json](samples/contract-risk-agent-contract.json), [samples/contract-risk-agent-risk.json](samples/contract-risk-agent-risk.json) | [09 contract](screens/09-contract.png), [03 vendor risk](screens/03-vendor-risk.png) | Vendor risk model ROC-AUC 0.715 (best possible on these labels 0.739), red-team profiles 12/12 ([risk-model.md](risk-model.md)); clause extraction on 102 held-out CUAD contracts, F1 renewal / notice / expiry — Legal-BERT 0.85 / 0.80 / 0.91 vs rules 0.50 / 0.19 / 0.02, all template values exact ([clauses.md](clauses.md)) |
 | **Notification** | [samples/notification-agent.json](samples/notification-agent.json) | [13 notifications](screens/13-notifications.png) | 11 of 17 event topics consumed; coverage and gaps in [../notifications.md](../notifications.md); failed events retried and dead-lettered (FR-31) |
 | **Auth & business rules** | [samples/auth-service-rule.json](samples/auth-service-rule.json) | [11 business rules](screens/11-business-rules.png) | 47 rules, 37 enforced, each with a behaviour test ([../business-rules.md](../business-rules.md)) |
 | **Platform** | — | [10 control panel](screens/10-control-panel.png), [12 system health](screens/12-system-health.png), [logs by correlation id](logs-correlation.png) | Gateway e2e (`make e2e`) 17/17; model fallback shown on demand ([../model-routing.md](../model-routing.md)) |
@@ -23,15 +23,18 @@ documents.
 
 | Suite | Result |
 |---|---|
-| document-vendor-agent unit | 312 passed, 2 skipped |
-| approval-inventory-agent unit | 142 passed, 1 skipped (demo-data test needs `/data` mounted) |
-| contract-risk-agent unit | 126 passed |
+| document-vendor-agent unit | 314 passed |
+| approval-inventory-agent unit | 146 passed (`data/` now mounted, so the demo-data test runs) |
+| contract-risk-agent unit | 175 passed |
 | notification-agent unit | 46 passed |
 | auth-service unit | 65 passed |
-| root tests (`shared/`, config) | 136 passed; `test_mailer` fails (`.env.example` points at Gmail — known); `test_email_action.py` needs `redis` in the test image |
+| root tests (`./scripts/test-root.sh`) | 137 passed + 14 passed (email actions, in the approval image); 4 skipped = the chatbot's live script |
 | `make e2e` (gateway) | 17 / 17 |
 | `tests/e2e/invoice_lifecycle.py` | 71 / 71 |
 | `tests/e2e/document_pipeline.py --quick` | 52 / 52 |
+| `tests/e2e/auth_flows.py` | 42 / 42 |
+| `tests/e2e/showcase_screens.py` | every step OK |
+| chatbot live script (Ollama `llama3.2:3b`) | 4 / 4 (checks replies arrive, not their quality) |
 
 Every fix in [docs/TODO.md](../TODO.md) was also checked by reverting it and watching a test fail.
 
@@ -44,4 +47,6 @@ Every fix in [docs/TODO.md](../TODO.md) was also checked by reverting it and wat
 | Extraction | see [docs/readmeforme.md](../readmeforme.md) → Document pipeline |
 | Classifier | `python /app/ml/train_classifier.py --out /out` in the document-vendor-agent image |
 | Licence anomaly | `python ml/evaluate_usage_anomaly.py --out /out` in the approval-inventory-agent image |
+| Clauses | `python ml/evaluate_clause_model.py --cuad test.json --out /out` in the contract-risk-agent image, model cached, CUAD `test.json` from github.com/TheAtticusProject/cuad (about an hour on CPU; answers cached for reruns) |
+| Showcase screenshots | `python tests/e2e/showcase_screens.py` → `docs/showcase/` |
 | Risk model | `python ml/evaluate_risk_model.py` in the contract-risk-agent image |

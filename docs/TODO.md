@@ -126,7 +126,7 @@ How the pieces interact:
 | Contracts: generation, built-in e-sign, renewals | COMPLETE | `contract_service.py`, renewal workflow (FR-01, FR-02) | — | — |
 | Risk shown before signing | COMPLETE | `signing_risk()` (BR-6) | External e-sign path would need the check at send time | — |
 | Vendor risk model | PARTIAL | RF + overrides + platform signals (FR-04, BR-7) | Red-team vs agent doc, sanctions (FR-14), drift min-sample decision | decision |
-| Clause extraction with a model | PENDING | rules only | Legal-BERT + rules fallback (FR-13) | model download |
+| Clause extraction with a model | COMPLETE | Legal-BERT (CUAD) primary, regex fallback; CUAD test F1 0.85 / 0.80 / 0.91 vs rules 0.50 / 0.19 / 0.02 (FR-13) | Contracts from outside (we only read our own) | — |
 | Licence-usage anomaly model | COMPLETE | IsolationForest + SHAP on 360 simulated licences, ROC-AUC 0.95 (FR-32) | Real usage data | — |
 | Notifications | COMPLETE | notification-agent (SMTP / Mailpit), retry + DLQ, health (FR-31) | Coverage audit (FR-10) | — |
 | Email automation, chatbot | OUT OF SCOPE | Anooj's | — | — |
@@ -195,7 +195,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-10 | Notification coverage audit | COMPLETE (gaps listed for Anooj) | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
 | FR-04 | Risk analysis remainder (red-team vs agent doc) | PARTIAL | P2 | — | contract-risk-agent `ml/` | Part B "Done when" met | Core |
 | FR-11 | Layout-analysis accuracy, schema-validated output | COMPLETE (noisy scans: known limit) | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
-| FR-13 | Clause extraction with Legal-BERT, rules fallback | PENDING | P2 | model | contract-risk-agent | Evaluated on sample contracts | Core |
+| FR-13 | Clause extraction with Legal-BERT, rules fallback | COMPLETE | P2 | — | contract-risk-agent | `docs/results/clauses.json` | Core |
 | FR-14 | Sanctions screening + strategic-tier checks | COMPLETE | P2 | — | contract-risk-agent `sanctions.py` | Sanctions override in risk | Core |
 | FR-29 | Train the document classifier | COMPLETE | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
 | FR-32 | Licence anomaly model evaluated and tuned | COMPLETE | P2 | — | approval-inventory-agent | `docs/results/licence-anomaly.json` | Core |
@@ -239,9 +239,10 @@ explanations, LLM agent orchestration.
 
 1. **OPS-1** — terminate the six stale approval workflows (command in
    Part B P1) and cancel request `90261afb`. Needs your permission.
-2. **FR-05 → FR-12** — demo script and presentation draft (mentor
-   deadline end of October).
-3. **FR-31** — notification retry + DLQ (last open R0 reliability gap).
+2. **FR-04 / FR-05** — the Agent doc's red-team list (FR-04); a teammate
+   runs the demo script on fresh data (FR-05). The last two R0 items.
+3. **FR-25** — tests in CI: `scripts/test-service.sh all`,
+   `scripts/test-root.sh`, `npm run typecheck`.
 4. **RS-02** — extend the synthetic generator into a procurement world
    (vendor master, POs, ledger, injections); start with 300 documents to
    test the harness.
@@ -739,7 +740,7 @@ before any other roadmap item.
 
 #### Added to R0 on Oct 16 (every yellow/red box on the flow chart)
 
-- [ ] **FR-13 Clause extraction with a model, rules as fallback**
+- [x] **FR-13 Clause extraction with a model, rules as fallback**
   (Agent doc §2.2 says Legal-BERT on CUAD; code is regex). Moved from R1 on Oct 16. *Do:* either
   add `alex-apostolo/legal-bert-base-cuad` QA as primary (local cache
   like LayoutLMv3, `download-models.sh`), regex as fallback via
@@ -747,6 +748,30 @@ before any other roadmap item.
   clauses.json`; **or** correct the docs to say rule-based. Ask before
   choosing (image size and CPU time).
   *Decision (Oct 16):* add Legal-BERT (CUAD) as primary, rules as fallback.
+  *Evidence (Oct 16):* `app/services/clause_model.py` asks the model
+  CUAD's own three questions (renewal term, notice period to terminate
+  renewal, expiration date) with standard sliding-window extractive QA
+  (written out — transformers 5 dropped the QA pipeline); parsers in
+  `clause_extraction.py` turn passages into auto/manual, days, a date.
+  `clause_router.py`: model primary; rules when the model isn't downloaded,
+  fails, finds < 40 % of the clauses, or is forced (FR-08). Loaded from the
+  `hf-cache` volume only (`download-models.sh`), warmed at startup (~6 s),
+  one inference at a time (the fast tokenizer isn't thread-safe).
+  Evaluation (`ml/evaluate_clause_model.py` → `docs/results/clauses.{json,md}`,
+  decision rule fixed before running): CUAD test split, 102 lawyer-annotated
+  contracts the model wasn't trained on — F1 renewal 0.85 / notice 0.80 /
+  expiry 0.91 vs rules 0.50 / 0.19 / 0.02; our three templates × 20 —
+  model 100 % on every value. The evaluation also caught the rules missing
+  the notice period on every professional-services contract (the template
+  wraps "N days" / "notice" across lines) — fixed, test over all three
+  real templates. Generated contracts now keep the notice period and end
+  date they were written with; an extractor disagreement goes to the audit
+  log (`clause_mismatches`) instead of overwriting them. Live: three
+  contracts → `legal_bert_primary`, confidence 1.0, ~3 s each. Tests:
+  `test_clause_router.py` (14), template test (12); a router that ignores
+  the model fails 4. Cost: contract-risk image 1.47 → 2.37 GB (CPU torch),
+  model ~440 MB in `hf-cache`; CPU time ~17 s for a typical 26k-character
+  outside contract (ours: under a second per question).
 - [x] **FR-14 Sanctions screening and the strategic-tier checks**
   (Agent doc §2.3; Overall doc §6). Moved from R1 on Oct 16. Also store IFSC results (`validate_ifsc` exists but nothing calls it or keeps its result) so the IFSC override in FR-04 can fire. *Now:* `vendor_tier_service.py`
   lists `opencorporates`, `sanctions_screening`, `risk_model` for
@@ -873,8 +898,26 @@ before any other roadmap item.
   `test_usage_population.py` (5; switching back to the original features
   fails 3); two threshold tests updated to the evaluated values. Limits:
   synthetic data only; gradual declines are the hardest (36 % flagged
-  anomalous, 71 % watch); the top SHAP factor is "weekend ratio" for every
-  licence, the second one carries the story.
+  anomalous, 71 % watch).
+  *Corrections (Oct 16, audit):* (1) the demo log was wrong — the simulator
+  started each day at the end time (23:59), so logins spilled into the next
+  day and the weekend-dip licence had 21 % weekend logins instead of ~1 %;
+  that is why "weekend ratio" topped every licence, and it was what pushed
+  Docker Pro and Notion over the line. Fixed and regenerated: Docker Pro
+  0.32, Notion 0.31, the normal three 0.02–0.15 — the declining two rank
+  highest but sit just under watch (0.34): honest misses, consistent with
+  87 % / 71 % recall on the test set. Thresholds not retuned to the demo.
+  (2) Factor directions were reversed: SHAP explains IsolationForest's
+  normality score, so `contribution` is now −SHAP (positive = toward
+  anomalous); Docker Pro's top factor is now "retention 7d ↑ risk".
+  (3) Reclaims compared the score with config.yaml's 0.6 (pre-retraining),
+  so licences shown as anomalous never got one; reclaims now follow the
+  anomalous rule. (4) The usage scanner still counted 30/60/90-day windows
+  from today — within a month every licence would show 0 active seats; it
+  now counts from the data's latest login. (5) `test-service.sh` didn't
+  mount `data/`, so the demo-data test always skipped; it runs now.
+  Tests: weekend-day test, factor-direction test, reclaim follows the rule;
+  reverting each fix fails its test.
 
 - [ ] **FR-33 P0 credentials** (flow chart: P0 red box): rotate the
   GSTINCheck key and set real secrets before any shared deploy. Only a
@@ -1046,13 +1089,41 @@ before any other roadmap item.
   tests and `npm run typecheck` in `.github/workflows/ci.yml` (e2e needs
   the full stack). *Why: this audit found three bugs a CI run of the
   fresh-clone e2e would have caught.*
-- [ ] Wrap notification-agent's consumer with `shared/eventing.deliver`
+- [x] Wrap notification-agent's consumer with `shared/eventing.deliver`
   (retry + DLQ) like the other consumers. *Why: a failing event is
-  dropped.*
+  dropped.* (Done by FR-31, Oct 16.)
 - [ ] Move the remaining direct publishes to the outbox:
-  `approval.requested`, `license.usage.updated`, `risk.score.updated`,
-  `vendor.offboarded`, renewal alerts. *Why: an event can be lost on a
-  crash between commit and publish.*
+  `risk.score.updated`, `vendor.offboarded`, renewal alerts, the
+  email-action notification and `order.summary.generated`. *Why: an event
+  can be lost on a crash between commit and publish.*
+  *Oct 16:* approval-inventory-agent now runs an outbox relay;
+  `approval.requested`, `approval.decided` (auto-approval and the
+  Temporal-down path — which sent it after the commit and ignored errors,
+  so a Kafka blip meant no contract), `license.usage.updated` and the
+  reclaim warning go through the outbox. Test
+  `test_outbox_publishing.py` (fails on the old code). Temporal
+  activities still publish directly — a failure there is retried by
+  Temporal, not lost.
+- [x] **Audit, Oct 16 — "works in the demo, would fail on a fresh clone or
+  in a month"** (beyond FR-13 / FR-32 / outbox above):
+  `.env.example` set `SMTP_HOST=smtp.gmail.com` with `EMAIL_MODE=dev`, so a
+  fresh clone sent account emails to Gmail with placeholder credentials
+  (`test_mailer` had been failing on exactly this) — SMTP lines now
+  commented out. Its `LLM_API_BASE_URL=http://<IP_OF_YOUR_EXTERNAL_MACHINE>`
+  overrode the working default — now commented out, model
+  `llama3.2:3b`. Root tests: `scripts/test-root.sh` runs
+  `test_email_action.py` (14) in the approval image instead of failing to
+  import. `test-service.sh` mounts `data/`. Clause rules missed every
+  professional-services notice period (line wrap). Clause model inference
+  serialised (tokenizer not thread-safe). All suites and all four e2e
+  scripts green afterwards.
+- [ ] Chatbot (Anooj): `tests/test_chatbot_e2e.py` only checks that a
+  reply arrives — with `llama3.2:3b` it searched for the literal text
+  "vendor name" and told a requester risk scores are "publicly available",
+  and still passed. Assert on content (tool called, no data a requester
+  may not see). Ollama is installed on the owner's Mac via Homebrew
+  (`brew services`), model `llama3.2:3b` (2 GB) to save space; `llama3.1`
+  (4.9 GB) chains tools better.
 - [ ] `digest_service.flush_due_digests` retries a permanently failing
   digest forever.
 - [ ] notification-agent (Anooj): real recipients — resolve approval levels

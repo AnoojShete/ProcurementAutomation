@@ -4,17 +4,17 @@
     "event_type": "approval.requested"
   },
   "output": {
-    "id": "8f2fa635-b00a-4af3-9e59-f77a7be19b29",
+    "id": "2afdd146-35b5-4e3d-9a4b-e12220cd9b6d",
     "recipient": "dept_manager@users.procurement.local",
     "channel": "email",
     "event_type": "approval.requested",
     "template_name": "approval_requested",
     "subject": "Action required: approve 3000.0 INR hardware request from requester@demo.example.com (IT)",
     "priority": "urgent",
-    "related_entity_id": "559d8c83-2eaa-4557-b577-f061d6034958",
+    "related_entity_id": "318477c7-0beb-4687-a00f-f4ff17e94191",
     "status": "sent",
     "error": null,
-    "sent_at": "2026-10-16T08:53:32.517951Z",
-    "created_at": "2026-10-16T08:53:32.517951Z"
+    "sent_at": "2026-10-16T14:36:21.194535Z",
+    "created_at": "2026-10-16T14:36:21.194535Z"
   }
 }

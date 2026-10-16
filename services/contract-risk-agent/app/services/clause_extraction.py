@@ -26,7 +26,8 @@ MANUAL_RENEW_PATTERNS = [
 
 NOTICE_PERIOD_PATTERNS = [
     r"notice period of (\d+)\s*days",
-    r"(\d+)\s*days[’' ]*(?: prior| before| written)? notice",
+    # \s, not a space: the templates wrap lines ("15 days\n   notice").
+    r"(\d+)\s*days[’'\s]*(?:(?:prior|before|written)\s+)?notice",
     r"written notice.{0,20}?(\d+)\s*days",
     r"notice.{0,60}?(\d+)\s*days",
 ]

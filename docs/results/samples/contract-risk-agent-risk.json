@@ -16,7 +16,7 @@
         "breach_disclosure_count": 1,
         "financial_stability_score": 0.2
       },
-      "updated_at": "2026-10-16T04:58:56.484974+00:00"
+      "updated_at": "2026-10-16T14:55:07.599399+00:00"
     }
   },
   "output": {
@@ -37,8 +37,8 @@
         "contribution": 0.1259
       }
     ],
-    "model_version": "v20261016040432",
-    "scored_at": "2026-10-16T04:58:56.498665+00:00",
+    "model_version": "v20261016144813",
+    "scored_at": "2026-10-16T14:55:07.611791+00:00",
     "signals_used": 6,
     "signals_total": 6,
     "overrides": [
@@ -50,7 +50,7 @@
       {
         "check": "sanctions",
         "reason": null,
-        "status": "not_checked"
+        "status": "clear"
       },
       {
         "check": "ifsc",

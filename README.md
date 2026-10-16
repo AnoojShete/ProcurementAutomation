@@ -65,7 +65,7 @@ flowchart TB
 |---|---|
 | 📄 **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, onboards and matches vendors |
 | ✅ **Approval & Inventory** | Routes requests by spend, enforces who may approve what, tracks licences and stock, suggests reorders, matches invoices to orders |
-| 📃 **Contract & Risk** | Writes contracts, collects e-signatures, reminds before notice deadlines, scores vendor risk from delivery and compliance history with an evaluated ML model and shows it before signing (High risk must be acknowledged) |
+| 📃 **Contract & Risk** | Writes contracts and reads their clauses with Legal-BERT, collects e-signatures, reminds before notice deadlines, screens vendors against sanctions lists, scores vendor risk from delivery and compliance history with an evaluated ML model and shows it before signing (High risk must be acknowledged) |
 | 🔔 **Notification** | Turns events into emails |
 | 🔐 **Auth** | Accounts, roles, and the business rules admins can change live |
 
@@ -80,6 +80,7 @@ dead-letter queue instead of losing them.
 |---|---|
 | 🧠 **Document AI** | A sample scanned invoice went from **0.50 → 0.93** confidence after reading table rows by position and cross-checking totals |
 | 📊 **Risk model, measured** | Random forest on 2,000 synthetic vendors: **ROC-AUC 0.715** (best possible on these labels 0.739), red-team profiles **12/12**, missing data left out instead of guessed |
+| ⚖️ **Contract clauses** | Legal-BERT on 102 held-out, lawyer-annotated contracts: F1 **0.85 / 0.80 / 0.91** for renewal, notice and expiry clauses vs **0.50 / 0.19 / 0.02** for the regex rules it replaced (kept as fallback) |
 | 🛡️ **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; vendors are screened against 25,000 sanctioned companies; invoices are held until bank details are verified |
 | ⚖️ **Separation of duties** | Nobody — not even an admin — approves their own request |
 | 🔁 **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |

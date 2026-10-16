@@ -79,8 +79,11 @@ python ml/train_usage_anomaly_model.py    # → ml/artifacts/model.joblib (+ MLf
 MLflow experiment `usage_anomaly_detector`: http://localhost:5050 (the
 container listens on 5000 inside the Docker network).
 
-On the seeded data the ranking is questionable (a license at 76 %
-utilisation scores as anomalous) — tracked in docs/TODO.md.
+Since FR-32 the model is trained on 360 simulated licences
+(`ml/usage_population.py`, `docs/results/licence-anomaly.md`); a licence
+whose status is "anomalous" (rule `license.anomaly_anomalous_threshold`)
+gets a reclaim request. Factor `contribution` > 0 pushes toward anomalous.
+Demo licence scores: `data/synthetic-sso-logs/README.md`.
 
 ## Tests
 

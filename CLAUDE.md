@@ -1,16 +1,20 @@
 # CLAUDE.md
 
-Context for an agent working in this repo. `readmeforme.md` is the full
-technical reference (setup, config, testing, internals); `README.md` is the
-short public overview for people outside the project; TODO.md is the open
-work and the roadmap (Part A: context, status, decisions, task register,
-next actions; Part B: dated evidence per item); `IMPLEMENTATION_PLAN.md`
-is the owner's short checklist; `RESEARCH_GAP_ANALYSIS.md` and
-`RESEARCH_PAPER_PLAN.md` hold the research direction (RS-xx tasks);
-`git log` is what changed. `docs/project-flow.html` is the visual status (tab 1) and the
-research gap analysis (tab 2, `#research`); `docs/showcase.html` is the
-presentation guide (external evaluator / mentor). Update them, README.md
-and TODO.md at every roadmap phase.
+Context for an agent working in this repo. Project docs live in `docs/`:
+`docs/readmeforme.md` is the full technical reference (setup, config,
+testing, internals); `README.md` (root) is the short public overview for
+people outside the project; `docs/TODO.md` is the open work and the roadmap
+(Part A: context, status, decisions, task register, next actions; Part B:
+dated evidence per item); `docs/IMPLEMENTATION_PLAN.md` is the owner's
+short checklist; `docs/RESEARCH_GAP_ANALYSIS.md` and
+`docs/RESEARCH_PAPER_PLAN.md` hold the research direction (RS-xx tasks);
+`git log` is what changed. `docs/project-flow.html` is the visual status
+(tab 1; extended-scope work is starred inside its agent) and the research
+gap analysis (tab 2, `#research`); `docs/showcase.html` is the
+presentation guide (external evaluator / mentor) with screenshots retaken
+by `tests/e2e/showcase_screens.py`. `docs/forReport/` and
+`docs/forResearchPaper/` are reserved for the owner's material. Update
+them, README.md and docs/TODO.md at every roadmap phase.
 
 ## What this is
 
@@ -46,15 +50,14 @@ purpose (its recipients are placeholder role addresses).
 ./run.sh [--build|--no-build|--verbose]   # whole stack; rebuilds only changed images; full log in .run/run.log
 ./scripts/seed-demo-data.sh               # demo vendor, request, licenses, inventory
 ./scripts/test-service.sh <svc>|all       # service pytest suite inside its image (mounts source)
-# root tests (shared/ code, config checks):
-docker run --rm -e APP_ENV=development -v "$PWD:/w" -w /w --entrypoint sh \
-  procurementautomation-auth-service -c "pip -q install pyyaml; python -m pytest -q tests --ignore=tests/e2e"
+./scripts/test-root.sh                    # root tests (shared/ code, config checks), each in the right image
 make e2e                                  # bash e2e through the gateway
 python tests/e2e/auth_flows.py            # accounts + Mailpit (needs EMAIL_MODE=dev)
 python tests/e2e/invoice_lifecycle.py     # one invoice through all five agents
 python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service
+python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fails loudly if a step breaks)
 ```
 
 e2e scripts need `pip install -r tests/e2e/requirements.txt` on the host.
@@ -125,7 +128,7 @@ ad-hoc pass (undefined names).
 - **Cross-service DB coupling**: services share tables. A foreign key from
   one service's table to rows another service creates inside an
   uncommitted transaction will fail (see the open P0 on
-  `fk_invoice_matches_vendor` in TODO.md).
+  `fk_invoice_matches_vendor` in docs/TODO.md).
 - **Emails**: `shared/mailer.py`, `EMAIL_MODE=dev|smtp`. Compose passes
   unset vars as `""`, which the mailer treats as "use the default". Links
   carry tokens after `#` so they never reach server logs.
@@ -137,6 +140,11 @@ ad-hoc pass (undefined names).
 - LayoutLMv3 and Legal-BERT (CUAD) are loaded from the local cache only;
   run `./scripts/download-models.sh` once, or the LayoutLMv3 cross-check is
   skipped and clause extraction uses the regex rules.
+- The chatbot (Anooj's) needs Ollama on the host (`brew install ollama &&
+  brew services start ollama && ollama pull llama3.2:3b`); containers reach
+  it at `host.docker.internal:11434`. The model must support tool calling.
+- Snapshot data (the demo SSO log) is scored and counted as of its latest
+  event, never "today" — otherwise every licence drifts to "abandoned".
 
 ## Working style the user expects
 

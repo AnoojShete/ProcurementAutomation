@@ -66,7 +66,13 @@ Shared contracts:
   Docling and, if downloaded, LayoutLMv3).
 - **Internet** for the first build, for the breached-password check at
   sign-up (HaveIBeenPwned; sign-up returns 503 without it), and for the
-  optional LayoutLMv3 download (~500 MB).
+  optional model downloads (LayoutLMv3 ~500 MB, Legal-BERT ~440 MB) and
+  the sanctions list (~78 MB).
+- **Ollama** on the host for the assistant (chatbot):
+  `brew install ollama && brew services start ollama && ollama pull llama3.2:3b`
+  (~2 GB; the smallest model with tool calling that works here —
+  `llama3.1`, 4.9 GB, chains tools better; set `LLM_MODEL_NAME` in `.env`).
+  Without it the rest of the platform works; the assistant can't answer.
 - **Python 3 + pip** on the host only for the end-to-end test scripts.
 - Node is **not** needed: `run.sh` builds the frontend in a container.
 - **Windows**: WSL2 with Docker Desktop's WSL integration; run `./run.sh`
@@ -96,7 +102,7 @@ reading scans; its images are ~15 GB, plus build cache and data volumes.
    git clone https://github.com/AnoojShete/ProcurementAutomation.git
    cd ProcurementAutomation && git checkout anjali   # the branch with the latest work
    ./run.sh                          # first run builds everything: 20-40 min on 4 cores
-   ./scripts/download-models.sh      # optional: LayoutLMv3 cross-check (~500 MB)
+   ./scripts/download-models.sh      # optional: LayoutLMv3 cross-check + Legal-BERT clauses (~1 GB)
    ./scripts/seed-demo-data.sh       # demo vendor, requests, licences, stock
    ```
    `.env` is created from `.env.example`; don't copy the Mac's `.env`
@@ -125,7 +131,7 @@ git clone <repo-url>
 cd ProcurementAutomation
 ./run.sh                        # whole stack; ends with "All services healthy."
 ./scripts/seed-demo-data.sh     # demo vendor, approved request, 5 licenses, 4 hardware SKUs
-./scripts/download-models.sh    # optional, once per machine: LayoutLMv3 (~500 MB)
+./scripts/download-models.sh    # optional, once per machine: LayoutLMv3 + Legal-BERT (~1 GB)
 ```
 
 Then open **http://localhost:8080** and sign in with a
@@ -302,10 +308,14 @@ last verified on Sep 27 (separate Docker project, empty volumes).
 ```bash
 # once, for the e2e scripts
 pip install -r tests/e2e/requirements.txt
-# root tests, in any built service image
-docker run --rm -e APP_ENV=development -v "$PWD:/w" -w /w --entrypoint sh \
-  procurementautomation-auth-service -c "pip -q install pyyaml; python -m pytest -q tests --ignore=tests/e2e"
+# root tests (shared/ code, config checks) — each part in the image that has its dependencies
+./scripts/test-root.sh
+# screenshots in docs/showcase/ from the live stack; ends with "STEPS THAT FAILED" if a pipeline breaks
+python tests/e2e/showcase_screens.py
 ```
+
+`scripts/test-service.sh` mounts `data/` read-only, so tests on the demo
+data (e.g. the licence demo) run instead of skipping.
 
 Notes:
 - auth-service's account-flow tests need Postgres: with the stack running,
@@ -390,7 +400,7 @@ run.sh, install.sh, Makefile, docker-compose.yml, docker-compose.override.yml, .
 | Store + record | MinIO + `documents` row `pending` + audit + outbox event, one transaction | MinIO down → 503, nothing half-written |
 | Claim | worker (Kafka, 6 partitions) | `pending → processing`; a redelivered event can't process twice |
 | Read the file | separate process, 120 s limit | pdfplumber for text PDFs, Docling for scans, PaddleOCR for images (deskewed and upscaled ≤ 1.5× first while the rule `document.image_preprocessing` is on; numbers in `docs/results/extraction.md`); unreadable / blank / too slow → `failed` with a readable message |
-| Understand | `services/pipeline.py` | keyword classifier (an ML classifier is wired in but no trained model is shipped) → field extraction → LayoutLMv3 cross-check (if downloaded) → vendor match / GSTIN / IFSC, first-seen bank details held → learned labels → invoice ledger match → duplicate check (per-vendor lock) → confidence (< 0.8 → review queue) |
+| Understand | `services/pipeline.py` | ML classifier (trained at image build, used when ≥ 0.6 sure; keywords otherwise — FR-29) → field extraction → LayoutLMv3 cross-check (if downloaded) → vendor match / GSTIN / IFSC, first-seen bank details held → learned labels → invoice ledger match → duplicate check (per-vendor lock) → confidence (< 0.8 → review queue) |
 | Save | one transaction | `classified` + events; a dependency down → back to `pending`, retried after 1–4 min, `failed` after 5 attempts |
 
 A sweep every minute re-queues documents stranded in `pending` or
@@ -529,12 +539,20 @@ wrapped with the retry / dead-letter handler (TODO.md).
 - **Approvals**: spend tiers from the business-rules engine (≤ ₹500 auto,
   ≤ ₹5,000 manager, above that manager + finance); a Temporal workflow per
   request with SLA escalation. Decisions apply asynchronously (the UI
-  polls).
-- **License intelligence**: IsolationForest + SHAP on synthetic SSO logs;
-  anomalous licenses get a reclaim request with a grace period
-  (`services/approval-inventory-agent/README.md`).
+  polls). `approval.requested` / `approval.decided` go through the outbox
+  (relay in the API process), so a decision can't be recorded without its
+  event.
+- **License intelligence**: IsolationForest trained on 360 simulated
+  licences, SHAP reasons (`contribution` > 0 = pushes toward anomalous);
+  windows are counted back from the log's latest login, not today. A licence
+  whose status is "anomalous" (rule `license.anomaly_anomalous_threshold`)
+  gets a reclaim request with a grace period
+  (`services/approval-inventory-agent/README.md`, `docs/results/licence-anomaly.md`).
 - **Contracts**: Jinja2 templates → text + PDF; clause extraction on the
-  generated text; sent for signature automatically after every approval
+  generated text — Legal-BERT fine-tuned on CUAD (`clause_model.py`,
+  regex rules as fallback, `docs/results/clauses.md`); the notice period and
+  end date the contract was written with are kept, a disagreeing reading is
+  logged to the audit trail; sent for signature automatically after every approval
   (business rule `contract.auto_send_scope`); signed with the **built-in
   e-sign** — the only option offered in the UI since Oct 15 (an
   approver/finance/admin signs in the app — typed or drawn signature,

@@ -14,7 +14,7 @@ Prometheus metric `model_routing_total`.
 | Router | Service / file | Primary | Fallback | Fallback fires when | Logged as |
 |---|---|---|---|---|---|
 | **Text extraction** | document-vendor-agent · `app/services/extraction_router.py` | pdfplumber (PDF text layer) · Docling (scanned PDFs) · PaddleOCR (images) — in a killable subprocess with a time limit | LayoutLMv3 second reading of the image (`_layoutlm_image_fallback`); if that fails, the primary's text is kept | an **image**'s OCR quality is below `document.extraction_fallback_confidence_threshold` (0.5) — reason `low_confidence`; or forced (below) — reason `forced`. A file that can't be read at all fails with a message for the uploader instead | `docling_text` / `docling_paddleocr` / `layoutlmv3_fallback` |
-| **Clause extraction** | contract-risk-agent · `app/services/clause_router.py` | regex extractor (`clause_extraction.extract_clauses`) | **today the same extractor again**, labelled `keyword` — not a different model | fewer than 40 % of the three clauses found (`contract.clause_extraction_fallback_threshold`), the extractor raised, or forced | `regex_primary` / `keyword_fallback` |
+| **Clause extraction** | contract-risk-agent · `app/services/clause_router.py` | Legal-BERT fine-tuned on CUAD (`alex-apostolo/legal-bert-base-cuad`, `clause_model.py`) finds the renewal, notice and expiry passages; parsers turn them into values (FR-13) | regex rules (`clause_extraction.extract_clauses`) | the model isn't downloaded (`model_unavailable`), raised (`exception`), found fewer than 40 % of the three clauses (`low_confidence`, rule `contract.clause_extraction_fallback_threshold`), or forced (`forced`) | `legal_bert_primary` / `regex_fallback` |
 | **Document classification** | document-vendor-agent · `app/services/classification.py` | ML classifier (TF-IDF + logistic regression, `ml/artifacts/classifier.joblib`, trained at image build — FR-29) when ≥ 0.6 confident | keyword classifier | the model is less than 60 % sure, or no model was kept (training keeps it only if it beats the keywords) | not routed through the log |
 
 Not routers, listed for completeness:
@@ -24,9 +24,12 @@ Not routers, listed for completeness:
 - **Assistant / chatbot**: one local Ollama model, no fallback. It belongs
   to another team member and isn't covered here.
 
-Honest gaps: the clause "fallback" isn't a different method yet — FR-13
-makes a Legal-BERT (CUAD) model the primary with the regex extractor as a
-real fallback. The classifier's ML path is untrained until FR-29.
+Measured, not assumed: Legal-BERT beats the rules on CUAD's 102 test
+contracts (F1 0.85 / 0.80 / 0.91 vs 0.50 / 0.19 / 0.02) and reads every
+value of our own templates — `docs/results/clauses.md`. For contracts we
+generate, the notice period and end date we wrote stay authoritative; a
+disagreement by the extractor is written to the contract's audit log
+(`clause_mismatches`), not stored.
 
 ## Showing the fallback on demand (development only)
 
@@ -43,7 +46,7 @@ Demo:
 4. Set the rule back to `[]`.
 
 For clauses, set `["clauses"]` and generate a contract (approve a request,
-or Contracts → Generate): the log shows `keyword_fallback · forced`.
+or Contracts → Generate): the log shows `regex_fallback · regex · forced`.
 
 ## Tests
 
@@ -52,6 +55,9 @@ or Contracts → Generate): the log shows `keyword_fallback · forced`.
   `APP_ENV=production`.
 - `services/contract-risk-agent/tests/test_rules_wiring.py::test_dev_force_model_fallback`
   — the same for clauses.
+- `services/contract-risk-agent/tests/test_clause_router.py` — model
+  passages become values; no model / a model error → the rules; generated
+  contracts keep their written terms.
 - `…::test_document_extraction_fallback_confidence_threshold` and
   `…::test_contract_clause_extraction_fallback_threshold` — the natural
   (low-confidence) fallback follows its rule.

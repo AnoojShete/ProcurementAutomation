@@ -49,3 +49,23 @@ class TestClauseExtraction:
         assert result["renewal_type"] is None
         assert result["notice_period_days"] is None
         assert result["contract_end_date"] is None
+
+
+import pytest  # noqa: E402
+from jinja2 import Environment, FileSystemLoader  # noqa: E402
+
+
+@pytest.mark.parametrize("template,renewal", [
+    ("saas_subscription", "auto"), ("hardware_purchase", "manual"), ("professional_services", "manual")])
+@pytest.mark.parametrize("notice", [7, 15, 45, 90])
+def test_rules_read_our_own_templates(template, renewal, notice):
+    """The rules are the fallback when the model isn't downloaded, so they
+    must read every contract we generate — including where the template
+    wraps "N days" and "notice" onto separate lines."""
+    import os
+    env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "..", "app", "templates")))
+    text = env.get_template(f"{template}.j2").render(
+        contract_id="c", generated_at="2026-10-16", vendor_name="Acme", purchase_request_id="p", department="IT",
+        items=[], amount=100, currency="INR", contract_end_date="2027-10-16", notice_period_days=notice)
+    result = extract_clauses(text)
+    assert result == {"renewal_type": renewal, "notice_period_days": notice, "contract_end_date": date(2027, 10, 16)}

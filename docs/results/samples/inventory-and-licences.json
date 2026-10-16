@@ -103,27 +103,27 @@
         "active_seats_60d": 36,
         "active_seats_90d": 40,
         "utilisation_score": 0.8,
-        "anomaly_score": 0.265718,
+        "anomaly_score": 0.016975,
         "anomaly_status": "normal",
         "top_factors": [
           {
-            "feature": "weekend_ratio",
-            "contribution": -2.009907,
+            "feature": "retention_7d",
+            "contribution": -0.519171,
             "direction": "decreasing_risk"
           },
           {
-            "feature": "retention_7d",
-            "contribution": 0.436504,
-            "direction": "increasing_risk"
+            "feature": "weekend_ratio",
+            "contribution": -0.45084,
+            "direction": "decreasing_risk"
           },
           {
-            "feature": "retention_30d",
-            "contribution": 0.308041,
-            "direction": "increasing_risk"
+            "feature": "utilisation_90d",
+            "contribution": -0.363615,
+            "direction": "decreasing_risk"
           }
         ],
-        "model_version": "v20261016101821",
-        "last_scored_at": "2026-10-16T10:28:40.483784+00:00",
+        "model_version": "v20261016143346",
+        "last_scored_at": "2026-10-16T14:56:03.574883+00:00",
         "days_since_last_login": 0,
         "cost_per_seat": "1250.0",
         "currency": "INR",
@@ -143,27 +143,27 @@
         "active_seats_60d": 49,
         "active_seats_90d": 49,
         "utilisation_score": 0.8167,
-        "anomaly_score": 0.506373,
-        "anomaly_status": "anomalous",
+        "anomaly_score": 0.32436,
+        "anomaly_status": "normal",
         "top_factors": [
           {
-            "feature": "weekend_ratio",
-            "contribution": -1.536093,
-            "direction": "decreasing_risk"
-          },
-          {
             "feature": "retention_7d",
-            "contribution": -1.348257,
-            "direction": "decreasing_risk"
+            "contribution": 1.502964,
+            "direction": "increasing_risk"
           },
           {
             "feature": "utilisation_7d",
-            "contribution": -0.514212,
+            "contribution": 0.632244,
+            "direction": "increasing_risk"
+          },
+          {
+            "feature": "weekend_ratio",
+            "contribution": -0.330836,
             "direction": "decreasing_risk"
           }
         ],
-        "model_version": "v20261016101821",
-        "last_scored_at": "2026-10-16T10:28:40.505014+00:00",
+        "model_version": "v20261016143346",
+        "last_scored_at": "2026-10-16T14:56:03.596999+00:00",
         "days_since_last_login": 0,
         "cost_per_seat": "750.0",
         "currency": "INR",
@@ -183,27 +183,27 @@
         "active_seats_60d": 133,
         "active_seats_90d": 165,
         "utilisation_score": 0.445,
-        "anomaly_score": 0.495295,
-        "anomaly_status": "anomalous",
+        "anomaly_score": 0.312352,
+        "anomaly_status": "normal",
         "top_factors": [
           {
-            "feature": "weekend_ratio",
-            "contribution": -1.585553,
-            "direction": "decreasing_risk"
-          },
-          {
             "feature": "retention_7d",
-            "contribution": -0.673357,
-            "direction": "decreasing_risk"
+            "contribution": 0.778843,
+            "direction": "increasing_risk"
           },
           {
             "feature": "retention_30d",
-            "contribution": -0.644517,
+            "contribution": 0.673138,
+            "direction": "increasing_risk"
+          },
+          {
+            "feature": "days_since_last_login",
+            "contribution": -0.225565,
             "direction": "decreasing_risk"
           }
         ],
-        "model_version": "v20261016101821",
-        "last_scored_at": "2026-10-16T10:28:40.525692+00:00",
+        "model_version": "v20261016143346",
+        "last_scored_at": "2026-10-16T14:56:03.617246+00:00",
         "days_since_last_login": 0,
         "cost_per_seat": "800.0",
         "currency": "INR",
@@ -223,27 +223,27 @@
         "active_seats_60d": 88,
         "active_seats_90d": 88,
         "utilisation_score": 0.7333,
-        "anomaly_score": 0.276826,
+        "anomaly_score": 0.151914,
         "anomaly_status": "normal",
         "top_factors": [
           {
             "feature": "weekend_ratio",
-            "contribution": -2.046542,
-            "direction": "decreasing_risk"
+            "contribution": 0.879248,
+            "direction": "increasing_risk"
           },
           {
             "feature": "retention_7d",
-            "contribution": 0.441507,
-            "direction": "increasing_risk"
+            "contribution": -0.502077,
+            "direction": "decreasing_risk"
           },
           {
-            "feature": "utilisation_ratio",
-            "contribution": 0.325972,
-            "direction": "increasing_risk"
+            "feature": "retention_30d",
+            "contribution": -0.30953,
+            "direction": "decreasing_risk"
           }
         ],
-        "model_version": "v20261016101821",
-        "last_scored_at": "2026-10-16T10:28:40.550722+00:00",
+        "model_version": "v20261016143346",
+        "last_scored_at": "2026-10-16T14:56:03.641637+00:00",
         "days_since_last_login": 0,
         "cost_per_seat": "2400.0",
         "currency": "INR",
@@ -263,27 +263,27 @@
         "active_seats_60d": 44,
         "active_seats_90d": 45,
         "utilisation_score": 0.88,
-        "anomaly_score": 0.32611,
+        "anomaly_score": 0.13597,
         "anomaly_status": "normal",
         "top_factors": [
           {
-            "feature": "weekend_ratio",
-            "contribution": -1.998977,
+            "feature": "retention_7d",
+            "contribution": -0.492112,
             "direction": "decreasing_risk"
           },
           {
-            "feature": "retention_7d",
-            "contribution": 0.419531,
-            "direction": "increasing_risk"
+            "feature": "retention_30d",
+            "contribution": -0.324302,
+            "direction": "decreasing_risk"
           },
           {
-            "feature": "retention_30d",
-            "contribution": 0.291726,
-            "direction": "increasing_risk"
+            "feature": "days_since_last_login",
+            "contribution": -0.219258,
+            "direction": "decreasing_risk"
           }
         ],
-        "model_version": "v20261016101821",
-        "last_scored_at": "2026-10-16T10:28:40.576722+00:00",
+        "model_version": "v20261016143346",
+        "last_scored_at": "2026-10-16T14:56:03.665405+00:00",
         "days_since_last_login": 0,
         "cost_per_seat": "2100.0",
         "currency": "INR",
@@ -296,12 +296,12 @@
     ],
     "anomaly_summary": {
       "total_licenses": 5,
-      "anomalous": 2,
+      "anomalous": 0,
       "watch": 0,
-      "normal": 3,
+      "normal": 5,
       "insufficient_history": 0,
-      "last_scoring_run": "2026-10-16T10:28:40.707109+00:00",
-      "potential_annual_savings": 205000.0
+      "last_scoring_run": "2026-10-16T14:56:03.777043+00:00",
+      "potential_annual_savings": 0.0
     }
   }
 }

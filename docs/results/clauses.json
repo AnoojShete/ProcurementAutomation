@@ -1,0 +1,94 @@
+{
+  "generated_at": "2026-10-16T14:40:35.893793+00:00",
+  "model": "alex-apostolo/legal-bert-base-cuad",
+  "cuad": {
+    "contracts": 102,
+    "positives": {
+      "renewal_type": 26,
+      "notice_period_days": 16,
+      "contract_end_date": 78
+    },
+    "rules": {
+      "renewal_type": {
+        "tp": 9,
+        "fp": 1,
+        "fn": 17,
+        "precision": 0.9,
+        "recall": 0.346,
+        "f1": 0.5
+      },
+      "notice_period_days": {
+        "tp": 3,
+        "fp": 12,
+        "fn": 13,
+        "precision": 0.2,
+        "recall": 0.188,
+        "f1": 0.194
+      },
+      "contract_end_date": {
+        "tp": 1,
+        "fp": 12,
+        "fn": 77,
+        "precision": 0.077,
+        "recall": 0.013,
+        "f1": 0.022
+      }
+    },
+    "model": {
+      "renewal_type": {
+        "tp": 20,
+        "fp": 1,
+        "fn": 6,
+        "precision": 0.952,
+        "recall": 0.769,
+        "f1": 0.851
+      },
+      "notice_period_days": {
+        "tp": 12,
+        "fp": 2,
+        "fn": 4,
+        "precision": 0.857,
+        "recall": 0.75,
+        "f1": 0.8
+      },
+      "contract_end_date": {
+        "tp": 68,
+        "fp": 3,
+        "fn": 10,
+        "precision": 0.958,
+        "recall": 0.872,
+        "f1": 0.913
+      }
+    },
+    "chars_median": 25922,
+    "seconds_per_contract_median": 16.8
+  },
+  "templates": {
+    "cases": 60,
+    "rules": {
+      "accuracy": {
+        "renewal_type": 1.0,
+        "notice_period_days": 1.0,
+        "contract_end_date": 1.0
+      },
+      "examples_wrong": []
+    },
+    "model": {
+      "accuracy": {
+        "renewal_type": 1.0,
+        "notice_period_days": 1.0,
+        "contract_end_date": 1.0
+      },
+      "examples_wrong": []
+    }
+  },
+  "decision": {
+    "model_beats_rules_on": [
+      "renewal_type",
+      "notice_period_days",
+      "contract_end_date"
+    ],
+    "model_gets_every_template_value": true,
+    "primary": "model"
+  }
+}

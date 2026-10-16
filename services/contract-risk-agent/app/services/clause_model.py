@@ -38,6 +38,10 @@ CUAD_CATEGORY = {"renewal_type": "Renewal Term", "notice_period_days": "Notice P
 MAX_LEN, STRIDE, MAX_ANSWER_TOKENS, TOP_N, BATCH = 384, 128, 120, 20, 16
 
 _lock = threading.Lock()
+# One inference at a time: the fast tokenizer isn't safe to share between
+# threads ("Already borrowed"), and two contracts generated together would
+# otherwise call it from two asyncio.to_thread workers at once.
+_infer_lock = threading.Lock()
 _state: dict = {}
 
 
@@ -75,6 +79,11 @@ def answer(text: str, question: str) -> Optional[dict]:
     loaded = _load()
     if loaded is None:
         raise RuntimeError("clause model not available")
+    with _infer_lock:
+        return _answer(loaded, text, question)
+
+
+def _answer(loaded, text: str, question: str) -> Optional[dict]:
     import torch
     tok, model = loaded
     enc = tok(question, text, truncation="only_second", max_length=MAX_LEN, stride=STRIDE,
