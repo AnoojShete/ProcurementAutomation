@@ -49,10 +49,13 @@ async def lifespan(app: FastAPI):
     # BR-7: re-score vendors after a delivery so on-time rate stays current.
     from app.services.risk_service import run_delivery_rescore
     rescore_task = asyncio.create_task(run_delivery_rescore(async_session_factory, app.state.kafka_producer))
+    # FR-14: refresh a downloaded sanctions list daily (never downloads first).
+    from app.services.sanctions import run_daily_refresh
+    sanctions_task = asyncio.create_task(run_daily_refresh())
 
     yield
 
-    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task):
+    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task, sanctions_task):
         task.cancel()
         try:
             await task

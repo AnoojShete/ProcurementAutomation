@@ -97,11 +97,12 @@ def required_checks_for_tier(tier: VendorTier) -> list[str]:
         return ["name", "phone", "address", "receipt"]
     if tier == VendorTier.STANDARD:
         return ["name", "phone", "address", "receipt", "gstin_structural", "gstin_live", "ifsc"]
-    # strategic
+    # strategic — company-registry lookups (OpenCorporates) aren't built,
+    # so they aren't listed (FR-14); sanctions screening runs in contract-risk-agent.
     return [
         "name", "phone", "address", "receipt",
         "gstin_structural", "gstin_live", "ifsc",
-        "opencorporates", "sanctions_screening", "risk_model",
+        "sanctions_screening", "risk_model",
     ]
 
 

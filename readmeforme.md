@@ -481,6 +481,14 @@ it otherwise (409 `risk_acknowledgement_required`) and the signature
 certificate records the band and the acknowledgement
 (`contract_service.signing_risk`).
 
+**Sanctions screening.** `./scripts/download-sanctions.sh` (once; ~80 MB,
+no API key, OpenSanctions consolidated list, CC BY-NC 4.0) builds an index
+of listed companies in the `sanctions-data` volume; contract-risk-agent
+refreshes it daily afterwards. Each vendor is screened when scored (and
+from the vendor page); a name at or above `risk.sanctions_match_threshold_pct`
+(90) is a potential match and a hard override (High) until finance clears
+it with a reason (`POST /vendors/{id}/clear-sanctions-flag`, audit-logged).
+
 **Risk signals.** Before every score the model's inputs are refreshed
 from platform history: tenure (since the vendor's first record) and
 on-time delivery (contract signed → goods received within

@@ -20,6 +20,7 @@ import { Modal } from "@/components/ui/Modal";
 import { RiskGauge } from "@/components/vendors/RiskGauge";
 import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
 import { RiskSignalsCard } from "@/components/vendors/RiskSignalsCard";
+import { SanctionsScreening } from "@/components/vendors/SanctionsScreening";
 import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { ApiError } from "@/api/client";
 
@@ -183,6 +184,12 @@ export function VendorDetailPage() {
       <RiskSignalsCard
         vendorId={vendor.id}
         canEdit={user?.role === "finance" || user?.role === "admin"}
+        onRescored={() => { reloadRisk(); reloadVendors(); }}
+      />
+
+      <SanctionsScreening
+        vendorId={vendor.id}
+        canAct={user?.role === "finance" || user?.role === "admin"}
         onRescored={() => { reloadRisk(); reloadVendors(); }}
       />
 

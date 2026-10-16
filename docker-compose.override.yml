@@ -55,6 +55,8 @@ services:
       # Optional: put the DocuSign RSA key in ./secrets (git-ignored) and set
       # APP_DOCUSIGN_PRIVATE_KEY_FILE=/run/secrets/app/<file>.
       - ./secrets:/run/secrets/app:ro
+      # FR-14: sanctions list index (./scripts/download-sanctions.sh).
+      - sanctions-data:/app/data/sanctions
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8003/health || exit 1"]
       interval: 10s
@@ -442,6 +444,7 @@ services:
       - mlflow-data:/mlruns
 
 volumes:
+  sanctions-data:
   mlflow-data:
   docling-models:
   # HF model cache for LayoutLMv3 (ngvozdenovic/invoice_extraction ~1GB).

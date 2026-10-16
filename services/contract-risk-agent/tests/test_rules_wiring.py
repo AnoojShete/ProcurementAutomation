@@ -161,3 +161,19 @@ def test_dev_force_model_fallback(rule, monkeypatch):
     assert r.route_name == "keyword_fallback" and r.fallback_reason == "forced"
     monkeypatch.setenv("APP_ENV", "production")
     assert _clause_result().route_name == "regex_primary"
+
+
+def test_risk_sanctions_match_threshold_pct(rule):
+    """FR-14: the threshold decides what counts as a potential match
+    ("Sea Breeze Shipping Lines" vs the listed "Sea Breeze Shipping
+    Limited" scores about 86)."""
+    from app.services import sanctions
+    csv_text = ("id,schema,name,aliases,birth_date,countries,addresses,identifiers,sanctions,phones,emails,dataset,"
+                "first_seen,last_seen,last_change\nuk-5,LegalEntity,Sea Breeze Shipping Limited,,,ir,,,,,,UK HMT,,,\n")
+    index = sanctions.build_index(csv_text, "v")
+    index["_flat"] = [sanctions.normalise(n) for n in index["entries"][0]["names"]]
+    index["_owners"] = [(0, n) for n in index["entries"][0]["names"]]
+    rule("risk.sanctions_match_threshold_pct", 90)
+    assert sanctions.screen_name("Sea Breeze Shipping Lines", index) == []
+    rule("risk.sanctions_match_threshold_pct", 85)
+    assert sanctions.screen_name("Sea Breeze Shipping Lines", index)[0]["entity_id"] == "uk-5"

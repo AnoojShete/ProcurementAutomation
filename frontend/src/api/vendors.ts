@@ -54,7 +54,38 @@ export interface RiskSignals {
   updated_at: string | null;
 }
 
+export interface SanctionsMatch {
+  entity_id: string;
+  listed_name: string;
+  matched_name: string;
+  score: number;
+  countries: string;
+  lists: string;
+}
+
+export interface SanctionsScreening {
+  id: string;
+  status: "clear" | "potential_match" | "cleared";
+  screened_at: string | null;
+  list_version: string | null;
+  screened_name: string;
+  matches: SanctionsMatch[];
+  threshold: number | null;
+  screened_by: string | null;
+  justification: string | null;
+}
+
+export interface SanctionsState {
+  list: { available: boolean; version?: string; entries?: number };
+  latest: SanctionsScreening | null;
+}
+
 export const vendorsApi = {
+  sanctions: (vendorId: string) => api.get<SanctionsState>(`/vendors/${vendorId}/sanctions`),
+  screenSanctions: (vendorId: string) =>
+    api.post<{ screening: SanctionsScreening; risk: VendorRisk }>(`/vendors/${vendorId}/screen-sanctions`),
+  clearSanctionsFlag: (vendorId: string, justification: string) =>
+    api.post<{ screening: SanctionsScreening; risk: VendorRisk }>(`/vendors/${vendorId}/clear-sanctions-flag`, { justification }),
   riskSignals: (vendorId: string) => api.get<RiskSignals>(`/vendors/${vendorId}/risk-signals`),
   updateRiskSignals: (vendorId: string, body: Partial<ComplianceSignals>) =>
     api.patch<{ risk: VendorRisk; signals: RiskSignals }>(`/vendors/${vendorId}/risk-signals`, body),

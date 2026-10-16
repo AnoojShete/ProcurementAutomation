@@ -37,6 +37,7 @@ class Vendor(Base):
     contact_phone: Mapped[Optional[str]] = mapped_column(Text)
     address: Mapped[Optional[str]] = mapped_column(Text)
     category: Mapped[Optional[str]] = mapped_column(Text)
+    ifsc_verification_status: Mapped[Optional[str]] = mapped_column(Text)  # FR-14: valid | invalid | pending
 
     # GSTIN (primary dedup key where available) — UNIQUE constraint enforced
     # at DB level (see migration 0001_schema_extensions.sql) to prevent

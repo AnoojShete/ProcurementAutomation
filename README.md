@@ -80,7 +80,7 @@ dead-letter queue instead of losing them.
 |---|---|
 | 🧠 **Document AI** | A sample scanned invoice went from **0.50 → 0.93** confidence after reading table rows by position and cross-checking totals |
 | 📊 **Risk model, measured** | Random forest on 2,000 synthetic vendors: **ROC-AUC 0.715** (best possible on these labels 0.739), red-team profiles **12/12**, missing data left out instead of guessed |
-| 🛡️ **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; invoices are held until bank details are verified |
+| 🛡️ **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; vendors are screened against 25,000 sanctioned companies; invoices are held until bank details are verified |
 | ⚖️ **Separation of duties** | Nobody — not even an admin — approves their own request |
 | 🔁 **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
 | 🔎 **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |

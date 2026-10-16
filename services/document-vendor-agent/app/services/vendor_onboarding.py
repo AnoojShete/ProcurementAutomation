@@ -51,6 +51,7 @@ class VendorProfile:
 class ProfileCheck:
     errors: list = field(default_factory=list)      # [{"field", "message"}]
     warnings: list = field(default_factory=list)    # [{"code", "field", "message"}]
+    ifsc_status: Optional[str] = None                  # valid | invalid | pending, when looked up
 
     @property
     def ok(self) -> bool:
@@ -136,6 +137,7 @@ async def validate_profile(db, profile: VendorProfile, check_ifsc=None) -> Profi
     if p.routing_code and _IFSC.match(p.routing_code) and check_ifsc is not None:
         result = await check_ifsc(p.routing_code)
         status = getattr(result.status, "value", result.status)
+        c.ifsc_status = status
         if status == "invalid":
             c.errors.append({"field": "routing_code", "message": f"IFSC {p.routing_code} does not exist."})
         elif status == "pending":
@@ -165,6 +167,7 @@ async def onboard_vendor(db, kafka_producer, profile: VendorProfile, onboarded_b
         id=str(uuid.uuid4()), name=p.name, normalized_name=normalize_vendor_name(p.name), status="active",
         contact_email=p.contact_email, contact_phone=p.contact_phone, address=p.address, category=p.category,
         gstin=p.gstin, gstin_verification_status="format_valid" if p.gstin else "unverified",
+        ifsc_verification_status=check.ifsc_status,
         no_gstin_confirmed_by=None if p.gstin else onboarded_by, no_gstin_confirmed_at=None if p.gstin else now,
         created_at=now, updated_at=now,
     )

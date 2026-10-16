@@ -96,6 +96,74 @@ async def _signals(db, vendor_id: str) -> dict:
             "updated_at": row.updated_at.isoformat() if row and row.updated_at else None}
 
 
+@router.get("/sanctions-list", response_model=DataResponse, dependencies=[Depends(require_role("finance", "admin"))])
+async def sanctions_list_status():
+    """Which sanctions list is loaded (FR-14); available=false until
+    ./scripts/download-sanctions.sh has been run once."""
+    from app.services import sanctions
+    return DataResponse(data=sanctions.list_status())
+
+
+def _serialize_screening(row) -> Optional[dict]:
+    if row is None:
+        return None
+    return {"id": str(row.id), "status": row.status, "screened_at": row.screened_at.isoformat() if row.screened_at else None,
+            "list_version": row.list_version, "screened_name": row.screened_name, "matches": row.matches or [],
+            "threshold": float(row.threshold) if row.threshold is not None else None,
+            "screened_by": row.screened_by, "justification": row.justification}
+
+
+@router.get("/{vendor_id}/sanctions", response_model=DataResponse)
+async def get_sanctions_screening(vendor_id: str, db: AsyncSession = Depends(get_db)):
+    from app.services import sanctions
+    if await db.get(Vendor, vendor_id) is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    return DataResponse(data={"list": sanctions.list_status(),
+                              "latest": _serialize_screening(await sanctions.latest_screening(db, vendor_id))})
+
+
+@router.post("/{vendor_id}/screen-sanctions", response_model=DataResponse)
+async def screen_sanctions(vendor_id: str, request: Request, db: AsyncSession = Depends(get_db),
+                           user: CurrentUser = Depends(require_role("finance", "admin"))):
+    """Screens the vendor now and re-scores it (a match is a hard override)."""
+    from app.services import sanctions
+    vendor = await db.get(Vendor, vendor_id)
+    if vendor is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    row = await sanctions.screen_vendor(db, vendor, screened_by=user.email)
+    if row is None:
+        raise HTTPException(status_code=409, detail={"code": "sanctions_list_missing",
+                            "message": "No sanctions list downloaded yet — run ./scripts/download-sanctions.sh."})
+    await db.commit()
+    risk = await risk_service.score_vendor(db, request.app.state.kafka_producer, vendor_id)
+    return DataResponse(data={"screening": _serialize_screening(row), "risk": _serialize_risk(risk)})
+
+
+class ClearSanctionsBody(BaseModel):
+    justification: str = Field(min_length=20, max_length=2000)
+
+
+@router.post("/{vendor_id}/clear-sanctions-flag", response_model=DataResponse)
+async def clear_sanctions_flag(vendor_id: str, body: ClearSanctionsBody, request: Request,
+                               db: AsyncSession = Depends(get_db),
+                               user: CurrentUser = Depends(require_role("finance", "admin"))):
+    """Finance confirms a potential match is a different company; the reason
+    is kept and audit-logged, and the vendor is re-scored."""
+    from app.services import sanctions
+    from app.services.audit import write_audit_log
+    if await db.get(Vendor, vendor_id) is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    try:
+        row = await sanctions.clear_flag(db, vendor_id, user.email, body.justification)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail={"code": "no_open_match", "message": str(e)})
+    await write_audit_log(db, "vendor", vendor_id, "sanctions_match_cleared",
+                          {"cleared_by": user.email, "justification": row.justification, "matches": row.matches})
+    await db.commit()
+    risk = await risk_service.score_vendor(db, request.app.state.kafka_producer, vendor_id)
+    return DataResponse(data={"screening": _serialize_screening(row), "risk": _serialize_risk(risk)})
+
+
 @router.get("/{vendor_id}/risk-signals", response_model=DataResponse)
 async def get_risk_signals(vendor_id: str, db: AsyncSession = Depends(get_db)):
     """What the risk model knows about a vendor: platform history (tenure,

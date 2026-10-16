@@ -163,3 +163,21 @@ class ModelRoutingLog(Base):
     confidence: Mapped[Optional[float]] = mapped_column(Numeric(4, 3))
     duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class SanctionsScreening(Base):
+    """One sanctions screening of a vendor (FR-14, migration 0007).
+    status: clear | potential_match | cleared (finance reviewed a match)."""
+    __tablename__ = "vendor_sanctions_screenings"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"))
+    screened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    list_version: Mapped[Optional[str]] = mapped_column(Text)
+    screened_name: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    matches: Mapped[list] = mapped_column(JSON, default=list)
+    threshold: Mapped[Optional[float]] = mapped_column(Numeric)
+    screened_by: Mapped[Optional[str]] = mapped_column(Text)
+    justification: Mapped[Optional[str]] = mapped_column(Text)
+

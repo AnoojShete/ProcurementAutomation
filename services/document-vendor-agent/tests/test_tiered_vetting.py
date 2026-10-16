@@ -67,7 +67,7 @@ class TestRequiredChecks:
         checks = required_checks_for_tier(VendorTier.STRATEGIC)
         assert "gstin_structural" in checks
         assert "gstin_live" in checks
-        assert "opencorporates" in checks
+        assert "sanctions_screening" in checks and "opencorporates" not in checks   # FR-14: registry lookup not built
         assert "sanctions_screening" in checks
 
 

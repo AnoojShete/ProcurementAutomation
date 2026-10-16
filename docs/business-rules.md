@@ -4,7 +4,7 @@ Every rule on the Business Rules page (`/app/business-rules`, admin): what it ch
 
 Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed on `business_rule.updated`); each read has a fallback used when auth-service is unreachable. Tests: `services/<service>/tests/test_rules_wiring.py::test_<rule key with _>` — each sets the rule to two values and checks the behaviour differs.
 
-**Enforced: 36** · **Not enforced: 11** (listed at the end — editing them has no effect until the feature exists).
+**Enforced: 37** · **Not enforced: 10** (listed at the end — editing them has no effect until the feature exists).
 
 | Rule | Default | What it changes | Read in | Test |
 |---|---|---|---|---|
@@ -37,6 +37,7 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `risk.contract_renewal_milestones_days` | `[60, 30, 15]` | Days before renewal to trigger notification alerts | contract-risk-agent: api/contracts.py, contract-risk-agent: workflows/activities.py | `contract-risk-agent` · `test_risk_contract_renewal_milestones_days` |
 | `risk.psi_moderate_threshold` | `0.1` | Population Stability Index threshold for moderate risk drift | contract-risk-agent: drift_service.py | `contract-risk-agent` · `test_risk_psi_moderate_threshold` |
 | `risk.psi_significant_threshold` | `0.2` | Population Stability Index threshold for significant risk drift | contract-risk-agent: drift_service.py | `contract-risk-agent` · `test_risk_psi_significant_threshold` |
+| `risk.sanctions_match_threshold_pct` | `90.0` | Match score (0–100) at which a vendor name counts as a potential sanctions match (hard override until finance clears it; FR-14) | contract-risk-agent: services/sanctions.py | `contract-risk-agent` · `test_risk_sanctions_match_threshold_pct` |
 | `vendor.bank_verification_reminder_hours` | `24` | Remind finance when a bank-detail change has waited this long for the second person | document-vendor-agent: reminder_sweep.py | `document-vendor-agent` · `test_vendor_bank_verification_reminder_hours` |
 | `vendor.duplicate_invoice_number_fuzzy_threshold` | `85` | Invoice numbers at least this similar (0-100) from one vendor count as possible duplicates | document-vendor-agent: duplicate_detection.py | `document-vendor-agent` · `test_vendor_duplicate_invoice_number_fuzzy_threshold` |
 | `vendor.expected_delivery_days` | `14` | An order received within this many days of signing counts as on time in vendor risk | contract-risk-agent: risk_signals.py | `contract-risk-agent` · `test_vendor_expected_delivery_days` |
@@ -59,7 +60,6 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `risk.adverse_media_article_count_threshold` | `2` | Adverse-media screening isn't built. |
 | `risk.adverse_media_lookback_days` | `90` | Adverse-media screening isn't built. |
 | `risk.adverse_media_negative_confidence` | `0.7` | Adverse-media screening isn't built. |
-| `risk.sanctions_match_threshold_pct` | `90.0` | Sanctions screening is FR-14 (planned); it will read this rule. |
 
 ## Changes made on 16 Oct (FR-09)
 

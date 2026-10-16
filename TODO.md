@@ -196,7 +196,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-04 | Risk analysis remainder (red-team vs agent doc) | PARTIAL | P2 | — | contract-risk-agent `ml/` | Part B "Done when" met | Core |
 | FR-11 | Layout-analysis accuracy, schema-validated output | COMPLETE (noisy scans: known limit) | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
 | FR-13 | Clause extraction with Legal-BERT, rules fallback | PENDING | P2 | model | contract-risk-agent | Evaluated on sample contracts | Core |
-| FR-14 | Sanctions screening + strategic-tier checks | PENDING | P2 | data source | contract-risk-agent | Sanctions override in risk | Core |
+| FR-14 | Sanctions screening + strategic-tier checks | COMPLETE | P2 | — | contract-risk-agent `sanctions.py` | Sanctions override in risk | Core |
 | FR-29 | Train the document classifier | COMPLETE | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
 | FR-32 | Licence anomaly model evaluated and tuned | COMPLETE | P2 | — | approval-inventory-agent | `docs/results/licence-anomaly.json` | Core |
 | DRIFT-1 | Decide minimum sample before PSI is reported | PENDING (decision) | P2 | user | `drift_service.py` | Rule chosen and documented | Core |
@@ -747,7 +747,7 @@ before any other roadmap item.
   clauses.json`; **or** correct the docs to say rule-based. Ask before
   choosing (image size and CPU time).
   *Decision (Oct 16):* add Legal-BERT (CUAD) as primary, rules as fallback.
-- [ ] **FR-14 Sanctions screening and the strategic-tier checks**
+- [x] **FR-14 Sanctions screening and the strategic-tier checks**
   (Agent doc §2.3; Overall doc §6). Moved from R1 on Oct 16. Also store IFSC results (`validate_ifsc` exists but nothing calls it or keeps its result) so the IFSC override in FR-04 can fire. *Now:* `vendor_tier_service.py`
   lists `opencorporates`, `sanctions_screening`, `risk_model` for
   strategic vendors, but none runs. *Do:* OpenSanctions bulk file
@@ -758,6 +758,33 @@ before any other roadmap item.
   from the list. *Done when:* precision tests (a near-match is flagged, an
   unrelated company isn't); the strategic tier's checklist shows real
   results. Closes part of the P2 "external data" item.
+  *Evidence (Oct 16):* `app/services/sanctions.py` (contract-risk-agent):
+  `./scripts/download-sanctions.sh` downloads the OpenSanctions
+  consolidated list (78 MB CSV, no key; data CC BY-NC 4.0) into the
+  `sanctions-data` volume and indexes companies / organisations only
+  (25,237); refreshed daily after the first download, never before.
+  Names normalised (case, accents, dots, legal suffixes) and matched with
+  rapidfuzz against names and aliases at the rule
+  `risk.sanctions_match_threshold_pct` (90, now enforced). Screenings stored
+  (`vendor_sanctions_screenings`, contract-risk migration 0007); scoring
+  screens automatically against a new list version; a potential match is a
+  hard override (High) until `POST /vendors/{id}/clear-sanctions-flag`
+  (finance/admin, ≥ 20-character reason, audit-logged); a clearance carries
+  over to newer lists for the same listed company. IFSC results stored at
+  onboarding (`vendors.ifsc_verification_status`), so the IFSC override can
+  fire. OpenCorporates dropped from the strategic checklist (not built).
+  Vendor page: "Sanctions Screening" panel. Tests: `test_sanctions.py` (20:
+  6 near-matches flagged, 6 unrelated companies not, overrides, clearance
+  carry-over), rule test. Live on the real list: 6/6 well-known sanctioned
+  organisations flagged at 100, 13/13 legitimate companies (all demo
+  vendors, TCS, Infosys, Wipro, Airtel, Mahindra) not; Acme screened clear;
+  a test vendor "Rosoboronexport OJSC" → potential match → High → cleared
+  with a reason → Medium; requester 403, short reason 422, second clear
+  409; a vendor onboarded with an IFSC shows gstin / sanctions / ifsc all
+  "clear". Limits: token-sort matching misses a listed name with extra
+  words ("Rosneft Oil Trading" vs "Rosneft Oil Company" scores 73); people
+  aren't screened.
+
 - [x] **FR-29 Train the document classifier** (flow chart: "ML classifier
   not trained"). *Now:* `classification.py` is a keyword classifier; an ML
   classifier is wired in but no trained model ships. *Do:* train it on

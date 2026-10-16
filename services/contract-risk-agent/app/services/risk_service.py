@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import uuid
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from functools import lru_cache
 
@@ -153,10 +154,22 @@ async def score_vendor(db: AsyncSession, kafka_producer, vendor_id: str) -> Risk
     await refresh_platform_signals(db, vendor_id)
     await db.flush()
     features = await _load_features(db, vendor_id)
-    gstin_status = (await db.execute(
-        text("SELECT gstin_verification_status FROM vendors WHERE id = :id"), {"id": vendor_id}
-    )).scalar_one_or_none()
-    checks = hard_override_checks(gstin_status)
+    vendor_row = (await db.execute(
+        text("SELECT name, gstin_verification_status, ifsc_verification_status FROM vendors WHERE id = :id"),
+        {"id": vendor_id},
+    )).first()
+    gstin_status = vendor_row.gstin_verification_status if vendor_row else None
+    ifsc_status = vendor_row.ifsc_verification_status if vendor_row else None
+    # FR-14: screen against the sanctions list when one is downloaded and
+    # this vendor hasn't been screened against this version (or its name).
+    from app.services import sanctions
+    latest = await sanctions.latest_screening(db, vendor_id)
+    index = sanctions.load_index()
+    if vendor_row and index and (latest is None or latest.list_version != index["version"]
+                                 or latest.screened_name != vendor_row.name):
+        latest = await sanctions.screen_vendor(db, SimpleNamespace(id=vendor_id, name=vendor_row.name), index=index) or latest
+    checks = hard_override_checks(gstin_status, sanctions_match=sanctions.sanctions_override_input(latest),
+                                  ifsc_status=ifsc_status if ifsc_status in ("valid", "invalid") else None)
     result = assess(model, feature_order, features, checks)
     risk_score, band, top_factors = result["score"], result["band"], result["top_factors"]
     scored_at = datetime.now(timezone.utc)
