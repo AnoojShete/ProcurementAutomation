@@ -7,7 +7,11 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Badge, RiskBadge } from "@/components/ui/Badge";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { Button } from "@/components/ui/Button";
+import { VendorOnboardingForm } from "@/components/vendors/VendorOnboardingForm";
+import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/lib/format";
+import { UserPlus } from "lucide-react";
 import type { VendorSummary } from "@/types/api";
 
 export function VendorsListPage() {
@@ -15,6 +19,9 @@ export function VendorsListPage() {
   const navigate = useNavigate();
   const { data: vendors, loading, error, reload } = useApi(() => vendorsApi.list(200), []);
   const [query, setQuery] = useState("");
+  const [onboarding, setOnboarding] = useState(false);
+  const { user } = useAuth();
+  const canOnboard = ["finance", "admin"].includes(user?.role ?? "");
 
   const rows = (vendors ?? []).filter((v) => v.name.toLowerCase().includes(query.toLowerCase()));
 
@@ -31,11 +38,23 @@ export function VendorsListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search vendors…"
-        className="w-full max-w-sm rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500"
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search vendors…"
+          className="w-full max-w-sm rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500"
+        />
+        {canOnboard && (
+          <Button icon={<UserPlus className="size-3.5" />} onClick={() => setOnboarding(true)}>
+            Onboard vendor
+          </Button>
+        )}
+      </div>
+      <VendorOnboardingForm
+        open={onboarding}
+        onClose={() => setOnboarding(false)}
+        onOnboarded={(id) => navigate(`/app/vendors/${id}`)}
       />
       <Card>
         <CardBody>
@@ -46,7 +65,7 @@ export function VendorsListPage() {
             loading={loading}
             onRowClick={(v) => navigate(`/app/vendors/${v.id}`)}
             emptyTitle="No vendors yet"
-            emptyDescription="Vendors are onboarded automatically when documents are matched to them."
+            emptyDescription="Onboard one here, or they're added when a document is matched to a new vendor."
           />
         </CardBody>
       </Card>

@@ -28,7 +28,7 @@ unreliable vendor — are easy to miss.
 
 ```mermaid
 flowchart LR
-    A[📄 Invoice or quote<br/>uploaded / dropped in a folder] --> B[🔍 Read & understand<br/>OCR · classify · extract]
+    A[📄 Invoice or quote<br/>uploaded · emailed · dropped in a folder] --> B[🔍 Read & understand<br/>OCR · classify · extract]
     B --> C[🏢 Vendor check<br/>match · risk score · bank guard]
     C --> D[📝 Purchase request]
     D --> E{✅ Approval<br/>by spend tier}
@@ -63,7 +63,7 @@ flowchart TB
 
 | Agent | In one line |
 |---|---|
-| 📄 **Document & Vendor** | Virus-scans uploads, reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), converts foreign currency to INR, matches vendors |
+| 📄 **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, onboards and matches vendors |
 | ✅ **Approval & Inventory** | Routes requests by spend, enforces who may approve what, tracks licences and stock, matches invoices to orders |
 | 📃 **Contract & Risk** | Writes contracts, collects e-signatures, reminds before notice deadlines, scores vendor risk with an evaluated ML model |
 | 🔔 **Notification** | Turns events into emails |

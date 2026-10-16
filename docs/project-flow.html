@@ -163,9 +163,9 @@
 const S = {
   portal: "ok", api: "ok", folder: "ok", email: "ok",
   gateway: "ok", scan: "ok", store: "ok", stream: "ok",
-  preprocess: "plan", ocr: "ok", classifyCore: "ok", classifyMore: "ok", extract: "ok", validate: "ok", enrich: "ok", workers: "ok",
+  preprocess: "ok", ocr: "ok", classifyCore: "ok", classifyMore: "ok", extract: "ok", validate: "ok", enrich: "ok", workers: "ok",
   review: "ok", learning: "ok",
-  vendorMatch: "ok", onboarding: "part", bankGuard: "ok",
+  vendorMatch: "ok", onboarding: "ok", bankGuard: "ok",
   rules: "ok", routing: "ok", reminders: "ok",
   reserve: "ok", backorder: "ok", reorder: "plan",
   templates: "ok", esign: "ok", renewals: "ok",
@@ -211,7 +211,7 @@ document.getElementById("chart").innerHTML = `
   </div>
   ${down("document.ingested")}
   <section class="sec proc"><h2>${icon("scan")}Document intelligence</h2><div class="grid" style="--n:6">
-    ${tile("wand", "Preprocess", "preprocess", "Deskew, denoise, resize")}
+    ${tile("wand", "Preprocess", "preprocess", "Deskew & resize scans")}
     ${tile("scan", "OCR & layout", "ocr", "PaddleOCR · Docling · LayoutLMv3 cross-check")}
     ${card("tags", "Classify", [["classifyCore", "PO · invoice · quote"], ["classifyMore", "Non-PO · others"]])}
     ${tile("table", "Extract", "extract", "Headers, line items, totals")}

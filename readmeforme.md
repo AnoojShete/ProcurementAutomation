@@ -344,12 +344,37 @@ run.sh, install.sh, Makefile, docker-compose.yml, docker-compose.override.yml, .
 | Upload checks | `api/documents.py`, `upload_service.py` | Empty → 400; virus → 422; ClamAV down → 503; type from bytes (not extension) → 415; PDF page / image pixel caps; sanitised names |
 | Store + record | MinIO + `documents` row `pending` + audit + outbox event, one transaction | MinIO down → 503, nothing half-written |
 | Claim | worker (Kafka, 6 partitions) | `pending → processing`; a redelivered event can't process twice |
-| Read the file | separate process, 120 s limit | pdfplumber for text PDFs, Docling for scans, PaddleOCR for images; unreadable / blank / too slow → `failed` with a readable message |
+| Read the file | separate process, 120 s limit | pdfplumber for text PDFs, Docling for scans, PaddleOCR for images (deskewed and upscaled ≤ 1.5× first while the rule `document.image_preprocessing` is on; numbers in `docs/results/extraction.md`); unreadable / blank / too slow → `failed` with a readable message |
 | Understand | `services/pipeline.py` | keyword classifier (an ML classifier is wired in but no trained model is shipped) → field extraction → LayoutLMv3 cross-check (if downloaded) → vendor match / GSTIN / IFSC, first-seen bank details held → learned labels → invoice ledger match → duplicate check (per-vendor lock) → confidence (< 0.8 → review queue) |
 | Save | one transaction | `classified` + events; a dependency down → back to `pending`, retried after 1–4 min, `failed` after 5 attempts |
 
 A sweep every minute re-queues documents stranded in `pending` or
 `processing`.
+
+Re-measure extraction accuracy (adds rotated / noisy / half-resolution
+copies of every image, with and without preprocessing):
+
+```bash
+docker run --rm -e LD_PRELOAD=libz.so.1 -v "$PWD/services/document-vendor-agent:/app" \
+  -v "$PWD/shared:/app/shared" -v "$PWD/data/synthetic-invoices:/data:ro" -v "$PWD/docs/results:/out" \
+  -w /app --entrypoint python procurementautomation-document-vendor-agent scripts/eval_extraction.py
+```
+
+### Vendor onboarding
+
+Finance / admin: Vendors → **Onboard vendor**. The profile is checked
+by `POST /vendors/onboard/validate` as you go and again on save
+(`POST /vendors/onboard`, `app/services/vendor_onboarding.py`):
+
+| Check | Result |
+|---|---|
+| Name missing, bad email / phone / account number, GSTIN format or check digit, IFSC format or not in the directory | error — blocks |
+| Same GSTIN as a vendor, or a name ≥ the fuzzy-match threshold (88) | error — duplicate |
+| Name 70–87 % similar to a vendor | must be confirmed (possible impostor) |
+| No GSTIN | must be confirmed with a reason (audit-logged) |
+
+Bank details are never written onto the vendor: they become a pending
+payment change (`source="onboarding"`) that a second person verifies.
 
 ### Email intake
 

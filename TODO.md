@@ -74,10 +74,22 @@ before any other roadmap item.
   after a worker restart still one intake row and one document.
   `test_email_intake.py` 9 passed; document-vendor 232 passed.
 
-- [ ] **BR-2 Image preprocessing before OCR** (= FR-11's OpenCV part).
+- [x] **BR-2 Image preprocessing before OCR** (= FR-11's OpenCV part).
   *Now:* OpenCV installed, never used. *Do:* resize, denoise, deskew /
   rotation correction for scans and photos. *Done when:* a rotated or noisy
   scan reads correctly (before/after numbers in `docs/results/`).
+  *Evidence (Oct 16):* `app/services/preprocess.py` (noise estimate,
+  deskew, upscale capped at 1.5×, optional denoise) runs inside the OCR
+  subprocess when the rule `document.image_preprocessing` is on (auth
+  migration 0007, on by default); steps are logged per document.
+  `scripts/eval_extraction.py` → `docs/results/extraction.md`: images
+  47 % → 49 % of fields overall; original 47 → 53 %, rotated 4° 47 →
+  53 %, half-resolution 47 → 47 %, **noisy 47 → 44 %**. Denoising made
+  noisy scans worse in every run (it blurs the strokes PaddleOCR reads)
+  and uncapped upscaling wrecked half-resolution scans, so denoise is off
+  by default and upscaling is capped; better handling of noisy scans stays
+  with FR-11. PDFs 100 %. The three low-quality JPGs stay unreadable
+  either way (0–1 of 6 fields). Tests: `tests/test_preprocess.py` (5).
 - [x] **BR-3 Classification: PO / Non-PO / Others.** *Now:* invoice, PO,
   quote only; an unrecognised document is forced to "invoice". *Do:* an
   `other` class for documents that are none of these (sent to review), and
@@ -93,12 +105,27 @@ before any other roadmap item.
   document-vendor 242 passed; e2e document pipeline 52/0, invoice
   lifecycle 71/0 (no real document misclassified as other).
 
-- [ ] **BR-4 Vendor onboarding and profile validation.** *Now:* vendors are
+- [x] **BR-4 Vendor onboarding and profile validation.** *Now:* vendors are
   only created from documents. *Do:* an onboarding form (name, contacts,
   GSTIN, bank details, category) that validates the profile (GSTIN format /
   checksum, IFSC, duplicates / look-alikes) and routes bank details through
   the existing two-person verification. *Done when:* a vendor can be
   onboarded from the UI and invalid profiles are rejected with reasons.
+  *Evidence (Oct 16):* `app/services/vendor_onboarding.py` +
+  `POST /vendors/onboard/validate` and `/vendors/onboard` (finance/admin).
+  Errors block (missing name, bad email / phone, GSTIN format or check
+  digit, IFSC format or unknown, account number, same GSTIN or a
+  fuzzy-duplicate name); a look-alike name (70–87 % similar) and a missing
+  GSTIN must be confirmed, the latter with a reason (audit-logged). Bank
+  details become a pending change (`source="onboarding"`) for a second
+  person, never live. UI: Vendors → "Onboard vendor"
+  (`components/vendors/VendorOnboardingForm.tsx`), checked in a browser:
+  inline errors, Onboard disabled until warnings are confirmed, lands on
+  the new vendor's page. Live via the gateway: requester 403, bad check
+  digit rejected, unconfirmed no-GSTIN 422 `confirmation_required`,
+  name variant rejected as duplicate. Tests: `test_vendor_onboarding.py`
+  (12); putting bank details straight on the vendor makes one fail.
+  Migration `0010_vendor_profile.sql` (contact / address / category).
 - [ ] **BR-5 Reorder suggestions.** *Now:* a 10 %-of-stock display
   heuristic. *Do:* stored reorder point and reorder quantity per item
   (rule-backed defaults), suggestions from stock + reservations +

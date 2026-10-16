@@ -4,7 +4,7 @@ no-GSTIN attestation, and 90-day spend summary.
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -254,3 +254,58 @@ async def list_pending_payment_changes(db: AsyncSession = Depends(get_db)):
         )
     ).all()
     return DataResponse(data=[{**_serialize_change(c), "vendor_name": name} for c, name in rows])
+
+
+# ── Onboarding (BR-4) ──────────────────────────────────────────────────────
+
+class VendorOnboardBody(BaseModel):
+    name: str
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    address: Optional[str] = None
+    category: Optional[str] = None
+    gstin: Optional[str] = None
+    bank_account_number: Optional[str] = None
+    routing_code: Optional[str] = None
+    payment_beneficiary_name: Optional[str] = None
+    # Warnings the person has seen and accepted: "lookalike", "no_gstin".
+    confirm: list[str] = []
+    no_gstin_reason: Optional[str] = None
+
+
+def _profile(body: VendorOnboardBody):
+    from app.services.vendor_onboarding import VendorProfile
+    return VendorProfile(**body.model_dump(exclude={"confirm", "no_gstin_reason"}))
+
+
+@router.post("/onboard/validate", response_model=DataResponse,
+             dependencies=[Depends(require_role("finance", "admin"))])
+async def validate_onboarding(body: VendorOnboardBody, db: AsyncSession = Depends(get_db)):
+    """Checks a vendor profile without saving anything (live form feedback)."""
+    from app.services.ifsc_service import validate_ifsc
+    from app.services.vendor_onboarding import required_confirmations, validate_profile
+    check = await validate_profile(db, _profile(body), check_ifsc=validate_ifsc)
+    return DataResponse(data={"ok": check.ok, "errors": check.errors, "warnings": check.warnings,
+                              "needs_confirmation": sorted(required_confirmations(check))})
+
+
+@router.post("/onboard", response_model=DataResponse, status_code=201)
+async def onboard(body: VendorOnboardBody, request: Request, db: AsyncSession = Depends(get_db),
+                  user: CurrentUser = Depends(require_role("finance", "admin"))):
+    """Creates a vendor after the profile checks pass. Bank details go to
+    the two-person verification queue, never straight onto the vendor."""
+    from app.services.ifsc_service import validate_ifsc
+    from app.services.vendor_onboarding import onboard_vendor
+    vendor, check, missing = await onboard_vendor(
+        db, getattr(request.app.state, "kafka_producer", None), _profile(body), user.email,
+        set(body.confirm), body.no_gstin_reason, check_ifsc=validate_ifsc,
+    )
+    if vendor is None:
+        raise HTTPException(status_code=422, detail={
+            "code": "vendor_profile_invalid" if check.errors else "confirmation_required",
+            "message": (check.errors[0]["message"] if check.errors
+                        else "Confirm the warnings first: " + ", ".join(sorted(missing))),
+        })
+    return DataResponse(data={"id": str(vendor.id), "name": vendor.name,
+                              "payment_details_pending_verification": bool(vendor.payment_details_pending_verification),
+                              "warnings": check.warnings})

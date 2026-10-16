@@ -32,6 +32,11 @@ class Vendor(Base):
     routing_code: Mapped[Optional[str]] = mapped_column(Text)
     payment_beneficiary_name: Mapped[Optional[str]] = mapped_column(Text)
     payment_details_pending_verification: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Profile (columns from shared/db/init.sql), filled by onboarding (BR-4).
+    contact_email: Mapped[Optional[str]] = mapped_column(Text)
+    contact_phone: Mapped[Optional[str]] = mapped_column(Text)
+    address: Mapped[Optional[str]] = mapped_column(Text)
+    category: Mapped[Optional[str]] = mapped_column(Text)
 
     # GSTIN (primary dedup key where available) — UNIQUE constraint enforced
     # at DB level (see migration 0001_schema_extensions.sql) to prevent

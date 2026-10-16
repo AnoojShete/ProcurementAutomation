@@ -32,6 +32,7 @@ MIGRATIONS = (
     "0007_fx.sql",
     "0008_event_log.sql",
     "0009_email_intake.sql",
+    "0010_vendor_profile.sql",
 )
 
 
