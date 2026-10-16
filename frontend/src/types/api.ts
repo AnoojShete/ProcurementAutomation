@@ -173,7 +173,7 @@ export interface InventorySnapshot {
 }
 
 // --- document-vendor-agent ---
-export type DocumentType = "po" | "invoice" | "quote";
+export type DocumentType = "po" | "invoice" | "quote" | "other";
 export type DocumentStatus = "pending" | "processing" | "classified" | "failed" | string;
 
 export interface DocumentRecord {

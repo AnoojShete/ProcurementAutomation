@@ -110,7 +110,13 @@ async def route_extraction(db: AsyncSession, document_id: str, data: bytes, file
     Nothing here runs parsing work on the event loop: other documents
     and the Kafka heartbeat keep going while a slow file is read."""
     start_time = time.perf_counter()
-    extraction = await asyncio.to_thread(extract_text_isolated, data, filename, content_type, _extraction_timeout())
+    from shared.rules_engine import get_rule
+    # Off unless the rule turns it on: kept only where it measurably helps
+    # (docs/results/extraction.md).
+    preprocess = get_rule("document.image_preprocessing", fallback=False) is True
+    extraction = await asyncio.to_thread(
+        extract_text_isolated, data, filename, content_type, _extraction_timeout(), preprocess,
+    )
     duration_ms = (time.perf_counter() - start_time) * 1000
     if not any(ch.isalnum() for ch in extraction.text or "") and extraction.file_type != "image":
         # A PDF with no text at all (blank, or a scan with no text layer the

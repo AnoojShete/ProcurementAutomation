@@ -209,7 +209,18 @@ export function DocumentDetailPage() {
                 <option value="po">Purchase Order</option>
                 <option value="invoice">Invoice</option>
                 <option value="quote">Quote</option>
+                <option value="other">Other</option>
               </select>
+              {doc.document_type === "invoice" && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {doc.extracted_fields?.po_reference
+                    ? `PO-backed invoice — cites purchase order ${String(doc.extracted_fields.po_reference)}`
+                    : "Non-PO invoice — no purchase order cited"}
+                </p>
+              )}
+              {doc.document_type === "other" && (
+                <p className="mt-1 text-xs text-slate-500">Not an invoice, PO or quote — check it and choose the right type.</p>
+              )}
             </FieldRow>
             <FieldRow label="Total" confidence={confidences.total}>
               <input type="number" value={total} onChange={(e) => setTotal(e.target.value)} className="w-full rounded-lg border border-surface-border px-3 py-1.5 text-sm focus:border-brand-500" />

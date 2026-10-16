@@ -327,7 +327,11 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
                 words_with_boxes=words_with_boxes,
             )
 
-    # Image path — use PaddleOCR
+    # Image path — preprocess (BR-2), then PaddleOCR
+    if os.environ.get("APP_IMAGE_PREPROCESSING", "0") == "1":
+        from app.services.preprocess import preprocess_image
+        data, steps = preprocess_image(data)
+        logger.info(f"image preprocessing: {steps}")
     try:
         paddle_text, quality, words_with_boxes = _text_from_image_paddleocr(data)
     except Exception as e:
@@ -350,14 +354,16 @@ class DocumentUnreadableError(Exception):
 _APP_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def extract_text_isolated(data: bytes, filename: str, content_type: str, timeout_seconds: int) -> ExtractionResult:
+def extract_text_isolated(data: bytes, filename: str, content_type: str, timeout_seconds: int,
+                          preprocess_images: bool = False) -> ExtractionResult:
     """extract_text() in a child process that is killed after
     `timeout_seconds`. Blocking — call it from a thread."""
     import json
+    env = {**os.environ, "APP_IMAGE_PREPROCESSING": "1" if preprocess_images else "0"}
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "app.services._extract_worker", filename or "document", content_type or ""],
-            input=data, capture_output=True, timeout=timeout_seconds, cwd=_APP_ROOT,
+            input=data, capture_output=True, timeout=timeout_seconds, cwd=_APP_ROOT, env=env,
         )
     except subprocess.TimeoutExpired:
         raise DocumentUnreadableError(

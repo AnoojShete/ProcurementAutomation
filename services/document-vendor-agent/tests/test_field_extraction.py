@@ -93,3 +93,20 @@ class TestColumnLayout:
         fields, conf = extract_fields(SAMPLE_INVOICE + "\nRef PO-12345\n")
         assert fields.document_number == "INV-10432"
         assert conf.document_number == 0.95
+
+
+class TestPoBackedInvoices:
+    def test_invoice_citing_a_purchase_order_is_po_backed(self):
+        fields, _ = extract_fields(SAMPLE_INVOICE + "\nPO Number: PO-2026-00042\n", document_type="invoice")
+        d = fields.to_dict("invoice")
+        assert d["po_reference"] == "PO-2026-00042" and d["po_backed"] is True
+
+    def test_invoice_without_a_purchase_order_is_non_po(self):
+        fields, _ = extract_fields(SAMPLE_INVOICE, document_type="invoice")
+        d = fields.to_dict("invoice")
+        assert d["po_reference"] is None and d["po_backed"] is False
+
+    def test_other_phrasings(self):
+        for line, ref in (("Purchase Order No. 4500012345", "4500012345"), ("P.O. #: PO/77/2026", "PO/77/2026")):
+            fields, _ = extract_fields(SAMPLE_INVOICE + "\n" + line + "\n", document_type="invoice")
+            assert fields.po_reference == ref, line

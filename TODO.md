@@ -78,11 +78,21 @@ before any other roadmap item.
   *Now:* OpenCV installed, never used. *Do:* resize, denoise, deskew /
   rotation correction for scans and photos. *Done when:* a rotated or noisy
   scan reads correctly (before/after numbers in `docs/results/`).
-- [ ] **BR-3 Classification: PO / Non-PO / Others.** *Now:* invoice, PO,
+- [x] **BR-3 Classification: PO / Non-PO / Others.** *Now:* invoice, PO,
   quote only; an unrecognised document is forced to "invoice". *Do:* an
   `other` class for documents that are none of these (sent to review), and
   invoices marked PO-backed or non-PO (does it cite a purchase order?).
   *Done when:* tests for each class and the PO / non-PO flag.
+  *Evidence (Oct 16):* `classification.py`: a document needs a
+  title-level keyword (score ≥ 3) to be an invoice / PO / quote, else
+  `other` (review); `field_extraction.py`: invoices get `po_reference` and
+  `po_backed`. Document page offers "Other" and says "PO-backed invoice —
+  cites …" / "Non-PO invoice". Tests: classification (garbled → other,
+  delivery note → other, titled documents keep their class) and
+  `TestPoBackedInvoices` (3 phrasings, non-PO); 5 fail on the old code.
+  document-vendor 242 passed; e2e document pipeline 52/0, invoice
+  lifecycle 71/0 (no real document misclassified as other).
+
 - [ ] **BR-4 Vendor onboarding and profile validation.** *Now:* vendors are
   only created from documents. *Do:* an onboarding form (name, contacts,
   GSTIN, bank details, category) that validates the profile (GSTIN format /

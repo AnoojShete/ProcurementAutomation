@@ -28,6 +28,12 @@ _KEYWORDS = {
 }
 
 
+# A document is an invoice / PO / quote only with at least one title-level
+# keyword (weight 3) or two strong ones; otherwise it's "other" (BR-3).
+MIN_TITLE_SCORE = 3
+DOCUMENT_TYPES = ("invoice", "po", "quote", "other")
+
+
 @dataclass
 class ClassificationResult:
     document_type: str
@@ -61,15 +67,13 @@ def _classify_with_keywords(text: str) -> ClassificationResult:
         score = sum(weight for pattern, weight in patterns if re.search(pattern, lowered))
         raw_scores[doc_type] = score
 
-    total = sum(raw_scores.values())
-    if total == 0:
-        # No keyword signal at all (e.g. badly garbled OCR) — default to
-        # invoice (the most common document this pipeline sees) but with
-        # low confidence so it lands in the review queue.
-        return ClassificationResult(document_type="invoice", confidence=0.3, scores=raw_scores, needs_review=True)
-
     best_type = max(raw_scores, key=raw_scores.get)
     best_score = raw_scores[best_type]
+    if best_score < MIN_TITLE_SCORE:
+        # Nothing that names the document (no "invoice", "purchase order",
+        # "quotation"…): a delivery note, statement, letter, or unreadable
+        # scan. "other" goes to review instead of being forced into a type.
+        return ClassificationResult(document_type="other", confidence=0.5, scores=raw_scores, needs_review=True)
     # Confidence = how dominant the winner is vs the runner-up, scaled 0-1.
     others = sorted((v for k, v in raw_scores.items() if k != best_type), reverse=True)
     runner_up = others[0] if others else 0

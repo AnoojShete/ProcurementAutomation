@@ -102,6 +102,13 @@ _TAX_PATTERN = re.compile(
     r"\b(?:tax|total tax|vat|gst|cgst\s*\+\s*sgst|igst)\s*[:#]?\s*\+?\s*(?:INR|Rs\.?|USD|\$|₹)?\s*([\d,]+\.\d{2})",
     re.IGNORECASE,
 )
+# An invoice that cites a purchase order is PO-backed; one that doesn't is
+# a non-PO invoice (BR-3). The number must contain a digit.
+_PO_REFERENCE_PATTERN = re.compile(
+    r"\b(?:p\.?o\.?|purchase\s+order)\s*(?:number|no\.?|#|ref(?:erence)?)?\s*[:#]?\s*"
+    r"([A-Z]{0,4}[-/]?\d[A-Z0-9\-/]{1,})",
+    re.IGNORECASE,
+)
 _SUBTOTAL_PATTERN = re.compile(
     r"\bsub\s*-?\s*total\s*[:#]?\s*(?:INR|Rs\.?|USD|\$|₹)?\s*([\d,]+\.\d{2})", re.IGNORECASE,
 )
@@ -140,6 +147,7 @@ class ExtractedFields:
     # Do the amounts add up? See _check_amounts().
     amount_check: Optional[Dict[str, Any]] = None
     matched_po_number: Optional[str] = None
+    po_reference: Optional[str] = None
     quote_number: Optional[str] = None
     valid_until: Optional[str] = None
     is_binding: Optional[bool] = None
@@ -173,6 +181,8 @@ class ExtractedFields:
                 "payment_terms": self.payment_terms,
                 "tax_amount": self.tax_amount,
                 "matched_po_number": self.matched_po_number,
+                "po_reference": self.po_reference,
+                "po_backed": self.po_reference is not None,
             })
         elif document_type == "quote":
             d.update({
@@ -398,6 +408,11 @@ def _extract_line_items(text: str) -> (List[Dict[str, Any]], float):
     return items, confidence
 
 
+def _po_reference(text: str) -> Optional[str]:
+    m = _PO_REFERENCE_PATTERN.search(text or "")
+    return m.group(1).rstrip(".,").upper() if m else None
+
+
 def _close(a: float, b: float) -> bool:
     """Equal to the cent, allowing for rounding on percentages/tax."""
     return abs(a - b) <= max(0.02, 0.005 * abs(b))
@@ -494,6 +509,7 @@ def extract_fields(text: str, document_type: str = "invoice") -> (ExtractedField
         due_date=due_date,
         payment_terms=payment_terms,
         tax_amount=tax_amount,
+        po_reference=_po_reference(text) if document_type == "invoice" else None,
         subtotal=subtotal,
         discount=discount,
         amount_check=amount_check,

@@ -63,7 +63,7 @@ export function formatPercent(value: number | null | undefined, fractionDigits =
   return `${(value * 100).toFixed(fractionDigits)}%`;
 }
 
-const DOCUMENT_TYPE_LABELS: Record<string, string> = { po: "PO", invoice: "Invoice", quote: "Quote" };
+const DOCUMENT_TYPE_LABELS: Record<string, string> = { po: "PO", invoice: "Invoice", quote: "Quote", other: "Other" };
 
 export function documentTypeLabel(value: string | null | undefined): string {
   if (!value) return "Unclassified";
