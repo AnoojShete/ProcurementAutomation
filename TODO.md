@@ -192,7 +192,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
 | FR-08 | Model routing and fallback, demonstrable | PENDING | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
 | FR-09 | Business rules validated | PENDING | P1 | — | auth-service | Every rule has validation + test | Core |
-| FR-10 | Notification coverage audit | PENDING | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
+| FR-10 | Notification coverage audit | COMPLETE (gaps listed for Anooj) | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
 | FR-04 | Risk analysis remainder (red-team vs agent doc) | PARTIAL | P2 | — | contract-risk-agent `ml/` | Part B "Done when" met | Core |
 | FR-11 | Layout-analysis accuracy, schema-validated output | COMPLETE (noisy scans: known limit) | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
 | FR-13 | Clause extraction with Legal-BERT, rules fallback | PENDING | P2 | model | contract-risk-agent | Evaluated on sample contracts | Core |
@@ -633,7 +633,7 @@ before any other roadmap item.
   test); a test per rule that changes it and checks the behaviour
   changes. *Done when:* every key in the rules table appears in the doc
   and has a test (a root test fails if a key is missing).
-- [ ] **FR-10 Notification coverage audit** (29 Aug overall #8). *Do:* a
+- [x] **FR-10 Notification coverage audit** (29 Aug overall #8). *Do:* a
   table in `docs/notifications.md`: each lifecycle stage → event → who
   should hear → template → sent today (y/n). Hand the gaps to Anooj
   (don't build email automation). Also check whether the stale TODO lines
@@ -641,6 +641,15 @@ before any other roadmap item.
   used `shared/mailer.py` since Oct 11, and portal links exist in the
   consumer. *Done when:* the table is in the repo, and the P1 Platform
   lines are corrected or closed.
+  *Evidence (Oct 16):* `docs/notifications.md` — every lifecycle stage →
+  event → who should hear → template → priority → sent today, with counts
+  from the live notification log (1,557 rows). 11 of 17 topics are
+  consumed. Gaps handed to Anooj there: approval emails go to placeholder
+  role addresses (158), `reminder.due` is published but not consumed (so
+  FR-03 reminders reach nobody), invoice holds and "please sign" aren't
+  announced, "goods received" has no event, only approval emails link to
+  the item. The stale P1 line ("Mailpit only") is corrected.
+
 - [x] **FR-11 Document layout analysis accuracy** (29 Aug overall #9; Team
   B #6; Team C #1, #4). *Now:* Oct 15 confidence work (sample scan 0.50
   → 0.93). OpenCV is in `requirements.txt` but no code imports `cv2`.
@@ -923,10 +932,12 @@ before any other roadmap item.
   crash between commit and publish.*
 - [ ] `digest_service.flush_due_digests` retries a permanently failing
   digest forever.
-- [ ] notification-agent: real SMTP (reuse `shared/mailer.py`) and real
-  recipients (resolve approval levels through `approver_assignments`
-  instead of placeholder role addresses), plus links to the item. Its
-  mail still goes to Mailpit only.
+- [ ] notification-agent (Anooj): real recipients — resolve approval levels
+  through `approver_assignments` instead of placeholder role addresses —
+  consume `reminder.due` and `invoice.matched`, and links to the item in
+  every template. Details and counts: `docs/notifications.md` (FR-10).
+  *(Oct 16: the "Mailpit only" part is closed — `email_service.py` has sent
+  through `shared/mailer.py` since Oct 11, SMTP with `EMAIL_MODE=smtp`.)*
 - [ ] Assistant/chatbot must call `/orders/summary/latest` with a staff or
   service token (requesters get 403).
 
