@@ -162,7 +162,10 @@ async def sign_contract(
             legal_consent=data.legal_consent,
             ip_address=ip_addr,
             user_agent=request.headers.get("user-agent"),
+            risk_acknowledged=data.risk_acknowledged,
         )
+    except contract_service.RiskAcknowledgementRequired as e:
+        raise HTTPException(status_code=409, detail={"code": "risk_acknowledgement_required", "message": str(e)})
     except contract_service.ContractGenerationError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -273,6 +276,7 @@ async def get_contract(contract_id: str, db: AsyncSession = Depends(get_db)):
     serialized = _serialize(contract)
     serialized["sent_automatically"] = await contract_service.was_sent_automatically(db, contract_id)
     serialized.update(_renewal_schedule(contract))
+    serialized["vendor_risk"] = await contract_service.signing_risk(db, contract.vendor_id)
     if contract.status == "signed":
         cert = await contract_service.get_signature_certificate(db, contract_id)
         if cert:

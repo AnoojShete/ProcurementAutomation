@@ -65,7 +65,7 @@ flowchart TB
 |---|---|
 | 📄 **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, onboards and matches vendors |
 | ✅ **Approval & Inventory** | Routes requests by spend, enforces who may approve what, tracks licences and stock, suggests reorders, matches invoices to orders |
-| 📃 **Contract & Risk** | Writes contracts, collects e-signatures, reminds before notice deadlines, scores vendor risk with an evaluated ML model |
+| 📃 **Contract & Risk** | Writes contracts, collects e-signatures, reminds before notice deadlines, scores vendor risk with an evaluated ML model and shows it before signing (High risk must be acknowledged) |
 | 🔔 **Notification** | Turns events into emails |
 | 🔐 **Auth** | Accounts, roles, and the business rules admins can change live |
 

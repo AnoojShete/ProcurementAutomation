@@ -20,6 +20,8 @@ export const contractsApi = {
       signer_designation?: string | null;
       signature_data?: string;
       legal_consent: boolean;
+      /** BR-6: required for a High-risk or unscored vendor */
+      risk_acknowledged?: boolean;
     }
   ) => api.post<Contract>(`/contracts/${id}/sign`, data),
   getCertificate: (id: string) =>

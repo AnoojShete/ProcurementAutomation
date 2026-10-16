@@ -150,11 +150,27 @@ before any other roadmap item.
   child's history was lazy-loaded outside the async context) — the
   service now reloads it; reverting the fix brings the 400 back (live).
   Split children now get `created_at`.
-- [ ] **BR-6 Vendor risk shown before signing.** *Now:* the contract page
+- [x] **BR-6 Vendor risk shown before signing.** *Now:* the contract page
   doesn't show the vendor's risk. *Do:* the risk band, reasons and hard
   overrides on the contract page and in the signing dialog; High needs an
   explicit acknowledgement before signing. *Done when:* signing a contract
   for a High-risk vendor requires that acknowledgement (test).
+  *Evidence (Oct 16):* `contract_service.signing_risk()` (latest band,
+  score, factors, triggered overrides) is in `GET /contracts/{id}` as
+  `vendor_risk`; `sign_contract_digitally` refuses a High-risk vendor
+  (overrides always make a vendor High) or an unscored / missing vendor
+  without `risk_acknowledged: true` → 409 `risk_acknowledgement_required`,
+  and the certificate keeps `vendor_risk_at_signing` (band, score,
+  overrides, acknowledged). UI: `components/contracts/VendorRiskPanel.tsx`
+  on the contract page (unsigned) and in the signing dialog, whose Sign
+  button stays disabled until the risk checkbox is ticked. Live: a test
+  vendor with GSTIN set to cancelled → recompute → High with the GSTIN
+  override; signing without the acknowledgement 409, with it 200 and the
+  certificate records it; the same in a browser (vendor restored
+  afterwards). Tests: `test_signing_risk.py` (6); removing the check
+  fails 3. Limit: only the built-in e-sign is gated — the only signing
+  path in use since Oct 15; an external provider (DocuSign / Documenso,
+  switched off) would need the check at send time.
 - [ ] **BR-7 Risk from delivery delays and compliance history** (= FR-30).
 
 ### R0 — mentor feedback, 29 Aug

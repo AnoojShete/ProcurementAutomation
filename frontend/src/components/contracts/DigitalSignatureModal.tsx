@@ -6,6 +6,7 @@ import { InlineError } from "@/components/ui/ErrorState";
 import { contractsApi } from "@/api/contracts";
 import { ApiError } from "@/api/client";
 import type { Contract } from "@/types/api";
+import { VendorRiskPanel } from "./VendorRiskPanel";
 
 interface DigitalSignatureModalProps {
   open: boolean;
@@ -30,6 +31,9 @@ export function DigitalSignatureModal({
   const [signMode, setSignMode] = useState<"draw" | "type">("draw");
   const [typedFont, setTypedFont] = useState<"serif" | "cursive" | "mono">("cursive");
   const [legalConsent, setLegalConsent] = useState(false);
+  const risk = contract.vendor_risk;
+  const needsRiskAck = !!risk?.acknowledgement_required;
+  const [riskAck, setRiskAck] = useState(false);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,6 +166,10 @@ export function DigitalSignatureModal({
       setError("You must acknowledge the legal electronic signature disclosure.");
       return;
     }
+    if (needsRiskAck && !riskAck) {
+      setError("Acknowledge the vendor's risk before signing.");
+      return;
+    }
 
     let signatureData: string | undefined = undefined;
     if (signMode === "draw") {
@@ -184,6 +192,7 @@ export function DigitalSignatureModal({
         signer_designation: signerDesignation.trim() || null,
         signature_data: signatureData,
         legal_consent: true,
+        risk_acknowledged: needsRiskAck ? riskAck : false,
       });
 
       onSuccess(response.data);
@@ -209,7 +218,7 @@ export function DigitalSignatureModal({
           <Button
             onClick={handleExecuteSign}
             loading={signing}
-            disabled={!signerName.trim() || !signerEmail.trim() || !legalConsent}
+            disabled={!signerName.trim() || !signerEmail.trim() || !legalConsent || (needsRiskAck && !riskAck)}
             icon={<FileSignature className="size-4" />}
           >
             Sign & Execute Contract
@@ -384,6 +393,27 @@ export function DigitalSignatureModal({
             </div>
           )}
         </div>
+
+        {/* BR-6: the vendor's risk, acknowledged before signing when High / unscored */}
+        {risk && (
+          <div className="flex flex-col gap-2">
+            <VendorRiskPanel risk={risk} compact />
+            {needsRiskAck && (
+              <label className="flex cursor-pointer items-start gap-2.5 px-1">
+                <input
+                  type="checkbox"
+                  checked={riskAck}
+                  onChange={(e) => setRiskAck(e.target.checked)}
+                  className="mt-0.5 size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span className="text-xs leading-relaxed text-slate-700">
+                  I have reviewed this vendor's risk and accept it for this contract. This acknowledgement is kept
+                  in the signature certificate.
+                </span>
+              </label>
+            )}
+          </div>
+        )}
 
         {/* Legal Consent and ESIGN Disclosure */}
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">

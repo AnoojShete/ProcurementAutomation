@@ -37,6 +37,8 @@ class SignContractRequest(BaseModel):
     # A drawn signature as a data: URL (PNG); capped so the audit row stays small.
     signature_data: Optional[str] = Field(default=None, max_length=300_000)
     legal_consent: bool = False
+    # BR-6: required when the vendor is High risk or not yet scored.
+    risk_acknowledged: bool = False
 
 
 class SignatureCertificate(BaseModel):

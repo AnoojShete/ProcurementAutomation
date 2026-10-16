@@ -372,6 +372,18 @@ export interface Contract {
   reconciliation_status: string | null;
   contract_text: string | null;
   signature_certificate?: SignatureCertificate | null;
+  /** BR-6: the vendor's risk as the signer should see it (GET /contracts/:id only). */
+  vendor_risk?: SigningRisk;
+}
+
+export interface SigningRisk {
+  risk_band: string | null;
+  risk_score: number | null;
+  reasons: { feature: string; contribution: number }[];
+  overrides: { check: string; status: string; reason: string | null }[];
+  scored_at: string | null;
+  acknowledgement_required: boolean;
+  acknowledgement_reason: string | null;
 }
 
 // --- notification-agent ---

@@ -7,6 +7,7 @@ import { vendorsApi } from "@/api/vendors";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ContractStatusBadge } from "@/components/ui/Badge";
 import { ContractActions, isProviderLive } from "@/components/contracts/ContractActions";
+import { VendorRiskPanel } from "@/components/contracts/VendorRiskPanel";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
@@ -65,6 +66,17 @@ export function ContractDetailPage() {
               ? `The contract updates automatically when ${ref.startsWith("docusign") ? "DocuSign" : "Documenso"} reports it completed.`
               : "Use “Sign now” to sign it in the platform."}
           </span>
+        </div>
+      )}
+
+      {contract.status !== "signed" && contract.vendor_risk && (
+        <div className="flex flex-col gap-1">
+          <VendorRiskPanel risk={contract.vendor_risk} />
+          {contract.vendor_id && (
+            <Link to={`/app/vendors/${contract.vendor_id}`} className="self-end text-xs text-brand-700 hover:underline">
+              Vendor's full risk profile →
+            </Link>
+          )}
         </div>
       )}
 

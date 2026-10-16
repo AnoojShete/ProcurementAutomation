@@ -35,6 +35,41 @@ class ContractGenerationError(Exception):
     pass
 
 
+class RiskAcknowledgementRequired(ContractGenerationError):
+    """Signing for a High-risk (or never-scored) vendor without saying so."""
+
+
+# BR-6: the signer must explicitly acknowledge these before signing.
+ACK_BANDS = ("High",)
+
+
+async def signing_risk(db: AsyncSession, vendor_id: Optional[str]) -> dict:
+    """The vendor's latest risk as the signer should see it: band, score,
+    reasons, triggered hard overrides, and whether signing needs an explicit
+    acknowledgement (High — overrides always make a vendor High — or not
+    scored at all, since an unknown risk is not a low one)."""
+    from app.services.risk_service import latest_risk_score
+    row = await latest_risk_score(db, vendor_id) if vendor_id else None
+    if row is None:
+        return {"risk_band": None, "risk_score": None, "reasons": [], "overrides": [], "scored_at": None,
+                "acknowledgement_required": True,
+                "acknowledgement_reason": ("This vendor has not been risk-scored." if vendor_id
+                                           else "No vendor is linked to this contract, so its risk is unknown.")}
+    triggered = [o for o in (row.overrides or []) if o.get("status") == "triggered"]
+    needs = row.band in ACK_BANDS
+    return {
+        "risk_band": row.band,
+        "risk_score": float(row.score) if row.score is not None else None,
+        "reasons": [f for f in (row.details or []) if not f.get("override")],
+        "overrides": triggered,
+        "scored_at": row.scored_at.isoformat() if row.scored_at else None,
+        "acknowledgement_required": needs,
+        "acknowledgement_reason": (
+            "Hard override: " + "; ".join(o.get("reason") or o["check"] for o in triggered) + "." if needs and triggered
+            else "The vendor's risk band is High." if needs else None),
+    }
+
+
 async def _infer_template_name(db: AsyncSession, purchase_request_id: str) -> str:
     """Best-effort: use purchase_requests.request_type if that column
     exists (it's owned by approval-inventory-agent and may not be migrated
@@ -364,8 +399,12 @@ async def sign_contract_digitally(
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
     signer_designation: Optional[str] = None,
+    risk_acknowledged: bool = False,
 ) -> tuple[Contract, dict]:
     """Built-in e-sign: the signed-in user signs inside the platform.
+
+    BR-6: for a High-risk or never-scored vendor the signer must pass
+    risk_acknowledged=True; the risk they saw is kept in the certificate.
 
     signer_email must be the caller's authenticated identity (the API passes
     the JWT email). The certificate records who signed, when, from where, the
@@ -386,6 +425,10 @@ async def sign_contract_digitally(
     provider_name = live_provider_ref(contract.esign_provider_ref)
     if provider_name:
         raise ContractGenerationError(f"this contract is out for signature in {provider_name}; it completes there")
+    risk = await signing_risk(db, contract.vendor_id)
+    if risk["acknowledgement_required"] and not risk_acknowledged:
+        raise RiskAcknowledgementRequired(
+            f"{risk['acknowledgement_reason']} Acknowledge the vendor's risk before signing.")
 
     now = datetime.now(timezone.utc)
     payload_to_seal = f"{contract_id}|{contract.contract_text or ''}|{signer_name}|{signer_email}|{signer_designation or ''}|{now.isoformat()}|{signature_data or ''}"
@@ -411,6 +454,12 @@ async def sign_contract_digitally(
         "ip_address": ip_address,
         "user_agent": user_agent,
         "signature_image": signature_data,
+        "vendor_risk_at_signing": {
+            "risk_band": risk["risk_band"], "risk_score": risk["risk_score"],
+            "overrides": [o["check"] for o in risk["overrides"]],
+            "acknowledgement_required": risk["acknowledgement_required"],
+            "acknowledged": bool(risk_acknowledged and risk["acknowledgement_required"]),
+        },
     }
     await write_audit_log(db, "contract", contract_id, "digitally_signed", certificate)
     # Same transaction as the status change (shared/eventing/outbox.py).

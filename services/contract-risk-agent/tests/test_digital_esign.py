@@ -151,7 +151,9 @@ class TestSignContractDigitally:
     async def test_signs_and_publishes_through_the_outbox(self, db):
         contract = _contract()
         outbox = AsyncMock()
+        low_risk = MagicMock(band="Low", score=0.1, details=[], overrides=[], scored_at=None)  # BR-6 gate passes
         with patch("app.services.contract_service.staged", return_value=outbox), \
+                patch("app.services.risk_service.latest_risk_score", new=AsyncMock(return_value=low_risk)), \
                 patch("app.services.contract_service.write_audit_log", new=AsyncMock()) as audit:
             signed, cert = await self._sign(db, contract)
         assert signed.status == "signed" and signed.signed_by == "Alice <alice@company.com>"

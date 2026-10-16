@@ -428,6 +428,14 @@ events** panel (open dead-letter entries with their error), each
 dropped file's current step with links to its document / request /
 contract, and the MinIO and DocuSign connections.
 
+**Risk before signing.** The contract page and the signing dialog show
+the vendor's latest risk (band, score, main factors, any hard override).
+Signing a contract whose vendor is High risk — or not scored, or not
+linked — needs the signer to tick an acknowledgement; the API refuses
+it otherwise (409 `risk_acknowledgement_required`) and the signature
+certificate records the band and the acknowledgement
+(`contract_service.signing_risk`).
+
 The DocuSign client is kept but unused (built-in e-sign only since
 Oct 15). To try it anyway: the DocuSign block in `.env.example`,
 `APP_ESIGN_AUTO_PROVIDER: docusign` in contract-risk-agent's environment
