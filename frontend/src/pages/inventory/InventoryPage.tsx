@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Boxes, PackageCheck, PackageMinus, PackageX } from "lucide-react";
+import { Boxes, PackageCheck, PackageMinus, PackageX, Pencil } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { inventoryApi } from "@/api/inventory";
@@ -10,6 +10,8 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { ReorderSettings } from "@/components/inventory/ReorderSettings";
+import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { InventoryItem, LicenseItem } from "@/types/api";
 
@@ -18,6 +20,9 @@ export function InventoryPage() {
   const { data: snapshot, loading, error, reload } = useApi(() => inventoryApi.get(), []);
   const { data: requests } = useApi(() => requestsApi.list(200), []);
   const [tab, setTab] = useState<"hardware" | "licenses">("hardware");
+  const [editing, setEditing] = useState<InventoryItem | null>(null);
+  const { user } = useAuth();
+  const canEdit = ["finance", "admin"].includes(user?.role ?? "");
 
   const hardware = snapshot?.hardware ?? [];
   const licenses = snapshot?.licenses ?? [];
@@ -31,10 +36,11 @@ export function InventoryPage() {
     () => ({
       available: hardware.reduce((s, i) => s + i.available_quantity, 0),
       reserved: hardware.reduce((s, i) => s + i.reserved_quantity, 0),
-      lowStock: hardware.filter((i) => i.available_quantity === 0 || i.available_quantity < i.total_quantity * 0.1).length,
+      lowStock: hardware.filter((i) => i.reorder?.needs_reorder).length,
     }),
     [hardware],
   );
+  const toReorder = hardware.filter((i) => i.reorder?.needs_reorder);
 
   const hwColumns: Column<InventoryItem>[] = [
     { key: "name", header: "Item", render: (i) => <span className="font-medium text-slate-800">{i.name}</span> },
@@ -42,13 +48,28 @@ export function InventoryPage() {
     { key: "category", header: "Category", render: (i) => <span className="capitalize">{i.category ?? "—"}</span> },
     { key: "available", header: "Available", render: (i) => i.available_quantity, sortValue: (i) => i.available_quantity },
     { key: "reserved", header: "Reserved", render: (i) => i.reserved_quantity, sortValue: (i) => i.reserved_quantity },
-    { key: "reorder", header: "Reorder Point", render: (i) => Math.ceil(i.total_quantity * 0.1) },
+    {
+      key: "reorder",
+      header: "Reorder Point",
+      render: (i) => (
+        <span className="inline-flex items-center gap-1.5">
+          {i.reorder?.reorder_point ?? "—"}
+          {i.reorder?.point_source === "rule" && <span className="text-xs text-slate-400">default</span>}
+          {canEdit && (
+            <button type="button" aria-label={`Edit reorder settings for ${i.name}`} onClick={() => setEditing(i)}
+              className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+              <Pencil className="size-3.5" />
+            </button>
+          )}
+        </span>
+      ),
+    },
     {
       key: "status",
       header: "Status",
       render: (i) => {
         if (i.available_quantity === 0) return <Badge tone="danger">Out of Stock</Badge>;
-        if (i.available_quantity < i.total_quantity * 0.1) return <Badge tone="warning">Low Stock</Badge>;
+        if (i.reorder?.needs_reorder) return <Badge tone="warning">Reorder</Badge>;
         return <Badge tone="success">In Stock</Badge>;
       },
     },
@@ -109,9 +130,28 @@ export function InventoryPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard label="Available Units" value={totals.available} icon={PackageCheck} tone="success" />
         <MetricCard label="Reserved Units" value={totals.reserved} icon={Boxes} tone="brand" />
-        <MetricCard label="Low / Out of Stock SKUs" value={totals.lowStock} icon={PackageMinus} tone={totals.lowStock ? "warning" : "success"} />
+        <MetricCard label="SKUs to Reorder" value={totals.lowStock} icon={PackageMinus} tone={totals.lowStock ? "warning" : "success"} />
         <MetricCard label="Requests Partially Backordered" value={backorderedRequests.length} icon={PackageX} tone={backorderedRequests.length ? "warning" : "success"} />
       </div>
+
+      {toReorder.length > 0 && (
+        <Card>
+          <CardHeader title="Reorder Suggestions" subtitle="From stock on the shelf and backordered requests" />
+          <CardBody className="flex flex-col gap-2">
+            {toReorder.map((i) => (
+              <div key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-surface-border px-3.5 py-2.5 text-sm">
+                <div>
+                  <p className="font-medium text-slate-800">
+                    {i.name} <span className="font-mono text-xs text-slate-500">{i.sku}</span>
+                  </p>
+                  <p className="text-xs text-slate-600">{i.reorder!.explanation}</p>
+                </div>
+                <Badge tone="warning">Order {i.reorder!.suggested_quantity}</Badge>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      )}
 
       <Tabs
         tabs={[
@@ -125,7 +165,7 @@ export function InventoryPage() {
       <Card>
         <CardHeader
           title={tab === "hardware" ? "Hardware Inventory" : "License Inventory"}
-          subtitle={tab === "hardware" ? "Reorder point is a 10% of stock heuristic, not a stored reorder threshold" : "Utilisation is measured over rolling 30/60/90-day windows"}
+          subtitle={tab === "hardware" ? "Reorder point and quantity are set per item, or default to a share of total stock (Business Rules)" : "Utilisation is measured over rolling 30/60/90-day windows"}
         />
         <CardBody>
           {tab === "hardware" ? (
@@ -135,6 +175,10 @@ export function InventoryPage() {
           )}
         </CardBody>
       </Card>
+
+      {editing && (
+        <ReorderSettings item={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />
+      )}
 
       {backorderedRequests.length > 0 && (
         <Card>

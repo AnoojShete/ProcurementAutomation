@@ -223,6 +223,9 @@ class Inventory(Base):
     unit_cost: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     currency: Mapped[str] = mapped_column(String(3), default="INR")
     location: Mapped[Optional[str]] = mapped_column(String(255))
+    # BR-5: None = rule default (see services/reorder.py)
+    reorder_point: Mapped[Optional[int]] = mapped_column(Integer)
+    reorder_quantity: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

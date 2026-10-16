@@ -360,6 +360,18 @@ docker run --rm -e LD_PRELOAD=libz.so.1 -v "$PWD/services/document-vendor-agent:
   -w /app --entrypoint python procurementautomation-document-vendor-agent scripts/eval_extraction.py
 ```
 
+### Reorder suggestions
+
+Each hardware item has a reorder point and a reorder quantity — set per
+item (Inventory → pencil, admin/finance; `PATCH
+/inventory/{id}/reorder-settings`) or, when empty, a share of the item's
+total stock from the rules `inventory.reorder_point_pct` (20) and
+`inventory.reorder_quantity_pct` (25). An item needs reordering when the
+stock left after its backordered requests is at or below the reorder
+point; the suggestion is *owed + top-up to the reorder point + reorder
+quantity*, explained on the Inventory page
+(`app/services/reorder.py`).
+
 ### Vendor onboarding
 
 Finance / admin: Vendors → **Onboard vendor**. The profile is checked

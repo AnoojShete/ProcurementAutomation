@@ -126,11 +126,30 @@ before any other roadmap item.
   name variant rejected as duplicate. Tests: `test_vendor_onboarding.py`
   (12); putting bank details straight on the vendor makes one fail.
   Migration `0010_vendor_profile.sql` (contact / address / category).
-- [ ] **BR-5 Reorder suggestions.** *Now:* a 10 %-of-stock display
+- [x] **BR-5 Reorder suggestions.** *Now:* a 10 %-of-stock display
   heuristic. *Do:* stored reorder point and reorder quantity per item
   (rule-backed defaults), suggestions from stock + reservations +
   backorders, shown on the inventory page. *Done when:* a backordered item
   produces a suggestion with the quantity explained.
+  *Evidence (Oct 16):* `inventory.reorder_point` / `reorder_quantity`
+  (NULL = rule default; rules `inventory.reorder_point_pct` 20 and
+  `inventory.reorder_quantity_pct` 25, auth migration 0008).
+  `app/services/reorder.py`: stock left after backordered requests ≤
+  reorder point → order *owed + top-up to the point + reorder quantity*,
+  each part in the explanation. Reserved units are already off the shelf
+  (`available_quantity`). `GET /inventory/` returns `reorder` per item;
+  `PATCH /inventory/{id}/reorder-settings` (finance/admin, audit-logged).
+  Inventory page: "Reorder Suggestions" card, per-item edit, status and
+  dashboard alert use it (the 10 % heuristic is gone). Live: a request for
+  docks with none on the shelf → "0 on the shelf, 3 backordered → 3 owed.
+  Order 3 owed + 5 to reach the reorder point (5) + 7 reorder quantity =
+  15"; requester PATCH 403, negative 422; edit + reset checked in a
+  browser. Tests: `test_reorder.py` (5); ignoring backorders makes one
+  fail. Found and fixed on the way: creating a hardware request that
+  exceeds stock returned 400 although it was saved and split (the split
+  child's history was lazy-loaded outside the async context) — the
+  service now reloads it; reverting the fix brings the 400 back (live).
+  Split children now get `created_at`.
 - [ ] **BR-6 Vendor risk shown before signing.** *Now:* the contract page
   doesn't show the vendor's risk. *Do:* the risk band, reasons and hard
   overrides on the contract page and in the signing dialog; High needs an
@@ -496,6 +515,12 @@ before any other roadmap item.
 
 ## P1
 
+- [ ] A hardware request with **nothing** in stock is split into a
+  backordered child and an empty "immediate" child (0 items, ₹0) that
+  still goes to the approval queue (`inventory_service.split_backorder`).
+  Skip the immediate child when no units are available — needs a check of
+  what the approval workflow and events expect. *Why: approvers see ₹0
+  requests with no items.*
 - [ ] Approval workflow `approval-90261afb-5b86-4463-bcf3-3fc6d422fb5d`
   (started Sep 25) has failed every workflow task with a
   non-determinism error (TMPRL1100) since Sep 27 — an earlier change to

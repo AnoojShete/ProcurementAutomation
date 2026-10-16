@@ -37,7 +37,7 @@ export function AdminDashboard() {
   const pendingApprovals = useMemo(() => (requests ?? []).filter((r) => r.status === "pending_approval").length, [requests]);
   const highRiskVendors = useMemo(() => (vendors ?? []).filter((v) => v.risk_band === "High").length, [vendors]);
   const lowStockItems = useMemo(
-    () => (inventory?.hardware ?? []).filter((i) => i.available_quantity <= 0 || i.available_quantity < i.total_quantity * 0.1),
+    () => (inventory?.hardware ?? []).filter((i) => i.available_quantity <= 0 || i.reorder?.needs_reorder),
     [inventory],
   );
 
@@ -72,7 +72,7 @@ export function AdminDashboard() {
         key: "stock",
         message: (
           <>
-            <strong>{lowStockItems.length}</strong> hardware item{lowStockItems.length > 1 ? "s are" : " is"} low on stock.
+            <strong>{lowStockItems.length}</strong> hardware item{lowStockItems.length > 1 ? "s need" : " needs"} reordering.
           </>
         ),
         cta: "View inventory",

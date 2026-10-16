@@ -83,6 +83,7 @@ class InventoryItemResponse(BaseModel):
     unit_cost: Optional[float]
     currency: Optional[str]
     location: Optional[str]
+    reorder: Optional[dict] = None  # BR-5: services/reorder.suggest()
     model_config = ConfigDict(from_attributes=True)
 
 class InboxItemResponse(BaseModel):

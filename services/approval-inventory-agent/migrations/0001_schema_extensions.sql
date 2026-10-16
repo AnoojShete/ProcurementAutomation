@@ -274,3 +274,8 @@ BEGIN
       'partially_invoiced', 'invoice_received', 'rejected', 'cancelled', 'split'));
   END IF;
 END $$;
+
+-- BR-5: per-item reorder point / reorder quantity. NULL = use the rule
+-- defaults (inventory.reorder_point_pct / inventory.min_reorder_pct).
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS reorder_point INTEGER;
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS reorder_quantity INTEGER;

@@ -109,6 +109,19 @@ export interface InventoryItem {
   unit_cost: number | null;
   currency: string | null;
   location: string | null;
+  reorder?: ReorderStatus | null;
+}
+
+/** BR-5: computed by approval-inventory-agent (services/reorder.py). */
+export interface ReorderStatus {
+  reorder_point: number;
+  reorder_quantity: number;
+  point_source: "item" | "rule";
+  quantity_source: "item" | "rule";
+  backordered_units: number;
+  needs_reorder: boolean;
+  suggested_quantity: number;
+  explanation: string;
 }
 
 export type AnomalyStatus = "normal" | "watch" | "anomalous" | "insufficient_history";

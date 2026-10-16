@@ -9,11 +9,17 @@ Endpoints
 ─────────
   GET /inventory                     — hardware + license list (with anomaly_score per license)
   GET /licenses/{license_id}/usage-anomaly — ML anomaly detail: score + top_factors
+  PATCH /inventory/{item_id}/reorder-settings — reorder point / quantity (BR-5)
 """
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
+from app.models import Inventory
+from app.services.reorder import reorder_status
+from shared.auth import CurrentUser, require_role
 from app.schemas import (
     DataResponse,
     InventoryItemResponse,
@@ -60,11 +66,16 @@ async def list_inventory(
             lic_dict.update(usage_data)
         enriched_licenses.append(LicenseResponse(**lic_dict))
 
+    reorder = await reorder_status(db, hw_inv)
+    hardware = []
+    for item in hw_inv:
+        row = InventoryItemResponse.model_validate(item)
+        row.reorder = reorder[str(item.id)]
+        hardware.append(row)
+
     return DataResponse(
         data={
-            "hardware": [
-                InventoryItemResponse.model_validate(item) for item in hw_inv
-            ],
+            "hardware": hardware,
             "licenses": enriched_licenses,
         },
         meta={
@@ -72,6 +83,34 @@ async def list_inventory(
             "license_count": len(enriched_licenses),
         }
     )
+
+
+class ReorderSettingsBody(BaseModel):
+    # None = go back to the business-rule default
+    reorder_point: Optional[int] = Field(None, ge=0, le=100000)
+    reorder_quantity: Optional[int] = Field(None, ge=1, le=100000)
+
+
+@router.patch("/{item_id}/reorder-settings", response_model=DataResponse)
+async def set_reorder_settings(item_id: str, body: ReorderSettingsBody, db: AsyncSession = Depends(get_db),
+                               user: CurrentUser = Depends(require_role("finance", "admin"))):
+    """Sets an item's reorder point / quantity and returns its new suggestion."""
+    import uuid
+    from app.models import AuditLog
+    item = await db.get(Inventory, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Inventory item not found."})
+    before = {"reorder_point": item.reorder_point, "reorder_quantity": item.reorder_quantity}
+    item.reorder_point, item.reorder_quantity = body.reorder_point, body.reorder_quantity
+    item.updated_at = datetime.now(timezone.utc)
+    db.add(AuditLog(
+        id=str(uuid.uuid4()), entity_type="inventory", entity_id=str(item.id), action="reorder_settings_changed",
+        performed_by=user.email, details={"sku": item.sku, "before": before, "after": body.model_dump()},
+        created_at=datetime.now(timezone.utc),
+    ))
+    await db.commit()
+    reorder = (await reorder_status(db, [item]))[str(item.id)]
+    return DataResponse(data={"id": str(item.id), "sku": item.sku, "reorder": reorder})
 
 
 @router.get("/licenses/anomaly-summary", response_model=DataResponse)
