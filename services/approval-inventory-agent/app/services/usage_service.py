@@ -191,16 +191,8 @@ class UsageService:
         )
 
         anomaly_score = anomaly_result.get("anomaly_score")
-        from app.config import get_anomaly_thresholds
-        watch_th, anomalous_th = get_anomaly_thresholds()
-        if anomaly_score is None:
-            anomaly_status = "insufficient_history"
-        elif anomaly_score >= anomalous_th:
-            anomaly_status = "anomalous"
-        elif anomaly_score >= watch_th:
-            anomaly_status = "watch"
-        else:
-            anomaly_status = "normal"
+        from app.config import anomaly_status_for
+        anomaly_status = anomaly_status_for(anomaly_score)
 
         days_since = anomaly_result.get("days_since_last_login")
         if days_since is None:
@@ -445,8 +437,7 @@ class UsageService:
     @staticmethod
     async def get_anomaly_summary(db: AsyncSession) -> dict:
         """Return aggregated anomaly counts, last scoring run, and potential savings."""
-        from app.config import get_anomaly_thresholds
-        watch_th, anomalous_th = get_anomaly_thresholds()
+        from app.config import anomaly_status_for
 
         stmt = select(License).where(License.status == "active")
         result = await db.execute(stmt)
@@ -464,13 +455,13 @@ class UsageService:
             if not usage or usage.get("anomaly_score") is None:
                 insufficient += 1
             else:
-                score = usage["anomaly_score"]
-                if score >= anomalous_th:
+                status = anomaly_status_for(usage["anomaly_score"])
+                if status == "anomalous":
                     anomalous += 1
                     cost = float(lic.cost_per_seat or 0.0)
                     seats = lic.total_seats or 0
                     potential_annual_savings += cost * seats
-                elif score >= watch_th:
+                elif status == "watch":
                     watch += 1
                 else:
                     normal += 1

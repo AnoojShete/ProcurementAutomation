@@ -191,7 +191,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-12 | Presentation draft, template-shaped docs | PENDING | P1 | FR-05 | `docs/` | Draft reviewed by team | Core |
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
 | FR-08 | Model routing and fallback, demonstrable | PENDING | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
-| FR-09 | Business rules validated | PENDING | P1 | — | auth-service | Every rule has validation + test | Core |
+| FR-09 | Business rules validated | COMPLETE | P1 | — | auth-service | Every rule has validation + test | Core |
 | FR-10 | Notification coverage audit | COMPLETE (gaps listed for Anooj) | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
 | FR-04 | Risk analysis remainder (red-team vs agent doc) | PARTIAL | P2 | — | contract-risk-agent `ml/` | Part B "Done when" met | Core |
 | FR-11 | Layout-analysis accuracy, schema-validated output | COMPLETE (noisy scans: known limit) | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
@@ -626,13 +626,36 @@ before any other roadmap item.
   fires. A real ML primary for clauses is FR-11. *Done when:* a test per
   router forces the primary to fail and asserts the fallback row; the
   demo script has a "fallback" scenario.
-- [ ] **FR-09 Business rules validated** (29 Aug overall #1; Team B #7).
+- [x] **FR-09 Business rules validated** (29 Aug overall #1; Team B #7).
   *Now:* `shared/rules_engine` and the Business Rules page exist; there's
   no list of what each rule changes or a test for each rule. *Do:*
   `docs/business-rules.md` (rule key, default, where it's enforced, its
   test); a test per rule that changes it and checks the behaviour
   changes. *Done when:* every key in the rules table appears in the doc
   and has a test (a root test fails if a key is missing).
+  *Evidence (Oct 16):* `docs/business-rules.md` lists all 46 rules (key,
+  default, what it changes, where it's read, its test). **35 enforced**,
+  each with a behaviour test in `services/*/tests/test_rules_wiring.py`
+  (13 document-vendor, 15 approval-inventory, 7 contract-risk) that sets
+  the rule to two values through the rules-engine cache and checks the
+  behaviour changes. **11 not enforced** (budget, adverse media, licence
+  grace / false-positive / history, sanctions until FR-14, the superseded
+  5 % PO tolerance) are listed with the reason. Found and fixed:
+  duplicate detection read two never-seeded keys, so the page's 7 days /
+  2 % never applied (code used 5 days / 1 %) — now reads the seeded ones;
+  nine rules the code read weren't in the table (auth migration 0010 seeds
+  them with the code's own fallbacks, no behaviour change). Root test
+  `tests/test_business_rules_registry.py` (4) fails when a rule is
+  undocumented, code reads an unseeded key, an enforced rule has no test,
+  or a "not enforced" rule is read; putting the old duplicate key back
+  fails it and 3 behaviour tests. Suites: contract-risk 125,
+  approval-inventory 138, document-vendor 307, notification 46, auth 60;
+  root 136 + `test_mailer` (old). e2e after rebuild: document pipeline
+  52/52; invoice lifecycle 70/71 on the first run 30 s after the rebuild,
+  then 71/71 twice — the one failure wasn't reproduced or identified.
+  *Decision needed:* delete `document.invoice_po_match_tolerance_pct`
+  (superseded; its 5 % would loosen a fraud control)?
+
 - [x] **FR-10 Notification coverage audit** (29 Aug overall #8). *Do:* a
   table in `docs/notifications.md`: each lifecycle stage → event → who
   should hear → template → sent today (y/n). Hand the gaps to Anooj

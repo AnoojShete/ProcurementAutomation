@@ -110,6 +110,11 @@ ad-hoc pass (undefined names).
   (`staged(producer, session)` from `shared/eventing`) so the event commits
   with the change; wrap consumers with `shared/eventing.deliver` (retry +
   `event_dlq`).
+- **Business rules**: a new rule needs an auth-service Alembic migration
+  seeding it, a row in `docs/business-rules.md`, and a behaviour test
+  `test_<key_with_underscores>` in that service's
+  `tests/test_rules_wiring.py`; `tests/test_business_rules_registry.py`
+  fails otherwise (also when code reads a key nobody seeded).
 - **Purchase-request status** changes are validated by `shared/lifecycle.py`
   on the model; the DB also has a CHECK constraint listing every status.
 - **Temporal (temporalio 1.6)**: no `workflow.sleep` (use `asyncio.sleep`

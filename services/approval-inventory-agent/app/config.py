@@ -39,6 +39,17 @@ def get_anomaly_thresholds() -> tuple[float, float]:
     return watch, anomalous
 
 
+def anomaly_status_for(score) -> str:
+    """normal | watch | anomalous | insufficient_history for an anomaly
+    score, using the live thresholds (rules license.anomaly_*)."""
+    if score is None:
+        return "insufficient_history"
+    watch, anomalous = get_anomaly_thresholds()
+    if score >= anomalous:
+        return "anomalous"
+    return "watch" if score >= watch else "normal"
+
+
 @lru_cache
 def load_config() -> dict:
     """Load and parse the full config.yaml file."""
