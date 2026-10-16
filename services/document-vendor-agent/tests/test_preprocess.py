@@ -42,7 +42,7 @@ def test_straight_page_is_not_rotated():
 def test_small_image_is_upscaled():
     out, steps = preprocess_image(_png(_page(0, size=(600, 450))))
     img = cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_GRAYSCALE)
-    assert steps["upscaled"] > 1 and max(img.shape) >= 1600
+    assert steps["upscaled"] == 1.5 and max(img.shape) == 900   # capped at 1.5x
 
 
 def test_undecodable_input_is_passed_through():

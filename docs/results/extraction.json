@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-15T18:21:44+00:00",
+  "generated_at": "2026-10-16T03:15:18+00:00",
   "pdfs": {
     "doc_type": 1.0,
     "vendor": 1.0,
@@ -11,111 +11,111 @@
     "documents": 15
   },
   "images_without_preprocessing": {
-    "doc_type": 1.0,
+    "doc_type": 0.5,
     "vendor": 0.333,
     "document_number": 0.5,
     "document_date": 0.417,
     "total": 0.417,
     "currency": 0.667,
-    "all_fields": 0.556,
+    "all_fields": 0.472,
     "documents": 24
   },
   "images_with_preprocessing": {
-    "doc_type": 0.958,
-    "vendor": 0.375,
-    "document_number": 0.417,
-    "document_date": 0.292,
+    "doc_type": 0.5,
+    "vendor": 0.542,
+    "document_number": 0.5,
+    "document_date": 0.375,
     "total": 0.375,
     "currency": 0.667,
-    "all_fields": 0.514,
+    "all_fields": 0.493,
     "documents": 24
   },
   "by_variant": {
     "original": {
       "without": {
-        "doc_type": 1.0,
+        "doc_type": 0.5,
         "vendor": 0.333,
         "document_number": 0.5,
         "document_date": 0.333,
         "total": 0.5,
         "currency": 0.667,
-        "all_fields": 0.556,
+        "all_fields": 0.472,
         "documents": 6
       },
       "with": {
-        "doc_type": 1.0,
-        "vendor": 0.667,
+        "doc_type": 0.5,
+        "vendor": 0.5,
         "document_number": 0.5,
         "document_date": 0.5,
-        "total": 0.5,
-        "currency": 0.667,
-        "all_fields": 0.639,
-        "documents": 6
-      }
-    },
-    "rotated_4deg": {
-      "without": {
-        "doc_type": 1.0,
-        "vendor": 0.333,
-        "document_number": 0.5,
-        "document_date": 0.333,
-        "total": 0.5,
-        "currency": 0.667,
-        "all_fields": 0.556,
-        "documents": 6
-      },
-      "with": {
-        "doc_type": 1.0,
-        "vendor": 0.333,
-        "document_number": 0.5,
-        "document_date": 0.5,
-        "total": 0.5,
-        "currency": 0.667,
-        "all_fields": 0.583,
-        "documents": 6
-      }
-    },
-    "noisy": {
-      "without": {
-        "doc_type": 1.0,
-        "vendor": 0.167,
-        "document_number": 0.5,
-        "document_date": 0.5,
-        "total": 0.5,
-        "currency": 0.667,
-        "all_fields": 0.556,
-        "documents": 6
-      },
-      "with": {
-        "doc_type": 1.0,
-        "vendor": 0.333,
-        "document_number": 0.5,
-        "document_date": 0.167,
         "total": 0.5,
         "currency": 0.667,
         "all_fields": 0.528,
         "documents": 6
       }
     },
+    "rotated_4deg": {
+      "without": {
+        "doc_type": 0.5,
+        "vendor": 0.333,
+        "document_number": 0.5,
+        "document_date": 0.333,
+        "total": 0.5,
+        "currency": 0.667,
+        "all_fields": 0.472,
+        "documents": 6
+      },
+      "with": {
+        "doc_type": 0.5,
+        "vendor": 0.667,
+        "document_number": 0.5,
+        "document_date": 0.333,
+        "total": 0.5,
+        "currency": 0.667,
+        "all_fields": 0.528,
+        "documents": 6
+      }
+    },
+    "noisy": {
+      "without": {
+        "doc_type": 0.5,
+        "vendor": 0.167,
+        "document_number": 0.5,
+        "document_date": 0.5,
+        "total": 0.5,
+        "currency": 0.667,
+        "all_fields": 0.472,
+        "documents": 6
+      },
+      "with": {
+        "doc_type": 0.5,
+        "vendor": 0.333,
+        "document_number": 0.5,
+        "document_date": 0.167,
+        "total": 0.5,
+        "currency": 0.667,
+        "all_fields": 0.444,
+        "documents": 6
+      }
+    },
     "half_resolution": {
       "without": {
-        "doc_type": 1.0,
+        "doc_type": 0.5,
         "vendor": 0.5,
         "document_number": 0.5,
         "document_date": 0.5,
         "total": 0.167,
         "currency": 0.667,
-        "all_fields": 0.556,
+        "all_fields": 0.472,
         "documents": 6
       },
       "with": {
-        "doc_type": 0.833,
-        "vendor": 0.167,
-        "document_number": 0.167,
-        "document_date": 0.0,
+        "doc_type": 0.5,
+        "vendor": 0.667,
+        "document_number": 0.5,
+        "document_date": 0.5,
         "total": 0.0,
         "currency": 0.667,
-        "all_fields": 0.306,
+        "all_fields": 0.472,
         "documents": 6
       }
     }
@@ -196,18 +196,18 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.0
+      "seconds": 42.8
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
       "kind": "image",
       "variant": "original",
       "preprocess": true,
-      "ocr_confidence": 0.982,
+      "ocr_confidence": 0.973,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true
+        "noise_sigma": 1.9,
+        "upscaled": 1.5
       },
       "fields": {
         "doc_type": true,
@@ -217,7 +217,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.2
+      "seconds": 3.7
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -234,29 +234,29 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.5
+      "seconds": 4.0
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
       "kind": "image",
       "variant": "rotated_4deg",
       "preprocess": true,
-      "ocr_confidence": 0.968,
+      "ocr_confidence": 0.967,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true,
-        "deskewed_degrees": -4.05
+        "noise_sigma": 1.0,
+        "upscaled": 1.5,
+        "deskewed_degrees": -4.02
       },
       "fields": {
         "doc_type": true,
-        "vendor": false,
+        "vendor": true,
         "document_number": true,
         "document_date": true,
         "total": true,
         "currency": true
       },
-      "seconds": 3.8
+      "seconds": 3.7
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -273,18 +273,18 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.6
+      "seconds": 3.9
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
       "kind": "image",
       "variant": "noisy",
       "preprocess": true,
-      "ocr_confidence": 0.951,
+      "ocr_confidence": 0.953,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true
+        "noise_sigma": 12.1,
+        "upscaled": 1.5
       },
       "fields": {
         "doc_type": true,
@@ -294,7 +294,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.3
+      "seconds": 4.0
     },
     {
       "file": "04_po_amazonwebservicesinc_PO-2026-00005.png",
@@ -318,21 +318,21 @@
       "kind": "image",
       "variant": "half_resolution",
       "preprocess": true,
-      "ocr_confidence": 0.94,
+      "ocr_confidence": 0.953,
       "steps": {
         "applied": true,
-        "upscaled": 3.05,
-        "denoised": true
+        "noise_sigma": 2.6,
+        "upscaled": 1.5
       },
       "fields": {
         "doc_type": true,
-        "vendor": false,
-        "document_number": false,
-        "document_date": false,
+        "vendor": true,
+        "document_number": true,
+        "document_date": true,
         "total": false,
         "currency": true
       },
-      "seconds": 3.7
+      "seconds": 3.8
     },
     {
       "file": "05_quote_freshworksinc_QT-2026-00006.pdf",
@@ -409,18 +409,18 @@
         "total": true,
         "currency": true
       },
-      "seconds": 2.9
+      "seconds": 3.0
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
       "kind": "image",
       "variant": "original",
       "preprocess": true,
-      "ocr_confidence": 0.982,
+      "ocr_confidence": 0.984,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true
+        "noise_sigma": 1.4,
+        "upscaled": 1.5
       },
       "fields": {
         "doc_type": true,
@@ -447,29 +447,29 @@
         "total": true,
         "currency": true
       },
-      "seconds": 2.9
+      "seconds": 3.3
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
       "kind": "image",
       "variant": "rotated_4deg",
       "preprocess": true,
-      "ocr_confidence": 0.961,
+      "ocr_confidence": 0.971,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true,
-        "deskewed_degrees": -3.92
+        "noise_sigma": 0.8,
+        "upscaled": 1.5,
+        "deskewed_degrees": -3.96
       },
       "fields": {
         "doc_type": true,
         "vendor": true,
         "document_number": true,
-        "document_date": true,
+        "document_date": false,
         "total": true,
         "currency": true
       },
-      "seconds": 3.0
+      "seconds": 2.9
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -493,11 +493,11 @@
       "kind": "image",
       "variant": "noisy",
       "preprocess": true,
-      "ocr_confidence": 0.939,
+      "ocr_confidence": 0.936,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true
+        "noise_sigma": 11.7,
+        "upscaled": 1.5
       },
       "fields": {
         "doc_type": true,
@@ -507,7 +507,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.0
+      "seconds": 2.9
     },
     {
       "file": "09_invoice_zohocorporation_INV-2026-00010.png",
@@ -531,21 +531,21 @@
       "kind": "image",
       "variant": "half_resolution",
       "preprocess": true,
-      "ocr_confidence": 0.933,
+      "ocr_confidence": 0.939,
       "steps": {
         "applied": true,
-        "upscaled": 3.05,
-        "denoised": true
+        "noise_sigma": 2.0,
+        "upscaled": 1.5
       },
       "fields": {
         "doc_type": true,
         "vendor": true,
-        "document_number": false,
-        "document_date": false,
+        "document_number": true,
+        "document_date": true,
         "total": false,
         "currency": true
       },
-      "seconds": 3.0
+      "seconds": 2.8
     },
     {
       "file": "10_po_lenovoindiapvtltd_PO-2026-00011.pdf",
@@ -629,11 +629,11 @@
       "kind": "image",
       "variant": "original",
       "preprocess": true,
-      "ocr_confidence": 0.986,
+      "ocr_confidence": 0.979,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true
+        "noise_sigma": 1.8,
+        "upscaled": 1.5
       },
       "fields": {
         "doc_type": true,
@@ -643,7 +643,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.8
+      "seconds": 3.7
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -660,19 +660,19 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.6
+      "seconds": 3.7
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
       "kind": "image",
       "variant": "rotated_4deg",
       "preprocess": true,
-      "ocr_confidence": 0.965,
+      "ocr_confidence": 0.964,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true,
-        "deskewed_degrees": -3.99
+        "noise_sigma": 1.0,
+        "upscaled": 1.5,
+        "deskewed_degrees": -4.01
       },
       "fields": {
         "doc_type": true,
@@ -682,7 +682,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.8
+      "seconds": 3.9
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -699,18 +699,18 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.1
+      "seconds": 4.2
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
       "kind": "image",
       "variant": "noisy",
       "preprocess": true,
-      "ocr_confidence": 0.947,
+      "ocr_confidence": 0.939,
       "steps": {
         "applied": true,
-        "upscaled": 1.52,
-        "denoised": true
+        "noise_sigma": 12.0,
+        "upscaled": 1.5
       },
       "fields": {
         "doc_type": true,
@@ -720,7 +720,7 @@
         "total": true,
         "currency": true
       },
-      "seconds": 4.2
+      "seconds": 4.1
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
@@ -737,28 +737,28 @@
         "total": true,
         "currency": true
       },
-      "seconds": 3.1
+      "seconds": 3.2
     },
     {
       "file": "14_quote_hpindiasalespvtltd_QT-2026-00015.png",
       "kind": "image",
       "variant": "half_resolution",
       "preprocess": true,
-      "ocr_confidence": 0.919,
+      "ocr_confidence": 0.934,
       "steps": {
         "applied": true,
-        "upscaled": 3.05,
-        "denoised": true
+        "noise_sigma": 2.9,
+        "upscaled": 1.5
       },
       "fields": {
-        "doc_type": false,
-        "vendor": false,
+        "doc_type": true,
+        "vendor": true,
         "document_number": true,
-        "document_date": false,
+        "document_date": true,
         "total": false,
         "currency": true
       },
-      "seconds": 3.8
+      "seconds": 4.1
     },
     {
       "file": "15_invoice_atlassianptyltd_INV-2026-00016.pdf",
@@ -813,7 +813,7 @@
       "ocr_confidence": 0.0,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
@@ -830,12 +830,12 @@
       "ocr_confidence": 0.0,
       "steps": {
         "applied": true,
+        "noise_sigma": 0.1,
         "upscaled": 1.49,
-        "denoised": true,
-        "deskewed_degrees": 3.77
+        "deskewed_degrees": 3.73
       },
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
@@ -852,36 +852,36 @@
       "ocr_confidence": 0.578,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": true
       },
-      "seconds": 3.1
+      "seconds": 2.8
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
       "kind": "image",
       "variant": "rotated_4deg",
       "preprocess": true,
-      "ocr_confidence": 0.527,
+      "ocr_confidence": 0.0,
       "steps": {
         "applied": true,
+        "noise_sigma": 0.1,
         "upscaled": 1.49,
-        "denoised": true,
         "deskewed_degrees": -0.31
       },
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": true
       },
-      "seconds": 3.1
+      "seconds": 2.9
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -891,14 +891,14 @@
       "ocr_confidence": 0.0,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": true
       },
-      "seconds": 1.7
+      "seconds": 1.8
     },
     {
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
@@ -908,29 +908,11 @@
       "ocr_confidence": 0.0,
       "steps": {
         "applied": true,
-        "upscaled": 1.49,
-        "denoised": true,
-        "deskewed_degrees": 3.77
+        "noise_sigma": 16.8,
+        "upscaled": 1.49
       },
       "fields": {
-        "doc_type": true,
-        "vendor": false,
-        "document_number": false,
-        "document_date": false,
-        "total": false,
-        "currency": true
-      },
-      "seconds": 3.0
-    },
-    {
-      "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
-      "kind": "image",
-      "variant": "half_resolution",
-      "preprocess": false,
-      "ocr_confidence": 0.668,
-      "steps": {},
-      "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
@@ -943,23 +925,40 @@
       "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
       "kind": "image",
       "variant": "half_resolution",
-      "preprocess": true,
-      "ocr_confidence": 0.628,
-      "steps": {
-        "applied": true,
-        "upscaled": 2.97,
-        "denoised": true,
-        "deskewed_degrees": 3.77
-      },
+      "preprocess": false,
+      "ocr_confidence": 0.668,
+      "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": true
       },
-      "seconds": 2.8
+      "seconds": 2.0
+    },
+    {
+      "file": "18_invoice_hpindiasalespvtltd_INV-2026-00019_lowquality.jpg",
+      "kind": "image",
+      "variant": "half_resolution",
+      "preprocess": true,
+      "ocr_confidence": 0.607,
+      "steps": {
+        "applied": true,
+        "noise_sigma": 0.2,
+        "upscaled": 1.5,
+        "deskewed_degrees": 3.69
+      },
+      "fields": {
+        "doc_type": false,
+        "vendor": false,
+        "document_number": false,
+        "document_date": false,
+        "total": false,
+        "currency": true
+      },
+      "seconds": 2.9
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -969,14 +968,14 @@
       "ocr_confidence": 0.0,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": false
       },
-      "seconds": 2.7
+      "seconds": 2.8
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -986,19 +985,19 @@
       "ocr_confidence": 0.0,
       "steps": {
         "applied": true,
-        "upscaled": 1.51,
-        "denoised": true,
-        "deskewed_degrees": -1.67
+        "noise_sigma": 0.1,
+        "upscaled": 1.5,
+        "deskewed_degrees": -1.63
       },
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": false
       },
-      "seconds": 2.8
+      "seconds": 3.2
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1008,14 +1007,14 @@
       "ocr_confidence": 0.502,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": true,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": false
       },
-      "seconds": 2.7
+      "seconds": 2.9
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1025,12 +1024,12 @@
       "ocr_confidence": 0.0,
       "steps": {
         "applied": true,
-        "upscaled": 1.51,
-        "denoised": true,
+        "noise_sigma": 0.1,
+        "upscaled": 1.5,
         "deskewed_degrees": -5.51
       },
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
@@ -1047,14 +1046,14 @@
       "ocr_confidence": 0.0,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": false
       },
-      "seconds": 1.7
+      "seconds": 1.8
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1064,19 +1063,18 @@
       "ocr_confidence": 0.0,
       "steps": {
         "applied": true,
-        "upscaled": 1.51,
-        "denoised": true,
-        "deskewed_degrees": -1.66
+        "noise_sigma": 17.4,
+        "upscaled": 1.5
       },
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": false
       },
-      "seconds": 3.0
+      "seconds": 2.4
     },
     {
       "file": "19_invoice_atlassianptyltd_INV-2026-00020_lowquality.jpg",
@@ -1086,7 +1084,7 @@
       "ocr_confidence": 0.0,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
@@ -1100,72 +1098,16 @@
       "kind": "image",
       "variant": "half_resolution",
       "preprocess": true,
-      "ocr_confidence": 0.0,
+      "ocr_confidence": 0.563,
       "steps": {
         "applied": true,
-        "upscaled": 3.01,
-        "denoised": true,
-        "deskewed_degrees": -1.67
+        "noise_sigma": 0.2,
+        "upscaled": 1.5,
+        "deskewed_degrees": -1.68
       },
       "fields": {
-        "doc_type": true,
-        "vendor": false,
-        "document_number": false,
-        "document_date": false,
-        "total": false,
-        "currency": false
-      },
-      "seconds": 2.8
-    },
-    {
-      "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
-      "kind": "image",
-      "variant": "original",
-      "preprocess": false,
-      "ocr_confidence": 0.0,
-      "steps": {},
-      "fields": {
-        "doc_type": true,
-        "vendor": false,
-        "document_number": false,
-        "document_date": false,
-        "total": false,
-        "currency": false
-      },
-      "seconds": 2.6
-    },
-    {
-      "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
-      "kind": "image",
-      "variant": "original",
-      "preprocess": true,
-      "ocr_confidence": 0.64,
-      "steps": {
-        "applied": true,
-        "upscaled": 1.49,
-        "denoised": true,
-        "deskewed_degrees": 2.97
-      },
-      "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": true,
-        "document_number": false,
-        "document_date": false,
-        "total": false,
-        "currency": false
-      },
-      "seconds": 2.8
-    },
-    {
-      "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
-      "kind": "image",
-      "variant": "rotated_4deg",
-      "preprocess": false,
-      "ocr_confidence": 0.0,
-      "steps": {},
-      "fields": {
-        "doc_type": true,
-        "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
@@ -1176,18 +1118,74 @@
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
       "kind": "image",
-      "variant": "rotated_4deg",
+      "variant": "original",
+      "preprocess": false,
+      "ocr_confidence": 0.0,
+      "steps": {},
+      "fields": {
+        "doc_type": false,
+        "vendor": false,
+        "document_number": false,
+        "document_date": false,
+        "total": false,
+        "currency": false
+      },
+      "seconds": 2.8
+    },
+    {
+      "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
+      "kind": "image",
+      "variant": "original",
       "preprocess": true,
       "ocr_confidence": 0.0,
       "steps": {
         "applied": true,
+        "noise_sigma": 0.1,
         "upscaled": 1.49,
-        "denoised": true,
+        "deskewed_degrees": 2.9
+      },
+      "fields": {
+        "doc_type": false,
+        "vendor": false,
+        "document_number": false,
+        "document_date": false,
+        "total": false,
+        "currency": false
+      },
+      "seconds": 2.9
+    },
+    {
+      "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
+      "kind": "image",
+      "variant": "rotated_4deg",
+      "preprocess": false,
+      "ocr_confidence": 0.0,
+      "steps": {},
+      "fields": {
+        "doc_type": false,
+        "vendor": false,
+        "document_number": false,
+        "document_date": false,
+        "total": false,
+        "currency": false
+      },
+      "seconds": 2.8
+    },
+    {
+      "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
+      "kind": "image",
+      "variant": "rotated_4deg",
+      "preprocess": true,
+      "ocr_confidence": 0.608,
+      "steps": {
+        "applied": true,
+        "noise_sigma": 0.1,
+        "upscaled": 1.49,
         "deskewed_degrees": -1.14
       },
       "fields": {
-        "doc_type": true,
-        "vendor": false,
+        "doc_type": false,
+        "vendor": true,
         "document_number": false,
         "document_date": false,
         "total": false,
@@ -1203,7 +1201,7 @@
       "ocr_confidence": 0.0,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
@@ -1220,19 +1218,18 @@
       "ocr_confidence": 0.0,
       "steps": {
         "applied": true,
-        "upscaled": 1.49,
-        "denoised": true,
-        "deskewed_degrees": 2.98
+        "noise_sigma": 17.0,
+        "upscaled": 1.49
       },
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": false
       },
-      "seconds": 2.8
+      "seconds": 2.2
     },
     {
       "file": "20_invoice_amazonwebservicesinc_INV-2026-00021_lowquality.jpg",
@@ -1242,7 +1239,7 @@
       "ocr_confidence": 0.558,
       "steps": {},
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
@@ -1256,22 +1253,22 @@
       "kind": "image",
       "variant": "half_resolution",
       "preprocess": true,
-      "ocr_confidence": 0.0,
+      "ocr_confidence": 0.532,
       "steps": {
         "applied": true,
-        "upscaled": 2.99,
-        "denoised": true,
-        "deskewed_degrees": 2.93
+        "noise_sigma": 0.2,
+        "upscaled": 1.5,
+        "deskewed_degrees": 2.89
       },
       "fields": {
-        "doc_type": true,
+        "doc_type": false,
         "vendor": false,
         "document_number": false,
         "document_date": false,
         "total": false,
         "currency": false
       },
-      "seconds": 2.9
+      "seconds": 2.7
     }
   ]
 }

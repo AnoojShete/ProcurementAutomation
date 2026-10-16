@@ -111,8 +111,8 @@ async def route_extraction(db: AsyncSession, document_id: str, data: bytes, file
     and the Kafka heartbeat keep going while a slow file is read."""
     start_time = time.perf_counter()
     from shared.rules_engine import get_rule
-    # Off unless the rule turns it on: kept only where it measurably helps
-    # (docs/results/extraction.md).
+    # Rule-controlled (on by default since it measurably helps; see
+    # docs/results/extraction.md). Off if the rule service can't be read.
     preprocess = get_rule("document.image_preprocessing", fallback=False) is True
     extraction = await asyncio.to_thread(
         extract_text_isolated, data, filename, content_type, _extraction_timeout(), preprocess,

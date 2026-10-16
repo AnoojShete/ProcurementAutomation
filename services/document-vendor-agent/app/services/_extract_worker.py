@@ -8,7 +8,7 @@ here, in a child process the worker can kill when the time limit is up.
 Protocol:
   argv:   filename content_type
   stdin:  the file's bytes
-  stdout: one JSON object {text, method, file_type, text_quality, words_with_boxes}
+  stdout: one JSON object {text, method, file_type, text_quality, words_with_boxes, preprocessing}
   exit 0 on success, 1 on an extraction error (message on stderr)
 """
 import json
@@ -26,6 +26,7 @@ def main() -> None:
         "file_type": result.file_type,
         "text_quality": result.text_quality,
         "words_with_boxes": result.words_with_boxes or [],
+        "preprocessing": result.preprocessing,
     }, sys.stdout)
 
 

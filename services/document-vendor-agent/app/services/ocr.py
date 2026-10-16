@@ -61,6 +61,8 @@ class ExtractionResult:
     # Structured word/box output for LayoutLMv3 cross-check.
     # Each entry: {"word": str, "box": [x0,y0,x1,y1] in pixel coords}
     words_with_boxes: list = None
+    # What image preprocessing did (BR-2), e.g. {"deskewed_degrees": 3.9}; None if not run.
+    preprocessing: Optional[dict] = None
 
     def __post_init__(self):
         if self.words_with_boxes is None:
@@ -328,10 +330,10 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
             )
 
     # Image path — preprocess (BR-2), then PaddleOCR
+    steps = None
     if os.environ.get("APP_IMAGE_PREPROCESSING", "0") == "1":
         from app.services.preprocess import preprocess_image
         data, steps = preprocess_image(data)
-        logger.info(f"image preprocessing: {steps}")
     try:
         paddle_text, quality, words_with_boxes = _text_from_image_paddleocr(data)
     except Exception as e:
@@ -339,7 +341,7 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
         paddle_text, quality, words_with_boxes = "", 0.0, []
     return ExtractionResult(
         text=paddle_text, method="paddleocr", file_type="image", text_quality=quality,
-        words_with_boxes=words_with_boxes,
+        words_with_boxes=words_with_boxes, preprocessing=steps,
     )
 
 
@@ -378,7 +380,10 @@ def extract_text_isolated(data: bytes, filename: str, content_type: str, timeout
             "Try re-exporting or re-scanning it."
         )
     out = json.loads(proc.stdout.decode("utf-8"))
+    if out.get("preprocessing"):
+        logger.info(f"image preprocessing for {filename!r}: {out['preprocessing']}")
     return ExtractionResult(
         text=out["text"], method=out["method"], file_type=out["file_type"],
         text_quality=out["text_quality"], words_with_boxes=out.get("words_with_boxes") or [],
+        preprocessing=out.get("preprocessing"),
     )

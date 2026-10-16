@@ -39,10 +39,13 @@ def noise_sigma(gray: np.ndarray) -> float:
     return float(np.sum(np.abs(conv)) * np.sqrt(0.5 * np.pi) / (6 * (w - 2) * (h - 2)))
 
 
-def preprocess_image(data: bytes, upscale: bool = True, denoise: str = "auto",
+def preprocess_image(data: bytes, upscale: bool = True, denoise: str = "off",
                      max_scale: float = 1.5) -> tuple[bytes, dict]:
     """Returns (PNG bytes, what was done). Falls back to the input if the
-    image can't be decoded. denoise: "auto" (only if measured noisy), "on", "off"."""
+    image can't be decoded. denoise: "auto" (only if measured noisy), "on", "off".
+    Defaults are the measured best (docs/results/extraction.md): denoising
+    blurred the characters PaddleOCR relies on, and upscaling more than
+    1.5x turned half-resolution scans into nonsense."""
     img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         return data, {"applied": False, "reason": "not decodable"}
