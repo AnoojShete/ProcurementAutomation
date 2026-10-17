@@ -1,0 +1,177 @@
+{
+  "generated_at": "2026-10-16T10:17:51+00:00",
+  "population": {
+    "licences": 600,
+    "seed": 2026,
+    "mix": {
+      "steady": 0.4,
+      "weekend_dip": 0.15,
+      "low_stable": 0.15,
+      "gradual_decline": 0.12,
+      "sudden_dropoff": 0.12,
+      "abandoned": 0.06
+    },
+    "anomalous_share": 0.295,
+    "split": {
+      "train": 360,
+      "validation": 120,
+      "test": 120
+    }
+  },
+  "feature_selection": {
+    "chosen": "scale_free",
+    "candidates": {
+      "original": {
+        "features": [
+          "active_seats_7d",
+          "active_seats_30d",
+          "active_seats_90d",
+          "utilisation_ratio",
+          "dod_rate_change",
+          "wow_rate_change",
+          "variance_daily_logins",
+          "days_since_last_login",
+          "weekend_ratio"
+        ],
+        "validation_average_precision": 0.651,
+        "validation_roc_auc": 0.799
+      },
+      "scale_free": {
+        "features": [
+          "utilisation_7d",
+          "utilisation_ratio",
+          "utilisation_90d",
+          "retention_7d",
+          "retention_30d",
+          "days_since_last_login",
+          "weekend_ratio"
+        ],
+        "validation_average_precision": 0.915,
+        "validation_roc_auc": 0.967
+      },
+      "retention": {
+        "features": [
+          "retention_7d",
+          "retention_30d",
+          "days_since_last_login"
+        ],
+        "validation_average_precision": 0.88,
+        "validation_roc_auc": 0.951
+      }
+    },
+    "production_uses": [
+      "utilisation_7d",
+      "utilisation_ratio",
+      "utilisation_90d",
+      "retention_7d",
+      "retention_30d",
+      "days_since_last_login",
+      "weekend_ratio"
+    ],
+    "production_matches_choice": true
+  },
+  "thresholds": {
+    "watch": 0.34,
+    "anomalous": 0.39,
+    "chosen_on": "validation",
+    "rule": {
+      "anomalous": "lowest score with precision >= 0.9",
+      "watch": "highest score with recall >= 0.9"
+    }
+  },
+  "test": {
+    "model": {
+      "roc_auc": 0.954,
+      "average_precision": 0.873
+    },
+    "at_anomalous": {
+      "threshold": 0.39,
+      "precision": 0.833,
+      "recall": 0.694,
+      "flagged": 30,
+      "true_positives": 25,
+      "false_positives": 5,
+      "missed": 11
+    },
+    "at_watch": {
+      "threshold": 0.34,
+      "precision": 0.789,
+      "recall": 0.833,
+      "flagged": 38,
+      "true_positives": 30,
+      "false_positives": 8,
+      "missed": 6
+    },
+    "per_pattern": {
+      "steady": {
+        "label": 0,
+        "n": 46,
+        "mean_score": 0.12,
+        "flagged_anomalous": 0.043,
+        "flagged_watch_or_more": 0.087
+      },
+      "weekend_dip": {
+        "label": 0,
+        "n": 19,
+        "mean_score": 0.212,
+        "flagged_anomalous": 0.053,
+        "flagged_watch_or_more": 0.105
+      },
+      "low_stable": {
+        "label": 0,
+        "n": 19,
+        "mean_score": 0.291,
+        "flagged_anomalous": 0.105,
+        "flagged_watch_or_more": 0.105
+      },
+      "gradual_decline": {
+        "label": 1,
+        "n": 14,
+        "mean_score": 0.372,
+        "flagged_anomalous": 0.357,
+        "flagged_watch_or_more": 0.714
+      },
+      "sudden_dropoff": {
+        "label": 1,
+        "n": 15,
+        "mean_score": 0.51,
+        "flagged_anomalous": 0.867,
+        "flagged_watch_or_more": 0.867
+      },
+      "abandoned": {
+        "label": 1,
+        "n": 7,
+        "mean_score": 0.752,
+        "flagged_anomalous": 1.0,
+        "flagged_watch_or_more": 1.0
+      }
+    }
+  },
+  "baselines": {
+    "previous_model_5_licences_original_features": {
+      "roc_auc": 0.659,
+      "average_precision": 0.549
+    },
+    "original_features_trained_on_population": {
+      "roc_auc": 0.849,
+      "average_precision": 0.744
+    },
+    "utilisation_rule": {
+      "roc_auc": 0.687,
+      "average_precision": 0.608
+    }
+  },
+  "model": {
+    "type": "IsolationForest",
+    "n_estimators": 200,
+    "features": [
+      "utilisation_7d",
+      "utilisation_ratio",
+      "utilisation_90d",
+      "retention_7d",
+      "retention_30d",
+      "days_since_last_login",
+      "weekend_ratio"
+    ]
+  }
+}

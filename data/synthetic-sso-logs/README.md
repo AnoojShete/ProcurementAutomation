@@ -1,0 +1,147 @@
+# Synthetic SSO Login Events
+
+## What's committed (and used)
+
+`sso_login_events.json` holds **15,621 login events for the 5 demo
+licences** over the 90 days 17 Jul – 14 Oct 2026 (a snapshot — scoring and
+the usage scanner count from its latest event, not today's date). It is
+produced by `services/approval-inventory-agent/scripts/generate_sso_logs.py`
+(seed 42) from the same simulator the anomaly model is trained and
+evaluated on (`ml/usage_population.py`). Each licence has a known pattern,
+so the licence page can be checked against it:
+
+| Licence | Seats | Pattern | Score (live) | Status |
+|---|---|---|---|---|
+| Microsoft 365 E3 | 50 | steady | 0.14 | normal |
+| Slack Enterprise | 45 | steady | 0.02 | normal |
+| JetBrains All Products Pack | 120 | weekend dip | 0.15 | normal |
+| Docker Pro | 60 | sudden drop-off (last 1–4 weeks) | 0.32 | normal — just under watch (0.34) |
+| Notion Team | 200 | gradual decline | 0.31 | normal — just under watch (0.34) |
+
+The two declining licences score highest, but neither crosses the watch
+line: the model catches 87 % of simulated drop-offs and 71 % of declines
+(`docs/results/licence-anomaly.md`), and these two are among the misses.
+Thresholds were chosen on validation data and are not tuned to the demo.
+(Until 16 Oct the log was generated with logins spilling into the next
+day, which gave every licence ~20 % weekend use and pushed these two over
+the line — that was an artefact, now fixed.)
+
+Each event:
+
+```json
+{"user_email": "user1@company.com", "app_name": "Microsoft 365 E3",
+ "login_timestamp": "2026-07-18T09:41:00+00:00", "session_duration_minutes": 212}
+```
+
+`app_name` and the seat counts match what `./scripts/seed-demo-data.sh`
+seeds. The model itself is **not** trained on these five licences any more
+but on 360 simulated ones (`docs/results/licence-anomaly.md`).
+
+## The other generator (not what's committed)
+
+The rest of this file documents the repo-root `scripts/generate_sso_logs.py`,
+a richer generator with 8 licenses and 4 usage patterns. **Its output is not
+the committed file**; running it overwrites `sso_login_events.json` with a
+different license set, and the seeded licenses would then have no history.
+Reconciling the two generators is tracked in docs/TODO.md.
+
+## Event schema (root generator)
+
+Each event is a JSON object:
+
+```json
+{
+  "app_name":        "Microsoft 365 E3",
+  "user_email":      "user001@example.com",
+  "login_timestamp": "2026-06-15T09:23:41+00:00"
+}
+```
+
+| Field             | Type   | Description                              |
+|-------------------|--------|------------------------------------------|
+| `app_name`        | string | Must match an `app_name` in the licenses table |
+| `user_email`      | string | Stable pool per license (user001–userN)  |
+| `login_timestamp` | string | ISO-8601 UTC, timezone-aware             |
+
+---
+
+## Usage Patterns
+
+The generator produces **four distinct patterns** to give the model a realistic
+inlier/outlier distribution:
+
+### 1. `normal_steady`
+- **Licenses**: Microsoft 365 E3, Slack Business+
+- **Behaviour**: 80–95 % of active seats log in on weekdays; 15–30 % on weekends.
+- **Purpose**: Primary inlier class — what a healthy, well-utilised license looks like.
+- **Should be flagged?** No.
+
+### 2. `gradual_decline`
+- **Licenses**: Zoom Pro, Salesforce Starter
+- **Behaviour**: Usage starts at ~80 % of active seats and declines linearly to ~10 %
+  by the most recent day. Weekend fraction is additionally reduced.
+- **Purpose**: Outlier class — represents a slow bleed of adoption the model should catch.
+- **Should be flagged?** Yes (high anomaly_score expected).
+
+### 3. `sudden_drop_off`
+- **Licenses**: Adobe Creative Cloud, Jira Software
+- **Behaviour**: Normal weekday/weekend usage up to `drop_day` days ago, then
+  near-zero (0–5 % residual) from that point forward.
+  - Adobe CC: drop at ~62 days ago (≈ 30 d of inactivity at scoring time)
+  - Jira Software: drop at ~55 days ago
+- **Purpose**: Sharpest outlier — team stopped using the tool suddenly.
+- **Should be flagged?** Yes.
+
+### 4. `seasonal_weekend_dip`
+- **Licenses**: GitHub Enterprise, Figma Professional
+- **Behaviour**: Strong stable weekday usage (82–97 %); deliberate weekend quiet (10–20 %).
+  The weekday line is consistent — there is no downward trend.
+- **Purpose**: Tests that the model has learned weekend dips are **inlier behaviour**,
+  not anomalies. The `weekend_ratio` feature captures this signal explicitly so
+  IsolationForest can distinguish planned seasonal variation from genuine decline.
+- **Should be flagged?** **No** — this is the key proof-test that the ML model
+  beats the old flat-threshold approach (which would have flagged Monday-centric
+  metrics if a weekend happened to be recent).
+
+---
+
+## Reproducing the Data
+
+```bash
+# From the repository root
+python scripts/generate_sso_logs.py
+# Output: data/synthetic-sso-logs/sso_login_events.json
+```
+
+The generator prints one line per license (pattern and event count) and the
+total written.
+
+---
+
+## Relationship to the ML Pipeline
+
+```
+scripts/generate_sso_logs.py
+      ↓  writes
+data/synthetic-sso-logs/sso_login_events.json
+      ↓  read by
+ml/generate_usage_dataset.py   →  ml/artifacts/usage_features.csv
+      ↓  read by
+ml/train_usage_anomaly_model.py
+      ↓  writes
+ml/artifacts/model.joblib
+ml/artifacts/model_version.txt
+      ↓  loaded at runtime by
+app/ml/usage_anomaly.py        →  anomaly_score + top_factors (SHAP)
+```
+
+---
+
+## Extending the Data
+
+To add a new license pattern:
+
+1. Add an entry to the `LICENSES` list in `scripts/generate_sso_logs.py`.
+2. If it needs a new pattern type, add a `_day_login_count_<pattern>()` function.
+3. Re-run `python scripts/generate_sso_logs.py` to regenerate the JSON.
+4. Re-train the model: `python ml/train_usage_anomaly_model.py`.

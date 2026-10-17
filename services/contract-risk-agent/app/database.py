@@ -1,7 +1,12 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.config import settings
 
-engine = create_async_engine(settings.database_url, echo=False)
+engine = create_async_engine(
+    settings.database_url,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -16,3 +21,6 @@ async def init_db():
     extended by this service's own Alembic migrations (see migrations/)."""
     async with engine.begin() as conn:
         pass
+    # Shared event backbone tables (outbox / inbox / DLQ).
+    from shared.eventing import ensure_schema
+    await ensure_schema(engine)

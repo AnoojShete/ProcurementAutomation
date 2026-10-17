@@ -1,71 +1,151 @@
 /** @type {import('tailwindcss').Config} */
+
+// Ledger design system (docs/design-direction.md). Colours live in
+// src/styles/tokens.css as RGB channels; this maps them to class names.
+const c = (v) => `rgb(var(--${v}) / <alpha-value>)`;
+
 export default {
-  darkMode: "class",
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       fontFamily: {
-        sans: [
-          "Inter",
-          "system-ui",
-          "-apple-system",
-          "Segoe UI",
-          "Roboto",
-          "sans-serif",
-        ],
+        // IBM Plex Sans for all UI text (tabular digits by default, ₹ in
+        // latin-ext), Plex Mono for references, Source Serif 4 for item
+        // titles only. Self-hosted via @fontsource (CSP is font-src 'self').
+        // Family names are quoted inside the string: "Source Serif 4" ends in
+        // a number, and an unquoted family like that invalidates the rule.
+        sans: ['"IBM Plex Sans"', "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        mono: ['"IBM Plex Mono"', "ui-monospace", "SF Mono", "Menlo", "monospace"],
+        doc: ['"Source Serif 4"', "Georgia", "Times New Roman", "serif"],
       },
       colors: {
-        // Deep navy/blue brand family — primary CTAs, active nav, links.
+        // Semantic names: use these in new code.
+        paper: c("paper"),
+        sheet: { DEFAULT: c("sheet"), sunk: c("sheet-sunk") },
+        rule: { DEFAULT: c("rule"), mid: c("rule-mid"), strong: c("rule-strong") },
+        ink: { DEFAULT: c("ink"), 2: c("ink-2"), 3: c("ink-3") },
+        accent: { DEFAULT: c("accent"), hover: c("accent-hover"), tint: c("accent-tint") },
+
+        // Existing names, re-pointed so every page picks up the palette.
         brand: {
-          50: "#eef3fb",
-          100: "#d9e5f5",
-          200: "#b3caeb",
-          300: "#82a9dc",
-          400: "#4f83c9",
-          500: "#2f63ac",
-          600: "#204a87",
-          700: "#1a3b6d",
-          800: "#152f57",
-          900: "#0f2140",
-          950: "#0a1730",
+          50: c("accent-tint"),
+          100: c("accent-tint"),
+          200: c("accent-soft"),
+          300: c("accent-soft"),
+          400: c("accent"),
+          500: c("accent"),
+          600: c("accent-hover"),
+          700: c("accent-hover"),
+          800: c("accent-deep"),
+          900: c("accent-deep"),
+          950: c("accent-deep"),
         },
-        // Soft neutral surfaces (page background vs. card surface).
         surface: {
-          DEFAULT: "#ffffff",
-          subtle: "#f7f8fa",
-          muted: "#eef0f3",
-          border: "#e3e6eb",
+          DEFAULT: c("sheet"),
+          subtle: c("paper"),
+          muted: c("sheet-sunk"),
+          border: c("rule"),
         },
-        // Secondary AI/intelligence accent — used sparingly (badges, panel
-        // headers for "Intelligence" features), never as a primary CTA color.
+        // Formerly a purple "AI" accent; neutral ink now.
         intel: {
-          50: "#f4f1fc",
-          100: "#e7e0f9",
-          400: "#9d84e8",
-          500: "#7c5fd6",
-          600: "#6446bd",
-          700: "#503697",
+          50: c("sheet-sunk"),
+          100: c("rule"),
+          300: c("rule-mid"),
+          400: c("ink-3"),
+          500: c("ink-3"),
+          600: c("ink-2"),
+          700: c("ink-2"),
         },
-        success: { 50: "#eafaf0", 500: "#0ca30c", 600: "#0a8a0a", 700: "#046300" },
-        warning: { 50: "#fef8e9", 500: "#fab219", 600: "#a86e00", 700: "#7a5000" },
-        danger: { 50: "#fdecec", 500: "#d03b3b", 600: "#b32e2e" },
+        success: { 50: c("done-tint"), 100: c("done-soft"), 500: c("done"), 600: c("done"), 700: c("done") },
+        warning: { 50: c("attention-tint"), 100: c("attention-soft"), 500: c("attention-mid"), 600: c("attention"), 700: c("attention") },
+        danger: { 50: c("danger-tint"), 100: c("danger-soft"), 300: c("danger-soft"), 500: c("danger"), 600: c("danger"), 700: c("danger-deep") },
+
+        // Raw Tailwind palettes used directly in page code, re-pointed to the
+        // Ledger neutrals and roles. This is what fixes the contrast failures
+        // (slate-400 text was 2.56 : 1; it is now ink-3, 5.83 : 1) without a
+        // 40-file edit. New code should use the semantic names above.
+        slate: {
+          50: c("paper"),
+          100: c("sheet-sunk"),
+          200: c("rule"),
+          300: c("rule-mid"),
+          400: c("ink-3"),
+          500: c("ink-3"),
+          600: c("ink-2"),
+          700: c("ink-2"),
+          800: c("ink"),
+          900: c("ink"),
+          950: c("ink"),
+        },
+        emerald: {
+          50: c("done-tint"), 100: c("done-tint"), 200: c("done-soft"), 300: c("done-soft"),
+          400: c("done"), 500: c("done"), 600: c("done"), 700: c("done"), 800: c("done"), 900: c("done"), 950: c("done"),
+        },
+        rose: {
+          50: c("danger-tint"), 100: c("danger-tint"), 200: c("danger-soft"), 300: c("danger-soft"),
+          400: c("danger"), 500: c("danger"), 600: c("danger"), 700: c("danger-deep"), 800: c("danger-deep"), 900: c("danger-deep"),
+        },
+        red: { 50: c("danger-tint"), 500: c("danger"), 600: c("danger"), 700: c("danger-deep") },
+        amber: {
+          50: c("attention-tint"), 100: c("attention-tint"), 200: c("attention-soft"), 300: c("attention-soft"),
+          400: c("attention-mid"), 500: c("attention-mid"), 600: c("attention"), 700: c("attention"), 800: c("attention"), 900: c("attention"),
+        },
+        blue: {
+          50: c("accent-tint"), 100: c("accent-tint"), 200: c("accent-soft"), 300: c("accent-soft"),
+          400: c("accent"), 500: c("accent"), 600: c("accent"), 700: c("accent-hover"), 800: c("accent-deep"), 900: c("accent-deep"),
+        },
+      },
+      fontSize: {
+        // The scale (design-direction.md §2). 12px is the floor.
+        caption: ["0.75rem", { lineHeight: "1rem" }],
+        "13": ["0.8125rem", { lineHeight: "1.25rem" }],
+        body: ["0.875rem", { lineHeight: "1.375rem" }],
+        heading: ["1rem", { lineHeight: "1.5rem" }],
+        title: ["1.25rem", { lineHeight: "1.75rem" }],
+        "doc-title": ["1.625rem", { lineHeight: "2rem" }],
+        figure: ["1.75rem", { lineHeight: "2rem" }],
       },
       boxShadow: {
-        card: "0 1px 2px 0 rgba(15, 33, 64, 0.04), 0 1px 3px 0 rgba(15, 33, 64, 0.06)",
-        popover: "0 4px 16px -2px rgba(15, 33, 64, 0.12), 0 2px 6px -2px rgba(15, 33, 64, 0.08)",
+        // Floating layers only; page content is flat.
+        card: "none",
+        button: "none",
+        popover: "0 1px 2px rgb(24 33 28 / 0.08), 0 8px 24px rgb(24 33 28 / 0.12)",
       },
       borderRadius: {
-        xl: "0.875rem",
+        // 2px tags, 4px controls and sections, 8px modals/popovers.
+        sm: "0.125rem",
+        DEFAULT: "0.25rem",
+        md: "0.25rem",
+        lg: "0.25rem",
+        xl: "0.5rem",
+      },
+      transitionTimingFunction: {
+        out: "var(--ease-out)",
+        in: "var(--ease-in)",
+      },
+      transitionDuration: {
+        1: "var(--dur-1)",
+        2: "var(--dur-2)",
+        3: "var(--dur-3)",
       },
       keyframes: {
         "fade-in": { from: { opacity: 0 }, to: { opacity: 1 } },
-        "slide-in-right": { from: { transform: "translateX(12px)", opacity: 0 }, to: { transform: "translateX(0)", opacity: 1 } },
-        "slide-up": { from: { transform: "translateY(6px)", opacity: 0 }, to: { transform: "translateY(0)", opacity: 1 } },
+        "slide-in-right": { from: { transform: "translateX(-8px)", opacity: 0 }, to: { transform: "translateX(0)", opacity: 1 } },
+        "slide-up": { from: { transform: "translateY(4px)", opacity: 0 }, to: { transform: "translateY(0)", opacity: 1 } },
+        // The decision stamp settling onto the paper trail.
+        stamp: {
+          from: { transform: "scale(1.12) rotate(-4deg)", opacity: 0 },
+          to: { transform: "scale(1) rotate(-2deg)", opacity: 1 },
+        },
+        "delayed-in": { "0%, 60%": { opacity: 0 }, "100%": { opacity: 1 } },
       },
       animation: {
-        "fade-in": "fade-in 0.15s ease-out",
-        "slide-in-right": "slide-in-right 0.2s ease-out",
-        "slide-up": "slide-up 0.18s ease-out",
+        "fade-in": "fade-in var(--dur-2) var(--ease-out)",
+        "slide-in-right": "slide-in-right var(--dur-2) var(--ease-out)",
+        "slide-up": "slide-up var(--dur-2) var(--ease-out)",
+        stamp: "stamp var(--dur-3) var(--ease-out) both",
+        // Spinners appear only after ~150ms, so fast actions don't flicker.
+        "delayed-in": "delayed-in 250ms linear both",
       },
     },
   },

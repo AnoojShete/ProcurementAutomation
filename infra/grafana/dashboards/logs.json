@@ -1,0 +1,28 @@
+{
+  "title": "Logs",
+  "uid": "platform-logs",
+  "description": "Every service's log lines (Loki). Paste a correlation id (X-Correlation-ID response header, or the Control Panel's Kafka log) to follow one request through every agent.",
+  "schemaVersion": 39,
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "10s",
+  "templating": {
+    "list": [
+      {"name": "correlation_id", "label": "Correlation id", "type": "textbox", "query": "", "current": {"value": ""}},
+      {"name": "service", "label": "Service", "type": "query", "datasource": {"type": "loki", "uid": "Loki"},
+       "query": "label_values(service)", "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}}
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries", "title": "Lines per service", "gridPos": {"h": 7, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "loki", "uid": "Loki"},
+      "targets": [{"refId": "A", "expr": "sum by (service) (count_over_time({job=\"docker\", service=~\"$service\"} |= \"$correlation_id\" [1m]))", "legendFormat": "{{service}}"}]
+    },
+    {
+      "type": "logs", "title": "Log lines", "gridPos": {"h": 18, "w": 24, "x": 0, "y": 7},
+      "datasource": {"type": "loki", "uid": "Loki"},
+      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Ascending", "enableLogDetails": true},
+      "targets": [{"refId": "A", "expr": "{job=\"docker\", service=~\"$service\"} |= \"$correlation_id\""}]
+    }
+  ]
+}

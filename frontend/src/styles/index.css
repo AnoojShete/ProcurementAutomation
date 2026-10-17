@@ -1,3 +1,5 @@
+@import "./tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,15 +7,36 @@
 @layer base {
   html {
     @apply antialiased;
+    font-feature-settings: "kern";
   }
   body {
-    @apply bg-surface-subtle text-slate-900 font-sans;
+    @apply bg-paper font-sans text-sm text-ink;
   }
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white rounded-sm;
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-white rounded-sm;
   }
   ::selection {
     @apply bg-brand-200;
+  }
+  code,
+  kbd,
+  samp,
+  pre {
+    @apply font-mono;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="search"],
+  select,
+  textarea {
+    @apply shadow-none;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: rgb(var(--accent));
   }
 }
 
@@ -26,11 +49,66 @@
     width: 6px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-slate-300 rounded-full;
+    @apply bg-rule-mid rounded-full;
   }
+
+  /* Standard form control, for pages that build their own inputs.
+   * 36px tall (40px and 16px text on phones, so iOS doesn't zoom). */
+  .field {
+    @apply block h-10 w-full rounded border border-rule-strong bg-sheet px-2.5 text-base text-ink
+      transition-colors duration-1 placeholder:text-ink-3
+      hover:border-ink-3 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent
+      disabled:cursor-not-allowed disabled:bg-sheet-sunk disabled:text-ink-3
+      aria-[invalid=true]:border-danger-500 sm:h-9 sm:text-sm;
+  }
+
+  /* The accountant's double rule: under totals and the docket header. */
+  .rule-double {
+    border-bottom: 3px double rgb(var(--ink) / 0.55);
+  }
+
+  /* Section caption: sentence case, never uppercase-tracked. */
+  .caption {
+    @apply text-caption text-ink-3;
+  }
+
+  /* "Skip to content": hidden until focused. */
+  .skip-link {
+    @apply absolute left-2 top-2 z-[60] -translate-y-16 rounded bg-accent px-3 py-2 text-sm font-medium text-white
+      transition-transform duration-2 ease-out focus:translate-y-0;
+  }
+}
+
+/* Uppercase-tracked captions in page code read as shouting labels; the
+ * Ledger spec is sentence case everywhere. Neutralise them globally so the
+ * text (which tests match on) stays unchanged. */
+.uppercase.tracking-wide,
+.uppercase.tracking-wider,
+.uppercase.tracking-widest {
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* Tabular figures for anything that must align in columns (money, counts). */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* List → detail: the reference and title carry across the navigation.
+ * Browsers without View Transitions simply navigate. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-3);
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-group(docket-title) {
+  animation-duration: var(--dur-3);
+  animation-timing-function: var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }

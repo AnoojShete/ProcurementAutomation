@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Tabs } from "@/components/ui/Tabs";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, titleCase } from "@/lib/format";
 import type { PurchaseRequest } from "@/types/api";
 
 export function RequestsListPage() {
@@ -29,11 +29,11 @@ export function RequestsListPage() {
 
   const columns: Column<PurchaseRequest>[] = [
     { key: "id", header: "Request", render: (r) => <span className="font-mono text-xs">{r.id.slice(0, 8)}</span> },
-    { key: "type", header: "Type", render: (r) => <span className="capitalize">{r.request_type ?? "—"}</span> },
+    { key: "type", header: "Type", render: (r) => titleCase(r.request_type) },
     { key: "requester", header: "Requester", render: (r) => r.requested_by ?? "—", hideOnMobile: scope !== "all" },
     { key: "dept", header: "Department", render: (r) => r.department ?? "—" },
     { key: "amount", header: "Amount", render: (r) => formatCurrency(r.amount, r.currency ?? "INR"), sortValue: (r) => r.amount ?? 0 },
-    { key: "tier", header: "Tier", render: (r) => <span className="capitalize text-slate-500">{r.spend_tier ?? "—"}</span> },
+    { key: "tier", header: "Tier", render: (r) => <span className="text-ink-2">{titleCase(r.spend_tier)}</span> },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "created", header: "Submitted", render: (r) => formatDate(r.created_at), sortValue: (r) => r.created_at ?? "" },
   ];

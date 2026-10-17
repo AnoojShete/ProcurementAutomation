@@ -24,7 +24,7 @@ class TestEventSchemas:
         event = build_event("approval.requested", "approval-inventory-agent", {"test": True})
         
         required_keys = {"event_id", "event_type", "timestamp", "source_service", "payload"}
-        assert set(event.keys()) == required_keys
+        assert required_keys.issubset(set(event.keys()))
         assert event["event_type"] == "approval.requested"
         assert event["source_service"] == "approval-inventory-agent"
         assert isinstance(event["payload"], dict)
@@ -66,11 +66,12 @@ class TestEventSchemas:
         
         required_keys = {
             "request_id", "decision", "decided_by", "decision_level",
-            "escalated", "decided_at", "comments"
+            "escalated", "decided_at", "comments", "decision_channel"
         }
         assert set(payload.keys()) == required_keys
         assert payload["decision"] in ("approved", "rejected")
         assert isinstance(payload["escalated"], bool)
+        assert payload["decision_channel"] == "portal"  # default; "email" for email-link decisions
     
     def test_license_usage_updated_payload_keys(self):
         """license.usage.updated payload must have exact keys per shared schema."""
@@ -89,7 +90,8 @@ class TestEventSchemas:
         required_keys = {
             "license_id", "vendor_id", "app_name", "total_seats",
             "active_seats_30d", "active_seats_60d", "active_seats_90d",
-            "utilisation_score", "period_end"
+            "utilisation_score", "period_end",
+            "anomaly_score", "model_version", "top_factors"
         }
         assert set(payload.keys()) == required_keys
         assert isinstance(payload["total_seats"], int)

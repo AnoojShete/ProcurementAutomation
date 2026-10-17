@@ -1,0 +1,31 @@
+% Chapter 6: Conclusion and Future Scope
+
+\chapter{Conclusion \& Future Scope} \label{chap6}
+\newpage
+
+This report presented the design and implementation of an Agentic AI-based IT Procurement Intelligence Platform. The study of existing techniques showed that document extraction, clause analysis, approval workflows, anomaly detection and risk scoring are usually treated as separate problems. The project joins them in one event-driven system of four cooperating agents: Document and Vendor Intelligence, Approval and Inventory Intelligence, Contract and Risk Analysis, and a Platform agent for authentication, business rules, notifications and a conversational assistant.
+
+In the implemented system a document arriving by upload, e-mail or a watched folder is scanned, read, classified, extracted, matched to a vendor and confidence-scored; a purchase request is routed through spend-tier approvals with SLA reminders, escalation and race-safe stock reservation; an approved request becomes a contract that is signed in the application after the vendor's risk is shown, read by a legal language model and tracked for renewal; under-used licences are proposed for reclaim with explanations and a grace period; and every vendor carries an explainable risk score with hard overrides and drift monitoring. The whole flow runs through one gateway and is verified by 823 service unit tests, a shared-code suite and four end-to-end suites, all passing at the time of writing.
+
+The design follows one principle throughout: trained models are used only where they measurably beat a simple rule on held-out data, rules remain where certainty and auditability matter, and people stay in control of low-confidence documents, bank-detail changes, licence reclaims, high-risk signatures and model drift. Fail-closed scanning, dual control, separation of duties, HMAC-verified and replay-protected callbacks, role-based access, an audit log and correlation-ID tracing make the platform suitable for a sensitive financial process.
+
+\paragraph{Limitations.}
+\begin{itemize}
+  \item All training and test data except the CUAD contracts is synthetic, so no accuracy claim is made for an organisation's real documents, licences or vendors.
+  \item Field extraction from photographed or scanned images is weak (49\% of fields correct), so such documents depend on human review.
+  \item The licence-anomaly model misses most gradual declines and flags a few normal licences; its proposals always need approval.
+  \item The review threshold of 0.8 is a heuristic that has not been calibrated against measured error rates.
+  \item Adverse-media screening and budget tracking are not built (their business rules are seeded but have no effect), and live GSTIN registry lookups are switched off by default.
+  \item Signing happens in the application; the external Documenso and DocuSign clients are not used in the demonstrated configuration and would need the same risk check at send time.
+  \item The system runs on a single Docker host: Kafka traffic is not encrypted, development credentials must be rotated before any shared deployment, and the 17 October audit left some issues open, for example logout not revoking the refresh token and a request being committed before its event is staged.
+\end{itemize}
+
+\paragraph{Future scope.}
+\begin{itemize}
+  \item Calibrate the document review gate using evidence from purchase orders and the vendor master, so that the share of documents processed without review is chosen for a target error rate; this is the subject of the team's planned research paper.
+  \item Evaluate and improve extraction on real, anonymised procurement documents, for example by fine-tuning LayoutLMv3 on labelled invoices, and retrain the classifier from reviewers' corrections.
+  \item Add adverse-media screening (for example with FinBERT), budget tracking, and live GSTIN registry checks with quota management.
+  \item Connect an external e-signature provider with the risk acknowledgement enforced at send time.
+  \item Close the open audit items, encrypt Kafka traffic, run the test suites in the CI pipeline, and deliver reminder events by e-mail.
+  \item Deploy to a managed cloud or Kubernetes environment and measure throughput and latency under load.
+\end{itemize}

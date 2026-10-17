@@ -3,47 +3,117 @@ services:
 
   # --- contract-risk-agent (Anjali) ---
   contract-risk-agent:
+    image: ${COMPOSE_PROJECT_NAME}-contract-risk-agent
     build:
       context: .
       dockerfile: services/contract-risk-agent/Dockerfile
     ports:
-      - "8003:8003"
+      - "127.0.0.1:8003:8003"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
+      # Demo-only "simulate signature" endpoint; off unless set to true.
+      ENABLE_SIGN_SIMULATED: ${ENABLE_SIGN_SIMULATED:-false}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: contract-risk-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_CONTRACT_RISK_AGENT:-dev-kafka-contract-risk-agent}
       APP_TEMPORAL_HOST: temporal:7233
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       APP_ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
+      # Optional live Documenso (see .env.example); unset = signing is
+      # simulated or done with the built-in e-sign.
+      APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-}
+      APP_DOCUMENSO_API_TOKEN: ${APP_DOCUMENSO_API_TOKEN:-}
+      APP_DOCUMENSO_WEBHOOK_SECRET: ${APP_DOCUMENSO_WEBHOOK_SECRET:-}
+      # Optional live DocuSign, sandbox by default (see .env.example); unset
+      # = "docusign" sends are simulated.
+      APP_DOCUSIGN_INTEGRATION_KEY: ${APP_DOCUSIGN_INTEGRATION_KEY:-}
+      APP_DOCUSIGN_USER_ID: ${APP_DOCUSIGN_USER_ID:-}
+      APP_DOCUSIGN_ACCOUNT_ID: ${APP_DOCUSIGN_ACCOUNT_ID:-}
+      APP_DOCUSIGN_PRIVATE_KEY: ${APP_DOCUSIGN_PRIVATE_KEY:-}
+      APP_DOCUSIGN_PRIVATE_KEY_FILE: ${APP_DOCUSIGN_PRIVATE_KEY_FILE:-}
+      APP_DOCUSIGN_AUTH_SERVER: ${APP_DOCUSIGN_AUTH_SERVER:-account-d.docusign.com}
+      APP_DOCUSIGN_BASE_URL: ${APP_DOCUSIGN_BASE_URL:-https://demo.docusign.net/restapi}
+      APP_DOCUSIGN_CONNECT_HMAC_KEY: ${APP_DOCUSIGN_CONNECT_HMAC_KEY:-}
+      # Drop-folder contracts are sent for signature automatically, once.
+      APP_ESIGN_AUTO_SEND: ${APP_ESIGN_AUTO_SEND:-true}
+      APP_ESIGN_AUTO_SIGNER_EMAIL: ${APP_ESIGN_AUTO_SIGNER_EMAIL:-}
+      APP_ESIGN_AUTO_SIGNER_NAME: ${APP_ESIGN_AUTO_SIGNER_NAME:-Authorized Signer}
+      # FR-13: Legal-BERT clause model, pre-downloaded into hf-cache
+      # (scripts/download-models.sh); never fetched while generating a contract.
+      HF_HOME: /app/.cache/huggingface
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      # Optional: put the DocuSign RSA key in ./secrets (git-ignored) and set
+      # APP_DOCUSIGN_PRIVATE_KEY_FILE=/run/secrets/app/<file>.
+      - ./secrets:/run/secrets/app:ro
+      # FR-14: sanctions list index (./scripts/download-sanctions.sh).
+      - sanctions-data:/app/data/sanctions
+      # FR-13: Legal-BERT clause model (~440 MB), shared with the LayoutLMv3 cache.
+      - hf-cache:/app/.cache/huggingface
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8003/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 120s
 
   contract-risk-agent-worker:
-    build:
-      context: .
-      dockerfile: services/contract-risk-agent/Dockerfile
+    # Same image as contract-risk-agent (built once, by that service).
+    image: ${COMPOSE_PROJECT_NAME}-contract-risk-agent
+    pull_policy: never
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: contract-risk-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_CONTRACT_RISK_AGENT:-dev-kafka-contract-risk-agent}
       APP_TEMPORAL_HOST: temporal:7233
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       APP_ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
+      # Optional live Documenso (see .env.example); unset = signing is
+      # simulated or done with the built-in e-sign.
+      APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-}
+      APP_DOCUMENSO_API_TOKEN: ${APP_DOCUMENSO_API_TOKEN:-}
+      APP_DOCUMENSO_WEBHOOK_SECRET: ${APP_DOCUMENSO_WEBHOOK_SECRET:-}
+      # Optional live DocuSign, sandbox by default (see .env.example); unset
+      # = "docusign" sends are simulated.
+      APP_DOCUSIGN_INTEGRATION_KEY: ${APP_DOCUSIGN_INTEGRATION_KEY:-}
+      APP_DOCUSIGN_USER_ID: ${APP_DOCUSIGN_USER_ID:-}
+      APP_DOCUSIGN_ACCOUNT_ID: ${APP_DOCUSIGN_ACCOUNT_ID:-}
+      APP_DOCUSIGN_PRIVATE_KEY: ${APP_DOCUSIGN_PRIVATE_KEY:-}
+      APP_DOCUSIGN_PRIVATE_KEY_FILE: ${APP_DOCUSIGN_PRIVATE_KEY_FILE:-}
+      APP_DOCUSIGN_AUTH_SERVER: ${APP_DOCUSIGN_AUTH_SERVER:-account-d.docusign.com}
+      APP_DOCUSIGN_BASE_URL: ${APP_DOCUSIGN_BASE_URL:-https://demo.docusign.net/restapi}
+      APP_DOCUSIGN_CONNECT_HMAC_KEY: ${APP_DOCUSIGN_CONNECT_HMAC_KEY:-}
+      # Drop-folder contracts are sent for signature automatically, once.
+      APP_ESIGN_AUTO_SEND: ${APP_ESIGN_AUTO_SEND:-true}
+      APP_ESIGN_AUTO_SIGNER_EMAIL: ${APP_ESIGN_AUTO_SIGNER_EMAIL:-}
+      APP_ESIGN_AUTO_SIGNER_NAME: ${APP_ESIGN_AUTO_SIGNER_NAME:-Authorized Signer}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       temporal:
@@ -53,18 +123,30 @@ services:
 
   # --- approval-inventory-agent (Niraj) ---
   approval-inventory-agent:
+    image: ${COMPOSE_PROJECT_NAME}-approval-inventory-agent
     build:
       context: .
       dockerfile: services/approval-inventory-agent/Dockerfile
     ports:
-      - "8002:8002"
+      - "127.0.0.1:8002:8002"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
+      # Token notification-agent uses to ask this service for email-action links.
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-${APP_BASE_URL:-http://localhost:8080}}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: approval-inventory-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_APPROVAL_INVENTORY_AGENT:-dev-kafka-approval-inventory-agent}
       APP_TEMPORAL_HOST: temporal:7233
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -74,21 +156,31 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 60s
 
   approval-inventory-agent-worker:
-    build:
-      context: .
-      dockerfile: services/approval-inventory-agent/Dockerfile
+    # Same image as approval-inventory-agent (built once, by that service).
+    image: ${COMPOSE_PROJECT_NAME}-approval-inventory-agent
+    pull_policy: never
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-${APP_BASE_URL:-http://localhost:8080}}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: approval-inventory-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_APPROVAL_INVENTORY_AGENT:-dev-kafka-approval-inventory-agent}
       APP_TEMPORAL_HOST: temporal:7233
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       temporal:
@@ -102,78 +194,164 @@ services:
       context: .
       dockerfile: services/auth-service/Dockerfile
     ports:
-      - "8005:8005"
+      - "127.0.0.1:8005:8005"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
+      # Unset = secure outside development (session_cookies.py). Empty counts as unset.
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-}
+      JWT_REFRESH_EXPIRY_DAYS: ${JWT_REFRESH_EXPIRY_DAYS:-7}
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-false}
       AUTH_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-60}
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: auth-service
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_AUTH_SERVICE:-dev-kafka-auth-service}
+      RULES_ENGINE_INTERNAL_SECRET: ${RULES_ENGINE_INTERNAL_SECRET:-dev-rules-secret-change-me}
+      # Account emails (shared/mailer.py). Defaults: Mailpit. Set these in
+      # .env for real delivery — see .env.example.
+      EMAIL_MODE: ${EMAIL_MODE:-dev}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Procurement Platform <noreply@procurement.local>}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      AUTH_LOCKOUT_THRESHOLD: ${AUTH_LOCKOUT_THRESHOLD:-5}
+      AUTH_LOCKOUT_WINDOW_MINUTES: ${AUTH_LOCKOUT_WINDOW_MINUTES:-15}
+      AUTH_LOCKOUT_MINUTES: ${AUTH_LOCKOUT_MINUTES:-15}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8005/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 20s
+      retries: 8
+      start_period: 30s
 
   # --- document-vendor-agent (Vaidehi) ---
   document-vendor-agent:
+    image: ${COMPOSE_PROJECT_NAME}-document-vendor-agent
     build:
       context: .
       dockerfile: services/document-vendor-agent/Dockerfile
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      APP_REDIS_URL: redis://redis:6379/0
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: document-vendor-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_DOCUMENT_VENDOR_AGENT:-dev-kafka-document-vendor-agent}
       APP_MINIO_ENDPOINT: minio:9000
       APP_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
+      APP_CLAMAV_ENABLED: "true"
       APP_CLAMAV_HOST: clamav
       APP_CLAMAV_PORT: "3310"
+      APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
+      HF_HOME: /app/.cache/huggingface
+      # Models are pre-downloaded (scripts/download-models.sh); never call
+      # huggingface.co while processing documents.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      # Read-only Kafka login for the control panel's live event log.
+      EVENT_MONITOR_KAFKA_USERNAME: event-monitor
+      EVENT_MONITOR_KAFKA_PASSWORD: ${KAFKA_PASSWORD_EVENT_MONITOR:-dev-kafka-event-monitor}
+    volumes:
+      - hf-cache:/app/.cache/huggingface
+      # Drop folder, read-only here: the control panel lists it.
+      - ./inbox:/inbox:ro
     depends_on:
+      redis:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
         condition: service_healthy
       minio:
         condition: service_healthy
+      # Uploads fail closed (503) without ClamAV. Service starts immediately
+      # while ClamAV loads signatures in the background.
       clamav:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 10s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 60s
 
   document-vendor-agent-worker:
-    build:
-      context: .
-      dockerfile: services/document-vendor-agent/Dockerfile
+    # Same image as document-vendor-agent (built once, by that service).
+    image: ${COMPOSE_PROJECT_NAME}-document-vendor-agent
+    pull_policy: never
     command: ["python", "-m", "app.worker"]
     restart: on-failure
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: document-vendor-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_DOCUMENT_VENDOR_AGENT:-dev-kafka-document-vendor-agent}
       APP_MINIO_ENDPOINT: minio:9000
       APP_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       APP_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
-      APP_CLAMAV_HOST: clamav
-      APP_CLAMAV_PORT: "3310"
-    # Docling downloads its layout/table models (~a few hundred MB) from
-    # Hugging Face on first use, which took ~75s in testing — long enough to
-    # trip the Kafka consumer's heartbeat and force a rebalance (recoverable,
-    # but noisy). Persisting the cache means that cost is paid once ever,
-    # not on every container restart, and the worker keeps working offline
-    # after that first run.
+      APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
+      HF_HOME: /app/.cache/huggingface
+      # Models are pre-downloaded (scripts/download-models.sh); never call
+      # huggingface.co while processing documents.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      # Signs the service token for the invoice -> PO search call.
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      # Email intake (BR-1): documents emailed to the intake address. In
+      # development it reads Mailpit over POP3 (read-only); set
+      # EMAIL_INTAKE_HOST etc. for a real mailbox (pop3 or imap).
+      APP_EMAIL_INTAKE_ENABLED: ${EMAIL_INTAKE_ENABLED:-true}
+      APP_EMAIL_INTAKE_PROTOCOL: ${EMAIL_INTAKE_PROTOCOL:-pop3}
+      APP_EMAIL_INTAKE_HOST: ${EMAIL_INTAKE_HOST:-mailpit}
+      APP_EMAIL_INTAKE_PORT: ${EMAIL_INTAKE_PORT:-1110}
+      APP_EMAIL_INTAKE_SSL: ${EMAIL_INTAKE_SSL:-false}
+      APP_EMAIL_INTAKE_USER: ${EMAIL_INTAKE_USER:-intake}
+      APP_EMAIL_INTAKE_PASSWORD: ${EMAIL_INTAKE_PASSWORD:-dev-intake-password}
+      APP_EMAIL_INTAKE_ADDRESS: ${EMAIL_INTAKE_ADDRESS:-invoices@procurement.local}
+    # docling-models: Docling layout/table models (~300MB).
+    # hf-cache: LayoutLMv3 model (~1GB).
+    # paddleocr-models: PaddleOCR detection/recognition weights (~20MB).
+    # All downloaded once ever and reused across container rebuilds.
     volumes:
       - docling-models:/root/.cache/huggingface
+      - hf-cache:/app/.cache/huggingface
+      - paddleocr-models:/root/.paddleocr
+      # Drop folder: files put in ./inbox are ingested automatically
+      # (app/services/inbox_watcher.py).
+      - ./inbox:/inbox
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -183,36 +361,37 @@ services:
       document-vendor-agent:
         condition: service_healthy
 
-  # --- ClamAV (malware scanning, document-vendor-agent governance control) ---
-  # First boot runs freshclam to pull virus definitions, which can take a
-  # couple of minutes — hence the generous start_period. document-vendor-agent's
-  # upload endpoint fails closed with 503 if ClamAV is ever unreachable.
-  clamav:
-    image: clamav/clamav:stable_base
-    platform: linux/amd64  # no native arm64 build published; emulated via Rosetta/QEMU on Apple Silicon
-    ports:
-      - "3310:3310"
-    healthcheck:
-      test: ["CMD", "sh", "-c", "clamdcheck.sh"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 120s
-
   # --- notification-agent (Anooj) ---
   notification-agent:
     build:
       context: .
       dockerfile: services/notification-agent/Dockerfile
     ports:
-      - "8004:8004"
+      - "127.0.0.1:8004:8004"
     environment:
+      # Demo stack: allows the well-known dev secrets, demo accounts and
+      # showcase/simulated-signing features. Unset = production rules.
+      APP_ENV: ${APP_ENV:-development}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-${APP_BASE_URL:-http://localhost:8080}}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-      APP_SMTP_HOST: mailpit
-      APP_SMTP_PORT: "1025"
+      # This service's own Kafka login (permissions: infra/redpanda/acls.conf).
+      KAFKA_USERNAME: notification-agent
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD_NOTIFICATION_AGENT:-dev-kafka-notification-agent}
+      # Email delivery (shared/mailer.py): EMAIL_MODE=dev (Mailpit) or EMAIL_MODE=smtp (real provider)
+      EMAIL_MODE: ${EMAIL_MODE:-dev}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Procurement Platform <noreply@procurement.local>}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redpanda:
@@ -222,9 +401,36 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8004/health || exit 1"]
       interval: 10s
-      retries: 5
+      retries: 8
       start_period: 30s
 
+  # --- chatbot-agent ---
+  chatbot-agent:
+    build:
+      context: .
+      dockerfile: services/chatbot-agent/Dockerfile
+    ports:
+      - "127.0.0.1:8006:8006"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
+      APP_REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      # External Ollama LLM on the local network
+      APP_LLM_API_BASE_URL: ${LLM_API_BASE_URL:-http://host.docker.internal:11434}
+      APP_LLM_MODEL_NAME: ${LLM_MODEL_NAME:-llama3.1}
+      APP_ORDERS_API_BASE_URL: http://approval-inventory-agent:8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8006/health || exit 1"]
+      interval: 10s
+      retries: 8
+      start_period: 30s
+      
   # --- frontend ---
   # No separate frontend container/port: the built static files
   # (frontend/dist, produced by run.sh's frontend-build step) are volume-
@@ -253,10 +459,16 @@ services:
     image: ghcr.io/mlflow/mlflow:v2.14.3
     command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "/mlruns", "--default-artifact-root", "/mlruns"]
     ports:
-      - "5050:5000"
+      - "127.0.0.1:5050:5000"
     volumes:
       - mlflow-data:/mlruns
 
 volumes:
+  sanctions-data:
   mlflow-data:
   docling-models:
+  # HF model cache for LayoutLMv3 (ngvozdenovic/invoice_extraction ~1GB).
+  # Shared between the API and worker containers so the model is downloaded
+  # exactly once, whichever container starts first.
+  hf-cache:
+  paddleocr-models:

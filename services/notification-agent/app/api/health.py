@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.database import async_session_factory
@@ -19,5 +20,15 @@ async def health_check():
     except Exception:
         dependencies["database"] = "down"
 
-    status = "ok" if all(v == "up" for v in dependencies.values()) else "degraded"
-    return {"status": status, "service": "notification-agent", "dependencies": dependencies}
+    from app.kafka.consumer import CONSUMER_STATE
+    dependencies["kafka_consumer"] = CONSUMER_STATE["status"]
+
+    body = {"status": "ok", "service": "notification-agent", "dependencies": dependencies,
+            "consumer": dict(CONSUMER_STATE)}
+    if CONSUMER_STATE["status"] == "stopped":
+        # Unhealthy: Docker's healthcheck (curl -f) and System Health see it.
+        body["status"] = "unhealthy"
+        return JSONResponse(status_code=503, content=body)
+    if dependencies["database"] != "up":
+        body["status"] = "degraded"
+    return body

@@ -1,0 +1,201 @@
+{
+  "generated_at": "2026-10-15T16:24:08+00:00",
+  "dataset": {
+    "rows": 2000,
+    "source": "fully synthetic, seeded, 20% stressed-vendor segment",
+    "features": [
+      "vendor_tenure_months",
+      "on_time_delivery_rate",
+      "financial_stability_score",
+      "breach_disclosure_count",
+      "security_cert_flag",
+      "geo_risk_flag"
+    ],
+    "label": "incident_occurred",
+    "incidents": 360,
+    "incident_share": 0.18,
+    "label_rule": "risk = 0.35·(1−on-time) + 0.25·(1−financial) + 0.25·min(breaches/6, 1) + 0.10·geo flag − 0.10·certified − 0.10·min(tenure/120, 1), plus N(0, 0.08) noise; incident drawn with that probability",
+    "train_rows": 1600,
+    "test_rows": 400
+  },
+  "model": {
+    "type": "RandomForestClassifier",
+    "n_estimators": 200,
+    "max_depth": 6,
+    "class_weight": "balanced",
+    "missing_rate_in_training": 0.2,
+    "bands": "Low ≤ 0.33 < Medium ≤ 0.66 < High (config.yaml risk_model.bands)"
+  },
+  "metrics": {
+    "accuracy": 0.72,
+    "roc_auc": 0.715,
+    "roc_auc_with_20pct_missing": 0.726,
+    "roc_auc_ceiling_label_rule": 0.739,
+    "confusion_matrix_at_0_5": {
+      "true_negative": 249,
+      "false_positive": 79,
+      "false_negative": 33,
+      "true_positive": 39
+    }
+  },
+  "per_band_test_set": [
+    {
+      "band": "Low",
+      "vendors": 153,
+      "incidents": 10,
+      "incident_rate": 0.065
+    },
+    {
+      "band": "Medium",
+      "vendors": 185,
+      "incidents": 37,
+      "incident_rate": 0.2
+    },
+    {
+      "band": "High",
+      "vendors": 62,
+      "incidents": 25,
+      "incident_rate": 0.403
+    }
+  ],
+  "feature_importances": [
+    {
+      "feature": "on_time_delivery_rate",
+      "importance": 0.349
+    },
+    {
+      "feature": "financial_stability_score",
+      "importance": 0.21
+    },
+    {
+      "feature": "vendor_tenure_months",
+      "importance": 0.207
+    },
+    {
+      "feature": "breach_disclosure_count",
+      "importance": 0.091
+    },
+    {
+      "feature": "security_cert_flag",
+      "importance": 0.08
+    },
+    {
+      "feature": "geo_risk_flag",
+      "importance": 0.064
+    }
+  ],
+  "redteam": {
+    "passed": 12,
+    "total": 12,
+    "profiles": [
+      {
+        "name": "Established, certified, reliable",
+        "expected": "Low",
+        "band": "Low",
+        "score": 0.077,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "on_time_delivery_rate"
+      },
+      {
+        "name": "Solid mid-size supplier",
+        "expected": "Low",
+        "band": "Low",
+        "score": 0.173,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "on_time_delivery_rate"
+      },
+      {
+        "name": "Good record, no certification",
+        "expected": "Low",
+        "band": "Low",
+        "score": 0.153,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "on_time_delivery_rate"
+      },
+      {
+        "name": "Late deliveries, weak finances",
+        "expected": "High",
+        "band": "High",
+        "score": 0.739,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "vendor_tenure_months"
+      },
+      {
+        "name": "Repeated breaches, flagged geography",
+        "expected": "High",
+        "band": "High",
+        "score": 0.665,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "breach_disclosure_count"
+      },
+      {
+        "name": "Everything bad",
+        "expected": "High",
+        "band": "High",
+        "score": 0.758,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "vendor_tenure_months"
+      },
+      {
+        "name": "New vendor, decent numbers",
+        "expected": "Medium",
+        "band": "Medium",
+        "score": 0.421,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "vendor_tenure_months"
+      },
+      {
+        "name": "Reliable but one breach and flagged geography",
+        "expected": "Medium",
+        "band": "Medium",
+        "score": 0.453,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "on_time_delivery_rate"
+      },
+      {
+        "name": "Perfect record but GSTIN cancelled (override)",
+        "expected": "High",
+        "band": "High",
+        "score": 0.077,
+        "signals": "6/6",
+        "pass": true,
+        "top_factor": "override:gstin"
+      },
+      {
+        "name": "Nothing on file",
+        "expected": "not High",
+        "band": "Medium",
+        "score": 0.437,
+        "signals": "0/6",
+        "pass": true,
+        "top_factor": null
+      },
+      {
+        "name": "Good partial record (delivery and finances unknown)",
+        "expected": "Low",
+        "band": "Low",
+        "score": 0.156,
+        "signals": "4/6",
+        "pass": true,
+        "top_factor": "vendor_tenure_months"
+      },
+      {
+        "name": "Bad delivery known, rest unknown",
+        "expected": "not Low",
+        "band": "Medium",
+        "score": 0.653,
+        "signals": "1/6",
+        "pass": true,
+        "top_factor": "on_time_delivery_rate"
+      }
+    ]
+  }
+}

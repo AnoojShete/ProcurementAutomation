@@ -1,0 +1,202 @@
+% This is the report Template for Fr. C Rodrigues Institute of Technology, Vashi
+
+% Authored by -  Dr. Smita Dange
+
+% Modularised every section into different .tex files
+
+% This is the preamble.  
+
+% Any package you would like to use, please add it to this .tex and not the other .tex files because if you do...the code will not compile! Other .tex files are only for filing content. Any styling has to happen in this file.
+
+% Good Luck!
+
+\documentclass[12pt]{report}
+\usepackage{hyperref}
+\usepackage{kantlipsum}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{ragged2e}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tabularx}
+\usepackage{array}
+
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\centering}
+  {\chaptertitlename\ \thechapter}{24pt}{\Huge}
+\geometry{verbose,a4paper,tmargin=15mm,bmargin=30mm,lmargin=30mm,rmargin=20mm}
+
+%creating a user defined footer and header
+\geometry{headheight=15pt}
+\setcounter{tocdepth}{3}
+\setcounter{secnumdepth}{3}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Agentic AI Procurement Solution }
+\lfoot{F.C.R.I.T, Vashi}
+\rfoot{\thepage}
+\renewcommand{\footrulewidth}{0.6pt}
+\renewcommand{\headrulewidth}{1.pt}
+
+\begin{document}
+\pagestyle{plain}
+\include{1Title}
+\pagenumbering{roman}
+
+
+%\pagenumbering{gobble}
+
+\include{2Approval}
+\include{3Declaration}
+
+% Table of Contents
+\newpage
+
+%Abstract
+\addcontentsline{toc}{chapter}{Abstract}
+\include{Abstract}
+
+\tableofcontents
+\newpage
+
+\addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
+\newpage
+
+\addcontentsline{toc}{chapter}{List of Tables}
+\listoftables
+\newpage
+
+\newpage
+
+\pagenumbering{arabic}
+
+\pagestyle{fancy}
+\include{Chapter1Introduction}
+\include{Chapter2LiteratureSurvey}
+\include{Chapter3ProposedSystem}
+\include{Chapter4Design}
+\include{Chapter5ResultandDiscussion}
+\include{Chapter6Conclusion}
+
+\addcontentsline{toc}{chapter}{References}
+
+\begin{thebibliography}{11}
+
+\bibitem{xu2020layoutlm}
+Y.~Xu, M.~Li, L.~Cui, S.~Huang, F.~Wei, and M.~Zhou, ``LayoutLM: Pre-training of text and layout for document image understanding,'' in \emph{Proc. ACM SIGKDD}, 2020.
+
+\bibitem{huang2022layoutlmv3}
+Y.~Huang, T.~Lv, L.~Cui, Y.~Lu, and F.~Wei, ``LayoutLMv3: Pre-training for document AI with unified text and image masking,'' in \emph{Proc. ACM Multimedia}, 2022.
+
+\bibitem{auer2024docling}
+C.~Auer \emph{et al.}, ``Docling technical report,'' arXiv:2408.09869, 2024.
+
+\bibitem{cui2025paddleocr}
+C.~Cui \emph{et al.}, ``PaddleOCR 3.0 technical report,'' arXiv:2507.05595, 2025.
+
+\bibitem{hendrycks2021cuad}
+D.~Hendrycks, C.~Burns, A.~Chen, and S.~Ball, ``CUAD: An expert-annotated NLP dataset for legal contract review,'' in \emph{NeurIPS Datasets and Benchmarks}, 2021.
+
+\bibitem{chalkidis2020legalbert}
+I.~Chalkidis \emph{et al.}, ``LEGAL-BERT: The muppets straight out of law school,'' in \emph{Findings of EMNLP}, 2020.
+
+\bibitem{araci2019finbert}
+D.~Araci, ``FinBERT: Financial sentiment analysis with pre-trained language models,'' arXiv:1908.10063, 2019.
+
+\bibitem{liu2008isolation}
+F.~T. Liu, K.~M. Ting, and Z.-H. Zhou, ``Isolation forest,'' in \emph{Proc. IEEE ICDM}, 2008.
+
+\bibitem{lundberg2017shap}
+S.~M. Lundberg and S.-I. Lee, ``A unified approach to interpreting model predictions,'' in \emph{Proc. NeurIPS}, 2017.
+
+\bibitem{wu2023autogen}
+Q.~Wu \emph{et al.}, ``AutoGen: Enabling next-gen LLM applications via multi-agent conversation,'' arXiv:2308.08155, 2023.
+
+\bibitem{kreps2011kafka}
+J.~Kreps, N.~Narkhede, and J.~Rao, ``Kafka: A distributed messaging system for log processing,'' in \emph{Proc. NetDB Workshop}, 2011.
+
+\end{thebibliography}
+
+
+% Acknowledgement
+\addcontentsline{toc}{chapter}{Acknowledgement}
+\include{Acknowledgment}
+
+% Appendix A: Timeline Chart
+\addcontentsline{toc}{chapter}{Appendix A: Timeline Chart}
+\include{appendixA}
+
+% Appendix B: Sustainable Development Goal (SDG) Mapping
+\addcontentsline{toc}{chapter}{Appendix B: Sustainable Development Goal (SDG) Mapping}
+\include{appendixB}
+
+% Appendix C: Complex Engineering Problem Identification and Evaluation
+\addcontentsline{toc}{chapter}{Appendix C: Complex Engineering Problem Identification and Evaluation}
+\include{appendixC}
+
+% Appendix D: Project Outcomes
+\addcontentsline{toc}{chapter}{Appendix D: Project Outcomes}
+\include{appendixD}
+
+% References
+\addcontentsline{toc}{chapter}{References}
+
+\begin{thebibliography}{11}
+
+\bibitem{xu2020layoutlm}
+Y.~Xu, M.~Li, L.~Cui, S.~Huang, F.~Wei, and M.~Zhou, ``LayoutLM: Pre-training of text and layout for document image understanding,'' in \emph{Proc. ACM SIGKDD}, 2020.
+
+\bibitem{huang2022layoutlmv3}
+Y.~Huang, T.~Lv, L.~Cui, Y.~Lu, and F.~Wei, ``LayoutLMv3: Pre-training for document AI with unified text and image masking,'' in \emph{Proc. ACM Multimedia}, 2022.
+
+\bibitem{auer2024docling}
+C.~Auer \emph{et al.}, ``Docling technical report,'' arXiv:2408.09869, 2024.
+
+\bibitem{cui2025paddleocr}
+C.~Cui \emph{et al.}, ``PaddleOCR 3.0 technical report,'' arXiv:2507.05595, 2025.
+
+\bibitem{hendrycks2021cuad}
+D.~Hendrycks, C.~Burns, A.~Chen, and S.~Ball, ``CUAD: An expert-annotated NLP dataset for legal contract review,'' in \emph{NeurIPS Datasets and Benchmarks}, 2021.
+
+\bibitem{chalkidis2020legalbert}
+I.~Chalkidis \emph{et al.}, ``LEGAL-BERT: The muppets straight out of law school,'' in \emph{Findings of EMNLP}, 2020.
+
+\bibitem{araci2019finbert}
+D.~Araci, ``FinBERT: Financial sentiment analysis with pre-trained language models,'' arXiv:1908.10063, 2019.
+
+\bibitem{liu2008isolation}
+F.~T. Liu, K.~M. Ting, and Z.-H. Zhou, ``Isolation forest,'' in \emph{Proc. IEEE ICDM}, 2008.
+
+\bibitem{lundberg2017shap}
+S.~M. Lundberg and S.-I. Lee, ``A unified approach to interpreting model predictions,'' in \emph{Proc. NeurIPS}, 2017.
+
+\bibitem{wu2023autogen}
+Q.~Wu \emph{et al.}, ``AutoGen: Enabling next-gen LLM applications via multi-agent conversation,'' arXiv:2308.08155, 2023.
+
+\bibitem{kreps2011kafka}
+J.~Kreps, N.~Narkhede, and J.~Rao, ``Kafka: A distributed messaging system for log processing,'' in \emph{Proc. NetDB Workshop}, 2011.
+
+\end{thebibliography}
+
+\end{document}
+
+\addcontentsline{toc}{chapter}{Acknowledgement}
+\include{Acknowledgment}
+
+
+%\addcontentsline{toc}{chapter}{Acknowledgement}
+%\include{92Acknowledgment}
+\addcontentsline{toc}{chapter}{Appendix A: Timeline Chart}
+\include{appendixA}
+\addcontentsline{toc}{chapter}{Appendix B: Sustainable Development Goal (SDG) Mapping}
+\include{appendixB}
+\addcontentsline{toc}{chapter}{Appendix C: Complex Engineering Problem Identification and Evaluation}
+\include{appendixC}
+\addcontentsline{toc}{chapter}{Appendix D: Project Outcomes}
+\include{appendixD}
+
+\end{document}
+
+

@@ -19,6 +19,14 @@ from app.services.templating import render_template, template_exists
 # One sample payload per topic, using exactly the field names/types
 # documented in shared/schemas/events.md.
 SAMPLE_PAYLOADS = {
+    "vendor.payment_details_flagged": {
+        "vendor_id": "v-1",
+        "change_request_id": "cr-1",
+        "submitted_by": "someone@company.com",
+        "source": "portal",
+        "fields_changed": ["bank_account_number"],
+        "flagged_at": "2026-09-01T00:00:00Z",
+    },
     "document.classified": {
         "document_id": "doc-1",
         "document_type": "invoice",
@@ -123,22 +131,23 @@ EXPECTED_TEMPLATE = {
     "contract.renewal.due": "contract_renewal_due",
     "risk.score.updated": "risk_score_updated",
     "vendor.offboarded": "vendor_offboarded",
+    "vendor.payment_details_flagged": "vendor_payment_details_flagged",
     # notification.send doesn't map to one fixed template — its own
     # template_name field picks it (see test below).
 }
 
 
 class TestConsumedTopicsCoverage:
-    def test_all_ten_documented_topics_are_consumed(self):
+    def test_all_documented_topics_are_consumed(self):
         """shared/schemas/events.md names notification-agent as a consumer
-        on exactly these 10 topics (cross-checked row by row against the
+        on exactly these 11 topics (cross-checked row by row against the
         'Consumed by' column) — including document.classified and
         vendor.offboarded, which the task brief's own topic list omitted."""
         expected = {
             "document.classified", "license.usage.updated", "approval.requested",
             "approval.decided", "contract.generated", "contract.signed",
             "contract.renewal.due", "risk.score.updated", "vendor.offboarded",
-            "notification.send",
+            "vendor.payment_details_flagged", "notification.send",
         }
         assert set(CONSUME_TOPICS) == expected
         assert set(_HANDLERS.keys()) == expected

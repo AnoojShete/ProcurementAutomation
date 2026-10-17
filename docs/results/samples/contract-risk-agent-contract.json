@@ -1,0 +1,66 @@
+{
+  "agent": "contract-risk-agent",
+  "input": {
+    "purchase_request_id": "5e879bca-dbaa-400b-88da-7f1abf1b3867",
+    "template": "saas_subscription"
+  },
+  "output": {
+    "id": "e02eb1d8-73f7-4b55-aba3-89c03e0a2bcb",
+    "purchase_request_id": "5e879bca-dbaa-400b-88da-7f1abf1b3867",
+    "vendor_id": "5818e2de-639a-42d4-a5a5-82bbfec9c23f",
+    "template_used": "saas_subscription",
+    "version": 1,
+    "status": "signed",
+    "renewal_type": "auto",
+    "notice_period_days": 30,
+    "contract_end_date": "2027-10-16",
+    "generated_at": "2026-10-16T14:36:16.306168+00:00",
+    "signed_at": "2026-10-16T14:36:17.766950+00:00",
+    "signed_by": "vendor@zenith.example",
+    "esign_provider_ref": "builtin-ref-7351bc21f05ef822",
+    "reconciliation_status": null,
+    "contract_text": "<omitted>",
+    "sent_automatically": false,
+    "notice_deadline": "2027-09-16",
+    "renewal_reminders": [
+      {
+        "alert_level": 60,
+        "date": "2027-07-18",
+        "passed": false
+      },
+      {
+        "alert_level": 30,
+        "date": "2027-08-17",
+        "passed": false
+      },
+      {
+        "alert_level": 15,
+        "date": "2027-09-01",
+        "passed": false
+      }
+    ],
+    "next_renewal_reminder": "2027-07-18",
+    "vendor_risk": {
+      "risk_band": "Medium",
+      "risk_score": 0.4568846798769769,
+      "reasons": [
+        {
+          "feature": "on_time_delivery_rate",
+          "contribution": 0.3492
+        },
+        {
+          "feature": "vendor_tenure_months",
+          "contribution": 0.2066
+        },
+        {
+          "feature": "security_cert_flag",
+          "contribution": 0.0796
+        }
+      ],
+      "overrides": [],
+      "scored_at": "2026-10-16T14:36:20.835238+00:00",
+      "acknowledgement_required": false,
+      "acknowledgement_reason": null
+    }
+  }
+}

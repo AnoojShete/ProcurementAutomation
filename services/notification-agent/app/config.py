@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = False
     email_from: str = "noreply@procurement.local"
 
-    model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
 
 
 settings = Settings()

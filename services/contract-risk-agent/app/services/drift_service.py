@@ -22,6 +22,7 @@ ARTIFACT_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "ml", "artifacts"
 )
 BASELINE_PATH = os.path.join(ARTIFACT_DIR, "baseline_distribution.json")
+MIN_SIGNALS_FOR_DRIFT = 3  # of the model's 6 inputs
 
 
 def _population_stability_index(baseline_counts, current_counts) -> float:
@@ -38,7 +39,9 @@ def _population_stability_index(baseline_counts, current_counts) -> float:
 async def check_drift(db: AsyncSession) -> dict:
     cfg = load_drift_config()
     min_n = cfg.get("min_outcomes_for_check", 5)
-    threshold = cfg.get("psi_threshold", 0.2)
+    from shared.rules_engine import get_rule
+    threshold = float(get_rule("risk.psi_significant_threshold", fallback=cfg.get("psi_threshold", 0.2)))
+    moderate_threshold = float(get_rule("risk.psi_moderate_threshold", fallback=0.1))
 
     if not os.path.exists(BASELINE_PATH):
         return {"checked": False, "reason": "no baseline distribution yet — train the model first"}
@@ -47,16 +50,28 @@ async def check_drift(db: AsyncSession) -> dict:
         baseline = json.load(f)
 
     n_recent = max(baseline.get("n_samples", 100), 50)
-    result = await db.execute(select(RiskScore.score).order_by(RiskScore.scored_at.desc()).limit(n_recent))
-    recent_scores = [float(s) for (s,) in result.all()]
+    # BR-7: each vendor's latest score, and only where the model had real
+    # inputs. A vendor with (almost) nothing on file gets the model's
+    # "unknown" score, and re-scoring one vendor ten times isn't ten
+    # vendors — counting either measured missing data, not drift.
+    latest = (select(RiskScore.vendor_id, RiskScore.score, RiskScore.signals_used, RiskScore.scored_at)
+              .distinct(RiskScore.vendor_id)
+              .order_by(RiskScore.vendor_id, RiskScore.scored_at.desc())).subquery()
+    rows = (await db.execute(
+        select(latest.c.score, latest.c.signals_used).order_by(latest.c.scored_at.desc()))).all()
+    recent_scores = [float(r.score) for r in rows if (r.signals_used or 0) >= MIN_SIGNALS_FOR_DRIFT][:n_recent]
+    excluded = sum(1 for r in rows if (r.signals_used or 0) < MIN_SIGNALS_FOR_DRIFT)
 
     if len(recent_scores) < min_n:
-        return {"checked": False, "reason": f"only {len(recent_scores)} recent scores, need >= {min_n}"}
+        return {"checked": False, "excluded_low_signal_scores": excluded,
+                "reason": f"only {len(recent_scores)} vendors scored on ≥ {MIN_SIGNALS_FOR_DRIFT} signals, need >= {min_n}; "
+                          f"{excluded} vendors have too little on file to compare"}
 
     bin_edges = baseline["bin_edges"]
     current_counts, _ = np.histogram(recent_scores, bins=bin_edges)
     psi = _population_stability_index(baseline["counts"], current_counts.tolist())
     drift_detected = psi > threshold
+    moderate_drift = psi > moderate_threshold
 
     _log_to_mlflow(psi, drift_detected, baseline.get("version"))
 
@@ -64,8 +79,12 @@ async def check_drift(db: AsyncSession) -> dict:
         "checked": True,
         "psi": round(psi, 4),
         "threshold": threshold,
+        "moderate_threshold": moderate_threshold,
         "model_drift_detected": drift_detected,
+        "moderate_drift_detected": moderate_drift,
         "n_recent_scores": len(recent_scores),
+        "min_signals": MIN_SIGNALS_FOR_DRIFT,
+        "excluded_low_signal_scores": excluded,
         "baseline_model_version": baseline.get("version"),
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }

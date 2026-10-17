@@ -4,8 +4,11 @@
 
 FROM python:3.11-slim AS builder
 WORKDIR /build
+ENV PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=5
 COPY services/auth-service/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# BuildKit cache mount: a requirements change re-downloads only what changed.
+RUN --mount=type=cache,target=/root/.cache/pip pip install --default-timeout=120 --retries=5 -r requirements.txt
 
 FROM python:3.11-slim AS runtime
 WORKDIR /app

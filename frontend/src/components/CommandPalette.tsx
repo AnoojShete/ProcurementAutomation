@@ -124,7 +124,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             aria-label="Global search"
             className="flex-1 border-none text-sm outline-none placeholder:text-slate-400"
           />
-          <kbd className="rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 text-[11px] text-slate-400">Esc</kbd>
+          <kbd className="rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 text-caption text-slate-400">Esc</kbd>
         </div>
         <div className="max-h-96 overflow-y-auto p-2">
           {filtered === null && <p className="px-2 py-6 text-center text-sm text-slate-400">Loading…</p>}

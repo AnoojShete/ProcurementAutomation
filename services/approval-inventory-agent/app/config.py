@@ -1,6 +1,9 @@
 import yaml
 from functools import lru_cache
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from shared.runtime_env import is_development
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://procurement:procurement123@postgres:5432/procurement_db"
@@ -12,16 +15,55 @@ class Settings(BaseSettings):
     temporal_task_queue: str = "approval-task-queue"
     service_name: str = "approval-inventory-agent"
     service_port: int = 8002
+    anomaly_watch_threshold: float = 0.34      # FR-32: from docs/results/licence-anomaly.md
+    anomaly_anomalous_threshold: float = 0.39  # FR-32: from docs/results/licence-anomaly.md
+    # Demo-only fault-injection endpoints under /ops/showcase. On in
+    # development (APP_ENV) unless APP_SHOWCASE_MODE says otherwise.
+    showcase_mode: bool = Field(default_factory=is_development)
+    # Purchase requests created from drop-folder quotes (app/kafka/consumer.py).
+    drop_folder_request_type: str = "saas"
+    drop_folder_department: str = "Procurement"
 
-    model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
 
 settings = Settings()
+
+def get_anomaly_thresholds() -> tuple[float, float]:
+    import os
+    from shared.rules_engine import get_rule
+    watch_fallback = float(os.getenv("ANOMALY_WATCH_THRESHOLD", os.getenv("APP_ANOMALY_WATCH_THRESHOLD", str(settings.anomaly_watch_threshold))))
+    anomalous_fallback = float(os.getenv("ANOMALY_ANOMALOUS_THRESHOLD", os.getenv("APP_ANOMALY_ANOMALOUS_THRESHOLD", str(settings.anomaly_anomalous_threshold))))
+    watch = float(get_rule("license.anomaly_watch_threshold", fallback=watch_fallback))
+    anomalous = float(get_rule("license.anomaly_anomalous_threshold", fallback=anomalous_fallback))
+    return watch, anomalous
+
+
+def anomaly_status_for(score) -> str:
+    """normal | watch | anomalous | insufficient_history for an anomaly
+    score, using the live thresholds (rules license.anomaly_*)."""
+    if score is None:
+        return "insufficient_history"
+    watch, anomalous = get_anomaly_thresholds()
+    if score >= anomalous:
+        return "anomalous"
+    return "watch" if score >= watch else "normal"
+
 
 @lru_cache
 def load_config() -> dict:
     """Load and parse the full config.yaml file."""
-    with open("config.yaml", "r") as f:
-        return yaml.safe_load(f)
+    import os
+    candidates = [
+        "config.yaml",
+        os.path.join(os.path.dirname(__file__), "..", "config.yaml"),
+        os.path.join(os.path.dirname(__file__), "config.yaml"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            with open(p, "r") as f:
+                return yaml.safe_load(f) or {}
+    return {}
 
 @lru_cache
 def load_spend_tiers() -> list[dict]:

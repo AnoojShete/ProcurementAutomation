@@ -32,6 +32,32 @@ class Vendor(Base):
     routing_code: Mapped[Optional[str]] = mapped_column(Text)
     payment_beneficiary_name: Mapped[Optional[str]] = mapped_column(Text)
     payment_details_pending_verification: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Profile (columns from shared/db/init.sql), filled by onboarding (BR-4).
+    contact_email: Mapped[Optional[str]] = mapped_column(Text)
+    contact_phone: Mapped[Optional[str]] = mapped_column(Text)
+    address: Mapped[Optional[str]] = mapped_column(Text)
+    category: Mapped[Optional[str]] = mapped_column(Text)
+    ifsc_verification_status: Mapped[Optional[str]] = mapped_column(Text)  # FR-14: valid | invalid | pending
+
+    # GSTIN (primary dedup key where available) — UNIQUE constraint enforced
+    # at DB level (see migration 0001_schema_extensions.sql) to prevent
+    # concurrent inserts from creating two rows for the same legal entity.
+    gstin: Mapped[Optional[str]] = mapped_column(String(15))
+    gstin_verification_status: Mapped[Optional[str]] = mapped_column(String(20), default="unverified")
+    # 'real' (live API verified) | 'simulated' (structural only) | 'offline'
+    gstin_data_source: Mapped[Optional[str]] = mapped_column(String(20))
+    gstin_cached_response: Mapped[Optional[dict]] = mapped_column(JSON)
+    gstin_cached_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # Tiered vetting (petty | standard | strategic)
+    vendor_tier: Mapped[Optional[str]] = mapped_column(String(10), default="standard")
+    cumulative_spend_90d: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), default=0.0)
+    spend_last_reset_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # No-GSTIN attestation (required when vendor is below GST threshold)
+    no_gstin_confirmed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    no_gstin_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
@@ -90,6 +116,20 @@ class Document(Base):
     reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[Optional[str]] = mapped_column(Text)
+    # Added by migration 0004: the text the pipeline read, kept so reviewer
+    # corrections can be located in it (app/services/learning.py).
+    raw_text: Mapped[Optional[str]] = mapped_column(Text)
+    # Added by migration 0005: pipeline starts so far (retry limit).
+    processing_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    # Added by migration 0007: total in INR and the rate used, fixed when
+    # the document was processed (app/services/fx.py).
+    total_inr: Mapped[Optional[float]] = mapped_column(Numeric(14, 2))
+    fx_rate: Mapped[Optional[float]] = mapped_column(Numeric(18, 8))
+    fx_rate_date: Mapped[Optional[date]] = mapped_column(Date)
+    fx_source: Mapped[Optional[str]] = mapped_column(Text)
+    # Added by migration 0009: upload | folder | email, and the email sender.
+    source: Mapped[Optional[str]] = mapped_column(Text)
+    source_sender: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
@@ -120,8 +160,38 @@ class PipelineCheckpoint(Base):
     agent_version: Mapped[str] = mapped_column(String(20), nullable=False)
     task_id: Mapped[str] = mapped_column(Uuid, nullable=False)
     confidence: Mapped[Optional[float]] = mapped_column(Numeric(4, 3))
-    validation_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    validation_status: Mapped[str] = mapped_column(String(50), nullable=False)
     errors: Mapped[Optional[list]] = mapped_column(JSON)
     warnings: Mapped[Optional[list]] = mapped_column(JSON)
     duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ModelRoutingLog(Base):
+    __tablename__ = "model_routing_log"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    document_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("documents.id"))
+    route_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_used: Mapped[str] = mapped_column(String(50), nullable=False)
+    fallback_triggered: Mapped[bool] = mapped_column(Boolean, default=False)
+    fallback_reason: Mapped[Optional[str]] = mapped_column(String(50))
+    confidence: Mapped[Optional[float]] = mapped_column(Numeric(4, 3))
+    duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class VendorQuote(Base):
+    __tablename__ = "vendor_quotes"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    document_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("documents.id"))
+    vendor_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendors.id"))
+    quote_number: Mapped[Optional[str]] = mapped_column(String(255))
+    valid_until: Mapped[Optional[date]] = mapped_column(Date)
+    total: Mapped[Optional[float]] = mapped_column(Numeric(14, 2))
+    currency: Mapped[Optional[str]] = mapped_column(String(10), default="INR")
+    line_items: Mapped[Optional[list]] = mapped_column(JSON)
+    is_binding: Mapped[bool] = mapped_column(Boolean, default=False)
+    raw_text: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

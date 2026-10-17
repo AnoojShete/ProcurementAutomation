@@ -6,8 +6,11 @@
 
 FROM python:3.11-slim AS builder
 WORKDIR /build
+ENV PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=5
 COPY services/contract-risk-agent/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# BuildKit cache mount: a requirements change re-downloads only what changed.
+RUN --mount=type=cache,target=/root/.cache/pip pip install --default-timeout=120 --retries=5 -r requirements.txt
 
 FROM python:3.11-slim AS runtime
 WORKDIR /app
@@ -26,6 +29,10 @@ COPY services/contract-risk-agent/alembic.ini .
 COPY services/contract-risk-agent/migrations/ ./migrations/
 COPY services/contract-risk-agent/app/ ./app/
 COPY services/contract-risk-agent/ml/ ./ml/
+# Build the (seeded) training set and train the risk model at build time,
+# so every image scores with the model from this source — not whatever
+# git-ignored ml/data or ml/artifacts sat in the builder's checkout.
+RUN SKIP_MLFLOW=1 python ml/generate_vendor_dataset.py && SKIP_MLFLOW=1 python ml/train_risk_model.py
 COPY services/contract-risk-agent/docker-entrypoint.sh .
 RUN chmod +x docker-entrypoint.sh
 

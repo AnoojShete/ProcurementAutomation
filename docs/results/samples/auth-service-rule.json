@@ -1,0 +1,66 @@
+{
+  "agent": "auth-service",
+  "input": "GET /api/admin/business-rules",
+  "output": {
+    "id": "67d6ef3e-7367-4a00-a8d5-293d72add90b",
+    "rule_key": "approval.spend_tiers",
+    "category": "approval",
+    "display_name": "Spend Tiers",
+    "description": "Approval tiers with amount limits and required roles",
+    "value_type": "json",
+    "current_value": [
+      {
+        "tier_name": "auto",
+        "max_amount": 500,
+        "min_amount": 0,
+        "required_roles": []
+      },
+      {
+        "tier_name": "manager",
+        "max_amount": 5000,
+        "min_amount": 500,
+        "required_roles": [
+          "dept_manager"
+        ]
+      },
+      {
+        "tier_name": "manager+finance",
+        "max_amount": null,
+        "min_amount": 5000,
+        "required_roles": [
+          "dept_manager",
+          "finance_head"
+        ]
+      }
+    ],
+    "default_value": [
+      {
+        "tier_name": "auto",
+        "max_amount": 500,
+        "min_amount": 0,
+        "required_roles": []
+      },
+      {
+        "tier_name": "manager",
+        "max_amount": 5000,
+        "min_amount": 500,
+        "required_roles": [
+          "dept_manager"
+        ]
+      },
+      {
+        "tier_name": "manager+finance",
+        "max_amount": null,
+        "min_amount": 5000,
+        "required_roles": [
+          "dept_manager",
+          "finance_head"
+        ]
+      }
+    ],
+    "min_value": null,
+    "max_value": null,
+    "updated_by": null,
+    "updated_at": null
+  }
+}

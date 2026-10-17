@@ -3,6 +3,7 @@ workflows. Each activity opens its own DB session / Kafka producer since
 activities run in the worker process, not the FastAPI request context."""
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 from temporalio import activity
 
@@ -21,6 +22,8 @@ async def fetch_contract_renewal_info(contract_id: str) -> dict | None:
         contract = await session.get(Contract, contract_id)
         if contract is None or contract.contract_end_date is None:
             return None
+        from shared.rules_engine import get_rule
+        milestones = get_rule("risk.contract_renewal_milestones_days", fallback=[60, 30, 15])
         return {
             "contract_id": contract.id,
             "vendor_id": contract.vendor_id,
@@ -28,13 +31,15 @@ async def fetch_contract_renewal_info(contract_id: str) -> dict | None:
             "notice_period_days": contract.notice_period_days,
             "contract_end_date": contract.contract_end_date.isoformat(),
             "status": contract.status,
+            "milestone_days": list(milestones) if isinstance(milestones, list) else [60, 30, 15],
         }
 
 
 @activity.defn
 async def publish_renewal_due_event(
     contract_id: str, vendor_id: str | None, renewal_type: str | None,
-    notice_period_days: int | None, contract_end_date: str, days_remaining: int, alert_level: int
+    notice_period_days: Optional[int], contract_end_date: str, days_remaining: int, alert_level: int,
+    notice_deadline: Optional[str] = None,
 ) -> None:
     producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
     await producer.start()
@@ -47,6 +52,7 @@ async def publish_renewal_due_event(
             contract_end_date=contract_end_date,
             days_remaining=days_remaining,
             alert_level=alert_level,
+            notice_deadline=notice_deadline,
         )
     finally:
         await producer.stop()

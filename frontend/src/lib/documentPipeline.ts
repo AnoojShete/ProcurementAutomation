@@ -5,6 +5,8 @@ export interface PipelineStep {
   key: string;
   label: string;
   state: StageState;
+  /** Every step here is machine work, so "current" means busy (spinner). */
+  working?: boolean;
 }
 
 /**
@@ -33,8 +35,8 @@ export function deriveUploadPipeline(doc: DocumentRecord | null, uploading: bool
 
   const steps: PipelineStep[] = [
     { key: "upload", label: "Uploading", state: uploading ? "current" : "completed" },
-    { key: "scan", label: "Malware Scan", state: uploading ? "pending" : stageState("scan") },
-    { key: "extract", label: "Classifying & Extracting", state: uploading ? "pending" : stageState("processing") },
+    { key: "scan", label: "Malware scan", state: uploading ? "pending" : stageState("scan") },
+    { key: "extract", label: "Classifying & extracting", state: uploading ? "pending" : stageState("processing") },
     {
       key: "validate",
       label: "Validation",
@@ -43,16 +45,20 @@ export function deriveUploadPipeline(doc: DocumentRecord | null, uploading: bool
         : failed
           ? "failed"
           : status === "classified"
-            ? doc?.needs_review
-              ? "current"
-              : "completed"
+            ? "completed"
             : "pending",
     },
     {
       key: "done",
-      label: doc?.needs_review ? "Needs Review" : "Completed",
-      state: uploading ? "pending" : failed ? "blocked" : status === "classified" && !doc?.needs_review ? "completed" : "pending",
+      label: doc?.needs_review ? "Needs review" : "Completed",
+      state: uploading
+        ? "pending"
+        : failed
+          ? "blocked"
+          : status === "classified"
+            ? "completed"
+            : "pending",
     },
   ];
-  return steps;
+  return steps.map((s) => ({ ...s, working: s.state === "current" }));
 }

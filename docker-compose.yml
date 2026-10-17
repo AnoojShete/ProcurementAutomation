@@ -20,7 +20,7 @@ services:
       retries: 5
 
   redpanda:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:v26.2.2
     # --advertise-kafka-addr is required so clients that bootstrap from
     # redpanda:9092 get told to reconnect to redpanda:9092 too — without
     # it, redpanda advertises localhost:9092 in its metadata response and
@@ -38,22 +38,55 @@ services:
       - 0M
       - --advertise-kafka-addr
       - redpanda:9092
+    # Topics, consumer offsets, Kafka users and ACLs survive the container
+    # being recreated (an image update or `up --build` used to drop them, so
+    # events not yet consumed were lost). redpanda-init is safe to re-run.
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
     ports:
-      - 9092:9092
+      - 127.0.0.1:9092:9092
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster info || exit 1"]
+      # Admin API, so it keeps working once Kafka requires a login.
+      test: ["CMD-SHELL", "rpk cluster health | grep -Eq 'Healthy:[[:space:]]+true' || exit 1"]
       interval: 10s
       retries: 12
 
+  # One-shot: Kafka users, topics and per-service permissions, then switch
+  # authentication on (infra/redpanda/bootstrap.sh, acls.conf). Every app
+  # service waits for this to finish.
+  redpanda-init:
+    image: redpandadata/redpanda:v26.2.2
+    entrypoint: ["bash", "/bootstrap/bootstrap.sh"]
+    volumes:
+      - ./infra/redpanda/bootstrap.sh:/bootstrap/bootstrap.sh:ro
+      - ./infra/redpanda/acls.conf:/bootstrap/acls.conf:ro
+      - ./shared/kafka-topics.yaml:/bootstrap/kafka-topics.yaml:ro
+    environment:
+      KAFKA_ADMIN_PASSWORD: ${KAFKA_ADMIN_PASSWORD:-dev-kafka-admin}
+      KAFKA_PASSWORD_DOCUMENT_VENDOR_AGENT: ${KAFKA_PASSWORD_DOCUMENT_VENDOR_AGENT:-dev-kafka-document-vendor-agent}
+      KAFKA_PASSWORD_APPROVAL_INVENTORY_AGENT: ${KAFKA_PASSWORD_APPROVAL_INVENTORY_AGENT:-dev-kafka-approval-inventory-agent}
+      KAFKA_PASSWORD_CONTRACT_RISK_AGENT: ${KAFKA_PASSWORD_CONTRACT_RISK_AGENT:-dev-kafka-contract-risk-agent}
+      KAFKA_PASSWORD_NOTIFICATION_AGENT: ${KAFKA_PASSWORD_NOTIFICATION_AGENT:-dev-kafka-notification-agent}
+      KAFKA_PASSWORD_AUTH_SERVICE: ${KAFKA_PASSWORD_AUTH_SERVICE:-dev-kafka-auth-service}
+      KAFKA_PASSWORD_KAFKA_EXPORTER: ${KAFKA_PASSWORD_KAFKA_EXPORTER:-dev-kafka-kafka-exporter}
+      KAFKA_PASSWORD_EVENT_MONITOR: ${KAFKA_PASSWORD_EVENT_MONITOR:-dev-kafka-event-monitor}
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: "no"
+
   minio:
-    image: minio/minio:latest
+    # Community continuation of MinIO: minio/minio (Docker Hub) and
+    # quay.io/minio/minio can no longer be pulled. Same server and CLI; has
+    # curl (healthcheck) and mc (install.sh's bucket step).
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     command: server /data --compat --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - 9000:9000
-      - 9001:9001
+      - 127.0.0.1:9000:9000
+      - 127.0.0.1:9001:9001
     volumes:
       - miniodata:/data
     healthcheck:
@@ -62,16 +95,32 @@ services:
       retries: 10
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - 9090:9090
-
-  grafana:
-    image: grafana/grafana:latest
+      - 127.0.0.1:9090:9090
+  # Searchable logs (FR-07): Promtail ships every container's stdout to
+  # Loki; Grafana queries it ("Logs" dashboard, by correlation id).
+  loki:
+    image: grafana/loki:2.9.8
+    command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
-      - 3000:3000
+      - 127.0.0.1:3100:3100
+    volumes:
+      - loki-data:/loki
+  promtail:
+    image: grafana/promtail:2.9.8
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./infra/promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+  grafana:
+    image: grafana/grafana:13.2.0
+    ports:
+      - 127.0.0.1:3000:3000
     volumes:
       - grafana-data:/var/lib/grafana
 
@@ -81,6 +130,21 @@ services:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
       - 8080:80
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter@sha256:d1014f41712d979f4fd01427b2ecd684e0b22fd756bfcd6a9d0c6b550038c724  # 1.10.0 build in use; the v1.10.0 tag now points at a newer build
+    command:
+      - --kafka.server=redpanda:9092
+      - --sasl.enabled
+      - --sasl.mechanism=scram-sha256
+      - --sasl.username=kafka-exporter
+      - --sasl.password=${KAFKA_PASSWORD_KAFKA_EXPORTER:-dev-kafka-kafka-exporter}
+    ports:
+      - "127.0.0.1:9308:9308"
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
   temporal:
     image: temporalio/auto-setup:1.21
@@ -97,28 +161,55 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - 7233:7233
-
+      - 127.0.0.1:7233:7233
   temporal-ui:
-    image: temporalio/ui:latest
+    image: temporalio/ui@sha256:eef301146e60fad34b47adaecfae4149016e34b2d44ba94fca5fd8e5441f182a  # build of 2026-08-13 (no version label)
+    # Current UI images listen on 8080 by default and read TEMPORAL_ADDRESS;
+    # TEMPORAL_GRPC_ENDPOINT is the pre-2.x name and is ignored.
     environment:
-      - TEMPORAL_GRPC_ENDPOINT=temporal:7233
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_UI_PORT=8088
     ports:
-      - 8088:8088
-
+      - 127.0.0.1:8088:8088
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.31.0
+    environment:
+      # POP3 read access for the email intake (BR-1) — development only.
+      MP_POP3_AUTH: "intake:${EMAIL_INTAKE_PASSWORD:-dev-intake-password}"
     ports:
-      - 8025:8025
+      - 127.0.0.1:8025:8025
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v1/info"]
       interval: 10s
       retries: 5
+  # --- ClamAV (malware scanning for document-vendor-agent uploads) ---
+  # Native multi-arch image (amd64 + arm64). The old clamav/clamav:stable_base
+  # has no arm64 build, so on Apple Silicon it ran under x86 emulation and
+  # took ~50s to load signatures (2-3 min on a fresh volume, because
+  # freshclam also ran emulated). Natively clamd answers in ~4s.
+  # The signature DB ships inside the image, so boot never blocks on a
+  # download; freshclamd updates it in the background and clamd reloads.
+  clamav:
+    image: clamav/clamav-debian:1.5
+    ports:
+      - 127.0.0.1:3310:3310
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 420s
+      start_interval: 5s
 
 volumes:
   pgdata:
   miniodata:
+  redpanda-data:
   grafana-data:
+  clamav-data:
+  loki-data:
 
 networks:
   default:

@@ -1,0 +1,44 @@
+{
+  "agent": "approval-inventory-agent",
+  "input": {
+    "request_type": "hardware",
+    "department": "IT",
+    "amount": 3000.0,
+    "currency": "INR",
+    "items": null,
+    "requested_by": "requester@demo.example.com"
+  },
+  "output": {
+    "id": "318477c7-0beb-4687-a00f-f4ff17e94191",
+    "document_id": null,
+    "po_number": null,
+    "request_type": "hardware",
+    "requested_by": "requester@demo.example.com",
+    "department": "IT",
+    "vendor_id": "5818e2de-639a-42d4-a5a5-82bbfec9c23f",
+    "amount": 3000.0,
+    "currency": "INR",
+    "spend_tier": "manager",
+    "status": "approved",
+    "approval_chain": [
+      "dept_manager"
+    ],
+    "current_approver_index": 1,
+    "sla_deadline": "2026-10-18T14:36:20.862234Z",
+    "items": null,
+    "is_backordered": false,
+    "created_at": "2026-10-16T14:36:20.862252Z",
+    "updated_at": "2026-10-16T14:36:20.958588Z",
+    "approval_history": [
+      {
+        "id": "29458ae5-3955-4ab7-8029-e08177afba73",
+        "decision": "approved",
+        "decided_by": "approver@demo.example.com",
+        "decision_level": "level_1_dept_manager",
+        "escalated": false,
+        "comments": null,
+        "decided_at": "2026-10-16T14:36:20.919110Z"
+      }
+    ]
+  }
+}

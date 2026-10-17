@@ -7,16 +7,16 @@ import { usePageHeader } from "@/hooks/usePageTitle";
 import { requestsApi } from "@/api/requests";
 import { documentsApi } from "@/api/documents";
 import { Greeting } from "@/components/dashboard/Greeting";
-import { MetricCard } from "@/components/ui/MetricCard";
+import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { AttentionCard, type AttentionItem } from "@/components/dashboard/AttentionCard";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Card, CardBody, CardHeader, Section } from "@/components/ui/Card";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Button } from "@/components/ui/Button";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime, titleCase } from "@/lib/format";
 import type { PurchaseRequest } from "@/types/api";
 import { useNavigate } from "react-router-dom";
 
@@ -103,9 +103,9 @@ export function RequesterDashboard() {
   }, [myRequests]);
 
   const columns: Column<PurchaseRequest>[] = [
-    { key: "id", header: "Request", render: (r) => <span className="font-mono text-xs">{r.id.slice(0, 8)}</span> },
-    { key: "type", header: "Description", render: (r) => <span className="capitalize">{r.request_type ?? "—"}</span> },
-    { key: "amount", header: "Amount", render: (r) => formatCurrency(r.amount, r.currency ?? "INR"), sortValue: (r) => r.amount ?? 0 },
+    { key: "id", header: "Request", render: (r) => <span className="font-mono text-caption text-ink-2">PR-{r.id.slice(0, 8)}</span> },
+    { key: "type", header: "Description", render: (r) => titleCase(r.request_type) },
+    { key: "amount", header: "Amount", render: (r) => formatCurrency(r.amount, r.currency ?? "INR"), sortValue: (r) => r.amount ?? 0, className: "text-right tabular" },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
     { key: "submitted", header: "Submitted", render: (r) => formatDate(r.created_at), sortValue: (r) => r.created_at ?? "" },
     {
@@ -136,24 +136,19 @@ export function RequesterDashboard() {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <AttentionCard items={attentionItems} />
+
+      <LedgerStrip cols={4} loading={loading} label="Your requests">
           <MetricCard label="Open Requests" value={kpis.open} icon={FilePlus2} tone="brand" />
           <MetricCard label="Awaiting Approval" value={kpis.awaitingApproval} icon={Clock} tone="warning" />
           <MetricCard label="Approved" value={kpis.approved} icon={CheckCircle2} tone="success" />
           <MetricCard label="Fulfilled" value={kpis.fulfilled} icon={PackageCheck} tone="brand" />
-        </div>
-      )}
+        </LedgerStrip>
 
-      <AttentionCard items={attentionItems} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="Recent Requests" subtitle="Your most recently submitted purchase requests" />
+          <CardHeader title="Recent requests" subtitle="Your most recently submitted purchase requests" />
           <CardBody>
             <DataTable
               columns={columns}
@@ -167,15 +162,12 @@ export function RequesterDashboard() {
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader title="Your Procurement Activity" subtitle="Recent updates across your requests" />
-          <CardBody>
-            <Timeline events={activity} />
-            <Link to="/app/requests" className="mt-4 inline-block text-sm font-medium text-brand-700 hover:underline">
-              View all requests →
-            </Link>
-          </CardBody>
-        </Card>
+        <Section title="Your paper trail" subtitle="Recent updates across your requests">
+          <Timeline events={activity} />
+          <Link to="/app/requests" className="mt-4 inline-block text-sm font-medium text-accent hover:underline">
+            View all requests
+          </Link>
+        </Section>
       </div>
     </div>
   );

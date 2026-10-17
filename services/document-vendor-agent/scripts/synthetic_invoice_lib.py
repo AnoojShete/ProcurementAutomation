@@ -208,8 +208,8 @@ def build_pdf_bytes(lines: List[str]) -> bytes:
 
 
 def build_image_bytes(rng: random.Random, lines: List[str], degrade: bool = False) -> bytes:
-    """Rasterized (scanned-style) document — goes through pytesseract OCR,
-    not pdfplumber. `degrade=True` heavily blurs/noises/downsamples the
+    """Rasterized (scanned-style) document — goes through PaddleOCR,
+    proving the image path works. `degrade=True` heavily blurs/noises/downsamples the
     render to produce genuinely garbled OCR output, exercising the
     low-confidence review-queue path with real (not simulated) OCR error."""
     font_size = 15

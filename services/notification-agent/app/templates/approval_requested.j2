@@ -1,8 +1,9 @@
-Subject: Approval needed: {{ request_type }} request from {{ department }} ({{ amount }} {{ currency }})
+Subject: Action required: approve {{ amount }} {{ currency }} {{ request_type }} request from {{ requested_by }} ({{ department }})
 ---
+
 Hello,
 
-A new {{ request_type }} purchase request needs your approval.
+A purchase request has been submitted and is awaiting your review:
 
   Request ID:    {{ request_id }}
   Requested by:  {{ requested_by }}
@@ -11,6 +12,18 @@ A new {{ request_type }} purchase request needs your approval.
   Spend tier:    {{ spend_tier }}
   SLA deadline:  {{ sla_deadline }}
 
-Please review it in your approver inbox.
+{% if action_url is defined and action_url %}
+Review and decide directly via single-action link:
+  Review and decide: {{ action_url }}
+
+(This secure link works once and expires at {{ action_expires_at if (action_expires_at is defined and action_expires_at) else sla_deadline }})
+{% else %}
+Please sign in to the portal to review this request:
+  {{ portal_url if (portal_url is defined and portal_url) else "http://localhost:8080/app/requests" }}
+{% endif %}
+
+
+If you were not expecting this notification or suspect unauthorized activity, please ignore this email and contact IT Security immediately.
 
 — IT Procurement Platform
+

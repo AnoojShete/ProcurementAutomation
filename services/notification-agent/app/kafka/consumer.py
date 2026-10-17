@@ -14,63 +14,129 @@ vendor.offboarded — so all 10 are handled here:
 import json
 import asyncio
 import logging
+import os
+import httpx
 
 from aiokafka import AIOKafkaConsumer
+from shared.kafka_security import kafka_auth_kwargs
 
 from app.config import settings
 from app.database import async_session_factory
 from app.kafka.events import parse_envelope
 from app.services import dispatcher, directory, routing, templating
 
+from shared.infra.retry import with_retry
+from shared.logging.context import CorrelationContext
+
 logger = logging.getLogger(__name__)
 
+
+async def _mint_action_url(request_id: str, approver_id: str, step_index: int) -> tuple[str | None, str | None]:
+    """Calls approval-inventory-agent POST /internal/email-actions/mint to obtain action_url."""
+    token = os.environ.get("INTERNAL_SERVICE_TOKEN", "dev-internal-service-token-change-me")
+    url = "http://approval-inventory-agent:8002/internal/email-actions/mint"
+    headers = {"X-Internal-Service-Token": token}
+    body = {
+        "request_id": request_id,
+        "approver_id": approver_id,
+        "step_index": step_index,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.post(url, json=body, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                return data.get("action_url"), data.get("expires_at")
+            else:
+                logger.warning(f"Minting email action token failed ({resp.status_code}): {resp.text[:200]}")
+                return None, None
+    except Exception as e:
+        logger.warning(f"Error calling internal mint endpoint: {e}")
+        return None, None
+
+
 CONSUME_TOPICS = [
-    "document.classified",     # published by document-vendor-agent
-    "license.usage.updated",   # published by approval-inventory-agent
-    "approval.requested",      # published by approval-inventory-agent
-    "approval.decided",        # published by approval-inventory-agent
-    "contract.generated",      # published by contract-risk-agent
-    "contract.signed",         # published by contract-risk-agent
-    "contract.renewal.due",    # published by contract-risk-agent
-    "risk.score.updated",      # published by contract-risk-agent
-    "vendor.offboarded",       # published by contract-risk-agent
-    "notification.send",       # generic fallback, published by any service
+    "document.classified",              # published by document-vendor-agent
+    "vendor.payment_details_flagged",   # published by document-vendor-agent (fraud alert)
+    "license.usage.updated",            # published by approval-inventory-agent
+    "approval.requested",               # published by approval-inventory-agent
+    "approval.decided",                 # published by approval-inventory-agent
+    "contract.generated",               # published by contract-risk-agent
+    "contract.signed",                  # published by contract-risk-agent
+    "contract.renewal.due",             # published by contract-risk-agent
+    "risk.score.updated",               # published by contract-risk-agent
+    "vendor.offboarded",                # published by contract-risk-agent
+    "notification.send",                # generic fallback, published by any service
 ]
 
 
+CONSUMER_NAME = "notification-agent"
+
+# Whether the consumer loop is alive — read by /health. Before this, a
+# failed Kafka login ended the loop silently and the service still
+# reported healthy (it stopped sending for three days on Oct 14).
+CONSUMER_STATE: dict = {"status": "starting", "error": None, "since": None}
+
+
+def _set_state(status: str, error: str | None = None) -> None:
+    from datetime import datetime, timezone
+    CONSUMER_STATE.update(status=status, error=error, since=datetime.now(timezone.utc).isoformat())
+
+
+async def dispatch(topic: str, event: dict) -> None:
+    """Handles one event; raises on failure so deliver() retries it and
+    finally dead-letters it (event_dlq) instead of dropping it."""
+    event_type, payload, schema_version = parse_envelope(event)
+    if schema_version != 1:
+        logger.info(f"event {event_type} has schema_version={schema_version} (handled as v1-compatible)")
+    handler = _HANDLERS.get(event_type)
+    if handler is None:
+        logger.warning(f"Unhandled event type on topic {topic}: {event_type}")
+        return
+    async with async_session_factory() as db:
+        await handler(db, payload)
+
+
 async def start_consumer(app):
+    from shared.eventing import deliver
     consumer = AIOKafkaConsumer(
         *CONSUME_TOPICS,
         bootstrap_servers=settings.kafka_bootstrap_servers,
         group_id=settings.kafka_consumer_group,
         auto_offset_reset="earliest",
+        session_timeout_ms=60000,
+        heartbeat_interval_ms=10000,
+        max_poll_interval_ms=600000,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        **kafka_auth_kwargs(),
     )
 
+    _set_state("starting")
     try:
-        await consumer.start()
+        await with_retry(consumer.start, name="Kafka consumer")
+        _set_state("running")
         logger.info(f"Kafka consumer started, listening on: {CONSUME_TOPICS}")
 
         async for msg in consumer:
-            try:
-                event_type, payload, schema_version = parse_envelope(msg.value)
-                if schema_version != 1:
-                    logger.info(f"event {event_type} has schema_version={schema_version} (handled as v1-compatible)")
-
-                handler = _HANDLERS.get(event_type)
-                if handler is None:
-                    logger.warning(f"Unhandled event type on topic {msg.topic}: {event_type}")
-                    continue
-
-                async with async_session_factory() as db:
-                    await handler(db, payload)
-
-            except Exception as e:
-                logger.error(f"Error processing message: {e}", exc_info=True)
+            event = msg.value if isinstance(msg.value, dict) else {}
+            correlation_id = event.get("correlation_id")
+            if correlation_id:
+                CorrelationContext.set(correlation_id)
+            # Dedupe (event_inbox), retry with backoff, then event_dlq.
+            await deliver(
+                async_session_factory, CONSUMER_NAME, msg.topic, event,
+                lambda event=event, topic=msg.topic: dispatch(topic, event),
+            )
 
     except asyncio.CancelledError:
+        _set_state("stopped", "cancelled")
         logger.info("Kafka consumer loop cancelled")
+    except Exception as e:
+        _set_state("stopped", f"{type(e).__name__}: {e}")
+        logger.error(f"Kafka consumer stopped: {e}", exc_info=True)
     finally:
+        if CONSUMER_STATE["status"] != "stopped":
+            _set_state("stopped", "consumer loop ended")
         await consumer.stop()
         logger.info("Kafka consumer stopped")
 
@@ -106,19 +172,39 @@ async def _handle_license_usage_updated(db, payload: dict):
 
 async def _handle_approval_requested(db, payload: dict):
     chain = payload.get("approval_chain") or []
-    # The event doesn't say which chain index is "current" (that's tracked
-    # internally by approval-inventory-agent) — the first entry is who a
-    # freshly-created request needs to act on first.
     candidate = chain[0] if chain else None
     recipient = await directory.resolve_recipient(db, candidate)
+
+    request_id = payload.get("request_id")
+    step_index = int(payload.get("step_index", 0))
+    approver_candidate = candidate or recipient
+
+    # Prompt 8 B1: Mint email action URL at render time
+    action_url, action_expires_at = await _mint_action_url(
+        request_id=request_id,
+        approver_id=approver_candidate,
+        step_index=step_index,
+    )
+
+    context = dict(payload)
+    if action_url:
+        context["action_url"] = action_url
+        context["action_expires_at"] = action_expires_at
+    else:
+        context["action_url"] = None
+
+    public_base_url = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8080").rstrip("/")
+    context["portal_url"] = f"{public_base_url}/app/requests/{request_id}"
+
     await dispatcher.notify(
         db,
         event_type="approval.requested",
         template_name="approval_requested",
-        context=payload,
+        context=context,
         recipient=recipient,
-        related_entity_id=payload.get("request_id"),
+        related_entity_id=request_id,
     )
+
 
 
 async def _handle_approval_decided(db, payload: dict):
@@ -201,6 +287,22 @@ async def _handle_vendor_offboarded(db, payload: dict):
     )
 
 
+async def _handle_vendor_payment_details_flagged(db, payload: dict):
+    """Fraud-prevention alert: a vendor's bank/payment details have been
+    changed. Per the prompt this is ALWAYS urgent (never digest) —
+    finance needs to verify through out-of-band channels before any
+    payments go through the updated details."""
+    recipient = await directory.resolve_recipient(db, None)
+    await dispatcher.notify(
+        db,
+        event_type="vendor.payment_details_flagged",
+        template_name="vendor_payment_details_flagged",
+        context=payload,
+        recipient=recipient,
+        related_entity_id=payload.get("vendor_id"),
+    )
+
+
 async def _handle_notification_send(db, payload: dict):
     """Generic fallback: any service can ask us to render+send an
     arbitrary template with arbitrary context. `priority` is authoritative
@@ -237,6 +339,7 @@ async def _handle_notification_send(db, payload: dict):
 
 _HANDLERS = {
     "document.classified": _handle_document_classified,
+    "vendor.payment_details_flagged": _handle_vendor_payment_details_flagged,
     "license.usage.updated": _handle_license_usage_updated,
     "approval.requested": _handle_approval_requested,
     "approval.decided": _handle_approval_decided,

@@ -1,0 +1,82 @@
+"""PaddleOCR subprocess worker — isolated from the main process.
+
+PaddleOCR's C-level inference backend (paddle_infer::Predictor, oneDNN)
+can SIGABRT/SIGSEGV the process on certain platform/version combinations —
+none of these are catchable from Python since they're OS-level signals,
+not Python exceptions. Running PaddleOCR in a subprocess means a crash
+kills the child process, not the API/worker process.
+
+Protocol:
+  stdin:  raw image bytes (the entire file content)
+  stdout: JSON {"lines": [{"text", "confidence", "box": [x0, y0, x1, y1]}],
+          "width", "height"} (image size in pixels),
+          one entry per OCR result line, confidence = PaddleOCR's
+          recognition score (0-1)
+  stderr: error messages (logged by parent on non-zero exit)
+  exit 0: success (stdout contains text)
+  exit 1: PaddleOCR not available / import failed
+  exit 2: OCR processing error
+
+Called only for image files (PNG/JPEG/TIFF). PDFs go through Docling
+in the main process.
+"""
+import contextlib
+import io
+import json
+import sys
+
+
+def _run():
+    """Read image bytes from stdin, OCR with PaddleOCR, print text to stdout."""
+    image_bytes = sys.stdin.buffer.read()
+    if not image_bytes:
+        sys.exit(2)
+
+    # stdout carries only the extracted text: PaddleOCR prints model
+    # download progress ("download https://... to ...") there, which would
+    # otherwise become part of the document's text.
+    try:
+        with contextlib.redirect_stdout(sys.stderr):
+            from paddleocr import PaddleOCR  # noqa
+    except ImportError:
+        # PaddleOCR not installed
+        sys.exit(1)
+
+    try:
+        import numpy as np
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img_array = np.array(img)
+
+        # use_angle_cls=True handles rotated text; lang='en' for IT invoices.
+        # show_log=False keeps stdout clean (only extracted text goes there).
+        with contextlib.redirect_stdout(sys.stderr):
+            ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+            result = ocr.ocr(img_array, cls=True)
+
+        lines = []
+        if result:
+            for block in result:
+                if block:
+                    for line in block:
+                        # line = [polygon (4 points), (text, score)]
+                        if line and len(line) >= 2 and line[1] and line[1][0]:
+                            xs = [float(p[0]) for p in line[0]]
+                            ys = [float(p[1]) for p in line[0]]
+                            lines.append({
+                                "text": line[1][0],
+                                "confidence": float(line[1][1]) if len(line[1]) > 1 else 0.0,
+                                "box": [min(xs), min(ys), max(xs), max(ys)],
+                            })
+
+        print(json.dumps({"lines": lines, "width": img.width, "height": img.height}), end="")
+        sys.exit(0)
+
+    except Exception as e:
+        print(f"PaddleOCR error: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    _run()

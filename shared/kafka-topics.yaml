@@ -8,7 +8,11 @@ topics:
   - contract.generated
   - contract.signed
   - contract.renewal.due
+  - reminder.due
   - risk.score.updated
   - vendor.offboarded
   - vendor.payment_details_flagged
   - notification.send
+  - invoice.matched
+  - business_rule.updated
+  - order.summary.generated

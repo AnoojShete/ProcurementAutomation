@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Showcase Guide</title>
+<style>
+  :root {
+    --bg: #f4f6f9; --panel: #ffffff; --ink: #172033; --muted: #5d6879; --line: #d6dce5; --arrow: #8e99a8;
+    --src: #1f5fbf; --stream: #7a3fa3; --proc: #2563c9; --gate: #1d8a4a; --agent: #d9730d; --notify: #d1336b; --shared: #4b5563;
+    --ok: #1d8a4a; --part: #b7791f; --plan: #8b95a3; --bad: #c2412d;
+    --tint: 8%;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1218; --panel: #161c24; --ink: #e6ebf1; --muted: #9aa5b4; --line: #2a333f; --arrow: #5d6876;
+    --src: #6aa1f5; --stream: #b98ae0; --proc: #7aa7f2; --gate: #4cc27f; --agent: #f2a250; --notify: #f07aa0; --shared: #a3adba;
+    --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796; --bad: #f08a76;
+    --tint: 14%;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1218; --panel: #161c24; --ink: #e6ebf1; --muted: #9aa5b4; --line: #2a333f; --arrow: #5d6876;
+      --src: #6aa1f5; --stream: #b98ae0; --proc: #7aa7f2; --gate: #4cc27f; --agent: #f2a250; --notify: #f07aa0; --shared: #a3adba;
+      --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796; --bad: #f08a76;
+      --tint: 14%;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 22px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; }
+  h1 { margin: 0; font-size: 21px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  a { color: var(--src); }
+  code { font: 12.5px ui-monospace, Menlo, monospace; background: color-mix(in srgb, var(--line) 45%, var(--panel)); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+  pre { margin: 6px 0; background: color-mix(in srgb, var(--line) 30%, var(--panel)); border: 1px solid var(--line); border-radius: 8px;
+        padding: 9px 11px; overflow-x: auto; font: 12.5px/1.5 ui-monospace, Menlo, monospace; }
+  .theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+  .theme button { border: 0; background: none; color: var(--muted); padding: 5px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .theme button[aria-pressed="true"] { background: var(--line); color: var(--ink); }
+  svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 14px 0 0; flex-wrap: wrap; }
+  .tabs a { padding: 8px 14px; border-radius: 8px 8px 0 0; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 13.5px;
+            border: 1px solid transparent; border-bottom: 0; display: inline-flex; gap: 7px; align-items: center; }
+  .tabs a[aria-selected="true"] { color: var(--ink); background: var(--panel); border-color: var(--line); margin-bottom: -1px; }
+  [hidden] { display: none !important; }
+
+  h2.t { margin: 26px 0 10px; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--c, var(--proc));
+         display: flex; align-items: center; gap: 8px; }
+  .who { margin-top: 16px; display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cards { display: grid; gap: 10px; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; }
+  .card h3 { margin: 0 0 5px; font-size: 14px; display: flex; align-items: center; gap: 7px; }
+  .card h3 svg.i { color: var(--c, var(--proc)); }
+  .card ul { margin: 4px 0 0; padding-left: 18px; } .card li { margin: 2px 0; }
+  .card.c-g { --c: var(--gate); border: 1.5px solid var(--gate); background: color-mix(in srgb, var(--gate) var(--tint), var(--panel)); }
+  .card.c-a { --c: var(--agent); border: 1.5px solid var(--agent); background: color-mix(in srgb, var(--agent) var(--tint), var(--panel)); }
+  .card.c-w { --c: var(--part); border: 1.5px solid var(--part); background: color-mix(in srgb, var(--part) var(--tint), var(--panel)); }
+  .lead { font-size: 15.5px; max-width: 880px; }
+  /* Real screenshots of each step (tests/e2e/showcase_screens.py) */
+  .shots { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 9px; }
+  .shots figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .shots img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: top left; border-bottom: 1px solid var(--line); }
+  .shots a:hover img { opacity: .85; }
+  .shots figcaption { font-size: 11.5px; line-height: 1.35; padding: 5px 7px 6px; color: var(--muted); display: flex; gap: 6px; }
+  .shots figcaption b { color: var(--c, var(--proc)); }
+  .muted { color: var(--muted); font-size: 12.5px; }
+
+  .check { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+  .check li { display: flex; gap: 8px; align-items: flex-start; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  .check input { margin-top: 3px; }
+
+  .steps { counter-reset: s; display: grid; gap: 10px; }
+  .step { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--c, var(--proc)); border-radius: 10px; padding: 10px 13px 11px 13px; }
+  .step > .hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+  .step > .hd b { font-size: 14.5px; }
+  .step > .hd b::before { counter-increment: s; content: counter(s) ". "; color: var(--c, var(--proc)); }
+  .step .time { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .step .as { font-size: 11.5px; font-weight: 700; border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; color: var(--muted); }
+  .step dl { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 3px 10px; margin: 7px 0 0; font-size: 13px; }
+  .step dt { color: var(--muted); font-weight: 600; } .step dd { margin: 0; min-width: 0; }
+  .step.doc { --c: var(--proc); } .step.ag { --c: var(--agent); } .step.ct { --c: var(--notify); } .step.pl { --c: var(--stream); } .step.ad { --c: var(--gate); }
+
+  .tbl { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); font-size: 13px; }
+  .tblwrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--line); }
+  .tblwrap .tbl { border: 0; }
+  .tbl th, .tbl td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl th { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--line) 35%, var(--panel)); }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .pill.g { color: var(--ok); } .pill.a { color: var(--part); } .pill.n { color: var(--plan); }
+  .tl { display: grid; gap: 8px; }
+  .tl .d { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 10px; }
+  .tl .d > span { font-weight: 700; color: var(--muted); font-size: 12.5px; padding-top: 9px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 22px; }
+  @media (max-width: 860px) { .cards, .who { grid-template-columns: 1fr; } .step dl { grid-template-columns: minmax(0, 1fr); } .tl .d { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="user" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M16 11l2 2 4-4"/></symbol>
+    <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z"/></symbol>
+    <symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></symbol>
+    <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+    <symbol id="alert" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M12 8v5M12 16v.5"/></symbol>
+    <symbol id="chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></symbol>
+    <symbol id="tool" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></symbol>
+    <symbol id="book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></symbol>
+    <symbol id="bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <header>
+    <div>
+      <h1>Showcase guide — IT Procurement Intelligence Platform</h1>
+      <div class="sub">How to present the project: the full walkthrough for an external evaluator, the "what's new" run for a mentor. State as of <b>16 Oct 2026</b>.</div>
+    </div>
+    <div class="theme" role="group" aria-label="Theme">
+      <button type="button" data-set="light">Light</button>
+      <button type="button" data-set="dark">Dark</button>
+      <button type="button" data-set="">System</button>
+    </div>
+  </header>
+
+  <div class="who">
+    <a class="card c-g" href="#external" style="text-decoration:none;color:inherit"><h3><svg class="i"><use href="#globe"/></svg>External evaluator</h3>
+      Doesn't know the project. Show <b>everything</b>: the problem, the architecture, one document all the way to a matched invoice, then the safety controls. ~25 min + questions.</a>
+    <a class="card c-a" href="#mentor" style="text-decoration:none;color:inherit"><h3><svg class="i"><use href="#user"/></svg>Internal mentor</h3>
+      Knows the project. Show <b>only what changed</b> since the last check-in, map it to their feedback, then ask for the decisions we need. ~10 min + discussion.</a>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Guides">
+    <a href="#prepare" role="tab" id="t-prepare" aria-controls="tab-prepare"><svg class="i"><use href="#check"/></svg>Prepare (both)</a>
+    <a href="#external" role="tab" id="t-external" aria-controls="tab-external"><svg class="i"><use href="#globe"/></svg>External evaluator</a>
+    <a href="#mentor" role="tab" id="t-mentor" aria-controls="tab-mentor"><svg class="i"><use href="#user"/></svg>Mentor — what's new</a>
+  </nav>
+
+  <!-- ═══════════════════════════ PREPARE ═══════════════════════════ -->
+  <section id="tab-prepare" role="tabpanel" aria-labelledby="t-prepare">
+    <h2 class="t"><svg class="i"><use href="#tool"/></svg>The day before</h2>
+    <pre>./run.sh                                 # builds what changed and starts everything
+./scripts/seed-demo-data.sh              # demo vendor, requests, licences, stock
+./scripts/download-models.sh             # once per machine (LayoutLMv3 cross-check)
+make e2e                                 # expect: 17 passed, 0 failed
+python tests/e2e/invoice_lifecycle.py    # expect: 71 passed, 0 failed (wait a minute after make e2e)
+python tests/e2e/document_pipeline.py --quick   # expect: 52 passed, 0 failed</pre>
+    <p class="muted">All three counts were re-run on 16 Oct 2026. Wait a minute between suites — the gateway rate-limits logins per IP.</p>
+    <pre>python tests/e2e/showcase_screens.py     # retakes every screenshot on this page from the live stack (~3 min)
+python tests/e2e/demo_scenarios.py       # runs the five demo scenarios and refreshes demo-script.html (~5 min)</pre>
+    <p>Step-by-step scenarios with the expected result of every click: <a href="demo-script.html"><b>demo-script.html</b></a> — each row was performed and checked on the live stack by the script above.</p>
+    <p class="muted">The pictures below are taken by that script driving the real app (it uploads two documents, screens two vendors and switches the fallback rule on and off again). If a pipeline is broken, the script ends with <b>STEPS THAT FAILED</b> and the picture shows what was on screen — run it the day before so a broken step is found then, not live. Teammates: the pictures are also the click-path for the newer modules.</p>
+
+    <h2 class="t"><svg class="i"><use href="#check"/></svg>One hour before</h2>
+    <ul class="check">
+      <li><input type="checkbox"><span><code>docker compose ps</code> — every service <i>Up</i>, ClamAV <i>healthy</i>.</span></li>
+      <li><input type="checkbox"><span>Nothing else holds port 8080 — e.g. an SSH tunnel to the Linux VM (<code>lsof -nP -iTCP:8080 -sTCP:LISTEN</code> should list only Docker). Otherwise the browser talks to the VM, not this machine.</span></li>
+      <li><input type="checkbox"><span>Log in once as each role; upload one document (the first one is slow while the OCR models load).</span></li>
+      <li><input type="checkbox"><span>Open in tabs: app <a href="http://localhost:8080">:8080</a>, Mailpit <a href="http://localhost:8025">:8025</a>, Grafana <a href="http://127.0.0.1:3000">127.0.0.1:3000</a>, Temporal UI <a href="http://localhost:8088">:8088</a>, and <a href="project-flow.html">project-flow.html</a>.</span></li>
+      <li><input type="checkbox"><span>Have <code>data/synthetic-invoices/</code> open in Finder for drag-and-drop.</span></li>
+      <li><input type="checkbox"><span>Browser zoom ~125 %, notifications off, a clean window.</span></li>
+    </ul>
+
+    <h2 class="t"><svg class="i"><use href="#user"/></svg>Accounts and links</h2>
+    <div class="tblwrap"><table class="tbl">
+      <tr><th>Role</th><th>Login (password <code>DemoPass123!</code>)</th><th>Use it for</th></tr>
+      <tr><td>Requester</td><td><code>requester@demo.example.com</code></td><td>New request wizard, own requests, mark as received</td></tr>
+      <tr><td>Approver</td><td><code>approver@demo.example.com</code></td><td>Approval queue, approve / reject</td></tr>
+      <tr><td>Finance</td><td><code>finance@demo.example.com</code></td><td>Vendors (onboarding, bank details, risk signals), contracts, controls</td></tr>
+      <tr><td>Admin</td><td><code>admin@demo.example.com</code></td><td>Control Panel, Inventory, Business Rules, Users, System Health</td></tr>
+    </table></div>
+    <p class="muted">Also: MinIO console :9001, Prometheus :9090, MLflow :5050. Grafana: use <code>127.0.0.1:3000</code> on this Mac (another app answers on <code>localhost:3000</code>).</p>
+
+    <h2 class="t"><svg class="i"><use href="#flag"/></svg>Presenting as a team</h2>
+    <div class="cards" style="--n:3">
+      <div class="card"><h3>Driver</h3>One person clicks; nobody else touches the keyboard.</div>
+      <div class="card"><h3>Narrator</h3>Says why each step matters (the "Say" lines below), watches the clock.</div>
+      <div class="card"><h3>Back-up</h3>Has the fallback ready (below) and answers technical questions.</div>
+    </div>
+    <div class="card c-w" style="margin-top:10px"><h3><svg class="i"><use href="#alert"/></svg>If something breaks live</h3>
+      Don't debug in front of the evaluator. Say what should have happened, run <code>make e2e</code> (≈30 s, walks the whole chain through the gateway) and show its output, then continue with the next step.</div>
+  </section>
+
+  <!-- ═══════════════════════════ EXTERNAL ═══════════════════════════ -->
+  <section id="tab-external" role="tabpanel" aria-labelledby="t-external" hidden>
+    <h2 class="t"><svg class="i"><use href="#star"/></svg>Open with the problem (1 min)</h2>
+    <p class="lead">Buying software and hardware in a company is a chain of hand-offs: someone retypes an invoice, chases an approver, drafts a contract, waits for a signature, then checks the invoice against the order by eye. It is slow, and the risky cases — a fake invoice, a changed bank account, an unreliable vendor — are easy to miss. We built five cooperating services ("agents") that carry a document from arrival to a matched payment, and bring a person in only where a decision is needed.</p>
+
+    <h2 class="t"><svg class="i"><use href="#bolt"/></svg>Architecture in one picture (2 min)</h2>
+    <p>Open <a href="project-flow.html">project-flow.html</a> and walk top to bottom: sources → gateway, virus scan, storage → document intelligence → "confident enough?" → the procurement agents and the request lifecycle → notifications → shared services. Points to make:</p>
+    <div class="cards" style="--n:3">
+      <div class="card"><h3>Agents, not one app</h3>Document &amp; Vendor, Approval &amp; Inventory, Contract &amp; Risk, Notification, Auth — each owns its data and reacts to the others' events.</div>
+      <div class="card"><h3>Nothing gets lost</h3>Events are saved in the same transaction as the change (outbox), retried, and parked in a dead-letter queue if they still fail.</div>
+      <div class="card"><h3>Long processes survive restarts</h3>Approvals, renewals and reminders are Temporal workflows with timers.</div>
+    </div>
+
+    <h2 class="t"><svg class="i"><use href="#play"/></svg>Live walkthrough (~18 min)</h2>
+    <div class="steps">
+      <div class="step doc"><div class="hd"><b>A document arrives three ways</b><span class="as">admin + finance</span><span class="time">3 min</span></div>
+        <dl><dt>Do</dt><dd>Upload <code>02_quote_delltechnologiesindi_QT-2026-00003.pdf</code> on <b>Documents</b>. Then email one in:
+<pre>docker compose exec -T document-vendor-agent python -c "
+import smtplib, sys
+from email.message import EmailMessage
+m = EmailMessage(); m['From'] = 'billing@freshworks.example'; m['To'] = 'invoices@procurement.local'; m['Subject'] = 'Invoice'
+m.set_content('Please find our invoice attached.')
+m.add_attachment(sys.stdin.buffer.read(), maintype='application', subtype='pdf', filename='invoice.pdf')
+smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/synthetic-invoices/03_invoice_freshworksinc_INV-2026-00004.pdf</pre>
+          It appears in Documents within ~30 s with <i>By email from billing@freshworks.example</i>. Optionally drop a file into <code>./inbox</code> and watch it on <b>Control Panel → Dropped files</b>.</dd>
+          <dt>Say</dt><dd>Every source goes through the same path: virus scan, storage, the same pipeline. Email intake reads the mailbox only, each message once.</dd>
+          <dt>Notice</dt><dd>Live pipeline status; detected type, per-field confidence, vendor match.</dd></dl>
+        <div class="shots"><figure><a href="showcase/intake/01-documents.png" target="_blank" rel="noopener"><img src="showcase/intake/01-documents.png" alt="Documents → Upload documents" loading="lazy"></a><figcaption><b>1</b>Documents → Upload documents</figcaption></figure><figure><a href="showcase/intake/02-file-chosen.png" target="_blank" rel="noopener"><img src="showcase/intake/02-file-chosen.png" alt="Choose a file (here: an HP invoice)" loading="lazy"></a><figcaption><b>2</b>Choose a file (here: an HP invoice)</figcaption></figure><figure><a href="showcase/intake/03-processing.png" target="_blank" rel="noopener"><img src="showcase/intake/03-processing.png" alt="Live status while the pipeline runs" loading="lazy"></a><figcaption><b>3</b>Live status while the pipeline runs</figcaption></figure><figure><a href="showcase/intake/04-processed.png" target="_blank" rel="noopener"><img src="showcase/intake/04-processed.png" alt="Done: type, vendor, confidence, review flag" loading="lazy"></a><figcaption><b>4</b>Done: type, vendor, confidence, review flag</figcaption></figure><figure><a href="showcase/intake/05-document-detail.png" target="_blank" rel="noopener"><img src="showcase/intake/05-document-detail.png" alt="Why it needs review: likely duplicate (uploaded before), no request to match" loading="lazy"></a><figcaption><b>5</b>Why it needs review: likely duplicate (uploaded before), no request to match</figcaption></figure><figure><a href="showcase/intake/06-extracted-fields.png" target="_blank" rel="noopener"><img src="showcase/intake/06-extracted-fields.png" alt="Fields read with per-field confidence; non-PO invoice detected" loading="lazy"></a><figcaption><b>6</b>Fields read with per-field confidence; non-PO invoice detected</figcaption></figure></div></div>
+
+      <div class="step doc"><div class="hd"><b>What the AI read, and how sure it is</b><span class="as">finance</span><span class="time">3 min</span></div>
+        <dl><dt>Do</dt><dd>Open the uploaded document: extracted fields with confidence, document type (invoice / PO / quote / other), "PO-backed" or "non-PO" for invoices. Upload the same file again → duplicate flag. Upload a phone photo or a scan (e.g. <code>09_invoice_…png</code>).</dd>
+          <dt>Say</dt><dd>PDFs read 100 % of fields in our test set; photos and scans are harder (49 % of fields), so they're straightened and enlarged first and sent to review when unsure (<code>docs/results/extraction.md</code>). Low confidence goes to a person, never silently through.</dd>
+          <dt>Notice</dt><dd>Fields side by side with the document; corrections are remembered per vendor.</dd></dl></div>
+
+      <div class="step ag"><div class="hd"><b>Vendor onboarding and fraud guard</b><span class="as">finance</span><span class="time">2 min</span></div>
+        <dl><dt>Do</dt><dd><b>Vendors → Onboard vendor</b>: type a GSTIN with a wrong last character → check-digit error; leave GSTIN empty → must confirm and give a reason; type a name close to an existing vendor → "looks like …" warning. Add bank details and onboard.</dd>
+          <dt>Say</dt><dd>Bank details never go live straight away — a second person must verify them by phone (dual control), and invoices for that vendor are held until then.</dd>
+          <dt>Notice</dt><dd>The new vendor's page: pending bank-detail change, risk score, risk signals.</dd></dl>
+        <div class="shots"><figure><a href="showcase/onboarding/01-vendors.png" target="_blank" rel="noopener"><img src="showcase/onboarding/01-vendors.png" alt="Vendors → Onboard vendor" loading="lazy"></a><figcaption><b>1</b>Vendors → Onboard vendor</figcaption></figure><figure><a href="showcase/onboarding/02-checks.png" target="_blank" rel="noopener"><img src="showcase/onboarding/02-checks.png" alt="Check profile: look-alike of an existing vendor, GSTIN check digit wrong" loading="lazy"></a><figcaption><b>2</b>Check profile: look-alike of an existing vendor, GSTIN check digit wrong</figcaption></figure></div></div>
+
+      <div class="step ag"><div class="hd"><b>Request and approval</b><span class="as">requester → approver</span><span class="time">3 min</span></div>
+        <dl><dt>Do</dt><dd>As requester: <b>New Request</b> (Details → Vendor → Documents → Review → Submit), attach the quote, about ₹2,500. As approver: open it from <b>Approval Queue</b>; approve on the lifecycle's Approval step. Try approving your own request as admin → blocked.</dd>
+          <dt>Say</dt><dd>Spend tiers decide who approves; nobody — not even an admin — approves their own request. Approvals are workflows that remind the approver and escalate after the SLA.</dd>
+          <dt>Notice</dt><dd>Status flips a moment later; every lifecycle step is clickable.</dd></dl>
+        <div class="shots"><figure><a href="showcase/approval/01-approval-queue.png" target="_blank" rel="noopener"><img src="showcase/approval/01-approval-queue.png" alt="Approver&#x27;s queue (SLA shown)" loading="lazy"></a><figcaption><b>1</b>Approver&#x27;s queue (SLA shown)</figcaption></figure><figure><a href="showcase/approval/02-request-lifecycle.png" target="_blank" rel="noopener"><img src="showcase/approval/02-request-lifecycle.png" alt="One request, every lifecycle step clickable" loading="lazy"></a><figcaption><b>2</b>One request, every lifecycle step clickable</figcaption></figure></div></div>
+
+      <div class="step ct"><div class="hd"><b>Contract, risk check, signature</b><span class="as">finance</span><span class="time">3 min</span></div>
+        <dl><dt>Do</dt><dd>The contract is generated and sent for signature automatically after approval. Open it: the <b>Vendor risk</b> panel shows band, score and reasons. <b>Sign now</b> — for a High-risk or not-yet-scored vendor the Sign button stays disabled until the risk is acknowledged. Sign (typed or drawn), download the signed PDF, open the certificate.</dd>
+          <dt>Say</dt><dd>The signature certificate records who signed, when, a tamper-evident seal, and the risk the signer saw and accepted.</dd>
+          <dt>Notice</dt><dd>Renewal timeline counted back from the notice deadline.</dd></dl>
+        <div class="shots"><figure><a href="showcase/contract/01-contract-risk.png" target="_blank" rel="noopener"><img src="showcase/contract/01-contract-risk.png" alt="Contract with the vendor&#x27;s risk before signing" loading="lazy"></a><figcaption><b>1</b>Contract with the vendor&#x27;s risk before signing</figcaption></figure><figure><a href="showcase/contract/02-renewal-timeline.png" target="_blank" rel="noopener"><img src="showcase/contract/02-renewal-timeline.png" alt="Renewal reminders counted back from the notice deadline" loading="lazy"></a><figcaption><b>2</b>Renewal reminders counted back from the notice deadline</figcaption></figure><figure><a href="showcase/contract/03-vendor-risk.png" target="_blank" rel="noopener"><img src="showcase/contract/03-vendor-risk.png" alt="Vendor page → Risk Signals: delivery and compliance re-score" loading="lazy"></a><figcaption><b>3</b>Vendor page → Risk Signals: delivery and compliance re-score</figcaption></figure></div></div>
+
+      <div class="step ag"><div class="hd"><b>Delivery, invoice, stock</b><span class="as">requester + admin</span><span class="time">2 min</span></div>
+        <dl><dt>Do</dt><dd>Request → <b>Mark as received</b> (ordered → fulfilled). <b>Inventory</b>: reorder suggestions with the arithmetic spelled out (owed + top-up + reorder quantity). Optionally request more docks than in stock → it waits as backordered.</dd>
+          <dt>Say</dt><dd>Invoices are matched line by line against the order (three-way, with tolerances); a mismatch puts the payment on hold.</dd></dl>
+        <div class="shots"><figure><a href="showcase/inventory/01-reorder.png" target="_blank" rel="noopener"><img src="showcase/inventory/01-reorder.png" alt="Inventory → Reorder Suggestions with the arithmetic" loading="lazy"></a><figcaption><b>1</b>Inventory → Reorder Suggestions with the arithmetic</figcaption></figure></div></div>
+
+      <div class="step ad"><div class="hd"><b>Risk model that explains itself</b><span class="as">finance</span><span class="time">1 min</span></div>
+        <dl><dt>Do</dt><dd>Vendor page → <b>Risk Signals</b>: on-time delivery from real history, tick a security certification → <i>Save and re-score</i>.</dd>
+          <dt>Say</dt><dd>Random forest evaluated on 2,000 synthetic vendors (ROC-AUC 0.715, red-team 12/12, <code>docs/results/risk-model.md</code>); missing data is left out, not guessed; hard checks (cancelled GSTIN) override the model.</dd></dl></div>
+
+      <div class="step pl"><div class="hd"><b>Operations: nothing hidden</b><span class="as">admin</span><span class="time">1 min</span></div>
+        <dl><dt>Do</dt><dd><b>Control Panel</b>: Kafka log (every event, searchable), Failed events. <b>Business Rules</b>: change a spend limit, show its history. Grafana → Logs dashboard: search one correlation id across services. Mailpit: the notification emails.</dd>
+          <dt>Say</dt><dd>One id follows a request through every service; failed events are kept with their error, never dropped.</dd></dl>
+        <div class="shots"><figure><a href="showcase/reliability/01-kafka-log.png" target="_blank" rel="noopener"><img src="showcase/reliability/01-kafka-log.png" alt="Control Panel → Kafka log: every event, kept across restarts" loading="lazy"></a><figcaption><b>1</b>Control Panel → Kafka log: every event, kept across restarts</figcaption></figure><figure><a href="showcase/reliability/02-failed-events.png" target="_blank" rel="noopener"><img src="showcase/reliability/02-failed-events.png" alt="Failed events (dead-letter queue) with their error" loading="lazy"></a><figcaption><b>2</b>Failed events (dead-letter queue) with their error</figcaption></figure><figure><a href="showcase/reliability/03-notifications.png" target="_blank" rel="noopener"><img src="showcase/reliability/03-notifications.png" alt="Notifications sent for each lifecycle event" loading="lazy"></a><figcaption><b>3</b>Notifications sent for each lifecycle event</figcaption></figure></div></div>
+    </div>
+
+    <h2 class="t"><svg class="i"><use href="#shield"/></svg>Optional deep dive — Controls page (5 min, admin)</h2>
+    <div class="cards" style="--n:3">
+      <div class="card"><h3>Event reliability</h3>Send an out-of-order event → it lands in the dead-letter table with its reason.</div>
+      <div class="card"><h3>Approval authority</h3>Who may approve what; self-approval refused.</div>
+      <div class="card"><h3>Payment protection</h3>Look-alike vendor and first-seen bank details → payment hold.</div>
+      <div class="card"><h3>Invoice matching</h3>An invoice 2 % over the agreed price → held for review.</div>
+      <div class="card"><h3>Learning</h3>Correct a field twice for one vendor; the third document arrives pre-filled.</div>
+      <div class="card"><h3>Model fallback</h3>Business Rules → <i>Force Model Fallback (demo)</i> = <code>["extraction"]</code>, upload a document, then System Health → Model Routing Log shows <code>layoutlmv3_fallback · forced</code> with its duration. Set it back to <code>[]</code>. (<a href="model-routing.md">model-routing.md</a>)</div>
+      <div class="card"><h3>Research direction</h3><a href="project-flow.html#research">project-flow.html#research</a> — calibrated, risk-controlled automation (planned).</div>
+    </div>
+
+    <h2 class="t"><svg class="i"><use href="#check"/></svg>Evidence to quote</h2>
+    <div class="tblwrap"><table class="tbl">
+      <tr><th>Claim</th><th>Evidence (16 Oct 2026)</th></tr>
+      <tr><td>Tested per service</td><td>594 unit tests pass across the five services (document 254, approval 123, contract-risk 118, auth 60, notification 39)</td></tr>
+      <tr><td>Works end to end through the gateway</td><td><code>make e2e</code> 17/17 · invoice lifecycle through all agents 71/71 · document pipeline 52/52</td></tr>
+      <tr><td>Document reading measured</td><td>PDFs 100 % of fields; images 49 % (with preprocessing) — <code>docs/results/extraction.md</code></td></tr>
+      <tr><td>Risk model measured</td><td>ROC-AUC 0.715 (best possible on these labels 0.739), red-team 12/12 — <code>docs/results/risk-model.md</code></td></tr>
+      <tr><td>Fixes proven</td><td>Each fix is checked by reverting it and watching a test fail</td></tr>
+    </table></div>
+
+    <h2 class="t"><svg class="i"><use href="#alert"/></svg>Be upfront about</h2>
+    <div class="cards" style="--n:2">
+      <div class="card c-w"><h3>Prototype, not production</h3><ul>
+        <li>All data is synthetic; ML is not measured on real company data.</li>
+        <li>Photos / low-quality scans read poorly (49 % of fields); they go to review.</li>
+        <li>Built-in e-sign seal is tamper-evident (SHA-256), not a keyed signature.</li>
+        <li>CI builds images but doesn't run tests yet; Kafka has no TLS; single machine.</li></ul></div>
+      <div class="card c-w"><h3>Not built yet</h3><ul>
+        <li>Calibrated automation gate — the research plan.</li>
+        <li>Tests in CI, real secrets and TLS (November submission work).</li></ul></div>
+      <div class="card c-w"><h3>Measured limits</h3><ul>
+        <li>All models are evaluated on synthetic or public data, not a company's own documents.</li>
+        <li>Licence model: the demo's two declining licences rank highest but sit just under "watch" — it catches 87 % of drop-offs, 71 % of declines.</li>
+        <li>Legal-BERT needs ~17 s of CPU for a typical outside contract; our generated ones take about a second.</li></ul></div>
+    </div>
+
+    <h2 class="t"><svg class="i"><use href="#chat"/></svg>Likely questions</h2>
+    <div class="cards" style="--n:2">
+      <div class="card"><h3>Why "agentic" and not just microservices?</h3>Each agent owns a goal and decides on its own — classify, route, reclaim a licence, flag a vendor — coordinating through events, and hands off to a person when unsure.</div>
+      <div class="card"><h3>Where is ML used?</h3>OCR and layout (PaddleOCR, Docling, LayoutLMv3 cross-check), document classifier (TF-IDF + logistic regression), contract clauses (Legal-BERT on CUAD), vendor risk (random forest), licence anomalies (IsolationForest + SHAP), fuzzy vendor and sanctions matching. Rules where it must be predictable: approval tiers, dual control.</div>
+      <div class="card"><h3>Why not an LLM for everything?</h3>Cost, speed, determinism and audit: a small model with reasons, or a rule with a change history, is easier to defend to an auditor.</div>
+      <div class="card"><h3>Why Kafka, Temporal, one Postgres?</h3>Kafka so agents don't call each other and can be down independently; Temporal for processes that run for days; one Postgres to keep a four-person project simple, each service owning its tables.</div>
+      <div class="card"><h3>How are logins protected?</h3>argon2id hashes, lockout, rate limits, email confirmation, single-use expiring links, a refresh cookie JavaScript can't read; identity always from the token, never the request body.</div>
+      <div class="card"><h3>Is it production-ready?</h3>No — a working, tested prototype with production patterns. Next: tests in CI, real secrets, dependency upgrades, TLS, real e-sign provider.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ MENTOR ═══════════════════════════ -->
+  <section id="tab-mentor" role="tabpanel" aria-labelledby="t-mentor" hidden>
+    <p class="lead" style="margin-top:14px">The mentor already knows the architecture and the core flow. <b>Skip the pitch and the full walkthrough.</b> Start from their last feedback, show only what's new, and use the remaining time for the decisions we need.</p>
+    <p class="muted">Assumes the last check-in was <b>10 Oct 2026</b> and the last written feedback <b>29 Aug 2026</b>. If your last demo was different, start the timeline from that date (<code>git log --since=&lt;date&gt;</code>).</p>
+
+    <h2 class="t"><svg class="i"><use href="#list"/></svg>Your 29 Aug feedback → what we did</h2>
+    <div class="tblwrap"><table class="tbl">
+      <tr><th>Asked for</th><th>Status</th><th>What to show</th></tr>
+      <tr><td>Auto-send for signature after every approval</td><td><span class="pill g">done</span></td><td>Approve a request → contract goes out for signature on its own (FR-01)</td></tr>
+      <tr><td>Renewal reminders from the notice deadline</td><td><span class="pill g">done</span></td><td>Contract page: notice deadline and reminder timeline (FR-02)</td></tr>
+      <tr><td>Reminders for pending actions</td><td><span class="pill g">done</span></td><td>Approvals, signatures and reviews remind once per stage (FR-03)</td></tr>
+      <tr><td>Kafka monitoring that survives a restart</td><td><span class="pill g">done</span></td><td>Control Panel → Kafka log + Failed events (FR-06)</td></tr>
+      <tr><td>Application logs you can search</td><td><span class="pill g">done</span></td><td>Grafana → Logs: one correlation id across services (FR-07)</td></tr>
+      <tr><td>Risk analysis documented and evaluated</td><td><span class="pill a">mostly</span></td><td><code>docs/results/risk-model.md</code>; now with delivery history and compliance record (FR-04, BR-7)</td></tr>
+      <tr><td>Document layout accuracy</td><td><span class="pill g">done</span></td><td><code>docs/results/extraction.md</code>: preprocessing helps clean/rotated scans, not noisy ones (FR-11, BR-2)</td></tr>
+      <tr><td>Demo script, presentation</td><td><span class="pill a">mostly</span></td><td>This page with real screenshots; results index and deck outline in <code>docs/results/</code> (FR-12 done). A teammate still has to run it on fresh data (FR-05)</td></tr>
+      <tr><td>Model routing &amp; fallback, shown on demand</td><td><span class="pill g">done</span></td><td>Force-fallback rule → System Health routing log (FR-08)</td></tr>
+      <tr><td>Business rules validated</td><td><span class="pill g">done</span></td><td><code>docs/business-rules.md</code>: 47 rules, a behaviour test for each enforced one (FR-09)</td></tr>
+      <tr><td>Notification coverage</td><td><span class="pill g">done</span></td><td><code>docs/notifications.md</code>; gaps handed over (FR-10)</td></tr>
+      <tr><td>Clause model (Legal-BERT)</td><td><span class="pill g">done</span></td><td>Routing log + <code>docs/results/clauses.md</code> (FR-13)</td></tr>
+      <tr><td>Sanctions screening</td><td><span class="pill g">done</span></td><td>Vendor page → Sanctions Screening (FR-14)</td></tr>
+      <tr><td>Trained classifier, licence model, notification retries</td><td><span class="pill g">done</span></td><td><code>docs/results/classifier.md</code>, <code>licence-anomaly.md</code>; Failed events (FR-29, FR-32, FR-31)</td></tr>
+    </table></div>
+
+    <h2 class="t"><svg class="i"><use href="#clock"/></svg>What changed since 10 Oct</h2>
+    <div class="tl">
+      <div class="d"><span>16 Oct (later)</span><div class="card"><b>Mentor feedback items.</b> Notification retries + dead-letter · extraction schema (and a tax-line bug fix) · notification coverage audit · every business rule documented and tested · model fallback on demand · licence model retrained on a population (ROC-AUC 0.954) · trained document classifier · results pack · sanctions screening · Legal-BERT clause model. Audit fixes: licence demo data and factor directions, reclaims never firing, approval events that could be lost, contract terms overwritten by a misread.</div></div>
+      <div class="d"><span>16 Oct</span><div class="card"><b>All basic requirements closed.</b> Email intake · scan preprocessing (measured) · "other" + PO-backed/non-PO classes · vendor onboarding with profile checks · reorder suggestions · risk shown before signing (High must be acknowledged) · risk from delivery and compliance history. Fixes: out-of-stock requests returned an error; zero-stock requests created empty ₹0 approvals; vendor page lost messages on reload. Research direction chosen.</div></div>
+      <div class="d"><span>15 Oct</span><div class="card"><b>Feedback items and reliability.</b> Auto-send after approval · renewals from the notice deadline · reminders for pending actions · persistent Kafka log + failed events · searchable logs with one correlation id · OCR fixed on Apple Silicon · public README and visual flow.</div></div>
+      <div class="d"><span>10–14 Oct</span><div class="card"><b>Team work.</b> Approve from email (signed single-use links) · assistant (chat drawer) · document preview for every role · notifications through real SMTP · drawn signatures in PDFs · ClamAV start-up fixed · wizard with automatic extraction · drop folder to signature with a live control panel.</div></div>
+    </div>
+
+    <h2 class="t"><svg class="i"><use href="#play"/></svg>Show only the new things (~10 min)</h2>
+    <div class="steps">
+      <div class="step doc"><div class="hd"><b>Email a document in</b><span class="time">2 min</span></div><dl><dt>Do</dt><dd>Run the email command from the External tab; show "By email from …" on the document.</dd></dl></div>
+      <div class="step ag"><div class="hd"><b>Onboard a vendor</b><span class="time">2 min</span></div><dl><dt>Do</dt><dd>Vendors → Onboard vendor: bad GSTIN check digit, look-alike warning, no-GSTIN reason, bank details to dual control.</dd></dl></div>
+      <div class="step ct"><div class="hd"><b>Risk before signing</b><span class="time">2 min</span></div><dl><dt>Do</dt><dd>Contract page risk panel; Sign stays disabled for High / unscored until acknowledged; certificate records it. Vendor page → Risk Signals: delivery history + compliance record re-scores live.</dd></dl></div>
+      <div class="step ag"><div class="hd"><b>Reorder suggestions</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Inventory → Reorder Suggestions with the arithmetic; edit a reorder point.</dd></dl></div>
+      <div class="step pl"><div class="hd"><b>Operations</b><span class="time">2 min</span></div><dl><dt>Do</dt><dd>Control Panel → Kafka log, Failed events; Grafana Logs by correlation id; a reminder email in Mailpit.</dd></dl></div>
+      <div class="step doc"><div class="hd"><b>Trained classifier and extraction schema</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Upload an invoice; show type, per-field confidence and why it went to review.</dd><dt>Say</dt><dd>The ML classifier is kept only because it beat the keywords, also on document kinds it never saw (macro-F1 0.912 → 1.0); every extraction is checked against a JSON schema (FR-29, FR-11).</dd></dl>
+        <div class="shots"><figure><a href="showcase/intake/01-documents.png" target="_blank" rel="noopener"><img src="showcase/intake/01-documents.png" alt="Documents → Upload documents" loading="lazy"></a><figcaption><b>1</b>Documents → Upload documents</figcaption></figure><figure><a href="showcase/intake/02-file-chosen.png" target="_blank" rel="noopener"><img src="showcase/intake/02-file-chosen.png" alt="Choose a file (here: an HP invoice)" loading="lazy"></a><figcaption><b>2</b>Choose a file (here: an HP invoice)</figcaption></figure><figure><a href="showcase/intake/03-processing.png" target="_blank" rel="noopener"><img src="showcase/intake/03-processing.png" alt="Live status while the pipeline runs" loading="lazy"></a><figcaption><b>3</b>Live status while the pipeline runs</figcaption></figure><figure><a href="showcase/intake/04-processed.png" target="_blank" rel="noopener"><img src="showcase/intake/04-processed.png" alt="Done: type, vendor, confidence, review flag" loading="lazy"></a><figcaption><b>4</b>Done: type, vendor, confidence, review flag</figcaption></figure><figure><a href="showcase/intake/05-document-detail.png" target="_blank" rel="noopener"><img src="showcase/intake/05-document-detail.png" alt="Why it needs review: likely duplicate (uploaded before), no request to match" loading="lazy"></a><figcaption><b>5</b>Why it needs review: likely duplicate (uploaded before), no request to match</figcaption></figure><figure><a href="showcase/intake/06-extracted-fields.png" target="_blank" rel="noopener"><img src="showcase/intake/06-extracted-fields.png" alt="Fields read with per-field confidence; non-PO invoice detected" loading="lazy"></a><figcaption><b>6</b>Fields read with per-field confidence; non-PO invoice detected</figcaption></figure></div></div>
+      <div class="step pl"><div class="hd"><b>Model fallback on demand</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Force Model Fallback rule → upload → System Health routing log shows the forced LayoutLMv3 fallback and its duration; reset the rule.</dd></dl>
+        <div class="shots"><figure><a href="showcase/fallback/01-rule-on.png" target="_blank" rel="noopener"><img src="showcase/fallback/01-rule-on.png" alt="Business Rules → Risk &amp; Compliance → Force Model Fallback = [&quot;extraction&quot;]" loading="lazy"></a><figcaption><b>1</b>Business Rules → Risk &amp; Compliance → Force Model Fallback = [&quot;extraction&quot;]</figcaption></figure><figure><a href="showcase/fallback/02-routing-log.png" target="_blank" rel="noopener"><img src="showcase/fallback/02-routing-log.png" alt="Upload an image → routing log: layoutlmv3_fallback · forced, with duration (rule then set back to [])" loading="lazy"></a><figcaption><b>2</b>Upload an image → routing log: layoutlmv3_fallback · forced, with duration (rule then set back to [])</figcaption></figure></div></div>
+      <div class="step ct"><div class="hd"><b>Legal-BERT reads the contract</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Open a contract, then System Health → Model Routing Log.</dd><dt>Say</dt><dd>Legal-BERT fine-tuned on CUAD finds the renewal, notice and expiry clauses; on 102 held-out lawyer-annotated contracts F1 0.85 / 0.80 / 0.91 vs the regex rules' 0.50 / 0.19 / 0.02, and it reads all our templates exactly. Rules stay as the fallback (FR-13, <code>docs/results/clauses.md</code>).</dd></dl>
+        <div class="shots"><figure><a href="showcase/clauses/01-contract.png" target="_blank" rel="noopener"><img src="showcase/clauses/01-contract.png" alt="Generated contract" loading="lazy"></a><figcaption><b>1</b>Generated contract</figcaption></figure><figure><a href="showcase/clauses/02-contract-text.png" target="_blank" rel="noopener"><img src="showcase/clauses/02-contract-text.png" alt="Renewal type read from this text by Legal-BERT; notice period and end date are the written terms, checked against what the model reads" loading="lazy"></a><figcaption><b>2</b>Renewal type read from this text by Legal-BERT; notice period and end date are the written terms, checked against what the model reads</figcaption></figure><figure><a href="showcase/clauses/03-routing-log.png" target="_blank" rel="noopener"><img src="showcase/clauses/03-routing-log.png" alt="System Health → Model Routing Log: legal_bert_primary, confidence and time per contract" loading="lazy"></a><figcaption><b>3</b>System Health → Model Routing Log: legal_bert_primary, confidence and time per contract</figcaption></figure></div></div>
+      <div class="step ad"><div class="hd"><b>Sanctions screening</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Vendor page → Sanctions Screening → Screen now, for a normal vendor and for the listed-name test vendor.</dd><dt>Say</dt><dd>25,237 sanctioned companies from the consolidated lists; a match rates the vendor High until finance clears it with a written reason (FR-14).</dd></dl>
+        <div class="shots"><figure><a href="showcase/sanctions/01-clean-before.png" target="_blank" rel="noopener"><img src="showcase/sanctions/01-clean-before.png" alt="Vendor page → Sanctions Screening (25,237 listed companies)" loading="lazy"></a><figcaption><b>1</b>Vendor page → Sanctions Screening (25,237 listed companies)</figcaption></figure><figure><a href="showcase/sanctions/02-clean-screened.png" target="_blank" rel="noopener"><img src="showcase/sanctions/02-clean-screened.png" alt="Screen now → clear" loading="lazy"></a><figcaption><b>2</b>Screen now → clear</figcaption></figure><figure><a href="showcase/sanctions/03-match-before.png" target="_blank" rel="noopener"><img src="showcase/sanctions/03-match-before.png" alt="A vendor named like a listed exporter" loading="lazy"></a><figcaption><b>3</b>A vendor named like a listed exporter</figcaption></figure><figure><a href="showcase/sanctions/04-match-screened.png" target="_blank" rel="noopener"><img src="showcase/sanctions/04-match-screened.png" alt="Match found (score 100, lists shown); here already cleared by finance with a reason" loading="lazy"></a><figcaption><b>4</b>Match found (score 100, lists shown); here already cleared by finance with a reason</figcaption></figure></div></div>
+      <div class="step ag"><div class="hd"><b>Licence anomaly model</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Licences → Docker Pro: usage trend, then "Why was this flagged?".</dd><dt>Say</dt><dd>Trained on 360 simulated licences with known patterns, ROC-AUC 0.954 (was 0.659 on 5 rows). Honest: Docker Pro's recent drop scores 0.32, just under "watch" — the model catches 87 % of drop-offs, this is one it misses (FR-32).</dd></dl>
+        <div class="shots"><figure><a href="showcase/licences/01-licences.png" target="_blank" rel="noopener"><img src="showcase/licences/01-licences.png" alt="Licences with utilisation and anomaly status" loading="lazy"></a><figcaption><b>1</b>Licences with utilisation and anomaly status</figcaption></figure><figure><a href="showcase/licences/02-usage-trend.png" target="_blank" rel="noopener"><img src="showcase/licences/02-usage-trend.png" alt="Docker Pro: usage drops off sharply in the last weeks" loading="lazy"></a><figcaption><b>2</b>Docker Pro: usage drops off sharply in the last weeks</figcaption></figure><figure><a href="showcase/licences/03-reasons.png" target="_blank" rel="noopener"><img src="showcase/licences/03-reasons.png" alt="Why: share of users still active this week ↑ risk (SHAP, direction fixed 16 Oct)" loading="lazy"></a><figcaption><b>3</b>Why: share of users still active this week ↑ risk (SHAP, direction fixed 16 Oct)</figcaption></figure></div></div>
+      <div class="step pl"><div class="hd"><b>Business rules and reliability</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Business Rules page; Control Panel → Kafka log and Failed events.</dd><dt>Say</dt><dd>Every enforced rule has a test proving changing it changes behaviour (FR-09); notification events are retried and dead-lettered, and health turns red if the email consumer stops (FR-31).</dd></dl>
+        <div class="shots"><figure><a href="showcase/rules/01-business-rules.png" target="_blank" rel="noopener"><img src="showcase/rules/01-business-rules.png" alt="47 rules, edited live with justification and history" loading="lazy"></a><figcaption><b>1</b>47 rules, edited live with justification and history</figcaption></figure></div>
+        <div class="shots"><figure><a href="showcase/reliability/01-kafka-log.png" target="_blank" rel="noopener"><img src="showcase/reliability/01-kafka-log.png" alt="Control Panel → Kafka log: every event, kept across restarts" loading="lazy"></a><figcaption><b>1</b>Control Panel → Kafka log: every event, kept across restarts</figcaption></figure><figure><a href="showcase/reliability/02-failed-events.png" target="_blank" rel="noopener"><img src="showcase/reliability/02-failed-events.png" alt="Failed events (dead-letter queue) with their error" loading="lazy"></a><figcaption><b>2</b>Failed events (dead-letter queue) with their error</figcaption></figure><figure><a href="showcase/reliability/03-notifications.png" target="_blank" rel="noopener"><img src="showcase/reliability/03-notifications.png" alt="Notifications sent for each lifecycle event" loading="lazy"></a><figcaption><b>3</b>Notifications sent for each lifecycle event</figcaption></figure></div></div>
+      <div class="step ad"><div class="hd"><b>Research direction</b><span class="time">1 min</span></div><dl><dt>Do</dt><dd>Open <a href="project-flow.html#research">project-flow.html#research</a>: the gap, the method, RQ1.</dd></dl></div>
+    </div>
+
+    <h2 class="t"><svg class="i"><use href="#flag"/></svg>Ask the mentor</h2>
+    <div class="cards" style="--n:2">
+      <div class="card c-a"><h3>Research</h3><ul>
+        <li>Is the calibrated, enterprise-evidence automation gate a good paper direction? Target venue?</li>
+        <li>Is a synthetic "procurement world" acceptable as primary data, with a public-invoice check?</li></ul></div>
+      <div class="card c-a"><h3>Scope</h3><ul>
+        <li>PySpark and Kubernetes appear in the tech-stack document — build them or drop the claim?</li>
+        <li>Drift check: report only with ≥ 30 informed vendors?</li>
+        <li>FR-04: can we compare against the red-team vendor list from the submitted Agent doc?</li></ul></div>
+    </div>
+  </section>
+
+  <footer>Source of truth for status: <a href="TODO.md">TODO.md</a> · checklist: <a href="IMPLEMENTATION_PLAN.md">IMPLEMENTATION_PLAN.md</a> · setup and internals: <a href="readmeforme.md">readmeforme.md</a>. Update this page when a demo step or a number changes.</footer>
+</div>
+
+<script>
+const root = document.documentElement;
+const buttons = document.querySelectorAll(".theme button");
+const apply = (t) => {
+  if (t) root.setAttribute("data-theme", t); else root.removeAttribute("data-theme");
+  buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === (t || ""))));
+  try { t ? localStorage.setItem("flow-theme", t) : localStorage.removeItem("flow-theme"); } catch (e) {}
+};
+buttons.forEach((b) => b.addEventListener("click", () => apply(b.dataset.set)));
+let saved = ""; try { saved = localStorage.getItem("flow-theme") || ""; } catch (e) {}
+apply(saved);
+
+const TABS = ["prepare", "external", "mentor"];
+const showTab = () => {
+  const h = location.hash.slice(1);
+  const id = TABS.includes(h) ? h : "external";
+  for (const t of TABS) {
+    document.getElementById("tab-" + t).hidden = t !== id;
+    document.getElementById("t-" + t).setAttribute("aria-selected", String(t === id));
+  }
+};
+window.addEventListener("hashchange", showTab);
+showTab();
+</script>
+</body>
+</html>

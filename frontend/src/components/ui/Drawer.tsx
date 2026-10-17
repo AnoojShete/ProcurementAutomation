@@ -25,16 +25,16 @@ export function Drawer({
 
   return (
     <div className="fixed inset-0 z-40" role="presentation">
-      <div className="absolute inset-0 bg-slate-900/40 animate-fade-in" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-ink/35 animate-fade-in" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"
-        className={`absolute top-0 ${side === "right" ? "right-0" : "left-0"} h-full w-full max-w-sm bg-white shadow-popover animate-slide-in-right flex flex-col`}
+        className={`absolute top-0 ${side === "right" ? "right-0" : "left-0"} h-full w-full max-w-sm bg-sheet shadow-popover animate-slide-in-right flex flex-col`}
       >
         {title && (
-          <div className="flex items-center justify-between border-b border-surface-border px-4 py-3.5">
-            <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-            <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-400 hover:bg-surface-muted hover:text-slate-600">
+          <div className="flex items-center justify-between border-b border-rule px-4 py-3">
+            <h2 className="text-heading font-semibold text-ink">{title}</h2>
+            <button onClick={onClose} aria-label="Close" className="rounded p-1.5 text-ink-2 hover:bg-sheet-sunk hover:text-ink">
               <X className="size-4" />
             </button>
           </div>
