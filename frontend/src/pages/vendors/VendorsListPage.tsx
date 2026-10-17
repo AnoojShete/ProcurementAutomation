@@ -43,6 +43,7 @@ export function VendorsListPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search vendors…"
+          aria-label="Search vendors"
           className="w-full max-w-sm rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500"
         />
         {canOnboard && (

@@ -434,7 +434,7 @@ export function DigitalSignatureModal({
         </div>
 
         {/* Security & Cryptographic Guarantee */}
-        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+        <div className="flex items-center gap-2 text-caption text-slate-400">
           <Lock className="size-3.5 text-slate-400 shrink-0" />
           <span>Tamper-evident SHA-256 seal & verifiable audit certificate generated upon completion.</span>
         </div>

@@ -283,6 +283,7 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
 
     if file_type == "pdf":
         # Fast path: instant native digital text extraction via pdfplumber
+        pdf_text, words_with_boxes = "", []
         try:
             pdf_text, words_with_boxes = _text_from_pdf_legacy(data)
             clean_len = len(pdf_text.replace(" ", "").replace("\n", ""))
@@ -296,14 +297,19 @@ def extract_text(data: bytes, filename: str, content_type: str = "") -> Extracti
         except Exception as e:
             logger.debug(f"Fast pdfplumber check failed: {e}")
 
-        # No text layer and no images either (e.g. a blank page): there is
-        # nothing for OCR to read, so skip Docling's model load (~60 s cold).
+        # No images (e.g. a blank page, or a short digital document): there
+        # is nothing for OCR to read, so skip Docling's model load (~60 s
+        # cold). Keep whatever native text there is, at low quality, so a
+        # one-line digital PDF goes to review instead of failing as "blank".
         try:
             with pdfplumber.open(io.BytesIO(data)) as pdf:
                 has_images = any(page.images for page in pdf.pages)
             if not has_images:
-                logger.info("PDF has no text layer and no images; nothing to OCR")
-                return ExtractionResult(text="", method="pdf_text", file_type="pdf", text_quality=0.0)
+                logger.info("PDF has no images and too little native text for the fast path; nothing to OCR")
+                return ExtractionResult(
+                    text=pdf_text, method="pdf_text", file_type="pdf",
+                    text_quality=0.15 if pdf_text.strip() else 0.0, words_with_boxes=words_with_boxes,
+                )
         except Exception as e:
             logger.debug(f"PDF image check failed ({e}); trying Docling")
 

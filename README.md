@@ -89,11 +89,27 @@ dead-letter queue instead of losing them.
 
 ## Try it
 
+**Prerequisites:** Docker with Compose v2 (Docker Desktop on macOS/Windows,
+Docker Engine + compose plugin on Linux; on Windows run inside WSL2), with
+about **8 GB of memory** given to Docker and ~20 GB of disk (images ~15 GB, plus models and build cache);
+internet for the first build. Optional: Python 3 for the end-to-end test
+scripts, Ollama for the assistant. Node isn't needed (the frontend builds
+in a container).
+
 ```bash
 git clone <repo-url> && cd ProcurementAutomation
-./run.sh                       # builds and starts everything (Docker)
+./run.sh                       # builds and starts everything; ends with "All services healthy."
 ./scripts/seed-demo-data.sh    # optional demo data
+./scripts/download-models.sh   # optional, once: LayoutLMv3 + Legal-BERT (~1 GB)
 ```
+
+**Configuration:** `run.sh` creates `.env` from
+[`.env.example`](.env.example) on the first run, and the defaults work
+locally without editing. Every setting is listed there; the
+[configuration table](docs/readmeforme.md#configuration) explains them,
+including what must change outside development. The database schema,
+migrations and Kafka topics are set up automatically (details:
+[setup](docs/readmeforme.md#setup), [migrations](docs/readmeforme.md#migrations)).
 
 Open **http://localhost:8080** and sign in as `requester@demo.example.com`
 (password `DemoPass123!`), or `approver@…`, `finance@…`, `admin@…`.

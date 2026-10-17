@@ -19,22 +19,23 @@ documents.
 | **Auth & business rules** | [samples/auth-service-rule.json](samples/auth-service-rule.json) | [11 business rules](screens/11-business-rules.png) | 47 rules, 37 enforced, each with a behaviour test ([../business-rules.md](../business-rules.md)) |
 | **Platform** | — | [10 control panel](screens/10-control-panel.png), [12 system health](screens/12-system-health.png), [logs by correlation id](logs-correlation.png) | Gateway e2e (`make e2e`) 17/17; model fallback shown on demand ([../model-routing.md](../model-routing.md)) |
 
-## Tests (16 Oct 2026)
+## Tests (17 Oct 2026)
 
 | Suite | Result |
 |---|---|
-| document-vendor-agent unit | 314 passed |
-| approval-inventory-agent unit | 146 passed (`data/` now mounted, so the demo-data test runs) |
-| contract-risk-agent unit | 175 passed |
-| notification-agent unit | 46 passed |
+| document-vendor-agent unit | 328 passed |
+| approval-inventory-agent unit | 178 passed (`data/` mounted, so the demo-data test runs) |
+| contract-risk-agent unit | 198 passed |
+| notification-agent unit | 54 passed |
 | auth-service unit | 65 passed |
-| root tests (`./scripts/test-root.sh`) | 137 passed + 14 passed (email actions, in the approval image); 4 skipped = the chatbot's live script |
+| root tests (`./scripts/test-root.sh`) | 139 passed + 14 passed (email actions, in the approval image); 4 skipped = the chatbot's live script |
 | `make e2e` (gateway) | 17 / 17 |
 | `tests/e2e/invoice_lifecycle.py` | 71 / 71 |
 | `tests/e2e/document_pipeline.py --quick` | 52 / 52 |
 | `tests/e2e/auth_flows.py` | 42 / 42 |
-| `tests/e2e/showcase_screens.py` | every step OK |
-| chatbot live script (Ollama `llama3.2:3b`) | 4 / 4 (checks replies arrive, not their quality) |
+| `tests/e2e/showcase_screens.py` | every step OK (16 Oct) |
+| `tests/e2e/demo_scenarios.py` (demo script) | 18 / 18 steps as described (16 Oct) |
+| chatbot live script (Ollama `llama3.2:3b`) | 4 / 4 (checks replies arrive, not their quality; 16 Oct) |
 
 Every fix in [docs/TODO.md](../TODO.md) was also checked by reverting it and watching a test fail.
 

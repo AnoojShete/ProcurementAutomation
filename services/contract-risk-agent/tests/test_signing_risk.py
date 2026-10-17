@@ -1,5 +1,6 @@
 """BR-6: the vendor's risk is shown before signing, and signing for a
 High-risk (or never-scored) vendor needs an explicit acknowledgement."""
+import asyncio
 import os
 import sys
 import uuid
@@ -104,3 +105,40 @@ def test_api_answers_409_with_a_code():
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "risk_acknowledgement_required"
     assert refuse.await_args.kwargs["risk_acknowledged"] is False
+
+
+def _generate_for(vendor_scored):
+    """generate_contract_for_request for a vendor with / without a score;
+    returns the score_vendor mock."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from app.services import clause_router, contract_service
+    pr = SimpleNamespace(id="pr-1", vendor_id="v-1", department="IT", items=[], amount=1000, currency="INR",
+                         requested_by="req@x")
+    vendor = SimpleNamespace(id="v-1", name="Nukatir Fabugin LLC")
+    db = MagicMock()
+    db.get = AsyncMock(side_effect=lambda model, key: pr if key == "pr-1" else vendor)
+    db.commit, db.refresh, db.rollback = AsyncMock(), AsyncMock(), AsyncMock()
+    routed = clause_router.ClauseRoutingResult(
+        route_name="regex_fallback", model_used="regex", fallback_triggered=True, fallback_reason="model_unavailable",
+        confidence=1.0, duration_ms=1.0, clauses={"renewal_type": "auto", "notice_period_days": None, "contract_end_date": None})
+    scorer = AsyncMock()
+    with patch("app.services.risk_service.latest_risk_score", new=AsyncMock(return_value=object() if vendor_scored else None)), \
+            patch("app.services.risk_service.score_vendor", new=scorer), \
+            patch.object(clause_router, "route_clause_extraction", AsyncMock(return_value=routed)), \
+            patch.object(contract_service, "write_audit_log", AsyncMock()), \
+            patch.object(contract_service, "staged", return_value=None), \
+            patch.object(contract_service, "start_renewal_workflow", AsyncMock()):
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(contract_service.generate_contract_for_request(db, None, "pr-1", "saas_subscription"))
+        finally:
+            loop.close()
+    return scorer
+
+
+def test_a_never_scored_vendor_is_scored_before_its_first_contract():
+    """An onboarded vendor (no document, so no vendor.matched) used to reach
+    signing unscored and never screened against the sanctions list."""
+    assert _generate_for(vendor_scored=False).await_count == 1
+    assert _generate_for(vendor_scored=True).await_count == 0

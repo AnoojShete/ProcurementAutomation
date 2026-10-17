@@ -6,13 +6,13 @@ import { requestsApi } from "@/api/requests";
 import { vendorsApi } from "@/api/vendors";
 import { contractsApi } from "@/api/contracts";
 import { Greeting } from "@/components/dashboard/Greeting";
-import { MetricCard } from "@/components/ui/MetricCard";
+import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { OrderStatusCard } from "@/components/dashboard/OrderStatusCard";
 import { AttentionCard, type AttentionItem } from "@/components/dashboard/AttentionCard";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { CategoryBarChart } from "@/components/charts/CategoryBarChart";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, titleCase } from "@/lib/format";
 import { APPROVER_ROLES } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -44,7 +44,7 @@ export function FinanceDashboard() {
       .filter((r) => ["approved", "ordered", "fulfilled"].includes(r.status ?? ""))
       .forEach((r) => {
         const key = r.request_type ?? "other";
-        map.set(key, (map.get(key) ?? 0) + (r.amount ?? 0));
+        map.set(titleCase(key), (map.get(titleCase(key)) ?? 0) + (r.amount ?? 0));
       });
     return Array.from(map.entries()).map(([label, value]) => ({ label, value }));
   }, [requests]);
@@ -94,15 +94,12 @@ export function FinanceDashboard() {
   const loading = reqLoading || vendorsLoading;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <Greeting name={user?.email.split("@")[0] ?? "there"} subtitle="Spend, budget, and vendor risk across the organization." />
 
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <AttentionCard items={attentionItems} />
+
+      <LedgerStrip cols={5} loading={loading} label="Finance figures">
           <MetricCard label="Pending Financial Approval" value={financeInbox.data?.length ?? 0} icon={ScrollText} tone="warning" />
           <MetricCard label="Monthly Spend" value={formatCurrency(monthlySpend)} icon={IndianRupee} tone="brand" />
           <MetricCard
@@ -113,10 +110,8 @@ export function FinanceDashboard() {
           />
           <MetricCard label="Contract Renewals (60d)" value={renewals?.length ?? 0} icon={RefreshCcw} tone="warning" />
           <MetricCard label="Active Contracts" value={contracts?.filter((c) => c.status === "signed").length ?? 0} icon={PieChart} tone="brand" />
-        </div>
-      )}
+        </LedgerStrip>
 
-      <AttentionCard items={attentionItems} />
 
       <OrderStatusCard />
 

@@ -1,48 +1,61 @@
 import type { ReactNode } from "react";
+import { Check, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "brand" | "intel";
 
+// One tone map for every status in the app: tint fill, tone text (all ≥ 5.6 : 1).
 const toneClasses: Record<Tone, string> = {
-  neutral: "border-surface-border bg-surface-subtle text-slate-700",
-  success: "border-success-500/30 bg-success-50 text-success-700",
-  warning: "border-warning-500/40 bg-warning-50 text-warning-700",
-  danger: "border-danger-500/30 bg-danger-50 text-danger-600",
-  brand: "border-brand-500/30 bg-brand-50 text-brand-800",
-  intel: "border-surface-border bg-surface-subtle text-slate-700",
+  neutral: "bg-sheet-sunk text-ink-2",
+  success: "bg-success-50 text-success-700",
+  warning: "bg-warning-50 text-warning-700",
+  danger: "bg-danger-50 text-danger-600",
+  brand: "bg-brand-50 text-brand-700",
+  intel: "bg-sheet-sunk text-ink-2",
 };
 
-const dotClasses: Record<Tone, string> = {
-  neutral: "bg-slate-400",
-  success: "bg-success-500",
-  warning: "bg-warning-500",
-  danger: "bg-danger-500",
-  brand: "bg-brand-500",
-  intel: "bg-slate-400",
-};
+/** Leading glyph, so state never rides on colour alone:
+ * ✓ done · ✕ failed · ● in progress / waiting · ○ neutral. */
+function Glyph({ tone }: { tone: Tone }) {
+  if (tone === "success") return <Check className="size-3 shrink-0" strokeWidth={2.5} aria-hidden="true" />;
+  if (tone === "danger") return <X className="size-3 shrink-0" strokeWidth={2.5} aria-hidden="true" />;
+  if (tone === "neutral" || tone === "intel")
+    return <span className="size-[7px] shrink-0 rounded-full border-[1.5px] border-current" aria-hidden="true" />;
+  return <span className="size-[7px] shrink-0 rounded-full bg-current" aria-hidden="true" />;
+}
+
+/** Sentence case for API values like "active" or "signed", in CSS so the
+ * text itself is unchanged. */
+function Text({ children }: { children: ReactNode }) {
+  return typeof children === "string" ? <span className="inline-block first-letter:uppercase">{children}</span> : <>{children}</>;
+}
 
 export function Badge({ tone = "neutral", children, className, icon }: { tone?: Tone; children: ReactNode; className?: string; icon?: ReactNode }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center gap-1 whitespace-nowrap rounded border px-1.5 text-xs font-medium",
+        "inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-sm px-1.5 text-caption font-medium",
         toneClasses[tone],
         className,
       )}
     >
       {icon}
-      {children}
+      <Text>{children}</Text>
     </span>
   );
 }
 
-/** Status label with a coloured dot — the colour carries the state, the
- * text stays readable. */
+/** The status tag: same shape as Badge, always with its glyph. */
 export function StatusDot({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-13 text-slate-700">
-      <span className={cn("size-2 shrink-0 rounded-full", dotClasses[tone])} aria-hidden="true" />
-      {children}
+    <span
+      className={cn(
+        "inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-sm px-1.5 text-caption font-medium",
+        toneClasses[tone],
+      )}
+    >
+      <Glyph tone={tone} />
+      <Text>{children}</Text>
     </span>
   );
 }
@@ -75,7 +88,7 @@ const RISK_TONE: Record<string, Tone> = { Low: "success", Medium: "warning", Hig
 
 export function RiskBadge({ band }: { band: string | null | undefined }) {
   if (!band) return <Badge tone="neutral">Not scored</Badge>;
-  return <Badge tone={RISK_TONE[band] ?? "neutral"}>{band} risk</Badge>;
+  return <StatusDot tone={RISK_TONE[band] ?? "neutral"}>{band} risk</StatusDot>;
 }
 
 const CONTRACT_STATUS_TONE: Record<string, Tone> = {

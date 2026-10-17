@@ -10,6 +10,7 @@ import { ContractActions, isProviderLive } from "@/components/contracts/Contract
 import { VendorRiskPanel } from "@/components/contracts/VendorRiskPanel";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DocketHeader, RefCopy } from "@/components/ui/DocketHeader";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
 
 /** The contract agent's page for one contract. Its actions come from
@@ -34,27 +35,28 @@ export function ContractDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h2 className="text-lg font-semibold text-slate-900">
-              {vendor?.name ?? "Contract"} · {titleCase(contract.template_used)}
-            </h2>
-            <ContractStatusBadge status={contract.status} />
-          </div>
-          <p className="mt-0.5 font-mono text-xs text-slate-500">{contract.id}</p>
-          {contract.purchase_request_id && (
-            <Link to={`/app/requests/${contract.purchase_request_id}`} className="text-xs text-brand-700 hover:underline">
-              From request PR-{contract.purchase_request_id.slice(0, 8)} →
-            </Link>
-          )}
-        </div>
-        <ContractActions
-          contract={contract}
-          onChanged={reload}
-          autoOpen={action === "sign" || action === "send" ? action : undefined}
-        />
-      </div>
+      <DocketHeader
+        reference={
+          <>
+            <RefCopy prefix="CT" id={contract.id} />
+            {contract.purchase_request_id && (
+              <Link to={`/app/requests/${contract.purchase_request_id}`} className="text-13 text-accent hover:underline">
+                From request PR-{contract.purchase_request_id.slice(0, 8)}
+              </Link>
+            )}
+          </>
+        }
+        title={`${vendor?.name ?? "Contract"} · ${titleCase(contract.template_used)}`}
+        status={<ContractStatusBadge status={contract.status} />}
+        meta={<span>Version {contract.version ?? 1} · generated {formatDate(contract.generated_at)}</span>}
+        actions={
+          <ContractActions
+            contract={contract}
+            onChanged={reload}
+            autoOpen={action === "sign" || action === "send" ? action : undefined}
+          />
+        }
+      />
 
       {contract.status === "pending_signature" && (
         <div className="flex items-start gap-2 rounded-md border border-warning-500/40 bg-warning-50 px-4 py-2.5 text-13 text-slate-800">
@@ -74,7 +76,7 @@ export function ContractDetailPage() {
           <VendorRiskPanel risk={contract.vendor_risk} />
           {contract.vendor_id && (
             <Link to={`/app/vendors/${contract.vendor_id}`} className="self-end text-xs text-brand-700 hover:underline">
-              Vendor's full risk profile →
+              Vendor's full risk profile
             </Link>
           )}
         </div>
@@ -119,7 +121,12 @@ export function ContractDetailPage() {
           <CardHeader title="Contract text" subtitle="As generated from the template; clause extraction runs on this text" />
           <CardBody>
             {contract.contract_text ? (
-              <pre className="max-h-[28rem] overflow-y-auto whitespace-pre-wrap rounded-md border border-surface-border bg-surface-subtle p-3 font-mono text-xs leading-relaxed text-slate-800">
+              <pre
+                tabIndex={0}
+                role="region"
+                aria-label="Contract text"
+                className="max-h-[28rem] overflow-y-auto whitespace-pre-wrap rounded border border-rule bg-paper px-4 py-3 font-mono text-13 leading-relaxed text-ink scrollbar-thin"
+              >
                 {contract.contract_text}
               </pre>
             ) : (
@@ -154,7 +161,7 @@ export function ContractDetailPage() {
                           {contract.signature_certificate.signer_designation}
                         </p>
                       )}
-                      <p className="mt-0.5 text-[11px] text-slate-400">
+                      <p className="mt-0.5 text-caption text-slate-400">
                         Electronically signed · {formatDateTime(contract.signed_at)}
                       </p>
                     </div>
@@ -192,9 +199,9 @@ export function ContractDetailPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="truncate text-right text-slate-900">{value}</dd>
+    <div className="flex items-baseline justify-between gap-4 border-b border-rule pb-2 last:border-0 last:pb-0">
+      <dt className="shrink-0 text-ink-3">{label}</dt>
+      <dd className="min-w-0 break-words text-right text-ink">{value}</dd>
     </div>
   );
 }

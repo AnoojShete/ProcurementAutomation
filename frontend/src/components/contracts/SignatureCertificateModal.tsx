@@ -41,7 +41,7 @@ export function SignatureCertificateModal({
       size="md"
       footer={
         <div className="flex w-full items-center justify-between">
-          <span className="text-[11px] text-slate-400">Verifiable Electronic Signature Record</span>
+          <span className="text-caption text-slate-400">Verifiable Electronic Signature Record</span>
           <Button variant="secondary" onClick={onClose}>
             Close
           </Button>
@@ -125,7 +125,7 @@ export function SignatureCertificateModal({
               {copied ? "Copied!" : "Copy Seal"}
             </button>
           </div>
-          <div className="break-all rounded-lg bg-slate-900 p-2.5 font-mono text-[11px] text-slate-200 shadow-inner">
+          <div className="break-all rounded-lg bg-slate-900 p-2.5 font-mono text-caption text-slate-200 shadow-inner">
             {seal}
           </div>
         </div>

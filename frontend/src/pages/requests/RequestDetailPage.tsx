@@ -9,7 +9,7 @@ import { vendorsApi } from "@/api/vendors";
 import { contractsApi } from "@/api/contracts";
 import { documentsApi } from "@/api/documents";
 import { DocumentPreviewCard } from "@/components/documents/DocumentPreviewCard";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Card, CardBody, CardHeader, Section } from "@/components/ui/Card";
 import { StatusBadge, ContractStatusBadge } from "@/components/ui/Badge";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LifecycleStepper } from "@/components/ui/LifecycleStepper";
@@ -19,7 +19,9 @@ import { ApprovalActions } from "@/components/approvals/ApprovalActions";
 import { ContractActions } from "@/components/contracts/ContractActions";
 import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
+import { DocketHeader, RefCopy } from "@/components/ui/DocketHeader";
+import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
+import { formatCurrency, formatDate, formatDateTime, titleCase } from "@/lib/format";
 import { deriveLifecycle, type LifecycleStage } from "@/lib/lifecycle";
 import type { Contract, DocumentRecord, PurchaseRequest, VendorRisk, VendorSummary } from "@/types/api";
 
@@ -93,56 +95,114 @@ export function RequestDetailPage() {
   const lifecycle = deriveLifecycle(request, attachedDoc, contract ?? linkedContract);
   const selected = lifecycle.find((s) => s.key === selectedKey) ?? null;
 
-  const activity: TimelineEvent[] = [
-    { key: "created", title: "Request created", timestamp: formatDateTime(request.created_at), description: request.requested_by ?? undefined },
+  // The paper trail: who (person or agent) did what, when. Built only from
+  // fields the request, its contract and its document already carry.
+  const shownContract = contract ?? linkedContract;
+  const trail: TimelineEvent[] = [
+    {
+      key: "created",
+      title: "Request raised",
+      timestamp: formatDateTime(request.created_at),
+      actor: request.requested_by ?? undefined,
+      description: `${formatCurrency(request.amount, request.currency ?? "INR")} · ${titleCase(request.request_type)}`,
+    },
+    ...(attachedDoc
+      ? [
+          {
+            key: `doc-${attachedDoc.id}`,
+            title: attachedDoc.status === "classified" ? "Document read and classified" : "Document received",
+            timestamp: formatDateTime(attachedDoc.uploaded_at),
+            actor: "Document & Vendor agent",
+            description: attachedDoc.original_filename ?? undefined,
+          } satisfies TimelineEvent,
+        ]
+      : []),
     ...(request.approval_history ?? []).map(
       (h): TimelineEvent => ({
         key: h.id,
-        title: `${h.decision === "approved" ? "Approved" : "Rejected"} by ${h.decided_by}`,
+        title: `${h.decision === "approved" ? "Approved" : "Rejected"}${h.decision_level ? ` · ${titleCase(h.decision_level)}` : ""}`,
         timestamp: formatDateTime(h.decided_at),
+        actor: h.decided_by,
         description: h.comments ?? undefined,
         tone: h.decision === "approved" ? "success" : "danger",
+        stamp: h.decision === "approved" ? "Approved" : "Rejected",
+        at: h.decided_at,
       }),
     ),
-    ...(linkedContract
+    ...(shownContract
       ? [
           {
-            key: `contract-${linkedContract.id}`,
+            key: `contract-${shownContract.id}`,
             title: "Contract generated",
-            timestamp: formatDateTime(linkedContract.generated_at),
+            timestamp: formatDateTime(shownContract.generated_at),
+            actor: "Contract & Risk agent",
             description: (
-              <Link to={`/app/contracts/${linkedContract.id}`} className="text-brand-700 hover:underline">
-                View contract →
+              <Link to={`/app/contracts/${shownContract.id}`} className="text-accent hover:underline">
+                {titleCase(shownContract.template_used)} contract
               </Link>
             ),
-          },
+          } satisfies TimelineEvent,
+        ]
+      : []),
+    ...(shownContract?.status === "signed"
+      ? [
+          {
+            key: `signed-${shownContract.id}`,
+            title: "Contract signed",
+            timestamp: formatDateTime(shownContract.signed_at),
+            actor: shownContract.signed_by ?? "Signer",
+            tone: "success",
+            stamp: "Signed",
+            at: shownContract.signed_at,
+          } satisfies TimelineEvent,
         ]
       : []),
   ];
 
+  const chain = request.approval_chain ?? [];
+  const approvalFigure =
+    request.status === "rejected"
+      ? "Rejected"
+      : chain.length === 0
+        ? "Auto-approved"
+        : request.status === "pending_approval"
+          ? `${Math.min(request.current_approver_index, chain.length)} of ${chain.length} done`
+          : `${chain.length} of ${chain.length} done`;
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="font-mono text-xs text-slate-400">PR-{request.id.slice(0, 8)}</h2>
-            <StatusBadge status={request.status} />
-          </div>
-          <h1 className="mt-1 text-xl font-semibold text-slate-900">
-            {titleCase(request.request_type)} Procurement — {request.department ?? "—"}
-          </h1>
-        </div>
-      </div>
+      <DocketHeader
+        reference={<RefCopy prefix="PR" id={request.id} />}
+        title={`${titleCase(request.request_type)} procurement — ${request.department ?? "no department"}`}
+        status={<StatusBadge status={request.status} />}
+        meta={<span>Submitted by {request.requested_by ?? "—"} on {formatDate(request.created_at)}</span>}
+      />
+
+      <LedgerStrip cols={4} label="Request figures">
+        <MetricCard label="Amount" value={formatCurrency(request.amount, request.currency ?? "INR")} />
+        <MetricCard
+          label="Vendor risk"
+          value={vendorRisk?.risk_band ?? (request.vendor_id ? (vendorRiskLoading ? "…" : "Not scored") : "No vendor")}
+          tone={vendorRisk?.risk_band === "High" ? "danger" : vendorRisk?.risk_band === "Medium" ? "warning" : "neutral"}
+          hint={vendorRisk?.risk_score != null ? `Score ${Math.round(vendorRisk.risk_score * 100)} of 100` : undefined}
+        />
+        <MetricCard label="Approval" value={approvalFigure} tone={request.status === "rejected" ? "danger" : "neutral"} />
+        <MetricCard
+          label="Contract"
+          value={shownContract ? titleCase(shownContract.status) : "Not yet"}
+          hint={shownContract?.generated_at ? `Generated ${formatDate(shownContract.generated_at)}` : undefined}
+        />
+      </LedgerStrip>
 
       <Card>
-        <CardHeader title="Procurement Lifecycle" subtitle="Click a step for its details or to act on it" />
-        <CardBody className="overflow-x-auto">
+        <CardHeader title="Procurement lifecycle" subtitle="Select a step for its details or to act on it" />
+        <CardBody className="overflow-x-auto scrollbar-thin" tabIndex={0} role="region" aria-label="Procurement lifecycle steps">
           <LifecycleStepper stages={lifecycle} onSelect={select} selectedKey={selectedKey} />
         </CardBody>
         {selected && (
-          <div className="border-t border-surface-border bg-surface-subtle px-4 py-3">
+          <div className="border-t border-rule bg-surface-subtle px-4 py-4 sm:px-5 animate-slide-up">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-900">{selected.label}</p>
+              <p className="text-heading font-semibold text-ink">{selected.label}</p>
               <button onClick={() => select(null)} aria-label="Close step details" className="rounded p-1 text-slate-500 hover:bg-surface-muted">
                 <X className="size-4" />
               </button>
@@ -160,16 +220,15 @@ export function RequestDetailPage() {
         )}
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="flex flex-col gap-6 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="flex min-w-0 flex-col gap-6 xl:col-span-8">
           <Card>
-            <CardHeader title="Request Information" />
+            <CardHeader title="Request information" />
             <CardBody>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
                 <Field label="Requester" value={request.requested_by} />
                 <Field label="Department" value={request.department} />
                 <Field label="Category" value={titleCase(request.request_type)} />
-                <Field label="Amount" value={formatCurrency(request.amount, request.currency ?? "INR")} />
                 <Field
                   label="Vendor"
                   value={
@@ -209,7 +268,7 @@ export function RequestDetailPage() {
           </Card>
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6 xl:col-span-4">
           <ProcurementAssessment request={request} vendorRisk={vendorRisk} vendorRiskLoading={vendorRiskLoading} />
           {["approved", "ordered", "fulfilled", "partially_invoiced", "invoice_received"].includes(request.status ?? "") && (
             <InvoiceLedgerCard requestId={request.id} currency={request.currency ?? "INR"} />
@@ -228,8 +287,8 @@ export function RequestDetailPage() {
                       {titleCase(contract.template_used)}
                       {contract.signed_by && ` · signed by ${contract.signed_by}`}
                     </span>
-                    <Link to={`/app/contracts/${contract.id}`} className="text-brand-700 hover:underline">
-                      Open contract →
+                    <Link to={`/app/contracts/${contract.id}`} className="font-medium text-accent hover:underline">
+                      Open contract
                     </Link>
                   </div>
                 )}
@@ -238,12 +297,9 @@ export function RequestDetailPage() {
             </Card>
           )}
 
-          <Card>
-            <CardHeader title="Activity" />
-            <CardBody>
-              <Timeline events={activity} />
-            </CardBody>
-          </Card>
+          <Section title="Paper trail" subtitle="Who did what, and when">
+            <Timeline events={trail} />
+          </Section>
         </div>
       </div>
     </div>
@@ -363,10 +419,10 @@ function LineItems({ request }: { request: PurchaseRequest }) {
   if (!request.items || request.items.length === 0) return null;
   return (
     <div className="mt-4 border-t border-surface-border pt-4">
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Line Items</p>
+      <p className="mb-2 text-13 font-medium text-ink-2">Line items</p>
       <div className="flex flex-col gap-1.5">
         {request.items.map((item, i) => (
-          <div key={i} className="flex justify-between rounded-md bg-surface-subtle px-3 py-1.5 text-sm">
+          <div key={i} className="flex justify-between border-b border-rule px-1 py-1.5 text-sm last:border-0">
             <span className="text-slate-700">
               {item.license_id ? (
                 <Link to={`/app/licenses/${String(item.license_id)}`} className="text-brand-700 hover:underline">
@@ -386,9 +442,9 @@ function LineItems({ request }: { request: PurchaseRequest }) {
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div>
-      <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="mt-0.5 font-medium text-slate-800">{value ?? "—"}</dd>
+    <div className="min-w-0">
+      <dt className="text-13 text-ink-3">{label}</dt>
+      <dd className="mt-0.5 break-words font-medium text-ink">{value ?? "—"}</dd>
     </div>
   );
 }

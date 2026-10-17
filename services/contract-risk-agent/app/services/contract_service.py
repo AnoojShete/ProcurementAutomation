@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import load_config, settings
@@ -108,6 +108,19 @@ async def generate_contract_for_request(
         template_name = await _infer_template_name(db, purchase_request_id)
     if template_name not in REQUEST_TYPE_TO_TEMPLATE.values() and template_name != DEFAULT_TEMPLATE:
         raise ContractGenerationError(f"unknown template_name {template_name}")
+
+    # A vendor onboarded through the form (not from a document) has never
+    # been scored — so never screened against the sanctions list either.
+    # Score it now, so the risk the signer sees is real. If scoring fails,
+    # signing still demands the "not scored" acknowledgement.
+    if pr.vendor_id:
+        from app.services.risk_service import latest_risk_score, score_vendor
+        if await latest_risk_score(db, pr.vendor_id) is None:
+            try:
+                await score_vendor(db, kafka_producer, pr.vendor_id)
+            except Exception as e:
+                await db.rollback()
+                logger.warning(f"Could not score vendor {pr.vendor_id} before its first contract: {e}")
 
     vendor_name = "Unspecified Vendor"
     if pr.vendor_id:
@@ -508,23 +521,39 @@ async def get_contract(db: AsyncSession, contract_id: str) -> Optional[Contract]
     return await db.get(Contract, contract_id)
 
 
-async def list_contracts(db: AsyncSession, limit: int = 100) -> list[Contract]:
-    """Most-recently-generated first — backs the tracking dashboard."""
-    result = await db.execute(
-        select(Contract).order_by(Contract.generated_at.desc().nulls_last()).limit(limit)
+def _owned_by(stmt, requested_by: Optional[str]):
+    """Restricts a contracts query to those on `requested_by`'s purchase
+    requests; None means no restriction (staff)."""
+    if requested_by is None:
+        return stmt
+    return stmt.join(PurchaseRequest, Contract.purchase_request_id == PurchaseRequest.id).where(
+        func.lower(PurchaseRequest.requested_by) == requested_by.lower()
     )
+
+
+async def is_requester_of(db: AsyncSession, contract: Contract, email: str) -> bool:
+    """True when `email` raised the purchase request this contract is for."""
+    if contract.purchase_request_id is None:
+        return False
+    pr = await db.get(PurchaseRequest, contract.purchase_request_id)
+    return pr is not None and (pr.requested_by or "").lower() == email.lower()
+
+
+async def list_contracts(db: AsyncSession, limit: int = 100, requested_by: Optional[str] = None) -> list[Contract]:
+    """Most-recently-generated first — backs the tracking dashboard."""
+    stmt = _owned_by(select(Contract), requested_by)
+    result = await db.execute(stmt.order_by(Contract.generated_at.desc().nulls_last()).limit(limit))
     return list(result.scalars().all())
 
 
-async def get_renewals_due(db: AsyncSession, within_days: int) -> list[Contract]:
+async def get_renewals_due(db: AsyncSession, within_days: int, requested_by: Optional[str] = None) -> list[Contract]:
     cutoff = (datetime.now(timezone.utc) + timedelta(days=within_days)).date()
-    result = await db.execute(
-        select(Contract).where(
-            Contract.contract_end_date.is_not(None),
-            Contract.contract_end_date <= cutoff,
-            Contract.status.in_(["signed", "pending_signature"]),
-        )
+    stmt = _owned_by(select(Contract), requested_by).where(
+        Contract.contract_end_date.is_not(None),
+        Contract.contract_end_date <= cutoff,
+        Contract.status.in_(["signed", "pending_signature"]),
     )
+    result = await db.execute(stmt)
     return list(result.scalars().all())
 
 

@@ -171,6 +171,7 @@ export function LicensesListPage() {
                 <input
                   type="text"
                   placeholder="Filter by app or vendor..."
+                  aria-label="Filter by app or vendor"
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
@@ -184,6 +185,7 @@ export function LicensesListPage() {
                 <Filter className="size-3.5 text-slate-400" />
                 <span>Status:</span>
                 <select
+                  aria-label="Filter by status"
                   value={selectedStatus}
                   onChange={(e) => {
                     setSelectedStatus(e.target.value);

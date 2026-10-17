@@ -29,7 +29,7 @@ dead request.
 
 ## Phase 1 — Finish what the presentation needs (by Oct 31)
 
-- [ ] Rehearse the demo script in `docs/showcase.html` on a fresh seed — a teammate, using its screenshots; `python tests/e2e/showcase_screens.py` the day before [FR-05] **[E]**
+- [ ] A teammate runs `docs/demo-script.html` by hand from a fresh `./run.sh` (the script itself is done and checked 18/18 by `tests/e2e/demo_scenarios.py`) [FR-05] **[E]**
 - [x] Draft the presentation from the templates [FR-12] **[E]** — paste into the Word templates left
 - [x] Add retry + DLQ to the notification consumer; tell Anooj [FR-31] **[E]**
 - [x] Make model routing/fallback visible in a demo [FR-08] **[E]**

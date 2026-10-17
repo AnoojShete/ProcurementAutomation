@@ -107,6 +107,18 @@ def test_blank_pdf_skips_ocr(monkeypatch):
     assert result.text == "" and docling.call_count == 0
 
 
+def test_short_digital_pdf_keeps_its_text(monkeypatch):
+    # QA audit (Oct 17): under 40 characters of native text and no images
+    # used to come back as "" — the document then failed as "no text found,
+    # may be blank" although it plainly had text.
+    docling = MagicMock()
+    monkeypatch.setattr(ocr, "_text_from_pdf_docling", docling)
+    buf = io.BytesIO(); c = canvas.Canvas(buf, pagesize=A4); c.drawString(72, 720, "Receipt R-7 total 100"); c.save()
+    result = ocr.extract_text(buf.getvalue(), "receipt.pdf", "application/pdf")
+    assert "Receipt R-7 total 100" in result.text
+    assert result.text_quality < 0.5 and docling.call_count == 0
+
+
 @pytest.mark.asyncio
 async def test_duplicate_check_is_serialised_per_vendor():
     # Two copies processed at once must not both miss each other.

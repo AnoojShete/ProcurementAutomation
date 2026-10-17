@@ -102,7 +102,7 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
             return (
               <g key={ratio}>
                 <line x1="45" y1={y} x2="780" y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                <text x="38" y={y + 4} textAnchor="end" className="fill-slate-400 text-[10px]">
+                <text x="38" y={y + 4} textAnchor="end" className="fill-slate-400 text-caption">
                   {val}
                 </text>
               </g>
@@ -183,7 +183,7 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
                   x={pt.x}
                   y="205"
                   textAnchor="middle"
-                  className="fill-slate-400 text-[10px]"
+                  className="fill-slate-400 text-caption"
                 >
                   {pt.date.slice(5)}
                 </text>

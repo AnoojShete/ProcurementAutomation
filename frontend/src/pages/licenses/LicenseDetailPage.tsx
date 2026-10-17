@@ -230,7 +230,7 @@ export function LicenseDetailPage() {
             subtitle={`Raised by ${req.requested_by ?? "system"}`}
             action={
               <Link to={`/app/requests/${req.id}`} className="text-xs text-brand-700 hover:underline">
-                PR-{req.id.slice(0, 8)} →
+                PR-{req.id.slice(0, 8)}
               </Link>
             }
           />

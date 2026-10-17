@@ -378,6 +378,7 @@ export function BusinessRulesPage() {
                   <input
                     type="text"
                     placeholder="Search rules in this section..."
+                    aria-label="Search rules in this section"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full rounded-lg border border-surface-border bg-white pl-9 pr-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
@@ -406,11 +407,11 @@ export function BusinessRulesPage() {
                             <h3 className="text-sm font-semibold text-slate-900">{rule.display_name}</h3>
                             <Badge tone={badgeInfo.tone}>{badgeInfo.label}</Badge>
                             {isDefault ? (
-                              <span className="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              <span className="text-caption font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                                 Default
                               </span>
                             ) : (
-                              <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                              <span className="text-caption font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
                                 Modified
                               </span>
                             )}
@@ -550,7 +551,7 @@ export function BusinessRulesPage() {
                     className="w-full rounded-md border border-surface-border bg-white pl-7 pr-3 py-1.5 text-sm text-slate-800 shadow-sm"
                   />
                   {editingRule.min_value !== null && editingRule.max_value !== null && (
-                    <p className="mt-1 text-[11px] text-slate-500">
+                    <p className="mt-1 text-caption text-slate-500">
                       Allowed range: ${editingRule.min_value.toLocaleString()} – ${editingRule.max_value.toLocaleString()}
                     </p>
                   )}
@@ -570,7 +571,7 @@ export function BusinessRulesPage() {
                     {editingRule.max_value && editingRule.max_value <= 1 ? "rate (0-1)" : "%"}
                   </span>
                   {editingRule.min_value !== null && editingRule.max_value !== null && (
-                    <p className="mt-1 text-[11px] text-slate-500">
+                    <p className="mt-1 text-caption text-slate-500">
                       Allowed range: {editingRule.min_value} – {editingRule.max_value}
                     </p>
                   )}
@@ -590,7 +591,7 @@ export function BusinessRulesPage() {
                       }}
                       className="w-full rounded-md border border-surface-border bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm"
                     />
-                    <p className="mt-1 text-[11px] text-slate-500">Comma-separated integers in descending order</p>
+                    <p className="mt-1 text-caption text-slate-500">Comma-separated integers in descending order</p>
                   </div>
                 ) : (
                   <div className="relative">
@@ -605,7 +606,7 @@ export function BusinessRulesPage() {
                     />
                     <span className="absolute right-3 top-2 text-xs text-slate-500">{editingRule.value_type}</span>
                     {editingRule.min_value !== null && editingRule.max_value !== null && (
-                      <p className="mt-1 text-[11px] text-slate-500">
+                      <p className="mt-1 text-caption text-slate-500">
                         Allowed range: {editingRule.min_value} – {editingRule.max_value} {editingRule.value_type}
                       </p>
                     )}
@@ -627,7 +628,7 @@ export function BusinessRulesPage() {
                     className="w-full rounded-md border border-surface-border bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm"
                   />
                   {editingRule.min_value !== null && editingRule.max_value !== null && (
-                    <p className="mt-1 text-[11px] text-slate-500">
+                    <p className="mt-1 text-caption text-slate-500">
                       Allowed range: {editingRule.min_value} – {editingRule.max_value}
                     </p>
                   )}
@@ -660,7 +661,7 @@ export function BusinessRulesPage() {
                 onChange={(e) => setEditJustification(e.target.value)}
                 className="w-full rounded-md border border-surface-border bg-white p-2.5 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
               />
-              <div className="flex justify-between text-[11px] text-slate-500 mt-1">
+              <div className="flex justify-between text-caption text-slate-500 mt-1">
                 <span>Required for audit trail and compliance.</span>
                 <span className={editJustification.trim().length < 10 ? "text-rose-500 font-medium" : "text-emerald-600 font-medium"}>
                   {editJustification.trim().length}/10 chars min
@@ -731,7 +732,7 @@ export function BusinessRulesPage() {
                 onChange={(e) => setResetJustification(e.target.value)}
                 className="w-full rounded-md border border-surface-border bg-white p-2 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
               />
-              <div className="text-right text-[11px] text-slate-500 mt-1">
+              <div className="text-right text-caption text-slate-500 mt-1">
                 <span className={resetJustification.trim().length < 10 ? "text-rose-500 font-medium" : "text-emerald-600 font-medium"}>
                   {resetJustification.trim().length}/10 chars min
                 </span>
@@ -890,7 +891,7 @@ function SpendTiersEditor({
                           key={role}
                           type="button"
                           onClick={() => toggleApprover(idx, role)}
-                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium border transition-colors ${
+                          className={`rounded px-1.5 py-0.5 text-caption font-medium border transition-colors ${
                             checked
                               ? "bg-brand-50 border-brand-300 text-brand-700 font-semibold"
                               : "bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600"

@@ -200,9 +200,9 @@ export function NewRequestWizardPage() {
         {step < STEPS.length - 1 && (
           <Button onClick={next} disabled={step === 3 && !canProceedFromReview}>
             {step === 0 && (!state.department || !amountNum)
-              ? "Continue (or Skip) →"
+              ? "Continue"
               : step === 3
-                ? "Proceed to Submit →"
+                ? "Continue to submit"
                 : "Continue"}
           </Button>
         )}
@@ -235,7 +235,7 @@ function StepDetails({
             </div>
           </div>
           <Button size="sm" variant="secondary" onClick={onSkipToDocuments}>
-            Upload Document to Auto-Fill →
+            Upload a document to auto-fill
           </Button>
         </div>
 
@@ -312,7 +312,7 @@ function StepVendor({
         subtitle="Select the vendor this request is for (Optional if uploading document)"
         action={
           <Button size="sm" variant="ghost" onClick={onSkipToDocuments}>
-            Skip to Document Upload →
+            Skip to document upload
           </Button>
         }
       />
@@ -323,6 +323,7 @@ function StepVendor({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search vendors…"
+            aria-label="Search vendors"
             className="w-full rounded-lg border border-surface-border py-2 pl-9 pr-3 text-sm focus:border-brand-500"
           />
         </div>

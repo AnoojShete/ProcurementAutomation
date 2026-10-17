@@ -149,6 +149,7 @@ export function UsersPage() {
         <input
           className="field pl-8"
           placeholder="Search by email"
+          aria-label="Search users by email"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

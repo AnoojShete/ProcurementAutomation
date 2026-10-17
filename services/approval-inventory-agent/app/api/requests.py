@@ -1,6 +1,7 @@
 import logging
+import uuid
 from typing import Optional
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -30,6 +31,17 @@ def _error(code: str, message: str, status_code: int) -> JSONResponse:
         status_code=status_code,
         content=ErrorResponse(error=ErrorDetail(code=code, message=message)).model_dump()
     )
+
+
+def _malformed_id(request_id: str) -> Optional[JSONResponse]:
+    """The 400 every other endpoint returns for a non-UUID id (the shared DB
+    error handler's response); approve/reject would otherwise turn the
+    driver error into a generic 500."""
+    try:
+        uuid.UUID(request_id)
+        return None
+    except ValueError:
+        return _error("bad_request", "malformed identifier or field value", 400)
 
 
 def get_approval_service(request: Request, db: AsyncSession = Depends(get_db)):
@@ -67,7 +79,7 @@ async def create_request(
 
 @router.get("/", response_model=DataResponse)
 async def list_requests(
-    limit: int = 100,
+    limit: int = Query(100, ge=1, le=1000),
     approval_svc: ApprovalService = Depends(get_approval_service),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -133,6 +145,8 @@ async def approve_request(
     approval_svc: ApprovalService = Depends(get_approval_service),
     user: CurrentUser = Depends(require_role("approver", "finance", "admin")),
 ):
+    if (bad := _malformed_id(request_id)) is not None:
+        return bad
     action = action.model_copy(update={"decided_by": user.email})
     try:
         req = await approval_svc.process_decision(request_id, "approved", action)
@@ -174,6 +188,8 @@ async def reject_request(
     approval_svc: ApprovalService = Depends(get_approval_service),
     user: CurrentUser = Depends(require_role("approver", "finance", "admin")),
 ):
+    if (bad := _malformed_id(request_id)) is not None:
+        return bad
     action = action.model_copy(update={"decided_by": user.email})
     try:
         req = await approval_svc.process_decision(request_id, "rejected", action)

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +34,7 @@ def _serialize_risk(row) -> dict:
 
 
 @router.get("/", response_model=DataResponse)
-async def list_vendors(limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def list_vendors(limit: int = Query(100, ge=1, le=1000), db: AsyncSession = Depends(get_db)):
     """All vendors with their latest risk score (if any), most recently
     created first — backs the tracking dashboard."""
     result = await db.execute(select(Vendor).order_by(Vendor.created_at.desc().nulls_last()).limit(limit))

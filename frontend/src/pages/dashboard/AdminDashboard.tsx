@@ -7,7 +7,7 @@ import { vendorsApi } from "@/api/vendors";
 import { contractsApi } from "@/api/contracts";
 import { inventoryApi } from "@/api/inventory";
 import { Greeting } from "@/components/dashboard/Greeting";
-import { MetricCard } from "@/components/ui/MetricCard";
+import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { OrderStatusCard } from "@/components/dashboard/OrderStatusCard";
 import { AttentionCard, type AttentionItem } from "@/components/dashboard/AttentionCard";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -85,50 +85,42 @@ export function AdminDashboard() {
   const loading = reqLoading || vendorsLoading;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <Greeting name={user?.email.split("@")[0] ?? "there"} subtitle="Platform-wide procurement command center." />
 
-      <LicenseIntelligenceCard />
+      <AttentionCard items={attentionItems} />
 
-      {loading ? (
-
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+      <LedgerStrip cols={6} loading={loading} label="Platform figures">
           <MetricCard label="Total Requests" value={requests?.length ?? 0} icon={FileText} tone="brand" />
           <MetricCard label="Active Vendors" value={vendors?.filter((v) => v.status === "active").length ?? 0} icon={Building2} tone="brand" />
           <MetricCard label="Pending Approvals" value={pendingApprovals} icon={ScrollText} tone="warning" />
           <MetricCard label="Contracts" value={contracts?.length ?? 0} icon={ScrollText} tone="brand" />
           <MetricCard label="High Risk Vendors" value={highRiskVendors} icon={AlertTriangle} tone={highRiskVendors ? "danger" : "success"} />
           <MetricCard label="Inventory Alerts" value={lowStockItems.length} icon={PackageSearch} tone={lowStockItems.length ? "warning" : "success"} />
-        </div>
-      )}
+        </LedgerStrip>
 
-      <AttentionCard items={attentionItems} />
+      <LicenseIntelligenceCard />
+
 
       <OrderStatusCard />
 
       <Card>
         <CardHeader title="Agent Activity" subtitle="Each domain service and what it owns in the pipeline" />
         <CardBody>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
             {PLATFORM_SERVICES.map((svc) => {
               const meta = AGENT_LABELS[svc.name];
               return (
-                <div key={svc.name} className="flex items-start gap-3 rounded-lg border border-surface-border p-3.5">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-                    <Boxes className="size-4" />
-                  </div>
+                <li key={svc.name} className="flex items-start gap-3 border-b border-rule py-3">
+                  <Boxes className="mt-0.5 size-4 shrink-0 text-ink-3" strokeWidth={1.75} aria-hidden="true" />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800">{meta?.agent ?? svc.name}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{meta?.owns ?? svc.owns}</p>
+                    <p className="text-sm font-medium text-ink">{meta?.agent ?? svc.name}</p>
+                    <p className="mt-0.5 text-13 text-ink-3">{meta?.owns ?? svc.owns}</p>
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
           <p className="mt-3 text-xs text-slate-400">
             Detailed per-service throughput and error rates are in Grafana — see System Health.
           </p>

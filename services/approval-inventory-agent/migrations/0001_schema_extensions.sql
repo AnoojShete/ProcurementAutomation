@@ -279,3 +279,15 @@ END $$;
 -- defaults (inventory.reorder_point_pct / inventory.min_reorder_pct).
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS reorder_point INTEGER;
 ALTER TABLE inventory ADD COLUMN IF NOT EXISTS reorder_quantity INTEGER;
+
+-- QA audit (Oct 17): NaN passed ck_purchase_requests_amount (NaN sorts
+-- above every number in Postgres), and one NaN row made GET /requests/
+-- fail for every user. The API now rejects non-finite amounts; this keeps
+-- the table safe from other writers too.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_requests_amount_finite') THEN
+    ALTER TABLE purchase_requests ADD CONSTRAINT ck_purchase_requests_amount_finite
+      CHECK (amount <> 'NaN'::numeric AND amount < 'Infinity'::numeric);
+  END IF;
+END $$;

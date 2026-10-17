@@ -1,0 +1,64 @@
+/* Ledger design tokens (docs/design-direction.md §1).
+ * Colours are bare RGB channels so Tailwind's `/50` opacity modifiers work.
+ * Every text pair here measures ≥ 5 : 1 on sheet and paper. */
+:root {
+  /* surfaces */
+  --paper: 244 246 242;          /* #F4F6F2 app background */
+  --sheet: 255 255 255;          /* #FFFFFF sections, tables, forms */
+  --sheet-sunk: 238 242 236;     /* #EEF2EC table header, hover, code */
+  --rule: 206 216 207;           /* #CED8CF hairlines (decorative) */
+  --rule-mid: 176 188 179;       /* #B0BCB3 slightly stronger hairline */
+  --rule-strong: 127 141 131;    /* #7F8D83 input borders (3.48 : 1) */
+
+  /* text */
+  --ink: 24 33 28;               /* #18211C primary */
+  --ink-2: 70 82 74;             /* #46524A secondary, labels */
+  --ink-3: 92 104 96;            /* #5C6860 captions, timestamps */
+
+  /* roles */
+  --accent: 31 75 143;           /* #1F4B8F ink blue: actions, links, focus */
+  --accent-hover: 23 58 112;     /* #173A70 */
+  --accent-deep: 17 43 84;       /* #112B54 */
+  --accent-tint: 232 238 247;    /* #E8EEF7 selected row, info */
+  --accent-soft: 197 212 235;    /* #C5D4EB tint borders */
+  --done: 30 107 58;             /* #1E6B3A completed, approved, signed */
+  --done-tint: 230 242 234;      /* #E6F2EA */
+  --done-soft: 182 217 193;      /* #B6D9C1 */
+  --attention: 122 78 0;         /* #7A4E00 waiting, due soon */
+  --attention-mid: 192 138 30;   /* #C08A1E fills only (bars, dots) */
+  --attention-tint: 255 243 209; /* #FFF3D1 */
+  --attention-soft: 240 214 150; /* #F0D696 */
+  --danger: 180 35 24;           /* #B42318 rejected, failed, overdue */
+  --danger-deep: 143 28 19;      /* #8F1C13 */
+  --danger-tint: 253 236 234;    /* #FDECEA */
+  --danger-soft: 242 184 177;    /* #F2B8B1 */
+
+  /* type */
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-doc: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-ref: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* motion */
+  --dur-1: 100ms;
+  --dur-2: 160ms;
+  --dur-3: 220ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* 0.01ms rather than none, so animationend handlers still fire. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0.01ms;
+    --dur-2: 0.01ms;
+    --dur-3: 0.01ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -13,6 +13,23 @@ from shared.auth import CurrentUser, get_current_user, require_role
 from shared.idempotency import get_cached_response, store_response
 
 router = APIRouter()
+
+# Staff see every contract; anyone else only contracts on their own
+# purchase requests, and someone else's looks exactly like a missing one.
+STAFF_ROLES = frozenset({"approver", "finance", "admin", "service"})
+
+
+def _owner_filter(user: CurrentUser) -> str | None:
+    return None if user.role in STAFF_ROLES else user.email
+
+
+async def _visible_contract(db: AsyncSession, contract_id: str, user: CurrentUser):
+    contract = await contract_service.get_contract(db, contract_id)
+    if contract is None or (
+        user.role not in STAFF_ROLES and not await contract_service.is_requester_of(db, contract, user.email)
+    ):
+        raise HTTPException(status_code=404, detail="contract not found")
+    return contract
 
 
 def _renewal_schedule(contract) -> dict:
@@ -175,8 +192,10 @@ async def sign_contract(
 
 
 @router.get("/{contract_id}/signature-certificate", response_model=DataResponse)
-async def get_signature_certificate(contract_id: str, db: AsyncSession = Depends(get_db)):
+async def get_signature_certificate(contract_id: str, db: AsyncSession = Depends(get_db),
+                                    user: CurrentUser = Depends(get_current_user)):
     """The built-in e-sign certificate (404 for contracts signed another way)."""
+    await _visible_contract(db, contract_id, user)
     cert = await contract_service.get_signature_certificate(db, contract_id)
     if cert is None:
         raise HTTPException(status_code=404, detail="Signature certificate not found")
@@ -221,17 +240,20 @@ async def sign_contract_simulated(contract_id: str, request: Request, db: AsyncS
 
 
 @router.get("/", response_model=DataResponse)
-async def list_contracts(limit: int = 100, db: AsyncSession = Depends(get_db)):
-    """All contracts, most recent first — backs the tracking dashboard."""
-    contracts = await contract_service.list_contracts(db, limit=limit)
+async def list_contracts(limit: int = Query(100, ge=1, le=1000), db: AsyncSession = Depends(get_db),
+                         user: CurrentUser = Depends(get_current_user)):
+    """Contracts, most recent first — backs the tracking dashboard.
+    Requesters see only contracts on their own requests."""
+    contracts = await contract_service.list_contracts(db, limit=limit, requested_by=_owner_filter(user))
     return DataResponse(data=[_serialize(c) for c in contracts], meta={"count": len(contracts)})
 
 
 @router.get("/renewals-due", response_model=DataResponse)
-async def renewals_due(within_days: int | None = None, db: AsyncSession = Depends(get_db)):
+async def renewals_due(within_days: int | None = None, db: AsyncSession = Depends(get_db),
+                       user: CurrentUser = Depends(get_current_user)):
     if within_days is None:
         within_days = max(load_renewal_config().get("alert_levels", [60]))
-    contracts = await contract_service.get_renewals_due(db, within_days)
+    contracts = await contract_service.get_renewals_due(db, within_days, requested_by=_owner_filter(user))
     return DataResponse(data=[_serialize(c) for c in contracts], meta={"within_days": within_days})
 
 
@@ -244,21 +266,19 @@ def _pdf_response(pdf: bytes, filename: str) -> Response:
 
 
 @router.get("/{contract_id}/document")
-async def download_contract_document(contract_id: str, db: AsyncSession = Depends(get_db)):
+async def download_contract_document(contract_id: str, db: AsyncSession = Depends(get_db),
+                                     user: CurrentUser = Depends(get_current_user)):
     """The generated contract as a PDF (unsigned working copy)."""
-    contract = await contract_service.get_contract(db, contract_id)
-    if contract is None:
-        raise HTTPException(status_code=404, detail="contract not found")
+    contract = await _visible_contract(db, contract_id, user)
     pdf = await contract_service.render_document(db, contract)
     return _pdf_response(pdf, contract_service.document_filename(contract, signed=False))
 
 
 @router.get("/{contract_id}/signed-document")
-async def download_signed_contract(contract_id: str, db: AsyncSession = Depends(get_db)):
+async def download_signed_contract(contract_id: str, db: AsyncSession = Depends(get_db),
+                                   user: CurrentUser = Depends(get_current_user)):
     """The executed contract, available once signing has completed."""
-    contract = await contract_service.get_contract(db, contract_id)
-    if contract is None:
-        raise HTTPException(status_code=404, detail="contract not found")
+    contract = await _visible_contract(db, contract_id, user)
     try:
         pdf = await contract_service.render_signed_document(db, contract)
     except contract_service.ContractNotSignedError as e:
@@ -269,10 +289,9 @@ async def download_signed_contract(contract_id: str, db: AsyncSession = Depends(
 
 
 @router.get("/{contract_id}", response_model=DataResponse)
-async def get_contract(contract_id: str, db: AsyncSession = Depends(get_db)):
-    contract = await contract_service.get_contract(db, contract_id)
-    if contract is None:
-        raise HTTPException(status_code=404, detail="contract not found")
+async def get_contract(contract_id: str, db: AsyncSession = Depends(get_db),
+                       user: CurrentUser = Depends(get_current_user)):
+    contract = await _visible_contract(db, contract_id, user)
     serialized = _serialize(contract)
     serialized["sent_automatically"] = await contract_service.was_sent_automatically(db, contract_id)
     serialized.update(_renewal_schedule(contract))

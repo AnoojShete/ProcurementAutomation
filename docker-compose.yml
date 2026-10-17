@@ -20,7 +20,7 @@ services:
       retries: 5
 
   redpanda:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:v26.2.2
     # --advertise-kafka-addr is required so clients that bootstrap from
     # redpanda:9092 get told to reconnect to redpanda:9092 too — without
     # it, redpanda advertises localhost:9092 in its metadata response and
@@ -38,6 +38,11 @@ services:
       - 0M
       - --advertise-kafka-addr
       - redpanda:9092
+    # Topics, consumer offsets, Kafka users and ACLs survive the container
+    # being recreated (an image update or `up --build` used to drop them, so
+    # events not yet consumed were lost). redpanda-init is safe to re-run.
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
     ports:
       - 127.0.0.1:9092:9092
     healthcheck:
@@ -50,7 +55,7 @@ services:
   # authentication on (infra/redpanda/bootstrap.sh, acls.conf). Every app
   # service waits for this to finish.
   redpanda-init:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:v26.2.2
     entrypoint: ["bash", "/bootstrap/bootstrap.sh"]
     volumes:
       - ./infra/redpanda/bootstrap.sh:/bootstrap/bootstrap.sh:ro
@@ -87,7 +92,7 @@ services:
       retries: 10
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
@@ -110,7 +115,7 @@ services:
     depends_on:
       - loki
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.0
     ports:
       - 127.0.0.1:3000:3000
     volumes:
@@ -124,7 +129,7 @@ services:
       - 8080:80
 
   kafka-exporter:
-    image: danielqsj/kafka-exporter:latest
+    image: danielqsj/kafka-exporter@sha256:d1014f41712d979f4fd01427b2ecd684e0b22fd756bfcd6a9d0c6b550038c724  # 1.10.0 build in use; the v1.10.0 tag now points at a newer build
     command:
       - --kafka.server=redpanda:9092
       - --sasl.enabled
@@ -155,7 +160,7 @@ services:
     ports:
       - 127.0.0.1:7233:7233
   temporal-ui:
-    image: temporalio/ui:latest
+    image: temporalio/ui@sha256:eef301146e60fad34b47adaecfae4149016e34b2d44ba94fca5fd8e5441f182a  # build of 2026-08-13 (no version label)
     # Current UI images listen on 8080 by default and read TEMPORAL_ADDRESS;
     # TEMPORAL_GRPC_ENDPOINT is the pre-2.x name and is ignored.
     environment:
@@ -164,7 +169,7 @@ services:
     ports:
       - 127.0.0.1:8088:8088
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.31.0
     environment:
       # POP3 read access for the email intake (BR-1) — development only.
       MP_POP3_AUTH: "intake:${EMAIL_INTAKE_PASSWORD:-dev-intake-password}"
@@ -198,6 +203,7 @@ services:
 volumes:
   pgdata:
   miniodata:
+  redpanda-data:
   grafana-data:
   clamav-data:
   loki-data:

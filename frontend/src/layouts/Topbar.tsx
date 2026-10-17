@@ -39,60 +39,60 @@ export function Topbar({
   const urgentCount = notifications?.filter((n) => n.priority === "urgent").length ?? 0;
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-surface-border bg-white px-4">
+    <header className="flex h-14 shrink-0 items-center gap-1.5 border-b border-rule bg-sheet px-3 sm:gap-2 sm:px-5">
       <button
         onClick={onOpenMobileNav}
-        className="rounded-md p-1.5 text-slate-500 hover:bg-surface-muted lg:hidden"
+        className="rounded p-2 text-ink-2 hover:bg-sheet-sunk hover:text-ink lg:hidden"
         aria-label="Open navigation"
       >
         <Menu className="size-5" />
       </button>
 
       {!isHome && (
-        <button onClick={goBack} className="rounded-md p-1.5 text-slate-500 hover:bg-surface-muted hover:text-slate-900" aria-label="Go back" title="Back">
+        <button onClick={goBack} className="rounded p-2 text-ink-2 hover:bg-sheet-sunk hover:text-ink" aria-label="Go back" title="Back">
           <ArrowLeft className="size-[18px]" strokeWidth={1.75} />
         </button>
       )}
 
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-baseline gap-1.5">
         {breadcrumb && (
           <>
-            <span className="shrink-0 text-slate-500">{breadcrumb}</span>
-            <span className="text-slate-300" aria-hidden="true">/</span>
+            <span className="hidden shrink-0 text-sm text-ink-3 sm:inline">{breadcrumb}</span>
+            <span className="hidden text-rule-strong sm:inline" aria-hidden="true">/</span>
           </>
         )}
-        <h1 className="truncate font-semibold text-slate-900">{title}</h1>
+        <h1 className="truncate text-heading font-semibold text-ink">{title}</h1>
       </nav>
 
       <button
         onClick={onOpenSearch}
-        className="hidden h-8 w-56 items-center gap-2 rounded-md border border-surface-border bg-surface-subtle px-2.5 text-13 text-slate-500 hover:border-slate-400 md:flex"
+        className="hidden h-9 w-56 items-center gap-2 rounded border border-rule-strong bg-sheet px-2.5 text-13 text-ink-3 transition-colors duration-1 hover:border-ink-3 hover:text-ink-2 md:flex"
       >
-        <Search className="size-3.5" />
+        <Search className="size-3.5" aria-hidden="true" />
         <span className="flex-1 text-left">Search</span>
-        <kbd className="rounded border border-surface-border bg-white px-1 font-sans text-[11px] text-slate-500">⌘K</kbd>
+        <kbd className="rounded-sm border border-rule bg-paper px-1 font-sans text-caption text-ink-3">⌘K</kbd>
       </button>
-      <button onClick={onOpenSearch} className="rounded-md p-1.5 text-slate-500 hover:bg-surface-muted md:hidden" aria-label="Search">
+      <button onClick={onOpenSearch} className="rounded p-2 text-ink-2 hover:bg-sheet-sunk hover:text-ink md:hidden" aria-label="Search">
         <Search className="size-5" />
       </button>
 
       <div className="relative">
         <button
           onClick={() => setHelpOpen((v) => !v)}
-          className="rounded-md p-1.5 text-slate-500 hover:bg-surface-muted"
+          className="rounded p-2 text-ink-2 hover:bg-sheet-sunk hover:text-ink"
           aria-label="Help"
           aria-expanded={helpOpen}
         >
           <HelpCircle className="size-[18px]" strokeWidth={1.75} />
         </button>
         {helpOpen && (
-          <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-lg border border-surface-border bg-white p-3 text-sm shadow-popover animate-slide-up">
-            <p className="font-medium text-slate-800">Need a hand?</p>
-            <p className="mt-1 text-slate-500">
+          <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-rule bg-sheet p-4 text-sm shadow-popover animate-slide-up">
+            <p className="font-medium text-ink">Need a hand?</p>
+            <p className="mt-1 text-13 text-ink-2">
               This is a demo environment covering the full procurement lifecycle — request, document intelligence,
               approval, contract, and vendor risk.
             </p>
-            <Link to="/app" onClick={() => setHelpOpen(false)} className="mt-2 inline-block text-brand-700 hover:underline">
+            <Link to="/app" onClick={() => setHelpOpen(false)} className="mt-2 inline-block text-13 font-medium text-accent hover:underline">
               Back to dashboard
             </Link>
           </div>
@@ -101,12 +101,12 @@ export function Topbar({
 
       <Link
         to="/app/notifications"
-        className="relative rounded-md p-1.5 text-slate-500 hover:bg-surface-muted"
+        className="relative rounded p-2 text-ink-2 hover:bg-sheet-sunk hover:text-ink"
         aria-label={urgentCount > 0 ? `Notifications, ${urgentCount} urgent` : "Notifications"}
       >
         <Bell className="size-[18px]" strokeWidth={1.75} />
         {urgentCount > 0 && (
-          <span className="absolute right-0.5 top-0.5 flex size-4 items-center justify-center rounded-full bg-danger-500 text-[10px] font-semibold text-white ring-2 ring-white">
+          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-500 px-1 text-caption font-semibold leading-none text-white ring-2 ring-sheet" aria-hidden="true">
             {urgentCount > 9 ? "9+" : urgentCount}
           </span>
         )}

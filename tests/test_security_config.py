@@ -96,3 +96,29 @@ def test_nginx_rate_limits_credentials_and_sets_csp():
     # A throttled client gets the platform's JSON error, not nginx's HTML page.
     assert "error_page 429 = @rate_limited" in conf
     assert "Content-Security-Policy" in conf and "script-src 'self'" in conf
+
+
+def test_stateful_stores_keep_data_on_named_volumes():
+    """Recreating a container (image update, `up --build`) must not lose
+    data. Redis is the exception on purpose: only an idempotency cache."""
+    doc = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    expected = {
+        "postgres": "/var/lib/postgresql/data",
+        "minio": "/data",
+        "redpanda": "/var/lib/redpanda/data",
+    }
+    for service, path in expected.items():
+        mounts = [str(v) for v in doc["services"][service].get("volumes", [])]
+        named = [m for m in mounts if m.endswith(":" + path) and not m.startswith((".", "/"))]
+        assert named, f"{service} keeps {path} in the container layer"
+        assert named[0].split(":")[0] in doc["volumes"], f"{service} volume not declared"
+
+
+def test_nginx_unknown_api_path_is_json_404_not_the_spa():
+    """An /api/ path no service owns must not fall through to `location /`
+    (index.html with a 200, which made typo'd endpoints look like success)."""
+    conf = (ROOT / "infra/nginx/nginx.conf").read_text()
+    block = re.search(r"location /api/ \{(.*?)\}", conf, re.S)
+    assert block, "no catch-all `location /api/` block"
+    assert "default_type application/json" in block.group(1)
+    assert re.search(r"return 404 '\{\"error\":\{\"code\":\"not_found\"", block.group(1))

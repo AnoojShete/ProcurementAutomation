@@ -5,13 +5,13 @@ import { ROLE_LABELS } from "@/lib/roleNav";
  * (The page title itself is already in the top bar.) */
 export function Greeting({ subtitle }: { name?: string; subtitle: string }) {
   const { user } = useAuth();
-  const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return (
-    <div className="flex flex-wrap items-end justify-between gap-2 border-b border-surface-border pb-3">
-      <p className="text-sm text-slate-600">{subtitle}</p>
-      <p className="text-xs text-slate-500">
-        {user ? `${ROLE_LABELS[user.role]} view · ` : ""}
-        {today}
+    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+      <p className="max-w-prose text-body text-ink-2">{subtitle}</p>
+      <p className="text-13 text-ink-3">
+        {user && <span className="font-medium text-ink-2">{ROLE_LABELS[user.role]} view</span>}
+        <span className="ml-3">{today}</span>
       </p>
     </div>
   );

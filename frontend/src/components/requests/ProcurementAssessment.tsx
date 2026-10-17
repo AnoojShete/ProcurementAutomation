@@ -49,7 +49,7 @@ export function ProcurementAssessment({
           </AssessmentRow>
         ) : null}
         <AssessmentRow label="Spend category">
-          <span className="capitalize">{request.request_type ?? "—"}</span>
+          <span>{titleCase(request.request_type)}</span>
         </AssessmentRow>
         <AssessmentRow label="Policy routing">
           {chain.length ? `${chain.map(titleCase).join(" → ")}` : "Auto-approved (below threshold)"}

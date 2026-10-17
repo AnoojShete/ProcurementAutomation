@@ -19,7 +19,7 @@ from app.config import load_spend_tiers, load_config, settings
 from app.models import PurchaseRequest, ApprovalHistory, AuditLog, Inventory
 from app.schemas import CreatePurchaseRequest, ApprovalAction
 from app.kafka.producer import KafkaEventProducer
-from app.services.inventory_service import check_availability, reserve_stock, split_backorder
+from app.services.inventory_service import check_availability, release_reservation, reserve_stock, split_backorder
 from app.metrics import inventory_reservation_total
 
 
@@ -138,6 +138,7 @@ class ApprovalService:
 
         # 3. If hardware, check inventory and reserve stock
         total_available = 0
+        reservations: list[tuple[str, int]] = []  # released again if the insert fails
         if data.request_type == "hardware" and data.items:
             for item in data.items:
                 sku = item.get("sku")
@@ -153,6 +154,7 @@ class ApprovalService:
                             self.db, self.redis, sku, req_id, qty
                         )
                         if reserved:
+                            reservations.append((sku, qty))
                             total_available += qty
                             inventory_reservation_total.labels(status="reserved").inc()
                         else:
@@ -162,8 +164,8 @@ class ApprovalService:
                     else:
                         is_backordered = True
                         total_available += item_avail
-                        if item_avail > 0:
-                            await reserve_stock(self.db, self.redis, sku, req_id, item_avail)
+                        if item_avail > 0 and await reserve_stock(self.db, self.redis, sku, req_id, item_avail):
+                            reservations.append((sku, item_avail))
                         inventory_reservation_total.labels(status="backordered").inc()
 
         # 4. Insert into DB. Nothing in stock at all: the request itself waits
@@ -198,11 +200,19 @@ class ApprovalService:
         # they announce (shared/eventing/outbox.py), so a Kafka outage or a
         # crash after commit can't lose them; the relay retries until sent.
         outbox = staged(self.producer, self.db)
-        if nothing_in_stock and outbox is not None:
-            # Announced like a backordered split portion; it enters approval
-            # when stock arrives (backordered -> pending_approval).
-            await outbox.publish_approval_requested(req)
-        await self.db.commit()
+        try:
+            if nothing_in_stock and outbox is not None:
+                # Announced like a backordered split portion; it enters approval
+                # when stock arrives (backordered -> pending_approval).
+                await outbox.publish_approval_requested(req)
+            await self.db.commit()
+        except Exception:
+            # reserve_stock commits on its own, so without this a failed
+            # insert left stock reserved for a request that doesn't exist.
+            await self.db.rollback()
+            for sku, qty in reservations:
+                await release_reservation(self.db, self.redis, sku, req_id, qty)
+            raise
         await self.db.refresh(req)
 
         if nothing_in_stock:

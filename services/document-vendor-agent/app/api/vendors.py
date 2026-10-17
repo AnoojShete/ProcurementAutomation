@@ -4,7 +4,7 @@ no-GSTIN attestation, and 90-day spend summary.
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, Body, Request, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -77,7 +77,7 @@ def _last4(value: Optional[str]) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 @router.get("/", response_model=DataResponse)
-async def list_vendors(limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def list_vendors(limit: int = Query(100, ge=1, le=1000), db: AsyncSession = Depends(get_db)):
     """List all vendors with GSTIN status and tier info."""
     result = await db.execute(
         select(Vendor).order_by(Vendor.created_at.desc().nulls_last()).limit(limit)

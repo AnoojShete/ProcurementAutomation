@@ -185,9 +185,10 @@ evidence for FR/BR items are in Part B under the same ID.
 
 | ID | Task | Status | Pri | Depends on | Files | Acceptance | For |
 |---|---|---|---|---|---|---|---|
-| OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | BLOCKED (permission) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
+| OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | BLOCKED (permission; Oct 17: tried again, blocked by Claude Code's permission check; the two other open `approval-` workflows, `0ca1ad3a`/`adbfc130`, are live licence reclaims, leave them) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
+| REPRO-1 | Replace the MinIO image: `minio/minio` (and `minio/mc`, used by `install.sh`) can no longer be pulled from Docker Hub or quay.io, so a fresh clone can't start | PENDING (decision) | P0 | user | `docker-compose.yml`, `install.sh` | `docker compose pull` works on a clean machine; uploads and downloads pass e2e | Core |
 | SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
-| FR-05 | Demo script | PARTIAL (walkthrough in `docs/showcase.html`; rehearsal on a fresh seed left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
+| FR-05 | Demo script | PARTIAL (`docs/demo-script.html`, verified 18/18 by `tests/e2e/demo_scenarios.py`; a teammate's run left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
 | FR-12 | Presentation draft, template-shaped docs | COMPLETE (team pastes into templates) | P1 | FR-05 | `docs/results/`, `docs/presentation-outline.md` | Draft reviewed by team | Core |
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
 | FR-08 | Model routing and fallback, demonstrable | COMPLETE | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
@@ -209,8 +210,8 @@ evidence for FR/BR items are in Part B under the same ID.
 | ID | Task | Status | Pri | Depends on | Acceptance | For |
 |---|---|---|---|---|---|---|
 | FR-25 | CI runs the service suites and root tests | PENDING | P1 | — | CI fails on a failing test | Core |
-| TEST-1 | Fix pre-existing failing root tests (`test_mailer`; `test_email_action` needs `redis` — Anooj) | PENDING | P1 | — | Root suite green | Core |
-| FR-26 | Fresh-clone rehearsal on Ubuntu (UTM) | UNVERIFIED | P1 | VM | `docs/results/fresh-clone.md` with times | Core |
+| TEST-1 | Fix pre-existing failing root tests (`test_mailer`; `test_email_action` needs `redis` — Anooj) | COMPLETE (Oct 17: `test-root.sh` 139 passed + 14 passed, 4 skipped = chatbot live script) | P1 | — | Root suite green | Core |
+| FR-26 | Fresh-clone rehearsal on Ubuntu (UTM) | PARTIAL (Oct 18, macOS: from a copy holding only what a clone would (tracked + new unignored files, no `.env`/`dist`/`secrets`), all 6 service images and the frontend build; every third-party image is pullable **except MinIO** (REPRO-1). Not run as a second stack: Docker's 7.75 GB is mostly used by the live one. Still open: a full run on the VM) | P1 | VM | `docs/results/fresh-clone.md` with times | Core |
 | FR-27 | Security P1s (dependency upgrades etc.) | PENDING | P1 | — | Part B list closed | Core |
 | FR-28 | Final documentation pass | PENDING | P1 | all | Templates filled | Both |
 
@@ -266,7 +267,8 @@ explanations, LLM agent orchestration.
   `.env` only. *Why: leaked credential.*
 - [ ] **Any non-local deployment**: set `APP_ENV=production` and real
   `JWT_SECRET`, `ESIGN_WEBHOOK_SECRET`, `RULES_ENGINE_INTERNAL_SECRET`,
-  `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, `KAFKA_PASSWORD_*`, Grafana
+  `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, `KAFKA_PASSWORD_*`,
+  `INTERNAL_SERVICE_TOKEN` (not in the refuse-to-start list yet), Grafana
   admin password; `EMAIL_MODE=smtp`; `AUTH_COOKIE_SECURE=true` behind
   HTTPS; build the frontend with `VITE_SHOW_DEMO_ACCOUNTS=false`.
   Services refuse to start with the published defaults outside
@@ -571,6 +573,23 @@ before any other roadmap item.
   option for any data the scenarios need. *Done when:* someone who didn't
   build it runs every scenario from a fresh `./run.sh` using only the
   script.
+  *Evidence (Oct 16):* `tests/e2e/demo_scenarios.py` holds five scenarios
+  (in-app request → delivery; drop-folder quote → signed contract; invoice
+  overcharge held / right invoice booked; new vendor: onboarding checks,
+  compliance findings → High, signing needs acknowledgement; bank details
+  need a second person) — each step: what to do in the app, agent, event,
+  what you should see. It performs every step through the gateway as the
+  same role, checks exactly that, screenshots the page, and writes
+  `docs/demo-script.html` (rows marked "as described" or red). No seed
+  option needed: each run makes its own vendors (made-up names, so a
+  repeat isn't a look-alike/duplicate of the last). Result: 18/18, twice
+  in a row; switching auto-send off turns scenario 1 step 3 red (checked,
+  rule reset). Event names checked against `shared/kafka-topics.yaml`.
+  Found and fixed on the way: a vendor onboarded through the form was never
+  risk-scored or screened against sanctions before its first contract
+  (only document-created vendors were) — it's now scored when its first
+  contract is generated (test fails without it). *Left:* a teammate runs
+  it by hand from a fresh `./run.sh`.
 - [x] **FR-06 Kafka monitoring that survives a restart** (29 Aug overall
   #6; Team B #2). *Now:* Control Panel shows live events, but
   `event_monitor.py` keeps the last 500 in memory (gone on restart, no
@@ -1036,9 +1055,23 @@ before any other roadmap item.
   *Why: known CVEs on the upload path.*
 - [ ] MLflow 2.14.3 has many advisories; bound to localhost for now.
   *Why: must not be exposed as is.*
-- [ ] Contracts and contract PDFs are readable by any signed-in user;
+- [x] (Fixed Oct 17, QA audit QA-07: requesters see only contracts on their
+  own requests, 404 otherwise; `test_contract_access.py`, verified live.)
+  Contracts and contract PDFs are readable by any signed-in user;
   restrict to staff + the request's requester. *Why: commercial data
   leak to requesters.*
+- [ ] `/auth/logout` leaves the refresh token valid for its 7 days (only
+  logout-all revokes). Record revoked `jti`s and check them on refresh.
+  *Why: a stolen refresh token survives logout.* (QA-06,
+  `docs/quality-audit-report.md`)
+- [ ] `create_request` commits the row before staging `approval.requested`,
+  so a failed outbox write leaves a `pending_approval` request with no
+  event or workflow. Stage the event before the first commit. (QA-19)
+- [ ] Smaller audit leftovers: currency not validated (QA-13), trailing-slash
+  redirect drops the gateway port (QA-15), Redis down → 500 not 503
+  (QA-16), error messages echo input / token decoder detail (QA-17), no
+  CHECK on inventory quantities (QA-20), `react-router` advisory (QA-21),
+  chatbot root tests skipped for lack of `pytest-asyncio` (QA-22, Anooj).
 - [ ] Access tokens stay valid for up to `JWT_EXPIRY_MINUTES` (60) after a
   user is disabled or demoted — other services verify tokens without a
   DB lookup. Shorten to ~15 min (the frontend refreshes silently) or add
@@ -1085,6 +1118,26 @@ before any other roadmap item.
   Without Documenso settings, signing is simulated.
 
 **Platform**
+- [x] (Fixed Oct 17.) Redpanda kept its data in the container layer, so
+  recreating it (image update, `up --build`) dropped topics, consumer
+  offsets and Kafka users: events not yet consumed were lost and services
+  failed auth until `redpanda-init` re-ran. Now on the `redpanda-data`
+  volume. *Evidence (Oct 17):* outbox 0 unpublished and every group's lag
+  0 before switching; after `up -d --force-recreate --no-deps redpanda`
+  with init **not** re-run: 17/17 topics, 8 users still there, 4 groups
+  Stable. `test_stateful_stores_keep_data_on_named_volumes` (fails on the
+  old compose file). e2e after the switch: gateway 17/17, invoice
+  lifecycle 71/71, document pipeline 52/52, auth 42/42. Redis stays
+  in-memory on purpose (`--save ""`): it only holds the idempotency cache.
+- [x] (Fixed Oct 17.) An `/api/` path no service owns fell through to the
+  SPA: `index.html` with a 200, so a typo'd endpoint looked like success.
+  nginx now answers `{"error":{"code":"not_found",…}}` with a 404.
+  *Evidence:* live, `/api/nope` → 404 JSON, every service route and the
+  trailing-slash 301 unchanged; every API prefix in `frontend/src/api` is
+  routed; `test_nginx_unknown_api_path_is_json_404_not_the_spa` (fails
+  without the block). Note: an edit replaces the bind-mounted
+  `nginx.conf` inode, so `nginx -s reload` sees no file; use
+  `docker compose restart nginx`.
 - [ ] CI only builds images. Run `scripts/test-service.sh all`, the root
   tests and `npm run typecheck` in `.github/workflows/ci.yml` (e2e needs
   the full stack). *Why: this audit found three bugs a CI run of the
@@ -1117,6 +1170,14 @@ before any other roadmap item.
   professional-services notice period (line wrap). Clause model inference
   serialised (tokenizer not thread-safe). All suites and all four e2e
   scripts green afterwards.
+- [ ] **Decision needed — LayoutLMv3 cross-check false alarms.** On our
+  generated quotes LayoutLMv3 often reads the *subtotal* as the total
+  (e.g. 366.00 vs the real 431.88), and any disagreement forces review, so
+  about half of dropped quotes wait for a person even when the document's
+  own arithmetic (subtotal + tax = total) is consistent. Options: keep it
+  (safe, more reviews), or ignore a disagreement when LayoutLMv3's total
+  equals the document's subtotal and the amounts add up. Not changed
+  without a decision (it relaxes a check). The demo script handles both.
 - [ ] Chatbot (Anooj): `tests/test_chatbot_e2e.py` only checks that a
   reply arrives — with `llama3.2:3b` it searched for the literal text
   "vendor name" and told a requester risk scores are "publicly available",

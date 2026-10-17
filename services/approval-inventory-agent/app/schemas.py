@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List, Literal, Dict, Any
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # --- Standard response wrappers ---
 class DataResponse(BaseModel): # {"data": {...}, "meta": {}}
@@ -20,13 +20,36 @@ class CreatePurchaseRequest(BaseModel):
     request_type: Literal["hardware", "license", "saas", "reclaim", "reinstate"]
     # Filled in from the caller's JWT by the endpoint; any client value is ignored.
     requested_by: Optional[str] = None
-    department: str
+    department: str = Field(min_length=1, max_length=255)
     vendor_id: Optional[str] = None
     document_id: Optional[str] = None
-    amount: float
+    # Finite, non-negative and within the column's Numeric(12, 2): a NaN
+    # amount used to be stored (Postgres numeric accepts it and NaN >= 0 is
+    # true there), after which every GET /requests/ failed to serialise.
+    amount: float = Field(ge=0, lt=10_000_000_000, allow_inf_nan=False)
     currency: str = "INR"
     items: Optional[list[dict]] = None
     comments: Optional[str] = None
+
+    @field_validator("department")
+    @classmethod
+    def _department_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("department must not be blank")
+        return v
+
+    @field_validator("items")
+    @classmethod
+    def _stock_quantities_positive(cls, items: Optional[list[dict]]) -> Optional[list[dict]]:
+        # Items with a SKU reserve stock; a zero, negative or non-integer
+        # quantity would add stock back and drive reserved_quantity negative.
+        for item in items or []:
+            if "sku" in item:
+                qty = item.get("quantity", 1)
+                if isinstance(qty, bool) or not isinstance(qty, int) or qty < 1:
+                    raise ValueError(f"quantity for SKU {item['sku']!r} must be a whole number of at least 1")
+        return items
 
 class ApprovalAction(BaseModel):
     # Filled in from the caller's JWT by the endpoint; any client value is ignored.

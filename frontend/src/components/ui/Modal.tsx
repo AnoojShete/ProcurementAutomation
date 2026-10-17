@@ -18,22 +18,29 @@ export function Modal({
   size?: "sm" | "md" | "lg";
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
+    // Remember the trigger, so closing the dialog puts focus back on it.
+    const trigger = document.activeElement as HTMLElement | null;
     document.addEventListener("keydown", onKey);
     ref.current?.focus();
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      trigger?.focus?.();
+    };
+  }, [open]);
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" role="presentation">
-      <div className="absolute inset-0 bg-slate-900/30" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-ink/35" onClick={onClose} aria-hidden="true" />
       <div
         ref={ref}
         role="dialog"
@@ -41,26 +48,26 @@ export function Modal({
         aria-labelledby="modal-title"
         tabIndex={-1}
         className={cn(
-          "relative z-10 w-full rounded-md border border-surface-border bg-white shadow-popover animate-slide-up focus:outline-none",
+          "relative z-10 w-full rounded-xl border border-rule bg-sheet shadow-popover animate-slide-up focus:outline-none",
           size === "sm" && "max-w-sm",
           size === "md" && "max-w-lg",
           size === "lg" && "max-w-2xl",
         )}
       >
-        <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
-          <h2 id="modal-title" className="text-sm font-semibold text-slate-900">
+        <div className="flex items-center justify-between border-b border-rule px-5 py-3">
+          <h2 id="modal-title" className="text-heading font-semibold text-ink">
             {title}
           </h2>
           <button
             onClick={onClose}
             aria-label="Close dialog"
-            className="rounded-md p-1 text-slate-400 hover:bg-surface-muted hover:text-slate-600"
+            className="-mr-1 rounded p-1.5 text-ink-2 hover:bg-sheet-sunk hover:text-ink"
           >
             <X className="size-4" />
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto p-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-surface-border bg-surface-subtle px-4 py-3">{footer}</div>}
+        <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
+        {footer && <div className="flex flex-wrap justify-end gap-2 rounded-b-xl border-t border-rule bg-paper px-5 py-3">{footer}</div>}
       </div>
     </div>
   );

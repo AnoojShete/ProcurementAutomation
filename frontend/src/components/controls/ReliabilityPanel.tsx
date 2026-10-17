@@ -182,6 +182,7 @@ export function ReliabilityPanel({ showcase }: { showcase: boolean }) {
           subtitle="Events a consumer couldn't process after retries — kept with the error until someone replays or discards them"
           action={
             <select
+              aria-label="Filter dead-letter events"
               value={dlqFilter}
               onChange={(e) => setDlqFilter(e.target.value as typeof dlqFilter)}
               className="h-7 rounded-md border border-surface-border bg-white px-2 text-xs"

@@ -43,7 +43,7 @@ async def main():
         check("back arrow returns to the inbox", pg.url.endswith("/app/approvals"), pg.url)
         await pg.go_forward(); await pg.wait_for_timeout(1500)
 
-        await pg.get_by_role("button", name="Request Created", exact=True).click(); await pg.wait_for_timeout(300)
+        await pg.get_by_role("button", name="Request created", exact=True).click(); await pg.wait_for_timeout(300)
         check("clicking a completed step shows its info", await pg.locator("text=Raised by requester@demo.example.com").is_visible())
         await pg.get_by_role("button", name="Approval", exact=True).click(); await pg.wait_for_timeout(300)
         await panel.get_by_role("button", name="Approve").click()

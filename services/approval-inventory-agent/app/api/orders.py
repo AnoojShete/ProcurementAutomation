@@ -1,7 +1,7 @@
 """Order monitor snapshots — see app/services/order_monitor.py. The
 assistant/chatbot reads GET /orders/summary/latest to answer questions
 about pending approvals, signatures and vendor deliveries."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,7 +41,7 @@ async def latest_summary(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/summary")
-async def summary_history(limit: int = 24, db: AsyncSession = Depends(get_db)):
+async def summary_history(limit: int = Query(24, ge=1, le=1000), db: AsyncSession = Depends(get_db)):
     rows = (
         await db.execute(
             text(f"SELECT {_COLUMNS} FROM order_status_summaries ORDER BY generated_at DESC LIMIT :limit"),

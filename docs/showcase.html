@@ -153,7 +153,9 @@ make e2e                                 # expect: 17 passed, 0 failed
 python tests/e2e/invoice_lifecycle.py    # expect: 71 passed, 0 failed (wait a minute after make e2e)
 python tests/e2e/document_pipeline.py --quick   # expect: 52 passed, 0 failed</pre>
     <p class="muted">All three counts were re-run on 16 Oct 2026. Wait a minute between suites — the gateway rate-limits logins per IP.</p>
-    <pre>python tests/e2e/showcase_screens.py     # retakes every screenshot on this page from the live stack (~3 min)</pre>
+    <pre>python tests/e2e/showcase_screens.py     # retakes every screenshot on this page from the live stack (~3 min)
+python tests/e2e/demo_scenarios.py       # runs the five demo scenarios and refreshes demo-script.html (~5 min)</pre>
+    <p>Step-by-step scenarios with the expected result of every click: <a href="demo-script.html"><b>demo-script.html</b></a> — each row was performed and checked on the live stack by the script above.</p>
     <p class="muted">The pictures below are taken by that script driving the real app (it uploads two documents, screens two vendors and switches the fallback rule on and off again). If a pipeline is broken, the script ends with <b>STEPS THAT FAILED</b> and the picture shows what was on screen — run it the day before so a broken step is found then, not live. Teammates: the pictures are also the click-path for the newer modules.</p>
 
     <h2 class="t"><svg class="i"><use href="#check"/></svg>One hour before</h2>

@@ -35,7 +35,10 @@ async def documenso_webhook(
     """Documenso's webhook (configure it for DOCUMENT_COMPLETED, pointing
     at /api/webhooks/documenso, with APP_DOCUMENSO_WEBHOOK_SECRET as its
     secret). Marks the contract with that externalId as signed."""
-    body = await request.json()
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="request body is not valid JSON")
     try:
         contract = await webhook_service.handle_documenso_webhook(
             db, request.app.state.kafka_producer, body, x_documenso_secret

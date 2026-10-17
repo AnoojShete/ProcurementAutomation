@@ -35,8 +35,10 @@ REFRESH_COOKIE_PATH = os.environ.get("AUTH_COOKIE_PATH", "/api/auth")
 def _secure() -> bool:
     # Browsers only send Secure cookies over HTTPS (or to localhost).
     # Development defaults to off so the demo also works on http://<LAN IP>.
+    # Compose passes an unset variable as "", which must mean "default",
+    # not "off" (that would drop Secure in production).
     default = "false" if is_development() else "true"
-    return os.environ.get("AUTH_COOKIE_SECURE", default).lower() == "true"
+    return (os.environ.get("AUTH_COOKIE_SECURE") or default).lower() == "true"
 
 
 def set_session_cookies(response: Response, refresh_token: str) -> None:

@@ -14,6 +14,7 @@ import { ConfidenceIndicator } from "@/components/ui/ConfidenceIndicator";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { InlineError, InlineSuccess } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DocketHeader, RefCopy } from "@/components/ui/DocketHeader";
 import { documentTypeLabel, formatConfidence, formatDateTime } from "@/lib/format";
 import { CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
 import type { DocumentType } from "@/types/api";
@@ -108,7 +109,7 @@ export function DocumentDetailPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !doc) {
     return (
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Skeleton className="h-72" />
@@ -122,14 +123,21 @@ export function DocumentDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">{doc.original_filename ?? "Document"}</h1>
-        <DocumentStatusBadge status={doc.status} needsReview={doc.needs_review} />
-      </div>
+      <DocketHeader
+        reference={
+          <>
+            <RefCopy prefix="DOC" id={doc.id} />
+            <span className="text-13 text-ink-3">{documentTypeLabel(doc.document_type)}</span>
+          </>
+        }
+        title={doc.original_filename ?? "Document"}
+        status={<DocumentStatusBadge status={doc.status} needsReview={doc.needs_review} />}
+        meta={<span>Received {formatDateTime(doc.uploaded_at)}</span>}
+      />
 
       <DocumentControls extracted={doc.extracted_fields ?? {}} documentId={doc.id} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left: Document Preview & Details */}
         <Card className="flex flex-col">
           <CardHeader
@@ -179,19 +187,19 @@ export function DocumentDetailPage() {
               </div>
             )}
 
-            <dl className="mt-2 w-full space-y-2 border-t border-surface-border pt-3 text-left text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-400">Received</dt>
-                <dd className="font-medium text-slate-700">
+            <dl className="mt-2 w-full space-y-2 border-t border-rule pt-3 text-left text-sm">
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="shrink-0 text-ink-3">Received</dt>
+                <dd className="min-w-0 break-words text-right font-medium text-ink">
                   {doc.source === "email" ? `By email from ${doc.source_sender ?? "unknown sender"}`
                     : doc.source === "folder" ? "From the shared folder"
                     : `Uploaded by ${doc.uploaded_by ?? "—"}`}
                 </dd>
               </div>
-              <div className="flex justify-between"><dt className="text-slate-400">Uploaded</dt><dd className="text-slate-700">{formatDateTime(doc.uploaded_at)}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-400">File type</dt><dd className="uppercase font-semibold text-slate-700">{doc.file_type ?? "—"}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-ink-3">Uploaded</dt><dd className="text-right text-ink">{formatDateTime(doc.uploaded_at)}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-ink-3">File type</dt><dd className="uppercase font-medium text-ink">{doc.file_type ?? "—"}</dd></div>
               {doc.reviewed_by && (
-                <div className="flex justify-between"><dt className="text-slate-400">Reviewed by</dt><dd className="text-slate-700">{doc.reviewed_by}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-ink-3">Reviewed by</dt><dd className="min-w-0 break-words text-right text-ink">{doc.reviewed_by}</dd></div>
               )}
             </dl>
           </CardBody>
@@ -202,10 +210,10 @@ export function DocumentDetailPage() {
           <CardHeader title="Extracted Fields" subtitle="Correct any low-confidence values before confirming" />
           <CardBody className="flex flex-col gap-4">
             <FieldRow label="Vendor Name" confidence={confidences.vendor ?? confidences.vendor_name}>
-              <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} className="w-full rounded-lg border border-surface-border px-3 py-1.5 text-sm focus:border-brand-500" />
+              <input aria-label="Vendor name" value={vendorName} onChange={(e) => setVendorName(e.target.value)} className="field" />
             </FieldRow>
             <FieldRow label="Document Type" confidence={confidences.document_type}>
-              <select value={documentType} onChange={(e) => setDocumentType(e.target.value as DocumentType)} className="w-full rounded-lg border border-surface-border px-3 py-1.5 text-sm focus:border-brand-500">
+              <select aria-label="Document type" value={documentType} onChange={(e) => setDocumentType(e.target.value as DocumentType)} className="field">
                 <option value="po">Purchase Order</option>
                 <option value="invoice">Invoice</option>
                 <option value="quote">Quote</option>
@@ -223,7 +231,7 @@ export function DocumentDetailPage() {
               )}
             </FieldRow>
             <FieldRow label="Total" confidence={confidences.total}>
-              <input type="number" value={total} onChange={(e) => setTotal(e.target.value)} className="w-full rounded-lg border border-surface-border px-3 py-1.5 text-sm focus:border-brand-500" />
+              <input type="number" aria-label="Total" value={total} onChange={(e) => setTotal(e.target.value)} className="field" />
               {doc.extracted_fields?.total != null && (
                 <p className="mt-1 text-xs text-slate-500">
                   <DocumentAmount doc={doc} />
@@ -231,10 +239,10 @@ export function DocumentDetailPage() {
               )}
             </FieldRow>
             <FieldRow label="Document Number" confidence={confidences.document_number}>
-              <input value={docNumber} onChange={(e) => setDocNumber(e.target.value)} className="field" />
+              <input aria-label="Document number" value={docNumber} onChange={(e) => setDocNumber(e.target.value)} className="field" />
             </FieldRow>
             <FieldRow label="Document Date" confidence={confidences.document_date}>
-              <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} className="field" />
+              <input type="date" aria-label="Document date" value={docDate} onChange={(e) => setDocDate(e.target.value)} className="field" />
             </FieldRow>
             {saveError && <InlineError message={saveError} />}
             {saveSuccess && <InlineSuccess message={saveSuccess} />}

@@ -1,0 +1,133 @@
+% Chapter 2: Study of the System
+
+\chapter{Study of the System} \label{chap2}
+\newpage
+
+Procurement departments handle a steady stream of documents, including purchase orders, invoices and vendor quotations, and these rarely arrive in the same form twice. Some come by e-mail, some through vendor portals and others are scans or photographs of printed pages. In many organisations someone still reads each one and types the details into a system. Contracts are followed up in spreadsheets, vendors are vetted once at onboarding, and software licences are checked with a simple inactivity rule. Over time this leads to typing mistakes, duplicate payments, vendors whose identity was never confirmed, contracts that renew without anyone noticing, and licences that are paid for but never used. Fraud is a further concern: in Business Email Compromise (BEC), an attacker poses as a supplier and asks for bank details to be changed, and the request succeeds because nobody verifies it independently.
+
+This chapter reviews the techniques behind each part of the proposed platform. Because each agent relies on a different set of methods, the review covers a range of techniques rather than a single one. It begins with how procurement is traditionally done and where that approach falls short, reviews the main techniques for each sub-problem together with the choice made in this project, compares ten related research works, and ends with the research gap the project addresses.
+
+\section{About the Technique}
+Traditional procurement processing rests on four habits. The first is manual or template-based data entry: staff key in invoice and purchase-order details, or an OCR template is built for each vendor's layout. The second is static approval rules, where a request follows a fixed chain with no deadline, no escalation and no awareness of remaining stock. The third is periodic vendor review, which in practice often means one questionnaire at onboarding. The fourth is the flat-threshold licence audit, in which a seat is flagged when nobody has logged in for a fixed number of days. These habits work at small volumes but break down as an organisation grows; Table~\ref{tab:traditional} summarises where each struggles.
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{Traditional procurement practices and their shortcomings}\label{tab:traditional}
+\begin{tabularx}{\textwidth}{|L{0.19\textwidth}|L{0.27\textwidth}|Y|}
+\hline
+\textbf{Area} & \textbf{Traditional approach} & \textbf{Shortcoming} \\ \hline
+Data capture & Manual entry and per-vendor templates & Slow and error-prone; templates break whenever a vendor changes its layout. \\ \hline
+Vendor verification & Manual lookup and e-mail confirmation & Vulnerable to BEC fraud; duplicate vendor records accumulate. \\ \hline
+Approvals & E-mail chains and fixed rules & No SLA timers or escalation; overlapping requests can claim the same stock. \\ \hline
+Licence management & Fixed inactivity threshold & Ignores usage patterns and wrongly flags seasonal or weekend dips. \\ \hline
+Contract tracking & Calendar reminders & Notice periods are missed, resulting in unintended automatic renewals. \\ \hline
+Risk assessment & One-time questionnaire & Becomes outdated; misses later events such as a cancelled tax registration or a sanctions listing. \\ \hline
+\end{tabularx}
+\end{table}
+
+These gaps motivate an automated, event-driven approach. The approach taken here is not to hand every decision to a model. Pretrained components handle perception-heavy work such as reading page layouts and contract language; small models are trained where a task is specific to this project (document classification, licence anomalies and vendor risk), and each trained model is kept only if it beats a simple baseline on held-out data; and plain rules remain wherever certainty and auditability matter more than flexibility, such as spend-tier routing, sanctions overrides and dual control of bank details.
+
+\section{Various Available Techniques}
+
+\subsection{Document Intelligence}
+Template and regular-expression approaches are fast and predictable but brittle when vendors change layouts. OCR engines such as Tesseract~\cite{smith2007tesseract} and PaddleOCR~\cite{cui2025paddleocr} recover text from scanned pages but lose table structure. Layout-aware parsers such as Docling~\cite{auer2024docling} recover reading order and tables, although they are not tuned to invoices. Multimodal transformers of the LayoutLM family~\cite{xu2020layoutlm,huang2022layoutlmv3} give the best results on forms and invoices but need labelled data and more compute.
+
+\emph{Choice in this project.} PDFs with a usable text layer are read directly with pdfplumber; scanned PDFs go through Docling; images are read by PaddleOCR after deskewing and limited upscaling. PaddleOCR's native engine aborted the host process on some platform and version combinations, so it runs in an isolated subprocess with a time limit rather than in the worker itself. Fields are then extracted with regular expressions. When the LayoutLMv3 weights are installed, the model reads every document a second time as an independent cross-check (a disagreement forces human review) and replaces the OCR reading of an image whose OCR quality falls below 0.5.
+
+\subsection{Document Classification}
+TF-IDF features with logistic regression are light, fast to train and easy to inspect, which suits a small number of document classes. Transformer classifiers such as BERT have a higher ceiling but need more data and compute than this task justifies. A weighted keyword classifier, which scores title phrases such as ``tax invoice'' or ``purchase order'', needs no training data but depends on the vocabulary it is given.
+
+\emph{Choice in this project.} A TF-IDF (character 2--5-grams) and logistic-regression classifier labels each document as an invoice, purchase order, quotation or \emph{other} paperwork. It was trained and evaluated on a corpus of 1,260 generated documents that includes OCR-noise and missing-title variants, and was kept only because it beat the keyword classifier on validation data and on document kinds held out of training (Section~\ref{sec:eval}). The keyword classifier remains the fallback whenever the model is less than 60\% confident.
+
+\subsection{Vendor Deduplication and Identity Verification}
+Fuzzy name matching (rapidfuzz) tolerates spelling differences and corporate suffixes but can produce false matches on its own. Official identifiers are more reliable: an Indian GSTIN carries a check digit that can be validated offline, and an IFSC code can be looked up in a public bank directory, while live registry lookups are limited by API quotas.
+
+\emph{Choice in this project.} Extracted vendor names are normalised and matched with a fuzzy ratio threshold of 88. Vendor onboarding validates GSTIN format and check digit and looks IFSC codes up in a public directory, flags names 70--87\% similar to an existing vendor as possible impostors, and never writes bank details directly: they become a pending change that a second finance or admin user must verify. Every upload is scanned with ClamAV, which is signature-based and therefore fast but offers no protection against zero-day threats.
+
+\subsection{Workflow Orchestration and Concurrency Control}
+Cron jobs and scripts are simple but not durable and handle deadlines poorly. Temporal offers durable timers, signals and replay, at the cost of a steeper learning curve. Redis or database locks stop two requests from claiming the same stock, but need careful failure handling. Kafka-compatible brokers~\cite{kreps2011kafka} provide decoupled, replayable events between services, provided that consumers are idempotent; and a transactional outbox~\cite{richardson2018microservices} ensures that an event is published if and only if the database change that caused it commits.
+
+\emph{Choice in this project.} Temporal runs the approval, reclaim and renewal workflows; a short-lived Redis lock guards each stock reservation; Redpanda is the event bus; and events are written through a transactional outbox and consumed with retries and a dead-letter table.
+
+\subsection{Usage Anomaly Detection and Explainability}
+A flat inactivity threshold is transparent but flags seasonal and weekend dips by mistake. Isolation Forest~\cite{liu2008isolation} is unsupervised and efficient on tabular data, though it is sensitive to its contamination setting and gives no explanation of its own; SHAP~\cite{lundberg2017shap} supplies per-feature contributions at some extra cost.
+
+\emph{Choice in this project.} An Isolation Forest scores each licence from seven scale-free usage features (utilisation over 7, 30 and 90 days, user retention over 7 and 30 days, days since the last login and weekend share), and SHAP values explain which features pushed a licence towards ``anomalous''. The decision thresholds were chosen on a validation set, and a flagged licence becomes a reclaim request that the licence holder can contest during a seven-day grace period before it reaches an approver.
+
+\subsection{Contract Analysis and Clause Extraction}
+Keyword search misses paraphrased clauses. Legal-BERT~\cite{chalkidis2020legalbert} fine-tuned on CUAD~\cite{hendrycks2021cuad} handles legal wording better and answers one question per clause, but it was trained mostly on US commercial contracts and is slow on a CPU. FinBERT~\cite{araci2019finbert} scores financial sentiment, which could serve as an adverse-media signal, although sentiment is only a rough proxy for risk.
+
+\emph{Choice in this project.} A publicly released Legal-BERT checkpoint fine-tuned on CUAD's training split~\cite{apostolo2023legalbertcuad} extracts the renewal term, the notice period and the expiration date; regular-expression rules are the fallback when the model is not installed or finds too little. The model was kept as the primary method because it beat the rules on CUAD's test split and read every value of the project's own templates correctly (Section~\ref{sec:eval}). FinBERT was studied but not implemented.
+
+\subsection{Vendor Risk Scoring and Drift Monitoring}
+Static questionnaires are snapshots, whereas a learned classifier can combine several signals into one score. Random Forests~\cite{breiman2001random} are robust on small tabular datasets and provide feature importances for explanation. Some facts, however, should not be weighed against others: a cancelled tax registration or a sanctions listing should decide the outcome on its own. The Population Stability Index (PSI)~\cite{yurdakul2018psi} compares the distribution of recent scores with the training distribution and signals model drift.
+
+\emph{Choice in this project.} Hard overrides are applied first (a cancelled or suspended GSTIN, or a potential sanctions match against the OpenSanctions consolidated list~\cite{opensanctions}, forces a High band); otherwise a Random Forest on six vendor features produces a probability that is mapped to Low, Medium or High. Missing signals are left out rather than counted against the vendor. A weekly PSI check flags drift but never retrains the model, so a person decides what to do with the signal.
+
+\subsection{Multi-Agent and Agentic Architectures}
+\label{sec:agentdef}
+Multi-agent systems split a workflow among specialised components with clear ownership, at the cost of integration effort. Large-language-model (LLM) frameworks such as AutoGen~\cite{wu2023autogen} make agents cooperate through free-form conversation, which is flexible but hard to audit.
+
+\emph{Choice in this project.} In this report an \emph{agent} is an independent service that observes events, decides with rules or trained models within the authority given to it by business rules, acts by changing its own data and publishing new events, and hands a decision to a person when its confidence is low or the action is sensitive. Coordination is through a shared event contract rather than conversation, which keeps every decision deterministic and auditable. An LLM is used in one place only: a conversational assistant that answers users' questions through read-only tool calls and makes no procurement decisions.
+
+\section{Related Works}
+Ten published works were examined, each covering one building block of the platform. They are grouped below by the problem they address and compared in Tables~\ref{tab:related} and~\ref{tab:related2}.
+
+\paragraph{Document understanding.} LayoutLM~\cite{xu2020layoutlm} was among the first models to learn from text together with its two-dimensional position on the page, and improved results on forms, receipts and invoices considerably. LayoutLMv3~\cite{huang2022layoutlmv3} added image information through unified text and image masking and dropped the CNN backbone, giving a simpler and stronger model. On the tooling side, Docling~\cite{auer2024docling} rebuilds reading order and table structure locally, and PaddleOCR~3.0~\cite{cui2025paddleocr} provides multilingual OCR with structure analysis, although it runs best on a GPU.
+
+\paragraph{Contract and risk language.} CUAD~\cite{hendrycks2021cuad} provides 510 expert-annotated contracts covering 41 clause categories and has become the standard benchmark for clause extraction. LEGAL-BERT~\cite{chalkidis2020legalbert} showed that pretraining on legal text clearly outperforms generic BERT on legal tasks. For the financial side of vendor risk, FinBERT~\cite{araci2019finbert} contributes sentiment analysis tuned to financial language.
+
+\paragraph{Anomaly detection and explanation.} Isolation Forest~\cite{liu2008isolation} finds unusual records by how quickly random splits isolate them, so it needs no labelled examples. SHAP~\cite{lundberg2017shap} explains a single prediction by how much each feature pushed the score up or down.
+
+\paragraph{Agent frameworks.} AutoGen~\cite{wu2023autogen} represents the LLM-driven approach in which agents cooperate by conversation. It is included as a contrast to the event-driven design chosen here.
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{Comparison of related works}\label{tab:related}
+\begin{tabularx}{\textwidth}{|L{0.16\textwidth}|L{0.18\textwidth}|L{0.16\textwidth}|L{0.17\textwidth}|Y|}
+\hline
+\textbf{Reference} & \textbf{Contribution} & \textbf{Advantages} & \textbf{Limitations} & \textbf{Role in this project} \\ \hline
+Xu et al., LayoutLM (KDD 2020)~\cite{xu2020layoutlm} & Joint pretraining of text and 2-D layout & Large gains on forms, receipts and invoices & No image features in pretraining; needs fine-tuning & Studied; basis of the LayoutLMv3 cross-check \\ \hline
+Huang et al., LayoutLMv3 (ACM MM 2022)~\cite{huang2022layoutlmv3} & Unified text--image masking, no CNN backbone & Strong results; simpler architecture & Compute-heavy; needs labels for new document types & Implemented as an optional cross-check and image fallback \\ \hline
+Auer et al., Docling (2024)~\cite{auer2024docling} & Local layout, reading-order and table recovery & Fast, local, strong on tables & Not tuned to invoices; weak on poor scans & Implemented for scanned PDFs \\ \hline
+Cui et al., PaddleOCR 3.0 (2025)~\cite{cui2025paddleocr} & OCR and structure-analysis toolkit & Accurate, multilingual & GPU preferred; native crashes on some platforms & Implemented for images, isolated in a subprocess \\ \hline
+Hendrycks et al., CUAD (NeurIPS 2021)~\cite{hendrycks2021cuad} & 510 contracts, 41 clause categories & Realistic, expert-annotated benchmark & English, mostly US contracts & Training data of the clause model; its test split is used for evaluation \\ \hline
+\end{tabularx}
+\end{table}
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{Comparison of related works (continued)}\label{tab:related2}
+\begin{tabularx}{\textwidth}{|L{0.16\textwidth}|L{0.18\textwidth}|L{0.16\textwidth}|L{0.17\textwidth}|Y|}
+\hline
+\textbf{Reference} & \textbf{Contribution} & \textbf{Advantages} & \textbf{Limitations} & \textbf{Role in this project} \\ \hline
+Chalkidis et al., LEGAL-BERT (EMNLP 2020)~\cite{chalkidis2020legalbert} & BERT pretrained on legal corpora & Beats generic BERT on legal tasks & Smaller corpus; mostly English & Implemented: CUAD-fine-tuned checkpoint extracts renewal clauses \\ \hline
+Araci, FinBERT (2019)~\cite{araci2019finbert} & BERT further pretrained on financial text & Strong financial sentiment & Sentiment is only a proxy for risk & Studied; adverse-media signal left as future scope \\ \hline
+Liu et al., Isolation Forest (ICDM 2008)~\cite{liu2008isolation} & Anomaly detection by random partitioning & Linear time, no labels needed & No native explanation; contamination must be set & Implemented for licence-usage anomalies \\ \hline
+Lundberg and Lee, SHAP (NeurIPS 2017)~\cite{lundberg2017shap} & Unified feature attribution & Consistent local explanations; fast for trees & Cost grows with features; not causal & Implemented: reasons shown for each flagged licence \\ \hline
+Wu et al., AutoGen (2023)~\cite{wu2023autogen} & Multi-agent LLM conversation framework & Modular and customisable & Conversation-driven; hard to audit & Contrast: event-driven agents with durable workflows \\ \hline
+\end{tabularx}
+\end{table}
+
+Taken together, the works show a clear pattern. The document-AI papers concentrate on how accurately fields can be read and say little about what should happen next, such as matching the vendor, catching duplicates or holding a suspicious bank-detail change for review; this platform builds a confidence-gated pipeline around the extraction step. The legal NLP work stops at extracting clauses, whereas here the extracted terms drive a renewal workflow and sit beside a live vendor risk score that is shown before anyone signs. Isolation Forest and SHAP are general-purpose tools; the contribution here is their use for licence reclaim with explanations and a grace period. Finally, frameworks such as AutoGen favour flexibility and free-form dialogue, whereas procurement needs predictable, auditable and concurrency-safe behaviour, which is why the project uses an event bus and durable workflows for orchestration.
+
+\section{Literature Summary and Research Gap}
+Table~\ref{tab:summary} summarises the techniques reviewed and where each is used in the proposed system.
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{Techniques reviewed and their use in the proposed system}\label{tab:summary}
+\begin{tabularx}{\textwidth}{|L{0.20\textwidth}|L{0.28\textwidth}|Y|}
+\hline
+\textbf{Area} & \textbf{Best-known technique} & \textbf{Use in this system} \\ \hline
+Layout and OCR & Docling, PaddleOCR, Tesseract & pdfplumber for text PDFs, Docling for scanned PDFs, PaddleOCR for images \\ \hline
+Extraction cross-check & LayoutLMv3 & Optional second reading; disagreement forces review \\ \hline
+Classification & TF-IDF + logistic regression & Trained classifier with keyword fallback below 60\% confidence \\ \hline
+Clause extraction & Legal-BERT on CUAD & Primary extractor with regular-expression fallback \\ \hline
+Licence analysis & Isolation Forest + SHAP & Anomaly score, explained reasons, reclaim after a grace period \\ \hline
+Risk scoring & Classifier + rule overrides & Random Forest with GSTIN and sanctions overrides; PSI drift check \\ \hline
+Orchestration & Temporal, locks, Kafka, outbox & Temporal workflows, Redis reservation lock, Redpanda with transactional outbox \\ \hline
+\end{tabularx}
+\end{table}
+
+What the literature mainly lacks is integration. Document extraction, clause analysis, anomaly detection and workflow orchestration are usually studied as separate problems and judged on benchmarks. Few systems join them into a single governed procurement pipeline, and fewer still do so with three properties in mind. The pipeline should be \emph{fraud-aware}, with dual control of payment-detail changes and malware scanning that fails closed. It should be \emph{accountable}, with an audit log of document, vendor, approval and contract actions, explanations for model outputs, and monitoring for model drift. And it should be \emph{observable}, with per-service metrics, centralised logs that follow one correlation identifier across services, and a record of every event and notification. This project is an attempt to fill that gap.

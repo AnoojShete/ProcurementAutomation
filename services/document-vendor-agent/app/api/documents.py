@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, UploadFile, File
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -209,7 +209,7 @@ async def upload_documents_batch(
 
 
 @router.get("/", response_model=DataResponse)
-async def list_documents(limit: int = 100, db: AsyncSession = Depends(get_db),
+async def list_documents(limit: int = Query(100, ge=1, le=1000), db: AsyncSession = Depends(get_db),
                          user: CurrentUser = Depends(get_current_user)):
     """Documents regardless of status, most recent first — backs the
     tracking dashboard. Requesters see only what they uploaded."""
@@ -226,7 +226,7 @@ async def learning_stats(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/review-queue", response_model=DataResponse)
-async def get_review_queue(limit: int = 50, db: AsyncSession = Depends(get_db),
+async def get_review_queue(limit: int = Query(50, ge=1, le=1000), db: AsyncSession = Depends(get_db),
                            user: CurrentUser = Depends(get_current_user)):
     owner = None if user.role in STAFF_ROLES else user.email
     docs = await document_service.list_review_queue(db, limit=limit, uploaded_by=owner)

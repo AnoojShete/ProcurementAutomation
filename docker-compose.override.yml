@@ -13,6 +13,8 @@ services:
       # Demo stack: allows the well-known dev secrets, demo accounts and
       # showcase/simulated-signing features. Unset = production rules.
       APP_ENV: ${APP_ENV:-development}
+      # Demo-only "simulate signature" endpoint; off unless set to true.
+      ENABLE_SIGN_SIMULATED: ${ENABLE_SIGN_SIMULATED:-false}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
@@ -131,6 +133,9 @@ services:
       # Demo stack: allows the well-known dev secrets, demo accounts and
       # showcase/simulated-signing features. Unset = production rules.
       APP_ENV: ${APP_ENV:-development}
+      # Token notification-agent uses to ask this service for email-action links.
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-${APP_BASE_URL:-http://localhost:8080}}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
@@ -164,6 +169,8 @@ services:
       # Demo stack: allows the well-known dev secrets, demo accounts and
       # showcase/simulated-signing features. Unset = production rules.
       APP_ENV: ${APP_ENV:-development}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-${APP_BASE_URL:-http://localhost:8080}}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
@@ -192,6 +199,10 @@ services:
       # Demo stack: allows the well-known dev secrets, demo accounts and
       # showcase/simulated-signing features. Unset = production rules.
       APP_ENV: ${APP_ENV:-development}
+      # Unset = secure outside development (session_cookies.py). Empty counts as unset.
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-}
+      JWT_REFRESH_EXPIRY_DAYS: ${JWT_REFRESH_EXPIRY_DAYS:-7}
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-false}
       AUTH_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-60}
@@ -361,6 +372,8 @@ services:
       # Demo stack: allows the well-known dev secrets, demo accounts and
       # showcase/simulated-signing features. Unset = production rules.
       APP_ENV: ${APP_ENV:-development}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-${APP_BASE_URL:-http://localhost:8080}}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       # This service's own Kafka login (permissions: infra/redpanda/acls.conf).

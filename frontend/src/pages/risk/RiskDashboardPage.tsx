@@ -6,7 +6,7 @@ import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
 import { vendorsApi } from "@/api/vendors";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { MetricCard } from "@/components/ui/MetricCard";
+import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { RiskBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -50,23 +50,22 @@ export function RiskDashboardPage() {
     { key: "name", header: "Vendor", render: (v) => <span className="font-medium text-slate-800">{v.name}</span> },
     { key: "score", header: "Risk Score", render: (v) => (v.risk_score != null ? v.risk_score.toFixed(2) : "—"), sortValue: (v) => v.risk_score ?? -1 },
     { key: "band", header: "Risk Band", render: (v) => <RiskBadge band={v.risk_band} /> },
-    { key: "action", header: "Action", render: (v) => <span className="text-brand-700">View details →</span> },
   ];
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard label="Low Risk" value={distribution.Low} icon={ShieldCheck} tone="success" hint={`${Math.round((distribution.Low / total) * 100)}% of scored vendors`} />
-        <MetricCard label="Medium Risk" value={distribution.Medium} icon={ShieldQuestion} tone="warning" hint={`${Math.round((distribution.Medium / total) * 100)}% of scored vendors`} />
-        <MetricCard label="High Risk" value={distribution.High} icon={AlertTriangle} tone="danger" hint={`${Math.round((distribution.High / total) * 100)}% of scored vendors`} />
-      </div>
+      <LedgerStrip cols={3} label="Vendors by risk band">
+        <MetricCard label="Low risk" value={distribution.Low} icon={ShieldCheck} tone="success" hint={`${Math.round((distribution.Low / total) * 100)}% of scored vendors`} />
+        <MetricCard label="Medium risk" value={distribution.Medium} icon={ShieldQuestion} tone="warning" hint={`${Math.round((distribution.Medium / total) * 100)}% of scored vendors`} />
+        <MetricCard label="High risk" value={distribution.High} icon={AlertTriangle} tone="danger" hint={`${Math.round((distribution.High / total) * 100)}% of scored vendors`} />
+      </LedgerStrip>
 
       <Card>
         <CardHeader title="Risk Distribution" />
         <CardBody>
-          <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="flex h-3 w-full overflow-hidden rounded-sm bg-sheet-sunk" role="img" aria-label={`Low ${distribution.Low}, medium ${distribution.Medium}, high ${distribution.High}`}>
             {(["Low", "Medium", "High"] as const).map((band) => (
               <div
                 key={band}
@@ -76,7 +75,15 @@ export function RiskDashboardPage() {
               />
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-400">{scored.length} of {vendors?.length ?? 0} vendors have been risk-scored.</p>
+          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-13 text-ink-2">
+            {(["Low", "Medium", "High"] as const).map((band) => (
+              <span key={band} className="inline-flex items-center gap-1.5">
+                <span className={`size-2.5 rounded-sm ${band === "Low" ? "bg-success-500" : band === "Medium" ? "bg-warning-500" : "bg-danger-500"}`} aria-hidden="true" />
+                {band} <span className="tabular font-medium text-ink">{distribution[band]}</span>
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-caption text-ink-3">{scored.length} of {vendors?.length ?? 0} vendors have been risk-scored.</p>
         </CardBody>
       </Card>
 

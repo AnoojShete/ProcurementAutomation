@@ -162,7 +162,11 @@ Teardown: `docker compose down` (keeps data) or `docker compose down -v`
 ## Configuration
 
 Everything is read from `.env` (git-ignored; created from `.env.example`).
-The demo compose defaults work without editing it.
+The demo compose defaults work without editing it. `tests/test_env_example.py`
+keeps the two in step: every variable the compose files read is listed in
+`.env.example`, and everything listed there is read by something. Image
+versions are pinned in the compose files (the same test fails on a new
+`:latest`), so a fresh clone gets the versions that were tested.
 
 | Setting | Default in the demo | Notes |
 |---|---|---|
@@ -174,11 +178,12 @@ The demo compose defaults work without editing it.
 | `EMAIL_FROM`, `EMAIL_REPLY_TO` | `Procurement Platform <noreply@procurement.local>`, blank | With Gmail, `EMAIL_FROM` must be your Gmail address. |
 | `APP_BASE_URL` | `http://localhost:8080` | Used to build the links in emails. |
 | `PUBLIC_BASE_URL` | `http://localhost:8080` | External gateway URL used for email action links (`/email-action/*`). In production, **must be HTTPS** because plain HTTP exposes action tokens to network sniffing. |
-| `INTERNAL_SERVICE_TOKEN` | `dev-internal-service-token-change-me` | Secret for internal service-to-service calls (`POST /internal/email-actions/mint`). Never exposed at the gateway. |
+| `INTERNAL_SERVICE_TOKEN` | `dev-internal-service-token-change-me` | Secret for internal service-to-service calls (`POST /internal/email-actions/mint`). Never exposed at the gateway. Change it for any shared deployment (until Oct 17 compose didn't pass it on, so it was always the default). |
 | `ENABLE_SIGN_SIMULATED` | `false` | When false, `POST /contracts/{id}/sign-simulated` is disabled. Set true only for demo/dev without Documenso/DocuSign. |
 | `AUTH_LOCKOUT_THRESHOLD` / `_WINDOW_MINUTES` / `_MINUTES` | 5 / 15 / 15 | Wrong passwords per address before a temporary lock. |
-| `AUTH_COOKIE_SECURE` | off in development | Turn on behind HTTPS. |
+| `AUTH_COOKIE_SECURE` | off in development, on otherwise | Leave unset (or empty) for that default; set `false` only to test production mode over plain HTTP. |
 | `APP_SHOWCASE_MODE` | on in development only | Enables the Controls page scenario endpoints. |
+| `EMAIL_INTAKE_*` (`ENABLED`, `PROTOCOL`, `HOST`, `PORT`, `SSL`, `USER`, `PASSWORD`, `ADDRESS`) | Mailpit's POP3 mailbox | The mailbox documents are read from (pop3 or imap). |
 | `GSTINCHECK_API_KEY` | placeholder | Only for live GSTIN lookups (off by default, admin toggle). |
 | `APP_DOCUMENSO_API_URL` / `_API_TOKEN` / `_WEBHOOK_SECRET` | unset | With these, "Send for signature" uses Documenso; unset = simulated signing. |
 | `VITE_SHOW_DEMO_ACCOUNTS` (frontend build) | shown | Set to `false` when building for real users to hide the demo-login buttons. |
@@ -291,11 +296,13 @@ curl -s http://localhost:8080/api/requests/ -H "Authorization: Bearer <access_to
 ## Testing
 
 Counts from Oct 16 unless a row says otherwise; the fresh-clone setup was
-last verified on Sep 27 (separate Docker project, empty volumes).
+last verified on Sep 27 (separate Docker project, empty volumes). The test
+plan and scenario matrix are in [testing-strategy.md](testing-strategy.md);
+the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit-report.md).
 
 | Command | What | Result |
 |---|---|---|
-| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | 530 passed, 2 skipped (contract-risk 103, approval-inventory 113, document-vendor 215, notification 39, auth 60) |
+| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 17: 823 passed (contract-risk 198, approval-inventory 178, document-vendor 328, notification 54, auth 65) |
 | root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | 123 passed, 1 failed (`test_mailer`: `.env.example` points at Gmail, not Mailpit), 4 skipped; `test_email_action.py` needs `redis` in the image |
 | `make e2e` | Bash flow through the gateway: login, ClamAV reject/accept, request → approve → contract → signed webhook → risk → email → business-rule change | 17/17 (Sep 28) |
 | `python tests/e2e/auth_flows.py` | Sign-up → email → confirm → login → change password → logout → forgot/reset, expired / reused links, lockout, enumeration, rate limit (reads Mailpit) | 42/42 |
@@ -312,6 +319,8 @@ pip install -r tests/e2e/requirements.txt
 ./scripts/test-root.sh
 # screenshots in docs/showcase/ from the live stack; ends with "STEPS THAT FAILED" if a pipeline breaks
 python tests/e2e/showcase_screens.py
+# the demo script: five scenarios performed and checked live → docs/demo-script.html (~5 min)
+python tests/e2e/demo_scenarios.py
 ```
 
 `scripts/test-service.sh` mounts `data/` read-only, so tests on the demo

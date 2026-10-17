@@ -8,6 +8,7 @@ import { authApi } from "@/api/auth";
 import { DEMO_ACCOUNTS } from "@/lib/constants";
 import { ApiError } from "@/api/client";
 import { cn } from "@/lib/cn";
+import { Wordmark } from "@/components/auth/AuthLayout";
 
 // The one-click demo accounts are for the showcase build. Set
 // VITE_SHOW_DEMO_ACCOUNTS=false when building for real users.
@@ -54,157 +55,153 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-surface-subtle px-4 pt-16 pb-10 sm:pt-24">
-      <div className="mb-6 flex items-center gap-2.5">
-        <div className="flex size-8 items-center justify-center rounded bg-slate-900 text-xs font-bold text-white">
-          PI
+    <div className="flex min-h-screen flex-col items-center bg-paper px-4 pb-10 pt-12 sm:pt-20">
+      <div className="w-full max-w-[400px]">
+        <div className="mb-8">
+          <Wordmark />
         </div>
-        <span className="text-lg font-semibold text-slate-900">
-          Procurement
-        </span>
-      </div>
 
-      <div className="w-full max-w-[340px]">
-        <h1 className="mb-4 text-center text-xl font-normal text-slate-900">
-          Sign in to Acme Corp
-        </h1>
-
-        <form
-          onSubmit={onSubmit}
-          className="space-y-3 rounded-md border border-surface-border bg-white p-4"
-          noValidate
-        >
-          {error && <InlineError message={error} />}
-          {unverified &&
-            (resent ? (
-              <InlineSuccess message={resent} />
-            ) : (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-full"
-                onClick={async () =>
-                  setResent(
-                    (await authApi.resendVerification(email)).data.message,
-                  )
-                }
-              >
-                Send a new confirmation link
-              </Button>
-            ))}
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-1 block text-sm font-medium text-slate-800"
-            >
-              Work email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="username"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setSelectedRole(null);
-              }}
-              className="field"
-            />
-          </div>
-          <div>
-            <div className="mb-1 flex items-baseline justify-between">
+        <div className="rounded border border-rule bg-sheet px-5 py-6 sm:px-7">
+          <h1 className="mb-5 text-title font-semibold text-ink">Sign in to Acme Corp</h1>
+          <form
+            onSubmit={onSubmit}
+            className="space-y-4"
+            noValidate
+          >
+            {error && <InlineError message={error} />}
+            {unverified &&
+              (resent ? (
+                <InlineSuccess message={resent} />
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  onClick={async () =>
+                    setResent(
+                      (await authApi.resendVerification(email)).data.message,
+                    )
+                  }
+                >
+                  Send a new confirmation link
+                </Button>
+              ))}
+            <div>
               <label
-                htmlFor="password"
-                className="block text-sm font-medium text-slate-800"
+                htmlFor="email"
+                className="mb-1.5 block text-sm font-medium text-ink"
               >
-                Password
+                Work email
               </label>
-              <Link
-                to="/forgot-password"
-                className="text-xs font-medium text-brand-700 hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <div className="relative">
               <input
-                id="password"
-                type={showPassword ? "text" : "password"}
+                id="email"
+                type="email"
                 required
-                autoComplete="current-password"
-                value={password}
+                autoComplete="username"
+                value={email}
                 onChange={(e) => {
-                  setPassword(e.target.value);
+                  setEmail(e.target.value);
                   setSelectedRole(null);
                 }}
-                className="field pr-9"
+                className="field"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400 hover:text-slate-700"
-              >
-                {showPassword ? (
-                  <EyeOff className="size-4" />
-                ) : (
-                  <Eye className="size-4" />
-                )}
-              </button>
             </div>
-          </div>
+            <div>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-ink"
+                >
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-13 font-medium text-accent hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setSelectedRole(null);
+                  }}
+                  className="field pr-9"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-ink-3 hover:text-ink"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+            </div>
 
-          <Button
-            type="submit"
-            className="w-full"
-            loading={submitting}
-            disabled={!email || !password}
-          >
-            Sign in
-          </Button>
-        </form>
-
-        <div className="mt-4 rounded-md border border-surface-border p-3 text-center text-sm text-slate-700">
-          New here?{" "}
-          <Link
-            to="/signup"
-            className="font-medium text-brand-700 hover:underline"
-          >
-            Create an account
-          </Link>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              loading={submitting}
+              disabled={!email || !password}
+            >
+              Sign in
+            </Button>
+          </form>
+          <p className="mt-5 border-t border-rule pt-4 text-center text-sm text-ink-2">
+            New here?{" "}
+            <Link to="/signup" className="font-medium text-accent hover:underline">
+              Create an account
+            </Link>
+          </p>
         </div>
 
         {SHOW_DEMO_ACCOUNTS && (
-          <div className="mt-4 rounded-md border border-surface-border bg-white p-4">
-            <p className="mb-2 text-13 font-medium text-slate-800">
-              Demo accounts
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {DEMO_ACCOUNTS.map((acct) => (
-                <button
-                  key={acct.role}
-                  type="button"
-                  onClick={() => pickDemoRole(acct)}
-                  className={cn(
-                    "h-8 rounded-md border px-2.5 text-left text-13 transition-colors",
-                    selectedRole === acct.role
-                      ? "border-brand-500 bg-brand-50 font-medium text-brand-800"
-                      : "border-surface-border text-slate-700 hover:bg-surface-subtle",
-                  )}
-                >
-                  {acct.label}
-                </button>
-              ))}
+          <section aria-labelledby="eval-title" className="mt-6 rounded border border-dashed border-rule-strong bg-sheet-sunk/60 p-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 id="eval-title" className="text-sm font-semibold text-ink">
+                Evaluation accounts
+              </h2>
+              <span className="text-caption text-ink-3">Demo environment only</span>
             </div>
-            <p className="mt-2 text-xs text-slate-500">
-              Fills in a seeded account. Evaluation environment only.
-            </p>
-          </div>
+            <p className="mt-1 text-13 text-ink-2">Pick a role to fill in a seeded account, then sign in.</p>
+            <ul className="mt-3 divide-y divide-rule overflow-hidden rounded border border-rule bg-sheet">
+              {DEMO_ACCOUNTS.map((acct) => {
+                const selected = selectedRole === acct.role;
+                return (
+                  <li key={acct.role}>
+                    <button
+                      type="button"
+                      onClick={() => pickDemoRole(acct)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors duration-1 focus-visible:ring-inset focus-visible:ring-offset-0",
+                        selected ? "bg-accent-tint shadow-[inset_2px_0_0_rgb(var(--accent))]" : "hover:bg-sheet-sunk",
+                      )}
+                    >
+                      <span className={cn("text-sm", selected ? "font-medium text-accent" : "text-ink")}>{acct.label}</span>
+                      <span className="truncate font-mono text-caption text-ink-3">{acct.email}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
 
-        <p className="mt-8 text-center text-xs text-slate-500">
+        <p className="mt-8 text-center text-caption text-ink-3">
           Access is limited to authorised Acme Corp staff. Activity is logged.
         </p>
       </div>

@@ -99,3 +99,21 @@ def test_refresh_cookie_is_not_sent_outside_the_auth_path():
     _login(c)
     jar = {ck.name: ck.path for ck in c.cookies.jar}
     assert jar["refresh_token"] == "/api/auth" and jar["csrf_token"] == "/"
+
+
+@pytest.mark.parametrize("app_env,value,expected", [
+    ("production", None, True),
+    # docker compose passes an unset AUTH_COOKIE_SECURE as "": still the default.
+    ("production", "", True),
+    ("production", "false", False),
+    ("development", "", False),
+    ("development", "true", True),
+])
+def test_cookie_secure_flag_treats_empty_as_unset(monkeypatch, app_env, value, expected):
+    from app import session_cookies
+    monkeypatch.setenv("APP_ENV", app_env)
+    if value is None:
+        monkeypatch.delenv("AUTH_COOKIE_SECURE", raising=False)
+    else:
+        monkeypatch.setenv("AUTH_COOKIE_SECURE", value)
+    assert session_cookies._secure() is expected

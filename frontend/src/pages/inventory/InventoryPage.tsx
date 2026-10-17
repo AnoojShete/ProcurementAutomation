@@ -5,14 +5,14 @@ import { useApi } from "@/hooks/useApi";
 import { inventoryApi } from "@/api/inventory";
 import { requestsApi } from "@/api/requests";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { MetricCard } from "@/components/ui/MetricCard";
+import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ReorderSettings } from "@/components/inventory/ReorderSettings";
 import { useAuth } from "@/hooks/useAuth";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { formatCurrency, formatPercent, titleCase } from "@/lib/format";
 import type { InventoryItem, LicenseItem } from "@/types/api";
 
 export function InventoryPage() {
@@ -116,7 +116,7 @@ export function InventoryPage() {
           href={`/app/licenses/${l.id}`}
           className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
-          Details →
+          Details
         </a>
       ),
     },
@@ -127,12 +127,12 @@ export function InventoryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <LedgerStrip cols={4} label="Inventory figures">
         <MetricCard label="Available Units" value={totals.available} icon={PackageCheck} tone="success" />
         <MetricCard label="Reserved Units" value={totals.reserved} icon={Boxes} tone="brand" />
         <MetricCard label="SKUs to Reorder" value={totals.lowStock} icon={PackageMinus} tone={totals.lowStock ? "warning" : "success"} />
         <MetricCard label="Requests Partially Backordered" value={backorderedRequests.length} icon={PackageX} tone={backorderedRequests.length ? "warning" : "success"} />
-      </div>
+      </LedgerStrip>
 
       {toReorder.length > 0 && (
         <Card>
@@ -186,7 +186,7 @@ export function InventoryPage() {
           <CardBody className="flex flex-col gap-2">
             {backorderedRequests.map((r) => (
               <div key={r.id} className="flex items-center justify-between rounded-lg border border-warning-50 bg-warning-50/40 px-3.5 py-2.5 text-sm">
-                <span className="text-slate-700 capitalize">{r.request_type} — {r.department}</span>
+                <span className="text-ink">{titleCase(r.request_type)} — {r.department}</span>
                 <Badge tone="warning">Partial fulfillment available</Badge>
               </div>
             ))}

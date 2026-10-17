@@ -58,6 +58,7 @@ python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service
 python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fails loudly if a step breaks)
+python tests/e2e/demo_scenarios.py        # the five demo scenarios, checked live → docs/demo-script.html
 ```
 
 e2e scripts need `pip install -r tests/e2e/requirements.txt` on the host.
@@ -80,6 +81,15 @@ ad-hoc pass (undefined names).
   buttons.
 - Deep links: `/app/requests/:id?step=approval|contract|signature|…`,
   `/app/contracts/:id?action=sign|send`.
+- **Ledger design system** (docs/design-direction.md): colours come from
+  `styles/tokens.css`. Use `ink`/`ink-2`/`ink-3`, `paper`, `sheet`, `rule`
+  and the role colours in new code, not raw `slate/rose/emerald/amber/blue`
+  (those are re-pointed to the tokens only so old classes stay legible).
+  Serif (`font-doc`) only for item titles, via `DocketHeader`. Key figures go
+  in a `LedgerStrip`, not rows of boxes. Status only through `Badge` /
+  `StatusDot`. No uppercase captions, no `→` in button or link text, nothing
+  under 12 px. `Card` for things you act on; `Section` for read-only content.
+  A lifecycle step spins only when an agent is actually working.
 
 ## Gotchas
 
@@ -91,6 +101,9 @@ ad-hoc pass (undefined names).
   rebuild via the service: `docker compose up -d --build <svc> <svc>-worker`.
 - **Restart nginx after recreating any service** — it resolves upstream IPs
   once at boot, so a recreated container gets 502s until nginx restarts.
+  Same after editing `infra/nginx/nginx.conf`: editors replace the file, the
+  single-file bind mount keeps the old inode, and `nginx -s reload` finds no
+  config — use `docker compose restart nginx`.
 - **Gateway rate limits** (per IP): login/register/verify/reset/change
   30/min burst 20, forgot-password/resend 6/min. Running e2e suites back to
   back trips them — wait a minute between suites. `auth_flows.py` waits out

@@ -34,7 +34,10 @@ function AppShellInner() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-subtle relative">
+    <div className="flex h-screen overflow-hidden bg-paper relative">
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
@@ -48,8 +51,17 @@ function AppShellInner() {
           onOpenMobileNav={() => setMobileNavOpen(true)}
           onOpenSearch={() => setSearchOpen(true)}
         />
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1320px] px-4 py-5 sm:px-6">
+        {/* pb-24 reserves a gutter under the last row so the floating chat
+            button (owned by the chatbot) never hides the end of a page. */}
+        {/* Focusable so keyboard users can scroll pages that have no other
+            focusable content; the skip link lands here too. */}
+        <main
+          id="main"
+          tabIndex={0}
+          aria-label="Page content"
+          className="flex-1 overflow-y-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent focus-visible:ring-offset-0"
+        >
+          <div className="max-w-[1200px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 2xl:mx-auto">
             <Outlet />
           </div>
         </main>

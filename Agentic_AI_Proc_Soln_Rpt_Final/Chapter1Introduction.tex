@@ -1,0 +1,52 @@
+% Chapter 1 Introduction
+
+\chapter[Introduction]{\centering Introduction}\label{chap1}
+\newpage
+
+\section{Background}
+IT procurement is an important part of an organisation's operations because it covers the acquisition and management of hardware, software licences, SaaS subscriptions and related services. The process runs through several stages: identifying a vendor, processing its documents, obtaining approval, managing inventory, handling the contract and assessing vendor risk. In many organisations these activities are spread across e-mail, spreadsheets, invoices and separate systems, which makes it hard to keep a consistent, current view of procurement. Approvals are delayed, purchases are duplicated, licences go unused, contracts are difficult to track and vendor-related risks grow unnoticed. Automation and artificial intelligence offer a way to make these activities faster and more reliable.
+
+\section{Motivation}
+The project is motivated by the time spent on manual procurement work and the lack of transparency and control that results from it. Employees verify documents, review vendor details, chase approvals, check stock and licence utilisation, and keep track of contract renewals. These tasks become error-prone as volumes grow, and some of the resulting errors, such as paying a fraudulent change of bank details, are costly. A system that automates the routine steps, links the stages of the procurement cycle and asks a person only when a decision is uncertain or sensitive would be of clear benefit. The project therefore implements a set of special-purpose software agents for document processing, vendor matching, approvals, inventory and licence analysis, contract management and risk detection.
+
+\section{Aim and Objectives}
+
+\subsection{Aim}
+To develop an Agentic AI-based IT Procurement Intelligence Platform that integrates, automates and intelligently manages the major activities of the IT procurement lifecycle while keeping human oversight of critical decisions.
+
+\subsection{Objectives}
+\begin{itemize}
+  \item To process procurement documents such as purchase orders, invoices and quotations, and extract their key fields with a confidence score for each result.
+  \item To match vendors against existing records, validate their tax and bank identifiers, and detect duplicate vendors and duplicate invoices.
+  \item To automate approval workflows based on spend tiers, an approval-authority matrix, SLA deadlines and inventory availability, with escalation when an approver does not respond.
+  \item To detect under-used software licences with an anomaly-detection model and propose their reclamation under human control.
+  \item To support contract management by generating contracts, collecting signatures, extracting renewal-related clauses and issuing renewal reminders.
+  \item To assess vendor risk with a machine learning model, explain each score, and monitor the model for drift.
+  \item To provide shared platform services: authentication, role-based access control, configurable business rules, notifications, monitoring and audit logging.
+  \item To keep humans involved in low-confidence results and in critical decisions such as changes to vendor payment details.
+\end{itemize}
+
+\section{Problem Statement}
+IT procurement involves collecting procurement documents, verifying vendor information, processing invoices and quotations, obtaining approvals, managing software licences, monitoring contracts and assessing vendor risk. These activities are often handled through several systems and manual processes, which causes delays, duplicate records, wasted resources and limited visibility across the procurement lifecycle.
+
+Traditional procurement systems mainly record transactions; they do little to analyse procurement data or to support decisions. Identifying duplicate vendors or invoices, detecting under-used licences, tracking renewals and assessing vendor risk therefore take significant manual effort. At the same time, automated decisions made without a measure of confidence and without human oversight can lead to incorrect procurement actions.
+
+There is therefore a need for an integrated solution that automates routine procurement activities, analyses the relevant data, supports approval decisions and monitors procurement risk. The proposed platform addresses this need by combining document processing, vendor intelligence, workflow automation, licence management, contract monitoring, risk scoring and human-in-the-loop controls in one system.
+
+\section{Scope}
+The platform covers the following activities of the IT procurement lifecycle:
+\begin{itemize}
+  \item \textbf{Procurement document processing:} receiving documents by upload, e-mail or a watched folder; scanning, parsing, classifying and extracting structured fields from purchase orders, invoices and quotations.
+  \item \textbf{Vendor intelligence:} matching extracted vendor names against existing records, onboarding vendors with GSTIN and IFSC validation, and holding new or changed bank details for verification by a second user.
+  \item \textbf{Invoice checks:} flagging likely duplicate invoices and matching invoices line by line against the purchase request.
+  \item \textbf{Approval workflow automation:} routing purchase requests through spend-tier approval chains with SLA timers, reminders, escalation and inventory reservation.
+  \item \textbf{Software licence management:} scoring licence usage for anomalies and creating reclaim requests that a person approves after a grace period.
+  \item \textbf{Contract management:} generating contracts from templates, signing them in the application, extracting renewal type, notice period and end date, and scheduling renewal reminders.
+  \item \textbf{Vendor risk assessment:} scoring vendors with a machine learning model and hard-override rules, listing the contributing factors, and monitoring the model for drift.
+  \item \textbf{Shared platform services:} authentication, role-based access control, business rules editable at run time, e-mail notifications, audit logging, metrics, centralised logs and a conversational assistant.
+  \item \textbf{Human-in-the-loop decision making:} routing low-confidence documents, payment-detail changes, reclaims and high-risk signatures to authorised users.
+\end{itemize}
+The platform is a decision-support and workflow-automation system; it does not replace human decision-makers in critical procurement activities. Payment execution, ERP integration and production deployment are outside the scope (Section~\ref{sec:scope3}).
+
+\section{Report Outline}
+This report is organised into six chapters. Chapter~\ref{chap1}, \textbf{Introduction}, presents the background, motivation, aim and objectives, problem statement and scope. Chapter~\ref{chap2}, \textbf{Study of the System}, reviews the techniques relevant to each part of the system and compares related research. Chapter~\ref{chap3}, \textbf{Proposed System}, describes the problem, the scope and the proposed platform: its architecture, agents, document pipeline, event flow and technology stack. Chapter~\ref{chap4}, \textbf{Design of the System}, covers requirement engineering, the lifecycle model, UML diagrams and data-flow diagrams, cost analysis, hardware and software requirements, and the system architecture. Chapter~\ref{chap5}, \textbf{Result and Discussion}, presents screenshots of the implemented system, its main logic, the testing performed and the evaluation of its models. Chapter~\ref{chap6}, \textbf{Conclusion and Future Scope}, summarises the outcomes, limitations and possible extensions. The report ends with references and appendices covering the project timeline, SDG mapping, complex engineering problem evaluation and project outcomes.

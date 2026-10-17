@@ -1,7 +1,7 @@
 """Invoice ledger API — see app/services/invoice_ledger.py."""
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,7 +76,7 @@ async def get_ledger(request_id: str, db: AsyncSession = Depends(get_db), user: 
 
 
 @router.get("/matches", dependencies=[Depends(require_role("approver", "finance", "admin"))])
-async def list_matches(status: Optional[str] = None, held: Optional[bool] = None, limit: int = 100,
+async def list_matches(status: Optional[str] = None, held: Optional[bool] = None, limit: int = Query(100, ge=1, le=1000),
                        db: AsyncSession = Depends(get_db)):
     where, params = [], {"limit": max(1, min(limit, 500))}
     if status:

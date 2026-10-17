@@ -15,7 +15,7 @@ export function CategoryBarChart({
     <div className="flex flex-col gap-3">
       {sorted.map((d) => (
         <div key={d.label} className="flex items-center gap-3">
-          <span className="w-28 shrink-0 truncate text-sm capitalize text-slate-600">{d.label}</span>
+          <span className="w-28 shrink-0 truncate text-sm text-ink-2" title={d.label}>{d.label}</span>
           <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full rounded-full bg-brand-500"

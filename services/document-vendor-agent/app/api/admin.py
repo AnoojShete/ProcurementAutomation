@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -60,7 +60,7 @@ async def update_live_mode(req: LiveModeUpdate, db: AsyncSession = Depends(get_d
     return DataResponse(data=await _status(db))
 
 @router.get("/model-routing-log")
-async def get_model_routing_log(limit: int = 30, db: AsyncSession = Depends(get_db)):
+async def get_model_routing_log(limit: int = Query(30, ge=1, le=1000), db: AsyncSession = Depends(get_db)):
     rows = (await db.execute(text(
         # NUMERIC columns would serialize as strings ("1.000"); cast so clients get numbers.
         "SELECT id, document_id, route_name, model_used, fallback_triggered, fallback_reason, "
