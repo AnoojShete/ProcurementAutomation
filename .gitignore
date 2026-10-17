@@ -16,3 +16,5 @@ frontend/dist/
 secrets/
 # run.sh build stamps + log
 .run/
+Agentic_AI_Proc_Soln_Rpt_Final/
+Agentic_AI_Proc_Soln_Rpt/

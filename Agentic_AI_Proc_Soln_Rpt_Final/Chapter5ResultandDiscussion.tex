@@ -1,1 +1,262 @@
-\section{x}\label{sec:code}\label{sec:eval}
+% Chapter 5: Result and Discussion
+
+\chapter{Result and Discussion} \label{chap5}
+\newpage
+
+This chapter presents the implemented system through screenshots and its main logic, reports the testing carried out, and evaluates the models against simple baselines. All screenshots were taken from the running system with the synthetic demonstration data on 16 October 2026; all test results are dated.
+
+\section{Screenshots of the System}\label{sec:screens}
+Figures~\ref{fig:scr-lifecycle} to~\ref{fig:scr-control} show the main screens of the implemented frontend. Each item has one home page that holds all its actions.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/screens/06-request-lifecycle.png}
+\caption[Request page with the procurement lifecycle]{Request page: the clickable procurement lifecycle (the signature step is in progress), the approval chain, procurement checks and the invoice ledger}\label{fig:scr-lifecycle}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/screens/02-document-detail.png}
+\caption[Document review page]{Document review page: the document preview, extracted fields with their confidence, and the result flagged as a likely duplicate needing review}\label{fig:scr-document}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/screens/03-vendor-risk.png}
+\caption[Vendor page with risk score and factors]{Vendor page: risk score and band, the number of signals on file, the hard checks (GSTIN, sanctions, IFSC) and the contributing factors}\label{fig:scr-vendor}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/screens/08-licence-anomaly.png}
+\caption[Licence page with usage trend and reclaim request]{Licence page: 90-day usage trend, an open reclaim request in its grace period, and the start of the model's explanation of why the licence was flagged}\label{fig:scr-licence}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/screens/09-contract.png}
+\caption[Signed contract page]{Contract page of a signed SaaS subscription: renewal terms, notice deadline, next reminder and the generated contract text}\label{fig:scr-contract}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/screens/10-control-panel.png}
+\caption[Control Panel with the live Kafka event log]{Control Panel: the drop-folder automation from file to signature, the connection status of Kafka, MinIO and e-signature, and the live Kafka event log}\label{fig:scr-control}
+\end{figure}
+
+\section{Sample Code (Main Logic)}\label{sec:code}
+This section shows three short excerpts of the implementation, taken unchanged from the source except for removed log lines (marked ``\ldots'').
+
+\paragraph{Confidence gate.} The worker discounts each field's extraction confidence $c_f$ by the quality $q \in [0,1]$ of the text it was read from, and combines the field scores with fixed weights $w_f$ (total 0.30, vendor name 0.20, classification 0.15, document number 0.15, date 0.10, line items 0.10):
+\begin{equation}
+s_f = c_f \cdot q, \qquad S = \frac{\sum_{f \in F} w_f\, s_f}{\sum_{f \in F} w_f}, \qquad \text{review if } S < \theta,
+\label{eq:confidence}
+\end{equation}
+where $F$ excludes line items when a document has none, and $\theta$ is 0.8 or a per-vendor threshold learned from reviewers' corrections. Listing~\ref{lst:confidence} shows the implementation.
+
+\begin{lstlisting}[caption={Confidence scoring and the review gate (document-vendor-agent, \texttt{confidence.py})}, label={lst:confidence}]
+def build_confidence_scores(classification_confidence, field_confidences, text_quality):
+    scores = {"classification": round(classification_confidence * text_quality, 3)}
+    for field_name, conf in field_confidences.items():
+        scores[field_name] = round(conf * text_quality, 3)
+    return scores
+
+WEIGHTS = {
+    "total": 0.30, "vendor_name": 0.20, "classification": 0.15,
+    "document_number": 0.15, "document_date": 0.10, "line_items": 0.10,
+}
+OPTIONAL = {"line_items"}
+
+def overall_confidence(confidence_scores):
+    scores = {k: v for k, v in confidence_scores.items() if not (k in OPTIONAL and not v)}
+    if not scores:
+        return 0.0
+    weights = {k: WEIGHTS.get(k, 0.1) for k in scores}
+    return round(sum(scores[k] * w for k, w in weights.items()) / sum(weights.values()), 3)
+
+def needs_review(overall, threshold=None):
+    return overall < (load_threshold() if threshold is None else threshold)
+\end{lstlisting}
+
+\paragraph{Race-safe stock reservation.} A short-lived Redis lock per SKU guards the check-and-decrement, while the reservation itself is stored in PostgreSQL. Each acquisition uses a fresh token so that a retry can never release another request's lock (Listing~\ref{lst:reserve}).
+
+\begin{lstlisting}[caption={Stock reservation under a Redis lock (approval-inventory-agent, \texttt{inventory\_service.py})}, label={lst:reserve}]
+async def reserve_stock(db, redis_client, sku, request_id, quantity) -> bool:
+    lock = InventoryLock(redis_client, ttl=10)  # 10s safety TTL, released in ms
+    lock_token = str(uuid.uuid4())              # unique per acquisition
+    acquired = await lock.acquire(sku, lock_token)
+    if not acquired:
+        return False
+    try:
+        # Re-check availability inside the lock
+        item = (await db.execute(select(Inventory).where(Inventory.sku == sku))).scalar_one_or_none()
+        if not item or item.available_quantity < quantity:
+            return False
+        item.available_quantity -= quantity
+        item.reserved_quantity += quantity
+        await db.commit()
+        return True
+    finally:
+        await lock.release(sku, lock_token)     # always release, even on failure
+\end{lstlisting}
+
+\paragraph{Verified, replay-safe signature callback.} The webhook is not JWT-authenticated, because the provider has no platform account. It is trusted only if an HMAC-SHA256 signature over the canonical JSON body matches, compared in constant time, and a provider event ID is accepted only once (Listing~\ref{lst:webhook}).
+
+\begin{lstlisting}[caption={HMAC verification and replay protection (contract-risk-agent, \texttt{webhook\_service.py})}, label={lst:webhook}]
+def verify_signature(payload: dict, signature: str) -> None:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    expected = hmac.new(settings.esign_webhook_secret.encode("utf-8"), canonical, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        raise WebhookSignatureError("webhook signature verification failed")
+
+async def mark_contract_signed(db, kafka_producer, contract_id, signed_by, signed_at, provider_event_id, ...):
+    existing = await db.get(ProcessedWebhookEvent, provider_event_id)
+    if existing is not None:
+        raise WebhookReplayError(f"webhook event {provider_event_id} already processed")
+    contract = await db.get(Contract, contract_id)
+    ...
+    contract.status = "signed"
+    db.add(ProcessedWebhookEvent(...))   # recorded in the same transaction as the status change
+\end{lstlisting}
+
+\section{Testing}
+Testing was carried out at three levels: unit tests for each service and for the shared code, end-to-end tests through the gateway against the running stack, and black-box probes of externally visible behaviour. Every bug fixed during the two audit passes received a regression test, and each such test was checked by reverting the fix and watching it fail.
+
+\subsection{Unit Testing}
+Each service has its own pytest suite, run inside that service's Docker image with the source mounted (\code{./scripts/test-service.sh all}). The suites test logic, schemas, API behaviour and the wiring of every enforced business rule (each rule is set to two values and the test checks that behaviour changes). On 18 October 2026 all 823 tests passed, with none failing or skipped (Table~\ref{tab:unit}). A further suite tests the shared code and configuration: event outbox and dead-letter handling, the request state machine, Kafka permissions against the code, log redaction, correlation IDs, e-mail approval actions and the business-rules registry. On the same day it passed 156 tests; 4 tests of the assistant's live script were skipped because they need a running language model.
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{Unit tests per service (run on 18 October 2026)}\label{tab:unit}
+\begin{tabularx}{\textwidth}{|L{0.25\textwidth}|C{0.09\textwidth}|Y|}
+\hline
+\textbf{Service} & \textbf{Passed} & \textbf{Areas covered} \\ \hline
+document-vendor-agent & 328 & Upload checks and ClamAV, e-mail and drop-folder intake, OCR runtime and preprocessing, Docling extraction, classification and classifier routing, field extraction and schema, LayoutLMv3 cross-check, confidence, vendor matching and onboarding, GSTIN and IFSC, payment quarantine, learning from corrections, pipeline resilience, event schemas, rules wiring, document access \\ \hline
+approval-inventory-agent & 178 & Spend tiers, approval authority and reminders, lifecycle enforcement, Redis lock and inventory reservation, reorder, invoice ledger, licence-usage anomaly model and reclaim, outbox publishing, order monitor, audit regressions, rules wiring, approval security \\ \hline
+contract-risk-agent & 198 & Clause extraction and model routing, contract documents and access, in-app signing and its risk check, e-sign webhook and DocuSign client, renewal schedule, risk model and signals, sanctions screening, reminders, rules wiring, security configuration \\ \hline
+notification-agent & 54 & Digest versus urgent routing, template rendering with strict undefined checks, consumer retry and dead-letter, notification-log access, event schemas \\ \hline
+auth-service & 65 & Password hashing, JWT, session cookies and CSRF, account flows (with a throwaway database), lockout and hardening, business rules, demo-seed guard \\ \hline
+\textbf{Total} & \textbf{823} & \\ \hline
+\end{tabularx}
+\end{table}
+
+\subsection{Integration Testing}
+The end-to-end suites drive the running stack through the gateway exactly as a client would, without database shortcuts (Table~\ref{tab:e2e}). The gateway suite (\code{make e2e}) signs in as three roles, checks that ClamAV rejects the EICAR test file and accepts a clean PDF, creates a manager-tier request, approves it, generates and sends a contract, simulates the provider's signed callback with a real HMAC signature, confirms the signature, recomputes the vendor's risk, confirms that a notification reached Mailpit, and changes a business rule mid-test to check its history and reset. The invoice-lifecycle suite takes one fresh vendor's quote and invoice through all five services, and the document-pipeline suite submits normal, very large, corrupt, empty, wrongly typed and pathological files and simulates outages.
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{End-to-end test suites}\label{tab:e2e}
+\begin{tabularx}{\textwidth}{|L{0.30\textwidth}|Y|C{0.10\textwidth}|C{0.14\textwidth}|}
+\hline
+\textbf{Suite} & \textbf{What it exercises} & \textbf{Result} & \textbf{Date run} \\ \hline
+\code{make e2e} (gateway) & Request, approval, contract, signature, risk, notification, rule change & 17 / 17 & 18 Oct 2026 \\ \hline
+\code{invoice_lifecycle.py} & One vendor's quote and invoice through all five services & 71 / 71 & 17 Oct 2026 \\ \hline
+\code{document_pipeline.py --quick} & Normal, oversized, corrupt, empty and mistyped files; duplicates; outages & 52 / 52 & 17 Oct 2026 \\ \hline
+\code{auth_flows.py} & Sign-up, e-mail confirmation, password change and reset, expired and reused links, lockout, rate limits & 42 / 42 & 17 Oct 2026 \\ \hline
+\code{ui_flows.py} (Playwright) & Browser flows: lifecycle steps, approve and sign from the request page, inbox routing & 11 / 11 & 16 Oct 2026 \\ \hline
+\end{tabularx}
+\end{table}
+
+Integration also exposed problems that unit tests could not, which were fixed centrally: the gateway did not strip the API prefix (every route returned 404), the broker advertised an unreachable address, UUID columns were typed as strings, Alembic version tables of two services collided, and ClamAV's slow start blocked the services that depended on it.
+
+\subsection{Black-box Testing}
+Black-box probes test externally visible behaviour without reference to the code. The cases in Table~\ref{tab:bb} were sent through the gateway to the running stack on 18 October 2026; the ``Before'' column records cases that the 17 October audit had found failing and that were fixed with regression tests.
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{Black-box test cases (run through the gateway on 18 October 2026)}\label{tab:bb}
+\begin{tabularx}{\textwidth}{|C{0.06\textwidth}|L{0.30\textwidth}|Y|L{0.17\textwidth}|}
+\hline
+\textbf{ID} & \textbf{Scenario} & \textbf{Expected and observed result} & \textbf{Before the audit fix} \\ \hline
+BB1 & Full gateway flow (\code{make e2e}) & All 17 checks pass & -- \\ \hline
+BB2 & Upload the EICAR test file; then a clean PDF & 422 rejected; 201 accepted & -- \\ \hline
+BB3 & Protected endpoint without a token & 401 \code{missing bearer token} & -- \\ \hline
+BB4 & Requester verifies a bank-detail change & 403: only finance or admin may verify & -- \\ \hline
+BB5 & Requester opens the approval inbox; approver opens it & 403 for the requester; 200 for the approver & -- \\ \hline
+BB6 & Signature webhook with a wrong HMAC signature & 401 \code{invalid webhook signature}; contract unchanged & -- \\ \hline
+BB7 & Malformed UUID in a path (\code{/vendors/2.1/risk}) & 400 in the standard error envelope & -- \\ \hline
+BB8 & Purchase request with amount \code{NaN} & 422 validation error; nothing stored & Row stored; request list broken for all users \\ \hline
+BB9 & Hardware item with quantity $-3$ & 422 validation error & Stock corrupted (available 8, reserved $-3$) \\ \hline
+BB10 & Requester downloads another user's contract & 404 & PDF downloaded \\ \hline
+BB11 & Wrong password for a real account, and any password for an unknown address & Identical 401 \code{Invalid email or password.} (no account enumeration) & -- \\ \hline
+\end{tabularx}
+\end{table}
+
+\section{Evaluation of the Models}\label{sec:eval}
+Each model was compared with a simple baseline on data it was not trained on, and each decision rule for keeping a model was fixed before the comparison was run. All training and test data is synthetic except the CUAD contracts, so these results compare methods on controlled data; they do not predict accuracy on an organisation's real documents or vendors.
+
+\subsection{Document Classification}
+The classifier was trained on 861 of 1,260 generated documents (clean, OCR-noise, missing-title and \emph{other} paperwork), with 252 for validation and 252 for testing. A second test trained on 870 documents without one invoice layout and two kinds of \emph{other} paperwork, and tested on 390 documents of exactly those kinds. Table~\ref{tab:clf} shows that the shipped router (the model when it is at least 60\% confident, otherwise keywords) classified every test document correctly, against a macro-F1 of 0.912 and 0.844 for keywords. The keyword classifier was weakest on documents with no title (0.847 and 0.602). Because both test sets share the generator's vocabulary, perfect scores here mean the model learned these templates, not that it would be perfect on real documents.
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{Document classification on synthetic test sets (accuracy and macro-F1)}\label{tab:clf}
+\begin{tabularx}{\textwidth}{|L{0.30\textwidth}|C{0.13\textwidth}|C{0.13\textwidth}|C{0.13\textwidth}|Y|}
+\hline
+\textbf{Classifier} & \multicolumn{2}{c|}{\textbf{Same templates (252 docs)}} & \multicolumn{2}{c|}{\textbf{Held-out kinds (390 docs)}} \\ \cline{2-5}
+ & Accuracy & Macro-F1 & Accuracy & Macro-F1 \\ \hline
+Keyword classifier & 0.929 & 0.912 & 0.854 & 0.844 \\ \hline
+Shipped: TF-IDF + logistic regression, keywords below 0.6 & 1.000 & 1.000 & 1.000 & 1.000 \\ \hline
+\end{tabularx}
+\end{table}
+
+\subsection{Field Extraction}
+Extraction was measured against ground truth on 15 generated PDFs and 6 generated images, each image also tested as rotated (4\textdegree), noisy and half-resolution copies (24 image variants). Every field of every PDF was correct, but only 47\% of image fields without preprocessing and 49\% with deskewing and upscaling (Table~\ref{tab:extract}). Preprocessing helped on original and rotated images (47\% to 53\%) but hurt on noisy ones (47\% to 44\%). Image extraction is therefore the weakest part of the pipeline; this is why low-confidence documents go to review, and why OCR quality discounts every field's confidence (Equation~\ref{eq:confidence}).
+
+\begin{table}[!htbp]
+\centering\tablestyle
+\caption{Field-extraction accuracy by field (share of documents with the field correct)}\label{tab:extract}
+\begin{tabularx}{\textwidth}{|Y|C{0.09\textwidth}|C{0.08\textwidth}|C{0.10\textwidth}|C{0.08\textwidth}|C{0.07\textwidth}|C{0.08\textwidth}|C{0.08\textwidth}|}
+\hline
+\textbf{Input} & \textbf{Type} & \textbf{Vendor} & \textbf{Number} & \textbf{Date} & \textbf{Total} & \textbf{Currency} & \textbf{All} \\ \hline
+PDFs (15) & 100\% & 100\% & 100\% & 100\% & 100\% & 100\% & 100\% \\ \hline
+Images, no preprocessing (24) & 50\% & 33\% & 50\% & 42\% & 42\% & 67\% & 47\% \\ \hline
+Images, with preprocessing (24) & 50\% & 54\% & 50\% & 38\% & 38\% & 67\% & 49\% \\ \hline
+\end{tabularx}
+\end{table}
+
+\subsection{Clause Extraction}
+The Legal-BERT model and the regular-expression rules were compared on the 102 contracts of CUAD's test split, real commercial contracts annotated by lawyers; a clause counts as found when the returned passage overlaps an annotated span. The model beat the rules on all three clause types (Figure~\ref{fig:clauses}), most clearly on expiration dates, which in CUAD are usually written relative to another date (``five years from the Effective Date'') and so defeat the date rules. On 60 contracts generated from the project's own templates, both methods read every value correctly. The model was kept as the primary extractor under a rule fixed in advance (beat the rules on at least two of the three clauses and read every template value). Its cost is speed: a median of 17 seconds per contract on a CPU.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[reportbars, height=5.6cm, ymax=1.1, ylabel={F1 score}, symbolic x coords={Renewal term, Notice period, Expiration date}, xtick=data, legend entries={Regular-expression rules, Legal-BERT (CUAD)}, nodes near coords={\pgfmathprintnumber[fixed, precision=2]{\pgfplotspointmeta}}]
+\addplot[fill=chartA, draw=chartA] coordinates {(Renewal term,0.50) (Notice period,0.19) (Expiration date,0.02)};
+\addplot[fill=chartB, draw=chartB] coordinates {(Renewal term,0.85) (Notice period,0.80) (Expiration date,0.91)};
+\end{axis}
+\end{tikzpicture}
+\caption[Clause extraction F1 on the CUAD test split]{Clause extraction F1 on the CUAD test split (102 contracts; 26, 16 and 78 of them contain the respective clause)}\label{fig:clauses}
+\end{figure}
+
+\subsection{Licence-Usage Anomaly Detection}
+The anomaly model was evaluated on 600 simulated licences (seed 2026), 30\% of which follow an anomalous pattern (gradual decline, sudden drop-off or abandonment) while the rest are steady, have weekend dips or are stable at low use. The licences were split 360 / 120 / 120 for training, validation and testing. Figure~\ref{fig:licence} compares the shipped model with three alternatives on the test set. Scale-free features (utilisation and retention ratios rather than raw seat counts) raised the ROC-AUC from 0.849 to 0.954, and both are far above the earlier model trained on only five licences (0.659) and above ranking by low utilisation alone (0.687), which is what a flat inactivity rule does. The thresholds were chosen on the validation set: at the ``anomalous'' threshold (0.39) the test precision was 0.83 and the recall 0.69; at the ``watch'' threshold (0.34) they were 0.79 and 0.83. Abandoned licences were always flagged and sudden drop-offs 87\% of the time, but gradual declines only 36\% of the time, while 4--10\% of the normal licences crossed the anomalous threshold. The grace period and human approval exist for exactly these false positives.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[reportbars, height=5.8cm, ymax=1.12, ylabel={Score on 120 test licences}, symbolic x coords={Low utilisation alone, Previous model, Nine raw features, Shipped model}, xtick=data, xticklabel style={align=center, text width=2.6cm}, legend entries={ROC-AUC, Average precision}, nodes near coords={\pgfmathprintnumber[fixed, precision=3]{\pgfplotspointmeta}}]
+\addplot[fill=chartA, draw=chartA] coordinates {(Low utilisation alone,0.687) (Previous model,0.659) (Nine raw features,0.849) (Shipped model,0.954)};
+\addplot[fill=chartB, draw=chartB] coordinates {(Low utilisation alone,0.608) (Previous model,0.549) (Nine raw features,0.744) (Shipped model,0.873)};
+\end{axis}
+\end{tikzpicture}
+\caption[Licence-anomaly detection on simulated test licences]{Licence-anomaly detection on 120 simulated test licences. ``Previous model'': original features trained on 5 licences; ``Nine raw features'': original features trained on the same 360 licences; ``Shipped model'': seven scale-free features}\label{fig:licence}
+\end{figure}
+
+\subsection{Vendor Risk Scoring}
+The risk model was evaluated on 2,000 synthetic vendors (360 with an incident), split 1,600 / 400. The incident labels were drawn from a known formula of the six features plus random noise, so even a perfect model cannot exceed the ROC-AUC of that formula, 0.739. The Random Forest reached 0.715 (0.726 with 20\% of the values missing), close to that ceiling, with an accuracy of 0.72 at a threshold of 0.5. More importantly for its use, the bands are ordered by real incident rate (Figure~\ref{fig:bands}): 6.5\% of Low-band vendors, 20\% of Medium and 40.3\% of High had an incident. The most important features were on-time delivery (0.349), financial stability (0.210) and tenure (0.207). Twelve hand-written red-team profiles, including a perfect vendor with a cancelled GSTIN (forced High by the override), a vendor with no data on file (Medium, never High) and vendors with partial data, all received the expected band.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[reportbars, width=0.7\textwidth, height=5.4cm, ymax=0.5, ylabel={Incident rate}, symbolic x coords={Low, Medium, High}, xtick=data, enlarge x limits=0.3, bar width=24pt, nodes near coords={\pgfmathprintnumber[fixed, precision=3]{\pgfplotspointmeta}}]
+\addplot[fill=chartB, draw=chartB] coordinates {(Low,0.065) (Medium,0.200) (High,0.403)};
+\end{axis}
+\end{tikzpicture}
+\caption[Incident rate per risk band]{Incident rate per risk band on 400 synthetic test vendors (153 Low, 185 Medium, 62 High)}\label{fig:bands}
+\end{figure}
+
+\section{Discussion}
+The results support the design in three ways. First, the event-driven agents work together as intended: one request or document passes through all five services without manual steps or database shortcuts, as the end-to-end suites show, and the outbox, retries and state machine keep each step consistent when events arrive late or twice. Second, every trained model earned its place against a simple alternative on held-out data, and the comparison rules were fixed before the results were known: the classifier and Legal-BERT replaced rules only because they beat them, and the licence model was retrained after it was found to separate the patterns poorly. Third, the controls that matter most for a financial process, such as fail-closed scanning, dual control of bank details, role checks and replay protection, are verified by black-box probes against the running system rather than assumed.
+
+The results also show the limits of the current system. Image extraction is weak (49\% of fields correct), so photographed documents rely heavily on human review. The licence model misses most gradual declines and flags some normal licences, so its proposals must stay subject to approval. The perfect classification scores and the risk model's figures come from synthetic data whose structure the models can learn exactly; only Legal-BERT was evaluated on real documents, and those are US commercial contracts rather than Indian procurement contracts. The confidence threshold of 0.8 is a heuristic that has not been calibrated against measured error rates, which is the subject of the team's planned research. Finally, the 17 October audit left some issues open, including logout not revoking the refresh token and a request being committed before its event is staged; these are recorded with the future work in Chapter~\ref{chap6}.

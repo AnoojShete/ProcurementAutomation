@@ -32,9 +32,7 @@ def test_every_compose_variable_is_in_env_example():
 def test_images_are_pinned():
     """A fresh clone must get the versions that were tested, not whatever
     `latest` means that day."""
-    # minio/minio left Docker Hub, so it can't be pinned there; replacement
-    # pending a decision (docs/TODO.md, REPRO-1). Remove once replaced.
-    known_unpinned = {"minio/minio:latest"}
+    known_unpinned: set[str] = set()
     images = []
     for name in COMPOSE:
         images += re.findall(r"^\s*image:\s*(\S+)", (ROOT / name).read_text(), re.M)

@@ -138,18 +138,10 @@ fi
 echo "Kafka security bootstrap:"
 docker compose logs --no-log-prefix redpanda-init 2>/dev/null | tail -3 || true
 
-echo "Ensure MinIO bucket exists (use mc client if installed)"
-if command -v mc >/dev/null 2>&1; then
-  if ! mc alias list | grep -q minio; then
-    mc alias set local http://localhost:9000 "${MINIO_ROOT_USER:-minioadmin}" "${MINIO_ROOT_PASSWORD:-minioadmin}" || true
-  fi
-  mc mb --ignore-existing local/it-procurement || true
-else
-  # Try using containerized mc on the compose network
-  NETNAME="${NETWORK_NAME:-it-procurement-network}"
-  echo "Attempting to create MinIO bucket using containerized mc on network $NETNAME"
-  docker run --rm --network "$NETNAME" --entrypoint /bin/sh minio/mc:latest -c "mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} && mc mb --ignore-existing myminio/it-procurement" || true
-fi
+echo "Ensure MinIO bucket exists"
+# mc ships inside the MinIO image (the separate minio/mc image is no longer
+# published), so run it there instead of needing it on the host.
+docker compose exec -T minio sh -c "mc alias set local http://localhost:9000 '${MINIO_ROOT_USER:-minioadmin}' '${MINIO_ROOT_PASSWORD:-minioadmin}' >/dev/null && mc mb --ignore-existing local/it-procurement" || true
 
 echo "Summary URLs:
 Grafana: http://localhost:3000

@@ -1,0 +1,28 @@
+% Appendix D: Project Outcomes
+
+\vspace*{5cm}
+\begin{centering}
+{\LARGE\bfseries Appendix D: Project Outcomes}\\
+\end{centering}
+
+\newpage
+
+\section*{Publications and Competitions}
+% TODO (team): replace these rows with the final details before submission.
+\begin{center}
+\tablestyle
+\begin{tabularx}{\textwidth}{|L{0.22\textwidth}|Y|L{0.18\textwidth}|}
+\hline
+\textbf{Outcome} & \textbf{Details} & \textbf{Status} \\ \hline
+Research paper & A paper on calibrated, evidence-based review gates for procurement documents (provisional title: \emph{Measuring the Value of Enterprise Context in Selective Automation of Procure-to-Pay Documents}) & In preparation \\ \hline
+Project competitions & To be added by the team & -- \\ \hline
+\end{tabularx}
+\end{center}
+
+\section*{Technical Outcomes}
+\begin{itemize}
+  \item A working, containerised platform of six services and three workers that takes a procurement document or request from intake to a signed contract, receipt and invoice match.
+  \item Three trained models (document classifier, licence-anomaly detector, vendor risk model) and one adopted language model (Legal-BERT for clauses), each kept only after beating a baseline on held-out data (Section~\ref{sec:eval}).
+  \item 823 service unit tests, a shared-code suite and four end-to-end suites, with a regression test for every fixed audit finding.
+  \item Documentation for reproduction: setup and run scripts, a technical reference, a business-rules register and dated evaluation results.
+\end{itemize}

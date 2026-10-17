@@ -76,7 +76,10 @@ services:
     restart: "no"
 
   minio:
-    image: minio/minio:latest
+    # Community continuation of MinIO: minio/minio (Docker Hub) and
+    # quay.io/minio/minio can no longer be pulled. Same server and CLI; has
+    # curl (healthcheck) and mc (install.sh's bucket step).
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     command: server /data --compat --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
