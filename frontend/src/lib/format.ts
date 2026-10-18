@@ -63,19 +63,21 @@ export function formatPercent(value: number | null | undefined, fractionDigits =
   return `${(value * 100).toFixed(fractionDigits)}%`;
 }
 
-const DOCUMENT_TYPE_LABELS: Record<string, string> = { po: "PO", invoice: "Invoice", quote: "Quote" };
+const DOCUMENT_TYPE_LABELS: Record<string, string> = { po: "PO", invoice: "Invoice", quote: "Quote", other: "Other" };
 
 export function documentTypeLabel(value: string | null | undefined): string {
   if (!value) return "Unclassified";
   return DOCUMENT_TYPE_LABELS[value] ?? titleCase(value);
 }
 
+const ACRONYMS: Record<string, string> = { saas: "SaaS", it: "IT", sla: "SLA", po: "PO", sso: "SSO" };
+
 export function titleCase(value: string | null | undefined): string {
   if (!value) return "—";
   return value
     .split(/[_\s-]+/)
     .filter(Boolean)
-    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .map((w) => ACRONYMS[w.toLowerCase()] ?? w[0].toUpperCase() + w.slice(1))
     .join(" ");
 }
 

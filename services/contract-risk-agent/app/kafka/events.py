@@ -6,12 +6,17 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict
 
 
-def build_event(event_type: str, source_service: str, payload: dict) -> dict:
+from shared.logging.context import CorrelationContext
+
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None) -> dict:
+    corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
     return {
         "event_id": str(uuid.uuid4()),
+        "correlation_id": corr_id,
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,
+        "schema_version": 1,
         "payload": payload,
     }
 
@@ -21,7 +26,8 @@ def _iso(value) -> Optional[str]:
 
 
 def build_contract_generated_payload(
-    contract_id, purchase_request_id, vendor_id, template_used, version, status, generated_at
+    contract_id, purchase_request_id, vendor_id, template_used, version, status, generated_at,
+    model_used: Optional[str] = None, fallback_triggered: bool = False
 ) -> dict:
     return {
         "contract_id": str(contract_id),
@@ -31,6 +37,8 @@ def build_contract_generated_payload(
         "version": version,
         "status": status,
         "generated_at": _iso(generated_at),
+        "model_used": model_used,
+        "fallback_triggered": fallback_triggered,
     }
 
 
@@ -44,7 +52,8 @@ def build_contract_signed_payload(contract_id, signed_at, signed_by, esign_provi
 
 
 def build_contract_renewal_due_payload(
-    contract_id, vendor_id, renewal_type, notice_period_days, contract_end_date, days_remaining, alert_level
+    contract_id, vendor_id, renewal_type, notice_period_days, contract_end_date, days_remaining, alert_level,
+    notice_deadline=None,
 ) -> dict:
     return {
         "contract_id": str(contract_id),
@@ -54,6 +63,8 @@ def build_contract_renewal_due_payload(
         "contract_end_date": _iso(contract_end_date),
         "days_remaining": days_remaining,
         "alert_level": str(alert_level),
+        # Last day to give notice (end date − notice period); the reminders count back from it.
+        "notice_deadline": _iso(notice_deadline) if notice_deadline else None,
     }
 
 

@@ -16,11 +16,14 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from app.database import async_session_factory
+from app.models import PurchaseRequest, ApprovalHistory, AuditLog, Inventory
+from app.config import settings, load_config
 from app.models import PurchaseRequest, ApprovalHistory, AuditLog
 from app.config import settings
 from app.metrics import approval_escalated_total
 from app.kafka.producer import KafkaEventProducer
 from app.services.redis_lock import InventoryLock
+from app.services.inventory_service import release_reservation
 import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
@@ -59,10 +62,20 @@ async def fetch_request_details(request_id: str) -> dict:
         if not req:
             raise ValueError(f"Request {request_id} not found")
 
+        # Read SLA from rules engine, fallback to config.yaml
+        config = load_config()
+        from shared.rules_engine import get_rule
+        sla_hours = int(get_rule("approval.sla_escalation_hours", fallback=config.get("sla", {}).get("approval_timeout_hours", 48)))
+        # FR-03: remind the approver at these points of the SLA (rule).
+        percents = get_rule("approval.reminder_sla_percents", fallback=[50, 80])
+        if not isinstance(percents, list) or not all(isinstance(p, int) and 0 < p < 100 for p in percents):
+            percents = [50, 80]
+
         return {
             "id": req.id,
             "approval_chain": req.approval_chain or [],
-            "sla_hours": 48,  # Could also be read from config
+            "sla_hours": sla_hours,
+            "reminder_percents": sorted(set(percents)),
             "request_type": req.request_type,
             "items": req.items,
         }
@@ -179,8 +192,11 @@ async def publish_notification_event(notification: NotificationInput) -> None:
 async def release_inventory_lock(sku: str, request_id: str) -> None:
     """Release the Redis inventory lock for a given SKU.
     
-    Called when a request is fully approved or rejected to free
-    the reserved inventory for other requests.
+    NOTE: The short-lived Redis lock used by reserve_stock() is already
+    released inside reserve_stock() itself (in the `finally` block).
+    This activity is kept for backward compatibility but is effectively a
+    no-op at runtime — inventory de-reservation is handled by
+    release_hardware_reservations() below.
     """
     redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
     try:
@@ -189,9 +205,106 @@ async def release_inventory_lock(sku: str, request_id: str) -> None:
         if released:
             logger.info(f"Released inventory lock for SKU {sku} (request {request_id})")
         else:
-            logger.warning(
-                f"Could not release lock for SKU {sku} — "
-                f"may have expired or been released already"
+            logger.debug(
+                f"Lock for SKU {sku} already released or expired (request {request_id})"
             )
     finally:
         await redis_client.aclose()
+
+
+@activity.defn
+async def release_hardware_reservations(request_id: str) -> None:
+    """De-reserve all inventory stock held by a rejected/expired purchase request.
+
+    GAP-A3 fix: previously release_reservation() was never called anywhere,
+    leaving reserved_quantity permanently inflated after a rejection.
+
+    This activity:
+    1. Loads the purchase request and its items list.
+    2. For each item with a SKU, calls release_reservation() which atomically
+       decrements reserved_quantity and increments available_quantity.
+    3. Non-hardware request types (license/saas/reclaim) are silently skipped
+       since they don't reserve physical inventory.
+    """
+    redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        async with async_session_factory() as session:
+            stmt = select(PurchaseRequest).where(PurchaseRequest.id == request_id)
+            result = await session.execute(stmt)
+            req = result.scalar_one_or_none()
+
+            if not req or req.request_type != "hardware":
+                return  # Only hardware requests hold physical reservations
+
+            items = req.items or []
+            for item in items:
+                sku = item.get("sku")
+                qty = item.get("quantity", 0)
+                if sku and qty > 0:
+                    released = await release_reservation(
+                        session, redis_client, sku, request_id, qty
+                    )
+                    if released:
+                        logger.info(
+                            f"Released {qty}x {sku} reserved by request {request_id}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Could not release {qty}x {sku} for request {request_id} "
+                            f"(may have already been released)"
+                        )
+    finally:
+        await redis_client.aclose()
+
+@activity.defn
+async def set_reclaim_cooldown(request_id: str) -> None:
+    """Set reclaim_cooldown_until on the license when a reinstate request is approved."""
+    from app.models import License
+    from datetime import timedelta
+    async with async_session_factory() as session:
+        stmt = select(PurchaseRequest).where(PurchaseRequest.id == request_id)
+        result = await session.execute(stmt)
+        req = result.scalar_one_or_none()
+        
+        if not req or req.request_type != "reinstate":
+            return
+            
+        items = req.items or []
+        for item in items:
+            license_id = item.get("license_id")
+            if license_id:
+                stmt_lic = select(License).where(License.id == license_id)
+                res_lic = await session.execute(stmt_lic)
+                lic = res_lic.scalar_one_or_none()
+                if lic:
+                    lic.reclaim_cooldown_until = datetime.now(timezone.utc) + timedelta(days=45)
+        await session.commit()
+
+
+@activity.defn
+async def revoke_email_tokens_activity(request_id: str, step_index: Optional[int] = None, reason: str = "sla_escalation") -> None:
+    """Prompt 8 A6: Revoke email action tokens on SLA escalation or state change."""
+    async with async_session_factory() as session:
+        from app.services.email_action_token_service import revoke_tokens
+        await revoke_tokens(session, request_id, step_index=step_index, reason=reason)
+        await session.commit()
+
+
+@activity.defn
+async def publish_approval_reminder(
+    request_id: str, approver_level: str, waiting_since: str, percent: int, sla_hours: int,
+) -> None:
+    """reminder.due for an approver who hasn't decided at `percent` of the
+    SLA (FR-03). The workflow only calls this while the level is still
+    undecided, so a decision cancels the remaining reminders."""
+    producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
+    await producer.start()
+    try:
+        await producer.publish_reminder_due(
+            kind="approval_sla", entity_type="purchase_request", entity_id=request_id,
+            waiting_since=datetime.fromisoformat(waiting_since), threshold=f"{percent}%",
+            recipient_role=approver_level, link=f"/app/requests/{request_id}?step=approval",
+            detail=f"{percent}% of the {sla_hours}h approval SLA has passed",
+        )
+    finally:
+        await producer.stop()

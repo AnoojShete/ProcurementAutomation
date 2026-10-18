@@ -1,28 +1,16 @@
-"""SMTP delivery to the shared Mailpit instance (hostname `mailpit`, SMTP
-port 1025 — see docker-compose.yml). Mailpit accepts any recipient/sender
-without auth, so this stays a plain, unauthenticated send — good enough
-for dev/demo, which is all this platform targets."""
+"""Email delivery via shared/mailer.py.
+
+Switchable between:
+  - dev: local Mailpit catcher (host `mailpit`, port 1025)
+  - smtp: real SMTP provider (Gmail, Brevo, Resend, SendGrid, Amazon SES, etc.)
+Configured via standard EMAIL_MODE, SMTP_*, EMAIL_FROM environment variables.
+"""
 import logging
-
-import aiosmtplib
-from email.message import EmailMessage
-
-from app.config import settings
+from shared.mailer import send_email as shared_send_email
 
 logger = logging.getLogger(__name__)
 
 
 async def send_email(to: str, subject: str, body: str) -> None:
-    message = EmailMessage()
-    message["From"] = settings.email_from
-    message["To"] = to
-    message["Subject"] = subject
-    message.set_content(body)
-
-    await aiosmtplib.send(
-        message,
-        hostname=settings.smtp_host,
-        port=settings.smtp_port,
-        use_tls=settings.smtp_use_tls,
-    )
-    logger.info(f"Sent email to={to} subject={subject!r}")
+    await shared_send_email(to=to, subject=subject, text=body)
+    logger.info("Sent email to=%s subject=%r", to, subject)

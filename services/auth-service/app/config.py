@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     service_name: str = "auth-service"
     service_port: int = 8005
 
-    model_config = SettingsConfigDict(env_prefix="AUTH_", env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_prefix="AUTH_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()

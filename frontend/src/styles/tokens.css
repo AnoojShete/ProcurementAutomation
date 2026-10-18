@@ -1,0 +1,132 @@
+/* Ledger design tokens (docs/design-direction.md §1).
+ * Colours are bare RGB channels so Tailwind's `/50` opacity modifiers work.
+ * Every text pair here measures ≥ 5 : 1 on sheet and paper. */
+:root {
+  /* surfaces */
+  --paper: 244 246 242;          /* #F4F6F2 app background */
+  --sheet: 255 255 255;          /* #FFFFFF sections, tables, forms */
+  --sheet-sunk: 238 242 236;     /* #EEF2EC table header, hover, code */
+  --rule: 206 216 207;           /* #CED8CF hairlines (decorative) */
+  --rule-mid: 176 188 179;       /* #B0BCB3 slightly stronger hairline */
+  --rule-strong: 127 141 131;    /* #7F8D83 input borders (3.48 : 1) */
+
+  /* text */
+  --ink: 24 33 28;               /* #18211C primary */
+  --ink-2: 70 82 74;             /* #46524A secondary, labels */
+  --ink-3: 92 104 96;            /* #5C6860 captions, timestamps */
+
+  /* roles */
+  --accent: 31 75 143;           /* #1F4B8F ink blue: actions, links, focus */
+  --accent-hover: 23 58 112;     /* #173A70 */
+  --accent-deep: 17 43 84;       /* #112B54 */
+  --accent-tint: 232 238 247;    /* #E8EEF7 selected row, info */
+  --accent-soft: 197 212 235;    /* #C5D4EB tint borders */
+  --done: 30 107 58;             /* #1E6B3A completed, approved, signed */
+  --done-tint: 230 242 234;      /* #E6F2EA */
+  --done-soft: 182 217 193;      /* #B6D9C1 */
+  --attention: 122 78 0;         /* #7A4E00 waiting, due soon */
+  --attention-mid: 192 138 30;   /* #C08A1E fills only (bars, dots) */
+  --attention-tint: 255 243 209; /* #FFF3D1 */
+  --attention-soft: 240 214 150; /* #F0D696 */
+  --danger: 180 35 24;           /* #B42318 rejected, failed, overdue */
+  --danger-deep: 143 28 19;      /* #8F1C13 */
+  --danger-tint: 253 236 234;    /* #FDECEA */
+  --danger-soft: 242 184 177;    /* #F2B8B1 */
+  --received: 91 63 153;         /* #5B3F99 lavender: fulfilled / received */
+  --received-tint: 240 234 250;  /* #F0EAFA */
+  --received-soft: 207 192 238;  /* #CFC0EE */
+
+  /* text on a solid role fill (primary button, count badge); `white` in
+   * Tailwind points here, so it flips with the theme */
+  --on-fill: 255 255 255;
+  /* behind modals and drawers: stays dark in both themes */
+  --scrim: 24 33 28;
+
+  /* type */
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-doc: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-ref: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* motion */
+  --dur-1: 100ms;
+  --dur-2: 160ms;
+  --dur-3: 220ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Dark theme (data-theme="dark" on <html>, set by public/theme-init.js and
+ * src/hooks/useTheme.tsx). Same names, so every class that uses a token
+ * follows. Text pairs measure >= 5 : 1 on sheet and paper; role colours
+ * are lighter so they read as text, and solid fills carry dark on-fill
+ * text instead of white. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: 17 21 19;             /* #111513 */
+  --sheet: 26 31 28;             /* #1A1F1C */
+  --sheet-sunk: 35 41 37;        /* #232925 */
+  --rule: 52 61 55;              /* #343D37 */
+  --rule-mid: 74 84 78;          /* #4A544E */
+  --rule-strong: 112 124 116;    /* #707C74 */
+
+  --ink: 229 234 230;            /* #E5EAE6 */
+  --ink-2: 186 195 189;          /* #BAC3BD */
+  --ink-3: 152 162 156;          /* #98A29C */
+
+  --accent: 128 168 233;         /* #80A8E9 */
+  --accent-hover: 160 192 241;   /* #A0C0F1 */
+  --accent-deep: 192 212 246;    /* #C0D4F6 */
+  --accent-tint: 30 44 68;       /* #1E2C44 */
+  --accent-soft: 54 78 116;      /* #364E74 */
+  --done: 114 198 143;           /* #72C68F */
+  --done-tint: 25 48 34;         /* #193022 */
+  --done-soft: 46 90 62;         /* #2E5A3E */
+  --attention: 232 186 92;       /* #E8BA5C */
+  --attention-mid: 204 154 52;   /* #CC9A34 */
+  --attention-tint: 52 42 18;    /* #342A12 */
+  --attention-soft: 98 78 32;    /* #624E20 */
+  --danger: 241 136 125;         /* #F1887D */
+  --danger-deep: 248 172 163;    /* #F8ACA3 */
+  --danger-tint: 60 29 27;       /* #3C1D1B */
+  --danger-soft: 112 52 46;      /* #70342E */
+  --received: 198 181 239;       /* #C6B5EF */
+  --received-tint: 44 36 66;     /* #2C2442 */
+  --received-soft: 86 70 124;    /* #56467C */
+
+  --on-fill: 17 21 19;
+  --scrim: 0 0 0;
+}
+
+/* A panel that is dark in both themes (the Kafka log console). It is
+ * built from light-theme tokens (ink background, soft role colours as
+ * text), so it keeps those values when the page goes dark. */
+:root[data-theme="dark"] .keep-light-tokens {
+  --ink: 24 33 28;
+  --ink-2: 70 82 74;
+  --ink-3: 92 104 96;
+  --rule: 206 216 207;
+  --rule-mid: 176 188 179;
+  --accent-soft: 197 212 235;
+  --done-soft: 182 217 193;
+  --attention-soft: 240 214 150;
+  --danger-soft: 242 184 177;
+  --on-fill: 255 255 255;
+}
+
+/* 0.01ms rather than none, so animationend handlers still fire. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0.01ms;
+    --dur-2: 0.01ms;
+    --dur-3: 0.01ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -19,3 +19,12 @@ urgent_risk_bands: ["High"]
 # contract.renewal.due only escalates to urgent at these alert levels
 # (days-remaining milestones); the rest (e.g. 60/30) are digested.
 urgent_renewal_alert_levels: ["15"]
+
+# Shared mailboxes each role reads in the app (bell + Notifications page),
+# on top of mail addressed to the person's own email. These are the
+# placeholder addresses events are sent to when no person is known.
+role_mailboxes:
+  approver: ["dept_manager@users.procurement.local", "finance_head@users.procurement.local"]
+  finance: ["finance_head@users.procurement.local", "procurement-ops@example.com", "procurement-risk-team@company.com"]
+  admin: ["procurement-ops@example.com", "procurement-risk-team@company.com",
+          "dept_manager@users.procurement.local", "finance_head@users.procurement.local"]

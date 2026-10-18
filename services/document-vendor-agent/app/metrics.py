@@ -33,3 +33,9 @@ vendor_matching_total = Counter(
     "Vendor-matching outcomes",
     ["match_type"],
 )
+
+model_routing_total = Counter(
+    "model_routing_total",
+    "Model routing decisions",
+    ["service", "route_name", "model_used", "fallback_triggered"],
+)

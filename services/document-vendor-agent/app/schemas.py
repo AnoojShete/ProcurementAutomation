@@ -61,7 +61,8 @@ class DocumentResponse(BaseModel):
 
 
 class ReviewCorrectionRequest(BaseModel):
-    reviewed_by: str
+    # Overwritten with the caller's JWT identity by the endpoint.
+    reviewed_by: Optional[str] = None
     document_type: Optional[str] = None
     vendor_name: Optional[str] = None
     extracted_fields: Optional[Dict[str, Any]] = None

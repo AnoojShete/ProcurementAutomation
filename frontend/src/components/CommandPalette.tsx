@@ -112,8 +112,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24" role="presentation">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-popover animate-slide-up">
+      <div className="absolute inset-0 bg-scrim/40" onClick={onClose} aria-hidden="true" />
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl bg-sheet shadow-popover animate-slide-up">
         <div className="flex items-center gap-2 border-b border-surface-border px-4 py-3">
           <Search className="size-4 text-slate-400" />
           <input
@@ -124,7 +124,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             aria-label="Global search"
             className="flex-1 border-none text-sm outline-none placeholder:text-slate-400"
           />
-          <kbd className="rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 text-[11px] text-slate-400">Esc</kbd>
+          <kbd className="rounded border border-surface-border bg-surface-subtle px-1.5 py-0.5 text-caption text-slate-400">Esc</kbd>
         </div>
         <div className="max-h-96 overflow-y-auto p-2">
           {filtered === null && <p className="px-2 py-6 text-center text-sm text-slate-400">Loading…</p>}

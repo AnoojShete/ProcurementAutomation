@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, Ban, Building2, FileText, IndianRupee, RefreshCcw, ScrollText, ShieldQuestion } from "lucide-react";
+import { AlertTriangle, Ban, FileText, IndianRupee, RefreshCcw, ScrollText } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,7 +9,8 @@ import { requestsApi } from "@/api/requests";
 import { contractsApi } from "@/api/contracts";
 import { documentsApi } from "@/api/documents";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { MetricCard } from "@/components/ui/MetricCard";
+import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
+import { DocketHeader, RefCopy } from "@/components/ui/DocketHeader";
 import { Badge, RiskBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -18,6 +19,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Modal } from "@/components/ui/Modal";
 import { RiskGauge } from "@/components/vendors/RiskGauge";
+import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
+import { RiskSignalsCard } from "@/components/vendors/RiskSignalsCard";
+import { SanctionsScreening } from "@/components/vendors/SanctionsScreening";
 import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { ApiError } from "@/api/client";
 
@@ -29,7 +33,14 @@ export function VendorDetailPage() {
   usePageHeader(vendor?.name ?? "Vendor", "Vendors");
 
   const { data: risk, reload: reloadRisk } = useApi(() => vendorsApi.risk(id!), [id]);
-  const { data: paymentChanges } = useApi(() => vendorsApi.paymentChanges(id!), [id]);
+  // Payment-detail changes are finance/admin only on the backend; anyone
+  // else would get a 403 and see "no changes" instead of "not for you".
+  const canSeePayments = user?.role === "finance" || user?.role === "admin";
+  const { data: paymentChanges, reload: reloadPaymentChanges } = useApi(
+    () => (canSeePayments ? vendorsApi.paymentChanges(id!) : Promise.resolve({ data: [] })),
+    [id, canSeePayments],
+  );
+  const [paymentMessage, setPaymentMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const { data: allRequests } = useApi(() => requestsApi.list(200), []);
   const { data: allContracts } = useApi(() => contractsApi.list(200), []);
   const { data: allDocuments } = useApi(() => documentsApi.list(200), []);
@@ -38,7 +49,7 @@ export function VendorDetailPage() {
   const vendorContracts = useMemo(() => (allContracts ?? []).filter((c) => c.vendor_id === id), [allContracts, id]);
   const vendorDocuments = useMemo(() => (allDocuments ?? []).filter((d) => d.vendor_id === id), [allDocuments, id]);
   const totalSpend = useMemo(
-    () => vendorRequests.filter((r) => r.status === "approved" || r.status === "fulfilled").reduce((s, r) => s + (r.amount ?? 0), 0),
+    () => vendorRequests.filter((r) => ["approved", "ordered", "fulfilled"].includes(r.status ?? "")).reduce((s, r) => s + (r.amount ?? 0), 0),
     [vendorRequests],
   );
   const openRequests = vendorRequests.filter((r) => r.status === "pending_approval").length;
@@ -82,61 +93,82 @@ export function VendorDetailPage() {
     return events.sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""));
   }, [vendor, paymentChanges, risk, vendorContracts]);
 
-  if (loading) return <Skeleton className="h-96" />;
+  if (loading && !vendors) return <Skeleton className="h-96" />;  // first load only: a reload must not unmount the cards
   if (error || !vendor) return <ErrorState message={error ?? "Vendor not found."} onRetry={reloadVendors} />;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Building2 className="size-5 text-slate-400" />
-            <h1 className="text-xl font-semibold text-slate-900">{vendor.name}</h1>
+      <DocketHeader
+        reference={<RefCopy prefix="VEN" id={vendor.id} />}
+        title={vendor.name}
+        status={
+          <>
             <Badge tone={vendor.status === "active" ? "success" : "neutral"}>{vendor.status}</Badge>
             <RiskBadge band={vendor.risk_band} />
-          </div>
-          <p className="mt-1 font-mono text-xs text-slate-400">{vendor.id}</p>
-        </div>
-        {(user?.role === "finance" || user?.role === "admin") && (
-          <div className="flex gap-2">
-            <Button variant="secondary" icon={<RefreshCcw className="size-4" />} loading={recomputing} onClick={recompute}>
-              Recompute Risk
-            </Button>
-            {user.role === "admin" && (
-              <Button variant="destructive" icon={<Ban className="size-4" />} onClick={() => setOffboardOpen(true)}>
-                Offboard Vendor
+          </>
+        }
+        actions={
+          (user?.role === "finance" || user?.role === "admin") && (
+            <>
+              <Button variant="secondary" icon={<RefreshCcw className="size-4" />} loading={recomputing} onClick={recompute}>
+                Recompute Risk
               </Button>
-            )}
-          </div>
-        )}
-      </div>
+              {user.role === "admin" && (
+                <Button variant="destructive" icon={<Ban className="size-4" />} onClick={() => setOffboardOpen(true)}>
+                  Offboard Vendor
+                </Button>
+              )}
+            </>
+          )
+        }
+      />
       {recomputeMsg && (recomputeMsg.includes("Unable") ? <InlineError message={recomputeMsg} /> : <InlineSuccess message={recomputeMsg} />)}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MetricCard label="Risk Score" value={vendor.risk_score != null ? vendor.risk_score.toFixed(2) : "—"} icon={ShieldQuestion} tone="brand" />
-        <MetricCard label="Contracts" value={vendorContracts.length} icon={ScrollText} tone="brand" />
-        <MetricCard label="Open Requests" value={openRequests} icon={FileText} tone="warning" />
-        <MetricCard label="Approved Spend" value={formatCurrency(totalSpend)} icon={IndianRupee} tone="success" />
-      </div>
+      {/* The risk score lives in the Vendor Risk panel below, not twice. */}
+      <LedgerStrip cols={3} label="Vendor figures">
+        <MetricCard label="Approved spend" value={formatCurrency(totalSpend)} icon={IndianRupee} to={`/app/requests?scope=all&vendor=${id}&status=approved,ordered,fulfilled`} />
+        <MetricCard label="Open requests" value={openRequests} icon={FileText} tone="warning" to={`/app/requests?scope=all&vendor=${id}&status=pending_approval`} />
+        <MetricCard label="Contracts" value={vendorContracts.length} icon={ScrollText} to={`/app/contracts?vendor=${id}`} />
+      </LedgerStrip>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader title="Vendor Risk" subtitle="Why is this vendor rated this way?" />
+          <CardHeader title="Vendor Risk" />
           <CardBody>
             {!risk ? (
               <p className="py-6 text-center text-sm text-slate-500">This vendor hasn't been risk-scored yet.</p>
             ) : (
               <>
                 <RiskGauge score={risk.risk_score} band={risk.risk_band} scoredAt={risk.scored_at} />
-                <p className="mt-4 mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Contributing Factors</p>
+                {risk.signals_total != null && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Based on <span className="font-medium text-slate-700">{risk.signals_used} of {risk.signals_total}</span> signals on file
+                    {risk.signals_used! < risk.signals_total ? " — missing ones are left out, not guessed." : "."}
+                  </p>
+                )}
+                {risk.top_factors.filter((f) => f.override).map((f) => (
+                  <div key={f.feature} className="mt-3 rounded-md border border-danger-500/30 bg-danger-50 px-3 py-2 text-13 text-slate-800">
+                    <span className="font-medium">Hard override:</span> {f.reason} — rated High regardless of the model score.
+                  </div>
+                ))}
+                {(risk.overrides?.length ?? 0) > 0 && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Hard checks:{" "}
+                    {risk.overrides!.map((c) => `${c.check.toUpperCase()} ${c.status.replace("_", " ")}`).join(" · ")}
+                  </p>
+                )}
+                <p className="mb-2 mt-5 text-13 font-medium text-ink-2">Contributing factors</p>
+                {risk.top_factors.filter((f) => !f.override).length === 0 && (
+                  <p className="text-sm text-slate-500">No signals on file to explain the score.</p>
+                )}
                 <div className="flex flex-col gap-2.5">
-                  {risk.top_factors.map((f) => {
-                    const max = Math.max(...risk.top_factors.map((x) => Math.abs(x.contribution)), 0.001);
+                  {risk.top_factors.filter((f) => !f.override).map((f, _i, factors) => {
+                    const max = Math.max(...factors.map((x) => Math.abs(x.contribution)), 0.001);
                     return (
                       <div key={f.feature} className="flex items-center gap-3">
                         <span className="w-40 shrink-0 truncate text-sm text-slate-600">{titleCase(f.feature)}</span>
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                          <div className="h-full rounded-full bg-intel-500" style={{ width: `${(Math.abs(f.contribution) / max) * 100}%` }} />
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-sm bg-sheet-sunk">
+                          <div className="h-full bg-ink-2" style={{ width: `${(Math.abs(f.contribution) / max) * 100}%` }} />
                         </div>
                         <span className="w-14 shrink-0 text-right text-xs tabular text-slate-500">{f.contribution.toFixed(3)}</span>
                       </div>
@@ -157,6 +189,18 @@ export function VendorDetailPage() {
         </Card>
       </div>
 
+      <RiskSignalsCard
+        vendorId={vendor.id}
+        canEdit={user?.role === "finance" || user?.role === "admin"}
+        onRescored={() => { reloadRisk(); reloadVendors(); }}
+      />
+
+      <SanctionsScreening
+        vendorId={vendor.id}
+        canAct={user?.role === "finance" || user?.role === "admin"}
+        onRescored={() => { reloadRisk(); reloadVendors(); }}
+      />
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader title="Documents" subtitle={`${vendorDocuments.length} matched to this vendor`} />
@@ -175,23 +219,39 @@ export function VendorDetailPage() {
             )}
           </CardBody>
         </Card>
-        <Card>
-          <CardHeader title="Payment Detail Changes" subtitle="Dual control — verifier must differ from submitter" />
-          <CardBody>
-            {(paymentChanges ?? []).length === 0 ? (
-              <p className="text-sm text-slate-500">No payment detail changes on record.</p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {paymentChanges!.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-700">Submitted by {c.submitted_by}</span>
-                    <Badge tone={c.status === "verified" ? "success" : c.status === "rejected" ? "danger" : "warning"}>{c.status}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardBody>
-        </Card>
+        {canSeePayments && (
+          <Card>
+            <CardHeader title="Payment Detail Changes" subtitle="Dual control — verifier must differ from submitter" />
+            <CardBody>
+              {(paymentChanges ?? []).length === 0 ? (
+                <p className="text-sm text-slate-500">No payment detail changes on record.</p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {paymentMessage && (paymentMessage.ok ? <InlineSuccess message={paymentMessage.text} /> : <InlineError message={paymentMessage.text} />)}
+                  {paymentChanges!.map((c) => (
+                    <li key={c.id} className="flex flex-col gap-2 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-700">
+                          {c.new_account_last4 ? `Account …${c.new_account_last4}` : "Change"} · submitted by {c.submitted_by}
+                        </span>
+                        <Badge tone={c.status === "verified" ? "success" : c.status === "rejected" ? "danger" : "warning"}>{c.status}</Badge>
+                      </div>
+                      {c.status === "pending" && (
+                        <PaymentChangeVerify
+                          change={c}
+                          onDone={(result) => {
+                            setPaymentMessage(result);
+                            if (result.ok) reloadPaymentChanges();
+                          }}
+                        />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardBody>
+          </Card>
+        )}
       </div>
 
       <OffboardModal open={offboardOpen} onClose={() => setOffboardOpen(false)} vendorId={vendor.id} vendorName={vendor.name} onDone={reloadVendors} />

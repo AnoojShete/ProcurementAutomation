@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review & Decide - Purchase Request {{ request_id[:8] }}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f8; color: #1e293b; margin: 0; padding: 24px; line-height: 1.5; }
+    .card { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 32px; border: 1px solid #e2e8f0; }
+    h1 { font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 20px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; }
+    .grid { display: grid; grid-template-columns: 140px 1fr; gap: 10px; font-size: 14px; margin-bottom: 20px; }
+    .label { color: #64748b; font-weight: 500; }
+    .value { color: #0f172a; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .badge-risk-low { background: #dcfce7; color: #166534; }
+    .badge-risk-med { background: #fef9c3; color: #854d0e; }
+    .badge-risk-high { background: #fee2e2; color: #991b1b; }
+    .badge-budget-over { background: #fee2e2; color: #991b1b; }
+    .badge-budget-ok { background: #dcfce7; color: #166534; }
+    .items-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+    .items-table th, .items-table td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+    .items-table th { background: #f8fafc; color: #475569; }
+    .notice { padding: 12px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
+    .notice-warning { background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; }
+    .notice-info { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .identity-note { font-size: 13px; color: #64748b; margin-top: 16px; margin-bottom: 20px; padding: 8px 12px; background: #f8fafc; border-left: 3px solid #3b82f6; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: #334155; }
+    textarea { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: inherit; font-size: 14px; resize: vertical; min-height: 70px; }
+    .actions { display: flex; gap: 12px; margin-top: 24px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; }
+    .btn-approve { background: #16a34a; color: #ffffff; }
+    .btn-approve:hover { background: #15803d; }
+    .btn-reject { background: #dc2626; color: #ffffff; }
+    .btn-reject:hover { background: #b91c1c; }
+    .btn-portal { background: #2563eb; color: #ffffff; }
+    .btn-portal:hover { background: #1d4ed8; }
+    .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Purchase Request Review</h1>
+
+    {% if step_up_required %}
+    <div class="notice notice-warning">
+      <strong>Portal Login Required for Approval:</strong> {{ step_up_reason }}
+      <p style="margin: 8px 0 0 0;">
+        <a href="{{ portal_url }}" class="btn btn-portal" style="padding: 6px 14px; font-size: 13px;">Sign In to Portal to Review</a>
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="grid">
+      <div class="label">Request ID:</div>
+      <div class="value"><code>{{ request_id }}</code></div>
+
+      <div class="label">Requester:</div>
+      <div class="value">{{ requested_by }}</div>
+
+      <div class="label">Department:</div>
+      <div class="value">{{ department }}</div>
+
+      <div class="label">Vendor:</div>
+      <div class="value">
+        {{ vendor_name or "Unknown Vendor" }}
+        {% if vendor_risk_band == "High" %}
+          <span class="badge badge-risk-high">Risk: High</span>
+        {% elif vendor_risk_band == "Medium" %}
+          <span class="badge badge-risk-med">Risk: Medium</span>
+        {% elif vendor_risk_band == "Low" %}
+          <span class="badge badge-risk-low">Risk: Low</span>
+        {% else %}
+          <span class="badge badge-risk-high">Risk Unavailable</span>
+        {% endif %}
+      </div>
+
+      <div class="label">Total Amount:</div>
+      <div class="value"><strong>{{ "%0.2f"|format(amount) }} {{ currency }}</strong></div>
+
+      <div class="label">Budget Status:</div>
+      <div class="value">
+        {% if over_budget %}
+          <span class="badge badge-budget-over">Over Budget</span>
+        {% else %}
+          <span class="badge badge-budget-ok">Within Budget</span>
+        {% endif %}
+      </div>
+
+      <div class="label">Expires At:</div>
+      <div class="value">{{ expires_at }}</div>
+    </div>
+
+    {% if items and items|length > 0 %}
+    <label>Line Items:</label>
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>Item / SKU</th>
+          <th>Qty</th>
+          <th>Unit Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.item_description or item.name or item.sku or "Item" }}</td>
+          <td>{{ item.quantity or 1 }}</td>
+          <td>{{ item.unit_price or "-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <div class="identity-note">
+      This decision will be recorded as <strong>{{ approver_id }}</strong> via single-action email link.
+    </div>
+
+    {% if email_action_enabled %}
+    <form method="POST" action="/email-action/{{ token }}/decide">
+      <div class="form-group">
+        <label for="comment">Comments (required for rejection, optional for approval):</label>
+        <textarea id="comment" name="comment" placeholder="Add optional comments or justification for rejection..."></textarea>
+      </div>
+
+      <div class="actions">
+        {% if not step_up_required %}
+        <button type="submit" name="decision" value="approve" class="btn btn-approve">Approve Request</button>
+        {% endif %}
+        <button type="submit" name="decision" value="reject" class="btn btn-reject">Reject Request</button>
+      </div>
+    </form>
+    {% else %}
+    <div class="notice notice-warning">
+      Email actions are currently disabled. Please <a href="{{ portal_url }}">log in to the portal</a> to review this request.
+    </div>
+    {% endif %}
+
+    <div class="footer">
+      Automated single-action token &bull; Valid until {{ expires_at }}
+    </div>
+  </div>
+</body>
+</html>

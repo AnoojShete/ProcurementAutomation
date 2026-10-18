@@ -9,5 +9,7 @@ export const requestsApi = {
     api.post<PurchaseRequest>(`/requests/${id}/approve`, { decided_by, comments }),
   reject: (id: string, decided_by: string, comments?: string) =>
     api.post<PurchaseRequest>(`/requests/${id}/reject`, { decided_by, comments }),
+  /** Goods/licences arrived: ordered -> fulfilled (activates licences, releases stock). */
+  receive: (id: string) => api.post<PurchaseRequest>(`/requests/${id}/receive`, {}),
   inbox: (approverRole: string) => api.get<InboxItem[]>(`/inbox/${encodeURIComponent(approverRole)}`),
 };

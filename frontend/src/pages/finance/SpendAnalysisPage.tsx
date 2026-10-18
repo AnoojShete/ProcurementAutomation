@@ -6,18 +6,18 @@ import { vendorsApi } from "@/api/vendors";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { CategoryBarChart } from "@/components/charts/CategoryBarChart";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, titleCase } from "@/lib/format";
 
 export function SpendAnalysisPage() {
   usePageHeader("Spend Analysis");
   const { data: requests, loading, error, reload } = useApi(() => requestsApi.list(200), []);
   const { data: vendors } = useApi(() => vendorsApi.list(200), []);
 
-  const approved = useMemo(() => (requests ?? []).filter((r) => r.status === "approved" || r.status === "fulfilled"), [requests]);
+  const approved = useMemo(() => (requests ?? []).filter((r) => ["approved", "ordered", "fulfilled"].includes(r.status ?? "")), [requests]);
 
   const byCategory = useMemo(() => {
     const map = new Map<string, number>();
-    approved.forEach((r) => map.set(r.request_type ?? "other", (map.get(r.request_type ?? "other") ?? 0) + (r.amount ?? 0)));
+    approved.forEach((r) => { const k = titleCase(r.request_type ?? "other"); map.set(k, (map.get(k) ?? 0) + (r.amount ?? 0)); });
     return Array.from(map.entries()).map(([label, value]) => ({ label, value }));
   }, [approved]);
 
@@ -52,9 +52,9 @@ export function SpendAnalysisPage() {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader title="Total Approved Spend" subtitle="Across all approved and fulfilled requests" />
+        <CardHeader title="Total approved spend" />
         <CardBody>
-          <p className="text-3xl font-semibold tabular text-slate-900">{formatCurrency(totalSpend)}</p>
+          <p className="text-figure font-medium tabular text-ink">{formatCurrency(totalSpend)}</p>
         </CardBody>
       </Card>
 

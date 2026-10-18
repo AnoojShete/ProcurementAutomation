@@ -1,23 +1,27 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Clock, Inbox } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { requestsApi } from "@/api/requests";
 import { Greeting } from "@/components/dashboard/Greeting";
-import { MetricCard } from "@/components/ui/MetricCard";
+import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
+import { OrderStatusCard } from "@/components/dashboard/OrderStatusCard";
 import { AttentionCard, type AttentionItem } from "@/components/dashboard/AttentionCard";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
-import { formatCountdown, formatCurrency, formatDate } from "@/lib/format";
+import { formatCountdown, formatCurrency, formatDate, titleCase } from "@/lib/format";
 import { APPROVER_ROLES } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
+import { usePeople } from "@/hooks/usePeople";
+import { approvalItemPath } from "@/lib/routes";
 
 export function ApproverDashboard() {
   const { user } = useAuth();
+  const { nameFor } = usePeople();
   usePageHeader("Approval Center");
   const navigate = useNavigate();
 
@@ -40,7 +44,7 @@ export function ApproverDashboard() {
       return new Date(i.sla_deadline).getTime() < now;
     }).length;
     const approvedThisMonth = (allRequests ?? []).filter((r) => {
-      if (r.status !== "approved" && r.status !== "fulfilled") return false;
+      if (!["approved", "ordered", "fulfilled"].includes(r.status ?? "")) return false;
       const decidedByMe = r.approval_history?.some((h) => h.decided_by === user?.email && h.decision === "approved");
       if (!decidedByMe) return false;
       const d = r.updated_at ? new Date(r.updated_at) : null;
@@ -74,7 +78,7 @@ export function ApproverDashboard() {
           </>
         ),
         cta: "Review escalations",
-        to: "/app/approvals",
+        to: "/app/approvals?due=overdue",
       });
     }
     return items;
@@ -88,50 +92,47 @@ export function ApproverDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Greeting name={user?.email.split("@")[0] ?? "there"} subtitle="Requests routed to your approval roles, prioritized by SLA." />
-
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <MetricCard label="Pending Approval" value={kpis.pending} icon={Inbox} tone="brand" />
-          <MetricCard label="Due Today" value={kpis.dueToday} icon={Clock} tone="warning" />
-          <MetricCard label="Escalated" value={kpis.escalated} icon={AlertTriangle} tone="danger" />
-          <MetricCard label="Approved This Month" value={kpis.approvedThisMonth} icon={CheckCircle2} tone="success" />
-        </div>
-      )}
+      <Greeting />
 
       <AttentionCard items={attentionItems} />
 
+      <LedgerStrip cols={4} loading={loading} label="Approval figures">
+          <MetricCard label="Pending Approval" value={kpis.pending} icon={Inbox} tone="brand" to="/app/approvals" />
+          <MetricCard label="Due Today" value={kpis.dueToday} icon={Clock} tone="warning" to="/app/approvals?due=today" />
+          <MetricCard label="Escalated" value={kpis.escalated} icon={AlertTriangle} tone="danger" to="/app/approvals?due=overdue" />
+          <MetricCard label="Approved This Month" value={kpis.approvedThisMonth} icon={CheckCircle2} tone="success" to="/app/requests?scope=all&approved_by=me" />
+        </LedgerStrip>
+
+
+      <OrderStatusCard />
+
       <Card>
-        <CardHeader title="Approval Inbox" subtitle="Highest-priority requests across your approval roles" />
+        <CardHeader title="Approval Inbox" action={<Link to="/app/approvals" className="text-13 font-medium text-accent hover:underline">View all</Link>} />
         <CardBody>
           {urgent.length === 0 ? (
-            <EmptyState title="Nothing pending for your roles" description="You're all caught up — new requests will appear here as they're routed to you." />
+            <EmptyState title="Nothing waiting for you" />
           ) : (
-            <div className="flex flex-col gap-2">
+            <ul className="-mx-4 divide-y divide-rule border-y border-rule sm:-mx-5">
               {urgent.map((item) => {
                 const countdown = formatCountdown(item.sla_deadline);
                 const highPriority = countdown?.overdue || (item.amount ?? 0) > 100000;
                 return (
+                  <li key={item.request_id}>
                   <button
-                    key={item.request_id}
-                    onClick={() => navigate(`/app/requests/${item.request_id}`)}
-                    className={`flex items-center justify-between gap-4 rounded-lg border px-4 py-3 text-left transition-colors hover:border-brand-300 ${
-                      highPriority ? "border-danger-100 bg-danger-50/40" : "border-surface-border"
+                    onClick={() => navigate(approvalItemPath(item))}
+                    className={`flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors duration-1 hover:bg-sheet-sunk focus-visible:ring-inset focus-visible:ring-offset-0 sm:px-5 ${
+                      highPriority ? "shadow-[inset_3px_0_0_rgb(var(--danger))]" : ""
                     }`}
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        {highPriority && <Badge tone="danger">High Priority</Badge>}
-                        <span className="truncate text-sm font-medium text-slate-800">
-                          {item.request_type} — {item.department}
+                        {highPriority && <Badge tone="danger">High priority</Badge>}
+                        <span className="truncate text-sm font-medium text-ink">
+                          {titleCase(item.request_type)} — {item.department}
                         </span>
                       </div>
                       <p className="mt-0.5 text-xs text-slate-500">
-                        {item.requested_by} · Submitted {formatDate(item.created_at)}
+                        {nameFor(item.requested_by)} · Submitted {formatDate(item.created_at)}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -143,9 +144,10 @@ export function ApproverDashboard() {
                       )}
                     </div>
                   </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </CardBody>
       </Card>

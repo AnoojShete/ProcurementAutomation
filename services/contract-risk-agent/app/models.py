@@ -90,6 +90,10 @@ class RiskScore(Base):
     # Added by this service's migration 0001:
     model_version: Mapped[Optional[str]] = mapped_column(String(50))
     scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Added by migration 0006 (FR-04): signal coverage and hard overrides.
+    signals_used: Mapped[Optional[int]] = mapped_column(Integer)
+    signals_total: Mapped[Optional[int]] = mapped_column(Integer)
+    overrides: Mapped[Optional[list]] = mapped_column(JSON)
 
 
 class VendorRiskFeatures(Base):
@@ -145,3 +149,35 @@ class AuditLog(Base):
     action: Mapped[Optional[str]] = mapped_column(String)
     payload: Mapped[Optional[dict]] = mapped_column(JSON)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ModelRoutingLog(Base):
+    __tablename__ = "model_routing_log"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    document_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    route_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_used: Mapped[str] = mapped_column(String(50), nullable=False)
+    fallback_triggered: Mapped[bool] = mapped_column(Boolean, default=False)
+    fallback_reason: Mapped[Optional[str]] = mapped_column(String(50))
+    confidence: Mapped[Optional[float]] = mapped_column(Numeric(4, 3))
+    duration_ms: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class SanctionsScreening(Base):
+    """One sanctions screening of a vendor (FR-14, migration 0007).
+    status: clear | potential_match | cleared (finance reviewed a match)."""
+    __tablename__ = "vendor_sanctions_screenings"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"))
+    screened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    list_version: Mapped[Optional[str]] = mapped_column(Text)
+    screened_name: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    matches: Mapped[list] = mapped_column(JSON, default=list)
+    threshold: Mapped[Optional[float]] = mapped_column(Numeric)
+    screened_by: Mapped[Optional[str]] = mapped_column(Text)
+    justification: Mapped[Optional[str]] = mapped_column(Text)
+

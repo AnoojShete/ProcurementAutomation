@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} - Procurement Platform</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f8; color: #1e293b; margin: 0; padding: 24px; line-height: 1.5; }
+    .card { max-width: 520px; margin: 40px auto; background: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 32px; border: 1px solid #e2e8f0; text-align: center; }
+    h1 { font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 12px; color: #0f172a; }
+    p { font-size: 15px; color: #475569; margin-bottom: 24px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; background: #2563eb; color: #ffffff; }
+    .btn:hover { background: #1d4ed8; }
+    .icon { font-size: 40px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">{{ icon or "ℹ️" }}</div>
+    <h1>{{ title }}</h1>
+    <p>{{ message }}</p>
+    <div>
+      <a href="{{ portal_url }}" class="btn">Sign In to Portal</a>
+    </div>
+  </div>
+</body>
+</html>

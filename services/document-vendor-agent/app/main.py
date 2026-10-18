@@ -1,26 +1,41 @@
+import asyncio
+
+import redis.asyncio as redis
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
-from app.database import init_db, get_db
+from shared.logging.configure import configure_logging
+from shared.http.correlation import CorrelationMiddleware
+configure_logging(settings.service_name)
+from app.database import async_session_factory, init_db, get_db
 from app.kafka.producer import KafkaEventProducer
-from app.api import health, documents, vendors
+from app.api import health, documents, vendors, admin, showcase, control_panel
+from app.services.event_monitor import EventMonitor
 from app.models import AuditLog
 from app.services.storage import ensure_bucket
 from shared.http.error_handlers import register_error_handlers
 from shared.auth import get_current_user
+from shared.eventing import kafka_sender, run_relay
 from shared.audit import build_audit_router
 
 
+from shared.infra.retry import with_retry
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
-    await ensure_bucket()
+    await with_retry(init_db, name="Postgres init")
+    await with_retry(ensure_bucket, name="MinIO bucket init")
+
+    # Upload idempotency (Idempotency-Key) caches responses here. Without
+    # it, any upload that sent the header failed with a 500.
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    await with_retry(app.state.redis.ping, name="Redis ping")
 
     app.state.kafka_producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
-    await app.state.kafka_producer.start()
+    await with_retry(app.state.kafka_producer.start, name="Kafka producer")
 
     # Note: the extraction pipeline itself runs in a SEPARATE worker
     # process (app/worker.py, its own container) that consumes
@@ -28,9 +43,31 @@ async def lifespan(app: FastAPI):
     # request path (scan/store/publish) fast and independently scalable
     # from OCR/extraction work.
 
+    # Publishes events committed to the outbox (upload -> document.ingested).
+    relay_task = asyncio.create_task(run_relay(
+        async_session_factory, app.state.kafka_producer.service_name,
+        kafka_sender(app.state.kafka_producer.producer),
+    ))
+
+    # Read-only tail of every Kafka topic for the control panel's event log.
+    app.state.event_monitor = (
+        EventMonitor(settings.kafka_bootstrap_servers, session_factory=async_session_factory)
+        if settings.event_monitor_enabled else None
+    )
+    monitor_task = asyncio.create_task(app.state.event_monitor.run()) if app.state.event_monitor else None
+
     yield
 
+    for task in (relay_task, monitor_task):
+        if task is None:
+            continue
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     await app.state.kafka_producer.stop()
+    await app.state.redis.aclose()
 
 
 app = FastAPI(
@@ -39,6 +76,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+# One correlation id per request (from nginx's X-Correlation-ID) + a JSON access line.
+app.add_middleware(CorrelationMiddleware)
 
 register_error_handlers(app)
 
@@ -60,3 +99,6 @@ app.include_router(
 app.include_router(
     vendors.router, prefix="/vendors", tags=["Vendors"], dependencies=[Depends(get_current_user)]
 )
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(control_panel.router, prefix="/admin/control-panel", tags=["Control panel"])
+app.include_router(showcase.router, prefix="/documents/showcase", tags=["Showcase"])

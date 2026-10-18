@@ -41,6 +41,26 @@ ALTER TABLE vendors ADD COLUMN IF NOT EXISTS payment_beneficiary_name TEXT;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS payment_details_pending_verification BOOLEAN DEFAULT false;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 
+-- GSTIN verification columns (document-vendor-agent, Prompt 1).
+-- UNIQUE INDEX prevents two concurrent vendor-creation requests with the
+-- same GSTIN from both inserting (a DB-level constraint, not just app-level).
+-- Partial index (WHERE gstin IS NOT NULL) so NULLs don't conflict with each other.
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin VARCHAR(15);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin_verification_status VARCHAR(20) DEFAULT 'unverified';
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin_data_source VARCHAR(20);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin_cached_response JSONB;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS gstin_cached_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS vendors_gstin_unique ON vendors(gstin) WHERE gstin IS NOT NULL;
+
+-- Tiered vetting + spend tracking (structuring detection)
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS vendor_tier VARCHAR(10) DEFAULT 'standard';
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS cumulative_spend_90d NUMERIC(14, 2) DEFAULT 0;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS spend_last_reset_at TIMESTAMPTZ;
+
+-- No-GSTIN attestation (logged when onboarding a petty/sub-threshold vendor)
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS no_gstin_confirmed_by VARCHAR(255);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS no_gstin_confirmed_at TIMESTAMPTZ;
+
 -- Dual-control queue for bank/payment-detail changes on EXISTING vendors.
 -- A row here never auto-applies to vendors.bank_account_number etc — only
 -- POST /vendors/{id}/verify-payment-change, by a DIFFERENT user than
@@ -83,9 +103,31 @@ CREATE TABLE IF NOT EXISTS pipeline_checkpoints (
   agent_version VARCHAR(20) NOT NULL,
   task_id UUID NOT NULL,
   confidence NUMERIC(4, 3),
-  validation_status VARCHAR(20) NOT NULL DEFAULT 'valid',
+  validation_status VARCHAR(50) NOT NULL DEFAULT 'valid',
   errors JSONB,
   warnings JSONB,
   duration_ms NUMERIC(10, 2),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- 20 was too short for "skipped_model_unavailable" (25); widen existing DBs too.
+ALTER TABLE pipeline_checkpoints ALTER COLUMN validation_status TYPE VARCHAR(50);
+
+-- Live-verification toggle + external API quota tracking (admin/live-mode).
+-- Also in shared/db/init.sql, but that only runs on a fresh Postgres volume;
+-- repeating it here means existing databases pick the tables up too.
+CREATE TABLE IF NOT EXISTS system_settings (
+  id INT PRIMARY KEY DEFAULT 1,
+  live_verification_enabled BOOLEAN DEFAULT FALSE,
+  enabled_by TEXT,
+  enabled_at TIMESTAMPTZ
+);
+INSERT INTO system_settings (id, live_verification_enabled) VALUES (1, FALSE) ON CONFLICT (id) DO NOTHING;
+CREATE TABLE IF NOT EXISTS api_quota_usage (
+  api_name TEXT PRIMARY KEY,
+  calls_used INT DEFAULT 0,
+  calls_limit INT NOT NULL,
+  limit_period TEXT NOT NULL,
+  last_reset_at TIMESTAMPTZ DEFAULT now()
+);
+INSERT INTO api_quota_usage (api_name, calls_limit, limit_period) VALUES ('gstin_live', 20, 'total') ON CONFLICT (api_name) DO NOTHING;
+INSERT INTO api_quota_usage (api_name, calls_limit, limit_period) VALUES ('opencorporates', 100, 'daily') ON CONFLICT (api_name) DO NOTHING;

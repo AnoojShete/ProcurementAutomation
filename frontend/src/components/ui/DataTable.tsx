@@ -59,25 +59,41 @@ export function DataTable<T>({
     });
   };
 
+  // Whole rows are links (GOV.UK task-list pattern): reachable with Tab,
+  // opened with Enter, so keyboard users get what a click gives.
+  const rowKeyDown = (row: T) => (e: React.KeyboardEvent) => {
+    // Only the row itself: Enter on a link or button inside it is theirs.
+    if (!onRowClick || e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onRowClick(row);
+    }
+  };
+
   return (
     <>
-      {/* Desktop / tablet: real table, horizontally scrollable if dense. */}
-      <div className="hidden overflow-x-auto sm:block">
+      {/* Desktop / tablet: real table; scrolls inside its section if dense. */}
+      <div className="hidden overflow-x-auto sm:block scrollbar-thin">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-surface-border text-left">
+            <tr className="border-b border-ink/60 text-left">
               {columns.map((col) => (
-                <th key={col.key} className={cn("px-4 py-2.5 font-medium text-slate-500", col.className)}>
+                <th
+                  key={col.key}
+                  scope="col"
+                  aria-sort={sort?.key === col.key ? (sort.dir === 1 ? "ascending" : "descending") : undefined}
+                  className={cn("h-9 whitespace-nowrap px-3 text-13 font-medium text-ink-2", col.className)}
+                >
                   {col.sortValue ? (
                     <button
                       onClick={() => toggleSort(col)}
-                      className="inline-flex items-center gap-1 hover:text-slate-800"
+                      className="-mx-1 inline-flex items-center gap-1 rounded-sm px-1 py-0.5 hover:bg-sheet-sunk hover:text-ink"
                     >
                       {col.header}
                       {sort?.key === col.key ? (
-                        sort.dir === -1 ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />
+                        sort.dir === -1 ? <ArrowDown className="size-3" aria-hidden="true" /> : <ArrowUp className="size-3" aria-hidden="true" />
                       ) : (
-                        <ArrowUpDown className="size-3 opacity-40" />
+                        <ArrowUpDown className="size-3 opacity-50" aria-hidden="true" />
                       )}
                     </button>
                   ) : (
@@ -92,13 +108,16 @@ export function DataTable<T>({
               <tr
                 key={rowKey(row)}
                 onClick={() => onRowClick?.(row)}
+                onKeyDown={onRowClick ? rowKeyDown(row) : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
                 className={cn(
-                  "border-b border-surface-border last:border-0",
-                  onRowClick && "cursor-pointer hover:bg-surface-subtle",
+                  "border-b border-rule last:border-0",
+                  onRowClick &&
+                    "cursor-pointer transition-colors duration-1 hover:bg-sheet-sunk focus-visible:bg-accent-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent focus-visible:ring-offset-0",
                 )}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className={cn("px-4 py-3 align-middle text-slate-700", col.className)}>
+                  <td key={col.key} className={cn("h-9 px-3 py-1.5 align-middle text-13 text-ink", col.className)}>
                     {col.render(row)}
                   </td>
                 ))}
@@ -108,28 +127,27 @@ export function DataTable<T>({
         </table>
       </div>
 
-      {/* Mobile: stacked cards so nothing needs a horizontal scroll to read. */}
-      <div className="flex flex-col gap-2 sm:hidden">
+      {/* Phones: a ruled list of label/value rows, no horizontal scroll. */}
+      <ul className="flex flex-col divide-y divide-rule border-y border-rule sm:hidden">
         {sortedRows.map((row) => (
-          <div
+          <li
             key={rowKey(row)}
             onClick={() => onRowClick?.(row)}
-            className={cn(
-              "rounded-lg border border-surface-border p-3",
-              onRowClick && "cursor-pointer active:bg-surface-subtle",
-            )}
+            onKeyDown={onRowClick ? rowKeyDown(row) : undefined}
+            tabIndex={onRowClick ? 0 : undefined}
+            className={cn("px-1 py-2.5", onRowClick && "cursor-pointer active:bg-sheet-sunk focus-visible:bg-accent-tint")}
           >
             {columns
               .filter((c) => !c.hideOnMobile)
               .map((col) => (
-                <div key={col.key} className="flex items-center justify-between gap-3 py-1 text-sm">
-                  <span className="text-slate-500">{col.header}</span>
-                  <span className="text-right text-slate-800">{col.render(row)}</span>
+                <div key={col.key} className="flex min-h-7 items-center justify-between gap-3 text-sm">
+                  <span className="shrink-0 text-ink-3">{col.header}</span>
+                  <span className="min-w-0 text-right text-ink">{col.render(row)}</span>
                 </div>
               ))}
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </>
   );
 }

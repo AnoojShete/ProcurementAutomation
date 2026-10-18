@@ -6,8 +6,11 @@
 
 FROM python:3.11-slim AS builder
 WORKDIR /build
+ENV PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=5
 COPY services/approval-inventory-agent/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# BuildKit cache mount: a requirements change re-downloads only what changed.
+RUN --mount=type=cache,target=/root/.cache/pip pip install --default-timeout=120 --retries=5 -r requirements.txt
 
 FROM python:3.11-slim AS runtime
 WORKDIR /app
@@ -27,6 +30,15 @@ COPY shared/ ./shared/
 COPY services/approval-inventory-agent/config.yaml .
 COPY services/approval-inventory-agent/app/ ./app/
 COPY services/approval-inventory-agent/migrations/ ./migrations/
+COPY services/approval-inventory-agent/ml/ ./ml/
+
+# Synthetic SSO logs feed both the usage scanner and the anomaly model.
+# Train the IsolationForest at build time so a fresh image scores licenses
+# immediately instead of reporting "not_trained" for every one.
+COPY data/synthetic-sso-logs/ ./data/synthetic-sso-logs/
+ENV APP_SSO_LOG_PATH=/app/data/synthetic-sso-logs/sso_login_events.json
+RUN MLFLOW_HTTP_REQUEST_MAX_RETRIES=0 MLFLOW_HTTP_REQUEST_TIMEOUT=2 python ml/train_usage_anomaly_model.py
+
 
 EXPOSE 8002
 

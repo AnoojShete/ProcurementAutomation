@@ -43,7 +43,6 @@ export const UTILISATION_THRESHOLDS = {
   measurementPeriodsDays: [30, 60, 90],
 };
 
-export const CONTRACT_RENEWAL_ALERT_DAYS = [60, 30, 15];
 
 export const CONTRACT_TEMPLATES: { value: string; label: string }[] = [
   { value: "hardware_purchase", label: "Hardware Purchase" },
@@ -52,10 +51,11 @@ export const CONTRACT_TEMPLATES: { value: string; label: string }[] = [
 ];
 
 export const DEMO_ACCOUNTS: { role: string; email: string; password: string; label: string }[] = [
-  { role: "requester", email: "requester@demo.example.com", password: "DemoPass123!", label: "Requester" },
-  { role: "approver", email: "approver@demo.example.com", password: "DemoPass123!", label: "Approver" },
-  { role: "finance", email: "finance@demo.example.com", password: "DemoPass123!", label: "Finance" },
-  { role: "admin", email: "admin@demo.example.com", password: "DemoPass123!", label: "Admin" },
+  // Names match services/auth-service/seed_demo_users.py.
+  { role: "admin", email: "admin@demo.example.com", password: "DemoPass123!", label: "Anjali · Admin" },
+  { role: "finance", email: "finance@demo.example.com", password: "DemoPass123!", label: "Niraj · Finance" },
+  { role: "requester", email: "requester@demo.example.com", password: "DemoPass123!", label: "Anooj · Requester" },
+  { role: "approver", email: "approver@demo.example.com", password: "DemoPass123!", label: "Vaidehi · Approver" },
 ];
 
 export const INFRA_LINKS = [
@@ -63,7 +63,7 @@ export const INFRA_LINKS = [
   { label: "Prometheus", url: "http://localhost:9090", description: "Raw metrics scrape targets" },
   { label: "Temporal UI", url: "http://localhost:8088", description: "Approval & contract workflow executions" },
   { label: "MLflow", url: "http://localhost:5050", description: "Vendor risk model runs & drift metrics" },
-  { label: "MinIO console", url: "http://localhost:9000", description: "Document object storage" },
+  { label: "MinIO console", url: "http://localhost:9001", description: "Document object storage" },
   { label: "Mailpit", url: "http://localhost:8025", description: "Outbound notification emails" },
 ];
 

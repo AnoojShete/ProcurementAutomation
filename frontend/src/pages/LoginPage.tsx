@@ -1,12 +1,18 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
-import { Boxes, Eye, EyeOff, ShieldCheck, Sparkles, Workflow } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
-import { InlineError } from "@/components/ui/ErrorState";
+import { InlineError, InlineSuccess } from "@/components/ui/ErrorState";
+import { authApi } from "@/api/auth";
 import { DEMO_ACCOUNTS } from "@/lib/constants";
 import { ApiError } from "@/api/client";
 import { cn } from "@/lib/cn";
+import { Wordmark } from "@/components/auth/AuthLayout";
+
+// The one-click demo accounts are for the showcase build. Set
+// VITE_SHOW_DEMO_ACCOUNTS=false when building for real users.
+const SHOW_DEMO_ACCOUNTS = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS !== "false";
 
 export function LoginPage() {
   const { login, status } = useAuth();
@@ -16,17 +22,26 @@ export function LoginPage() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unverified, setUnverified] = useState(false);
+  const [resent, setResent] = useState<string | null>(null);
 
   if (status === "authenticated") return <Navigate to="/app" replace />;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setUnverified(false);
+    setResent(null);
     setSubmitting(true);
     try {
       await login(email, password);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Unable to sign in. Please try again.");
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "Unable to sign in. Please try again.",
+      );
+      setUnverified(e instanceof ApiError && e.code === "email_not_verified");
     } finally {
       setSubmitting(false);
     }
@@ -40,59 +55,44 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-white">
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-brand-950 p-12 text-white lg:flex">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.15]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 20% 20%, white 1px, transparent 1px), radial-gradient(circle at 80% 60%, white 1px, transparent 1px)",
-            backgroundSize: "48px 48px, 64px 64px",
-          }}
-          aria-hidden="true"
-        />
-        <div className="relative flex items-center gap-2.5">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-white text-brand-800">
-            <Boxes className="size-5" />
-          </div>
-          <span className="text-lg font-semibold">Procurement IQ</span>
+    <div className="flex min-h-screen flex-col items-center bg-paper px-4 pb-10 pt-12 sm:pt-20">
+      <div className="w-full max-w-[400px]">
+        <div className="mb-8">
+          <Wordmark />
         </div>
 
-        <div className="relative max-w-md">
-          <h1 className="text-3xl font-semibold leading-tight text-white">
-            Agentic AI for IT procurement, end to end.
-          </h1>
-          <p className="mt-4 text-brand-200">
-            One connected pipeline for document intelligence, approvals, vendor risk, contracts, and inventory —
-            every step visible, every decision auditable.
-          </p>
-          <div className="mt-8 space-y-4">
-            <Feature icon={Workflow} title="Automated procurement lifecycle" desc="From request to fulfillment, tracked stage by stage." />
-            <Feature icon={Sparkles} title="AI-assisted intelligence" desc="Document extraction, vendor matching, and risk scoring, contextual to every decision." />
-            <Feature icon={ShieldCheck} title="Governed, not autonomous" desc="Approvals, risk decisions, and payment changes always route through a human." />
-          </div>
-        </div>
-
-        <p className="relative text-xs text-brand-300">© 2026 Procurement IQ — Enterprise Demo Environment</p>
-      </div>
-
-      <div className="flex w-full flex-col items-center justify-center px-6 py-12 lg:w-1/2">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-brand-800 text-white">
-              <Boxes className="size-5" />
-            </div>
-            <span className="text-lg font-semibold text-slate-900">Procurement IQ</span>
-          </div>
-
-          <h2 className="text-xl font-semibold text-slate-900">Sign in to your workspace</h2>
-          <p className="mt-1 text-sm text-slate-500">Enter your credentials to continue.</p>
-
-          <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
+        <div className="rounded border border-rule bg-sheet px-5 py-6 sm:px-7">
+          <h1 className="mb-5 text-title font-semibold text-ink">Sign in to Acme Corp</h1>
+          <form
+            onSubmit={onSubmit}
+            className="space-y-4"
+            noValidate
+          >
             {error && <InlineError message={error} />}
+            {unverified &&
+              (resent ? (
+                <InlineSuccess message={resent} />
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  onClick={async () =>
+                    setResent(
+                      (await authApi.resendVerification(email)).data.message,
+                    )
+                  }
+                >
+                  Send a new confirmation link
+                </Button>
+              ))}
             <div>
-              <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
-                Email
+              <label
+                htmlFor="email"
+                className="mb-1.5 block text-sm font-medium text-ink"
+              >
+                Work email
               </label>
               <input
                 id="email"
@@ -104,14 +104,24 @@ export function LoginPage() {
                   setEmail(e.target.value);
                   setSelectedRole(null);
                 }}
-                className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm shadow-sm focus:border-brand-500"
-                placeholder="you@company.com"
+                className="field"
               />
             </div>
             <div>
-              <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
-                Password
-              </label>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-ink"
+                >
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-13 font-medium text-accent hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   id="password"
@@ -123,63 +133,77 @@ export function LoginPage() {
                     setPassword(e.target.value);
                     setSelectedRole(null);
                   }}
-                  className="w-full rounded-lg border border-surface-border px-3 py-2 pr-10 text-sm shadow-sm focus:border-brand-500"
-                  placeholder="••••••••"
+                  className="field pr-9"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-ink-3 hover:text-ink"
                 >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
                 </button>
               </div>
             </div>
 
-            <Button type="submit" size="lg" className="w-full" loading={submitting} disabled={!email || !password}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              loading={submitting}
+              disabled={!email || !password}
+            >
               Sign in
             </Button>
           </form>
-
-          <div className="mt-8 border-t border-surface-border pt-5">
-            <p className="mb-2.5 text-xs font-medium uppercase tracking-wide text-slate-400">
-              Demo environment — quick role switch
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map((acct) => (
-                <button
-                  key={acct.role}
-                  type="button"
-                  onClick={() => pickDemoRole(acct)}
-                  className={cn(
-                    "rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors",
-                    selectedRole === acct.role
-                      ? "border-brand-500 bg-brand-50 text-brand-700"
-                      : "border-surface-border text-slate-600 hover:border-slate-300",
-                  )}
-                >
-                  {acct.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-slate-400">Fills in a seeded demo account — for evaluation only.</p>
-          </div>
+          <p className="mt-5 border-t border-rule pt-4 text-center text-sm text-ink-2">
+            New here?{" "}
+            <Link to="/signup" className="font-medium text-accent hover:underline">
+              Create an account
+            </Link>
+          </p>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function Feature({ icon: Icon, title, desc }: { icon: typeof Workflow; title: string; desc: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
-        <Icon className="size-4" />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-white">{title}</p>
-        <p className="text-sm text-brand-300">{desc}</p>
+        {SHOW_DEMO_ACCOUNTS && (
+          <section aria-labelledby="eval-title" className="mt-6 rounded border border-dashed border-rule-strong bg-sheet-sunk/60 p-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 id="eval-title" className="text-sm font-semibold text-ink">
+                Evaluation accounts
+              </h2>
+              <span className="text-caption text-ink-3">Demo environment only</span>
+            </div>
+            <p className="mt-1 text-13 text-ink-2">Pick a role to fill in a seeded account, then sign in.</p>
+            <ul className="mt-3 divide-y divide-rule overflow-hidden rounded border border-rule bg-sheet">
+              {DEMO_ACCOUNTS.map((acct) => {
+                const selected = selectedRole === acct.role;
+                return (
+                  <li key={acct.role}>
+                    <button
+                      type="button"
+                      onClick={() => pickDemoRole(acct)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors duration-1 focus-visible:ring-inset focus-visible:ring-offset-0",
+                        selected ? "bg-accent-tint shadow-[inset_2px_0_0_rgb(var(--accent))]" : "hover:bg-sheet-sunk",
+                      )}
+                    >
+                      <span className={cn("text-sm", selected ? "font-medium text-accent" : "text-ink")}>{acct.label}</span>
+                      <span className="truncate font-mono text-caption text-ink-3">{acct.email}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        <p className="mt-8 text-center text-caption text-ink-3">
+          Access is limited to authorised Acme Corp staff. Activity is logged.
+        </p>
       </div>
     </div>
   );

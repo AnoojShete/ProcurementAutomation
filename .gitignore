@@ -12,3 +12,9 @@ mlartifacts/
 **/ml/artifacts/
 services/*/ml/data/
 frontend/dist/
+# Local secrets (DocuSign RSA key) and drop-folder contents
+secrets/
+# run.sh build stamps + log
+.run/
+Agentic_AI_Proc_Soln_Rpt_Final/
+Agentic_AI_Proc_Soln_Rpt/

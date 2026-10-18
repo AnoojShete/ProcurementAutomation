@@ -106,3 +106,16 @@ class TestTemplateRendering:
         incomplete_payload = {"request_id": "req-1"}  # missing everything else
         with pytest.raises(UndefinedError):
             render_template("approval_requested", incomplete_payload)
+
+    def test_email_action_confirmation_renders(self):
+        payload = {
+            "request_id": "req-12345678-abcd",
+            "decision": "approved",
+            "timestamp": "2026-10-10T12:00:00Z",
+            "ip_address": "192.168.1.100",
+        }
+        subject, body = render_template("email_action_confirmation", payload)
+        assert "req-1234" in subject
+        assert "approved" in subject
+        assert "192.168.1.100" in body
+        assert "req-12345678-abcd" in body

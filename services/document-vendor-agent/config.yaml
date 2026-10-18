@@ -9,6 +9,11 @@ extraction:
   # when its extracted text has at least this many non-whitespace chars.
   # Below it, we treat the page as effectively scanned/garbled.
   min_text_native_chars: 40
+  # Hard limit for reading one file (text extraction runs in a separate
+  # process that is killed at this point). A file that can't be read in
+  # time fails with a clear message instead of hanging the worker.
+  # Covers a cold Docling model load (~15-75 s) for scanned PDFs.
+  timeout_seconds: 120
 
 vendor_matching:
   # rapidfuzz token_sort_ratio (0-100) above which an extracted vendor

@@ -1,0 +1,362 @@
+{
+  "generated_at": "2026-10-16T10:26:18+00:00",
+  "data": {
+    "corpus": 1260,
+    "committed_rows_in_training": 105,
+    "seed": 29,
+    "split": {
+      "train": 861,
+      "validation": 252,
+      "test": 252
+    },
+    "labels": {
+      "invoice": 360,
+      "po": 360,
+      "quote": 360,
+      "other": 180
+    }
+  },
+  "model": "TF-IDF char_wb 2-5 + logistic regression (balanced)",
+  "decision": {
+    "ml_used": true,
+    "rule": "keep the model only if the shipped router beats keywords on validation macro-F1 and on document kinds held out of training",
+    "ml_min_confidence": 0.6
+  },
+  "validation": {
+    "keyword": {
+      "accuracy": 0.937,
+      "macro_f1": 0.922,
+      "per_class": {
+        "invoice": {
+          "precision": 0.959,
+          "recall": 0.986,
+          "f1": 0.973,
+          "n": 72
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 0.833,
+          "f1": 0.909,
+          "n": 72
+        },
+        "other": {
+          "precision": 0.717,
+          "recall": 0.917,
+          "f1": 0.805,
+          "n": 36
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 0.889,
+        "ocr_noise": 0.931,
+        "other": 0.917
+      }
+    },
+    "ml": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_class": {
+        "invoice": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "other": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 36
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 1.0,
+        "ocr_noise": 1.0,
+        "other": 1.0
+      }
+    },
+    "shipped": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_class": {
+        "invoice": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "other": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 36
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 1.0,
+        "ocr_noise": 1.0,
+        "other": 1.0
+      }
+    }
+  },
+  "test": {
+    "keyword": {
+      "accuracy": 0.929,
+      "macro_f1": 0.912,
+      "per_class": {
+        "invoice": {
+          "precision": 0.947,
+          "recall": 0.986,
+          "f1": 0.966,
+          "n": 72
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 0.986,
+          "f1": 0.993,
+          "n": 72
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 0.833,
+          "f1": 0.909,
+          "n": 72
+        },
+        "other": {
+          "precision": 0.696,
+          "recall": 0.889,
+          "f1": 0.78,
+          "n": 36
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 0.847,
+        "ocr_noise": 0.958,
+        "other": 0.889
+      }
+    },
+    "ml": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_class": {
+        "invoice": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "other": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 36
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 1.0,
+        "ocr_noise": 1.0,
+        "other": 1.0
+      }
+    },
+    "shipped": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_class": {
+        "invoice": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 72
+        },
+        "other": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 36
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 1.0,
+        "ocr_noise": 1.0,
+        "other": 1.0
+      }
+    }
+  },
+  "unseen_kinds": {
+    "keyword": {
+      "accuracy": 0.854,
+      "macro_f1": 0.844,
+      "per_class": {
+        "invoice": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 117
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 0.989,
+          "f1": 0.994,
+          "n": 87
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 0.585,
+          "f1": 0.738,
+          "n": 135
+        },
+        "other": {
+          "precision": 0.472,
+          "recall": 1.0,
+          "f1": 0.642,
+          "n": 51
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 0.602,
+        "ocr_noise": 0.894,
+        "other": 1.0
+      }
+    },
+    "ml": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_class": {
+        "invoice": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 117
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 87
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 135
+        },
+        "other": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 51
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 1.0,
+        "ocr_noise": 1.0,
+        "other": 1.0
+      }
+    },
+    "shipped": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_class": {
+        "invoice": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 117
+        },
+        "po": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 87
+        },
+        "quote": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 135
+        },
+        "other": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "n": 51
+        }
+      },
+      "accuracy_by_variant": {
+        "clean": 1.0,
+        "no_title": 1.0,
+        "ocr_noise": 1.0,
+        "other": 1.0
+      }
+    },
+    "held_out": [
+      "C",
+      "other-4",
+      "other-6"
+    ],
+    "train_size": 870,
+    "test_size": 390
+  }
+}

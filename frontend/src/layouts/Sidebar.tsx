@@ -1,5 +1,5 @@
-import { NavLink } from "react-router-dom";
-import { Boxes, ChevronsLeft, LogOut } from "lucide-react";
+import { Link, NavLink, matchPath, useLocation } from "react-router-dom";
+import { ChevronsLeft, LogOut } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS, ROLE_NAV } from "@/lib/roleNav";
@@ -17,71 +17,89 @@ export function Sidebar({
   onCloseMobile: () => void;
 }) {
   const { user, logout } = useAuth();
+  const { pathname } = useLocation();
   if (!user) return null;
   const items = ROLE_NAV[user.role];
+  // Only the most specific matching item is active: on /app/requests/new,
+  // "New Request" and not also "My Requests".
+  const matchLength = (item: (typeof items)[number]) =>
+    Math.max(
+      -1,
+      ...[item.to, ...(item.match ?? [])]
+        .filter((to) => matchPath({ path: to, end: to === item.to ? (item.end ?? false) : false }, pathname))
+        .map((to) => to.length),
+    );
+  const activeTo = items
+    .filter((item) => matchLength(item) >= 0)
+    .sort((a, b) => matchLength(b) - matchLength(a))[0]?.to;
 
   const content = (
-    <div className="flex h-full flex-col bg-brand-900 text-brand-50">
-      <div className={cn("flex items-center gap-2.5 px-4 py-5", collapsed && "justify-center px-2")}>
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-800">
-          <Boxes className="size-[18px]" />
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">Procurement IQ</p>
-            <p className="truncate text-[11px] text-brand-300">Acme Corp Workspace</p>
+    <div className="flex h-full flex-col border-r border-rule bg-paper">
+      {/* Wordmark: the name over the accountant's double rule. */}
+      <div className={cn("flex h-14 items-center border-b border-rule px-4", collapsed && "justify-center px-2")}>
+        {collapsed ? (
+          <span className="rule-double font-doc text-lg font-semibold leading-6 text-ink" aria-label="Procurement, Acme Corp">
+            P
+          </span>
+        ) : (
+          <div className="min-w-0 leading-tight">
+            <p className="rule-double inline-block pb-0.5 text-[15px] font-semibold tracking-[-0.01em] text-ink">Procurement</p>
+            <p className="mt-1 truncate text-caption text-ink-3">Acme Corp</p>
           </div>
         )}
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2 scrollbar-thin">
+      <nav aria-label="Main" className="flex-1 space-y-px overflow-y-auto px-2 py-3 scrollbar-thin">
         {items.map((item) => (
-          <NavLink
+          <Link
             key={item.to}
             to={item.to}
-            end={item.end}
             onClick={onCloseMobile}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
-                isActive ? "bg-brand-700 text-white" : "text-brand-200 hover:bg-brand-800 hover:text-white",
-                collapsed && "justify-center px-2",
-              )
-            }
+            aria-current={item.to === activeTo ? "page" : undefined}
+            className={cn(
+              "relative flex h-9 items-center gap-2.5 rounded px-2.5 text-sm transition-colors duration-1 lg:h-8 lg:text-13",
+              item.to === activeTo
+                ? "font-medium text-ink before:absolute before:-left-2 before:top-1.5 before:bottom-1.5 before:w-0.5 before:bg-accent lg:before:top-1 lg:before:bottom-1"
+                : "text-ink-2 hover:bg-sheet-sunk hover:text-ink",
+              collapsed && "justify-center px-2",
+            )}
+            aria-label={collapsed ? item.label : undefined}
             title={collapsed ? item.label : undefined}
           >
-            <item.icon className="size-[18px] shrink-0" />
+            <item.icon className={cn("size-4 shrink-0", item.to === activeTo ? "text-accent" : "text-ink-3")} strokeWidth={1.75} aria-hidden="true" />
             {!collapsed && <span className="truncate">{item.label}</span>}
-          </NavLink>
+          </Link>
         ))}
       </nav>
 
-      <div className="border-t border-brand-800 p-3">
-        <div className={cn("flex items-center gap-2.5", collapsed && "justify-center")}>
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-700 text-xs font-semibold text-white">
-            {initials(user.email)}
+      <div className="border-t border-rule p-2">
+        <div className={cn("flex items-center gap-2.5 rounded px-2 py-1.5", collapsed && "justify-center")}>
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sheet text-caption font-semibold text-ink-2 ring-1 ring-rule-mid" aria-hidden="true">
+            {initials(user.display_name || user.email)}
           </div>
           {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium text-white">{user.email}</p>
-              <p className="text-[11px] text-brand-300">{ROLE_LABELS[user.role]}</p>
-            </div>
+            <NavLink to="/app/account" onClick={onCloseMobile} title="Account settings" className="min-w-0 flex-1 rounded leading-tight">
+              <p className="truncate text-caption font-medium text-ink">{user.display_name || user.email}</p>
+              <p className="text-caption text-ink-3">{ROLE_LABELS[user.role]}</p>
+            </NavLink>
           )}
-          <button
-            onClick={logout}
-            aria-label="Sign out"
-            title="Sign out"
-            className="rounded-md p-1.5 text-brand-300 hover:bg-brand-800 hover:text-white"
-          >
-            <LogOut className="size-4" />
-          </button>
+          {!collapsed && (
+            <button
+              onClick={logout}
+              aria-label="Sign out"
+              title="Sign out"
+              className="rounded p-1.5 text-ink-2 hover:bg-sheet-sunk hover:text-ink"
+            >
+              <LogOut className="size-4" strokeWidth={1.75} />
+            </button>
+          )}
         </div>
         <button
           onClick={onToggleCollapse}
-          className="mt-2 hidden w-full items-center justify-center rounded-md py-1.5 text-brand-300 hover:bg-brand-800 hover:text-white lg:flex"
+          className="mt-1 hidden h-7 w-full items-center justify-center rounded text-ink-3 hover:bg-sheet-sunk hover:text-ink lg:flex"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          <ChevronsLeft className={cn("size-4 transition-transform", collapsed && "rotate-180")} />
+          <ChevronsLeft className={cn("size-4 transition-transform duration-2", collapsed && "rotate-180")} strokeWidth={1.75} aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -89,14 +107,16 @@ export function Sidebar({
 
   return (
     <>
-      <aside className={cn("hidden shrink-0 transition-[width] duration-200 lg:block", collapsed ? "w-16" : "w-60")}>
+      <aside className={cn("hidden shrink-0 transition-[width] duration-2 ease-out lg:block", collapsed ? "w-14" : "w-56")}>
         {content}
       </aside>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-slate-900/40" onClick={onCloseMobile} aria-hidden="true" />
-          <div className="absolute left-0 top-0 h-full w-64 animate-slide-in-right shadow-popover">{content}</div>
+          <div className="absolute inset-0 bg-scrim/40 animate-fade-in" onClick={onCloseMobile} aria-hidden="true" />
+          <div role="dialog" aria-modal="true" aria-label="Navigation" className="absolute left-0 top-0 h-full w-64 animate-slide-in-right shadow-popover">
+            {content}
+          </div>
         </div>
       )}
     </>

@@ -14,7 +14,7 @@ export function RoleGuard({ allow, children }: { allow: Role[]; children: ReactN
   if (!user) return null;
   if (!allow.includes(user.role)) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-surface-border bg-white py-16 text-center shadow-card">
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-surface-border bg-sheet py-16 text-center shadow-card">
         <ShieldOff className="size-8 text-slate-300" />
         <p className="text-sm font-medium text-slate-700">This area isn't part of your role</p>
         <p className="max-w-sm text-sm text-slate-500">

@@ -22,12 +22,32 @@ def build_confidence_scores(
     return scores
 
 
+# How much each score counts towards the overall one: the amount and who
+# it's from matter most for an invoice; line items are a bonus.
+WEIGHTS = {
+    "total": 0.30, "vendor_name": 0.20, "classification": 0.15,
+    "document_number": 0.15, "document_date": 0.10, "line_items": 0.10,
+}
+# Fields many genuine documents simply don't have; a 0 there means "not on
+# the document", not "misread", so it's left out instead of averaged in.
+OPTIONAL = {"line_items"}
+
+
 def overall_confidence(confidence_scores: Dict[str, float]) -> float:
-    if not confidence_scores:
+    scores = {k: v for k, v in confidence_scores.items() if not (k in OPTIONAL and not v)}
+    if not scores:
         return 0.0
-    return round(sum(confidence_scores.values()) / len(confidence_scores), 3)
+    weights = {k: WEIGHTS.get(k, 0.1) for k in scores}
+    return round(sum(scores[k] * w for k, w in weights.items()) / sum(weights.values()), 3)
 
 
-def needs_review(overall: float) -> bool:
-    threshold = load_extraction_config().get("confidence_threshold", 0.8)
-    return overall < threshold
+def load_threshold() -> float:
+    from shared.rules_engine import get_rule
+    cfg_val = load_extraction_config().get("confidence_threshold", 0.8)
+    return float(get_rule("document.confidence_review_threshold", fallback=cfg_val))
+
+
+def needs_review(overall: float, threshold: float | None = None) -> bool:
+    """`threshold` overrides the global one — the per-vendor calibrated
+    threshold from app/services/learning.py."""
+    return overall < (load_threshold() if threshold is None else threshold)

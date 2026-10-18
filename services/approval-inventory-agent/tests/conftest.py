@@ -1,7 +1,18 @@
 import pytest
 import asyncio
+import os
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 import redis.asyncio as aioredis
+
+# Ensure service root and shared directory are in sys.path
+_service_root = Path(__file__).resolve().parent.parent
+_repo_root = _service_root.parent.parent
+if str(_service_root) not in sys.path:
+    sys.path.insert(0, str(_service_root))
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 @pytest.fixture(scope='session')
 def event_loop():
@@ -26,6 +37,8 @@ def mock_kafka_producer():
     producer.publish = AsyncMock()
     producer.publish_approval_requested = AsyncMock()
     producer.publish_approval_decided = AsyncMock()
+    # publish_license_usage_updated now accepts anomaly_score, top_factors,
+    # model_version in the license_data dict (all optional, default-safe).
     producer.publish_license_usage_updated = AsyncMock()
     return producer
 

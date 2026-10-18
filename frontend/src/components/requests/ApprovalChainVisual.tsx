@@ -2,12 +2,13 @@ import { Check, Clock, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { titleCase } from "@/lib/format";
 import type { PurchaseRequest } from "@/types/api";
+import { PersonName } from "@/components/people/PersonName";
 
 export function ApprovalChainVisual({ request }: { request: PurchaseRequest }) {
   const chain = request.approval_chain ?? [];
   const rejected = request.status === "rejected";
   const nodes = [
-    { label: "Requester", sub: request.requested_by ?? undefined },
+    { label: "Requester", sub: request.requested_by ? <PersonName email={request.requested_by} /> : undefined },
     ...chain.map((role) => ({ label: titleCase(role), sub: undefined })),
     { label: "Approved", sub: undefined },
   ];
@@ -20,7 +21,7 @@ export function ApprovalChainVisual({ request }: { request: PurchaseRequest }) {
         const approverIndex = i - 1;
         let state: "completed" | "current" | "pending" | "failed" = "pending";
         if (isRequester) state = "completed";
-        else if (isFinal) state = request.status === "approved" || request.status === "fulfilled" ? "completed" : rejected ? "failed" : "pending";
+        else if (isFinal) state = ["approved", "ordered", "fulfilled"].includes(request.status ?? "") ? "completed" : rejected ? "failed" : "pending";
         else if (rejected && approverIndex <= request.current_approver_index) state = "failed";
         else if (approverIndex < request.current_approver_index) state = "completed";
         else if (approverIndex === request.current_approver_index && request.status === "pending_approval") state = "current";

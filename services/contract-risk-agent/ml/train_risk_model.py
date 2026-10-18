@@ -29,6 +29,33 @@ MODEL_PATH = os.path.join(ARTIFACT_DIR, "model.joblib")
 VERSION_PATH = os.path.join(ARTIFACT_DIR, "model_version.txt")
 BASELINE_PATH = os.path.join(ARTIFACT_DIR, "baseline_distribution.json")
 
+# Vendors often have only some signals on file. The model learns to score
+# with gaps (scikit-learn >= 1.4 forests handle NaN) from a copy of the
+# training rows with this share of values blanked, so a missing value is
+# left out rather than filled with a guess that reads as risk.
+MISSING_RATE = 0.2
+MODEL_PARAMS = dict(n_estimators=200, max_depth=6, random_state=42, class_weight="balanced")
+
+
+def with_missing(X: pd.DataFrame, rate: float = MISSING_RATE, seed: int = 7) -> pd.DataFrame:
+    """A copy of X with `rate` of the values blanked at random."""
+    rng = np.random.default_rng(seed)
+    out = X.astype(float).copy()
+    out[rng.random(out.shape) < rate] = np.nan
+    return out
+
+
+def split(df: pd.DataFrame):
+    X = df[FEATURE_COLUMNS]
+    y = df[LABEL_COLUMN]
+    return train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+
+def fit(X_train: pd.DataFrame, y_train: pd.Series) -> RandomForestClassifier:
+    model = RandomForestClassifier(**MODEL_PARAMS)
+    model.fit(pd.concat([X_train.astype(float), with_missing(X_train)]), pd.concat([y_train, y_train]))
+    return model
+
 
 def _try_mlflow():
     try:
@@ -46,11 +73,8 @@ def train():
     df = pd.read_csv(OUT_CSV) if os.path.exists(OUT_CSV) else build_dataset()
 
     X = df[FEATURE_COLUMNS]
-    y = df[LABEL_COLUMN]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-
-    model = RandomForestClassifier(n_estimators=200, max_depth=6, random_state=42, class_weight="balanced")
-    model.fit(X_train, y_train)
+    X_train, X_test, y_train, y_test = split(df)
+    model = fit(X_train, y_train)
 
     preds = model.predict(X_test)
     proba = model.predict_proba(X_test)[:, 1]
@@ -81,14 +105,18 @@ def train():
     with open(BASELINE_PATH, "w") as f:
         json.dump(baseline, f, indent=2)
 
-    mlflow = _try_mlflow()
+    # Skipped during the image build (no MLflow server there); run
+    # `python ml/train_risk_model.py` in the running container to log a run.
+    mlflow = None if os.environ.get("SKIP_MLFLOW") else _try_mlflow()
     if mlflow is not None:
         try:
+            os.environ["MLFLOW_HTTP_REQUEST_TIMEOUT"] = "2"
             mlflow.set_tracking_uri(os.environ.get("APP_MLFLOW_TRACKING_URI", "http://mlflow:5000"))
             mlflow.set_experiment("vendor_risk_classifier")
             with mlflow.start_run(run_name=version):
-                mlflow.log_param("n_estimators", 200)
-                mlflow.log_param("max_depth", 6)
+                mlflow.log_param("n_estimators", MODEL_PARAMS["n_estimators"])
+                mlflow.log_param("max_depth", MODEL_PARAMS["max_depth"])
+                mlflow.log_param("missing_rate", MISSING_RATE)
                 mlflow.log_param("features", FEATURE_COLUMNS)
                 mlflow.log_metric("accuracy", accuracy)
                 if not np.isnan(auc):

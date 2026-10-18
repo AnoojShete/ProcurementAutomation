@@ -6,6 +6,7 @@ wrapped in the standard envelope from shared/schemas/events.md.
 import json
 import logging
 from aiokafka import AIOKafkaProducer
+from shared.kafka_security import kafka_auth_kwargs
 from app.kafka.events import (
     build_event,
     build_contract_generated_payload,
@@ -22,6 +23,7 @@ TOPIC_CONTRACT_GENERATED = "contract.generated"
 TOPIC_CONTRACT_SIGNED = "contract.signed"
 TOPIC_CONTRACT_RENEWAL_DUE = "contract.renewal.due"
 TOPIC_RISK_SCORE_UPDATED = "risk.score.updated"
+TOPIC_REMINDER_DUE = "reminder.due"
 TOPIC_VENDOR_OFFBOARDED = "vendor.offboarded"
 TOPIC_NOTIFICATION_SEND = "notification.send"
 
@@ -32,6 +34,7 @@ class KafkaEventProducer:
             bootstrap_servers=bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             acks="all",
+            **kafka_auth_kwargs(),
         )
         self.service_name = "contract-risk-agent"
 
@@ -47,7 +50,7 @@ class KafkaEventProducer:
         await self.producer.send_and_wait(topic, event)
         logger.info(f"Published event {event.get('event_type')} to {topic}")
 
-    async def publish_contract_generated(self, contract):
+    async def publish_contract_generated(self, contract, model_used=None, fallback_triggered=False):
         payload = build_contract_generated_payload(
             contract_id=contract.id,
             purchase_request_id=contract.purchase_request_id,
@@ -56,6 +59,8 @@ class KafkaEventProducer:
             version=contract.version,
             status=contract.status,
             generated_at=contract.generated_at,
+            model_used=model_used,
+            fallback_triggered=fallback_triggered,
         )
         event = build_event(TOPIC_CONTRACT_GENERATED, self.service_name, payload)
         await self.publish(TOPIC_CONTRACT_GENERATED, event)
@@ -72,7 +77,7 @@ class KafkaEventProducer:
 
     async def publish_contract_renewal_due(
         self, contract_id, vendor_id, renewal_type, notice_period_days,
-        contract_end_date, days_remaining, alert_level
+        contract_end_date, days_remaining, alert_level, notice_deadline=None
     ):
         payload = build_contract_renewal_due_payload(
             contract_id=contract_id,
@@ -82,6 +87,7 @@ class KafkaEventProducer:
             contract_end_date=contract_end_date,
             days_remaining=days_remaining,
             alert_level=alert_level,
+            notice_deadline=notice_deadline,
         )
         event = build_event(TOPIC_CONTRACT_RENEWAL_DUE, self.service_name, payload)
         await self.publish(TOPIC_CONTRACT_RENEWAL_DUE, event)
@@ -126,3 +132,14 @@ class KafkaEventProducer:
         )
         event = build_event(TOPIC_NOTIFICATION_SEND, self.service_name, payload)
         await self.publish(TOPIC_NOTIFICATION_SEND, event)
+
+    async def publish_reminder_due(self, kind, entity_type, entity_id, waiting_since, threshold,
+                                   recipient_role, link, detail=None):
+        """reminder.due (FR-03, shared/reminders.py): someone has been waiting on an action."""
+        from shared.reminders import build_reminder_due_payload
+        payload = build_reminder_due_payload(
+            kind=kind, entity_type=entity_type, entity_id=entity_id, waiting_since=waiting_since,
+            threshold=threshold, recipient_role=recipient_role, link=link, detail=detail,
+        )
+        event = build_event(TOPIC_REMINDER_DUE, self.service_name, payload)
+        await self.publish(TOPIC_REMINDER_DUE, event)

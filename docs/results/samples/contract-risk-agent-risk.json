@@ -1,0 +1,62 @@
+{
+  "agent": "contract-risk-agent",
+  "input": {
+    "vendor_id": "11111111-1111-1111-1111-111111111111",
+    "signals": {
+      "platform": {
+        "vendor_tenure_months": 1,
+        "on_time_delivery_rate": 1.0,
+        "deliveries": 5,
+        "deliveries_on_time": 5,
+        "expected_delivery_days": 14
+      },
+      "compliance": {
+        "security_cert_flag": false,
+        "geo_risk_flag": false,
+        "breach_disclosure_count": 1,
+        "financial_stability_score": 0.2
+      },
+      "updated_at": "2026-10-16T14:55:07.599399+00:00"
+    }
+  },
+  "output": {
+    "vendor_id": "11111111-1111-1111-1111-111111111111",
+    "risk_band": "Medium",
+    "risk_score": 0.37825050224474505,
+    "top_factors": [
+      {
+        "feature": "on_time_delivery_rate",
+        "contribution": 0.3492
+      },
+      {
+        "feature": "vendor_tenure_months",
+        "contribution": 0.1997
+      },
+      {
+        "feature": "financial_stability_score",
+        "contribution": 0.1259
+      }
+    ],
+    "model_version": "v20261016144813",
+    "scored_at": "2026-10-16T14:55:07.611791+00:00",
+    "signals_used": 6,
+    "signals_total": 6,
+    "overrides": [
+      {
+        "check": "gstin",
+        "reason": null,
+        "status": "not_checked"
+      },
+      {
+        "check": "sanctions",
+        "reason": null,
+        "status": "clear"
+      },
+      {
+        "check": "ifsc",
+        "reason": null,
+        "status": "not_checked"
+      }
+    ]
+  }
+}

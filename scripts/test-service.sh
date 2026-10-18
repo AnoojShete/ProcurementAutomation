@@ -27,9 +27,27 @@ run_one() {
     echo "Image $image not found locally — building it first..."
     docker compose build "$svc"
   fi
+  # auth-service's account-flow tests and notification-agent's feed tests
+  # need a real Postgres (single-use links, lockout and read state are
+  # enforced in SQL). With the stack running they use a throwaway
+  # "<name>_test" database next to the demo one; otherwise they're skipped.
+  local db_args=()
+  local test_db=""
+  case "$svc" in
+    auth-service) test_db="AUTH_TEST_DATABASE_URL=auth_test" ;;
+    notification-agent) test_db="NOTIFICATION_TEST_DATABASE_URL=notification_test" ;;
+  esac
+  if [ -n "$test_db" ] && docker compose ps --status running postgres 2>/dev/null | grep -q postgres; then
+    local net
+    net=$(docker inspect "$(docker compose ps -q postgres)" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+    db_args=(--network "$net" -e "${test_db%%=*}=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${test_db#*=}")
+  fi
   docker run --rm \
+    ${db_args[@]+"${db_args[@]}"} \
+    -e APP_ENV=development \
     -v "$ROOT_DIR/services/$svc:/app" \
     -v "$ROOT_DIR/shared:/app/shared" \
+    -v "$ROOT_DIR/data:/data:ro" \
     -w /app \
     --entrypoint sh \
     "$image" \
