@@ -28,14 +28,14 @@ unreliable vendor — are easy to miss.
 
 ```mermaid
 flowchart LR
-    A[📄 Invoice or quote<br/>uploaded · emailed · dropped in a folder] --> B[🔍 Read & understand<br/>OCR · classify · extract]
-    B --> C[🏢 Vendor check<br/>match · risk score · bank guard]
-    C --> D[📝 Purchase request]
-    D --> E{✅ Approval<br/>by spend tier}
-    E --> F[📃 Contract<br/>generated + sent to sign]
-    F --> G[✍️ Signed → Ordered]
-    G --> H[📦 Received]
-    H --> I[💰 Invoice matched<br/>to the order]
+    A[Invoice or quote<br/>uploaded · emailed · dropped in a folder] --> B[Read & understand<br/>OCR · classify · extract]
+    B --> C[Vendor check<br/>match · risk score · bank guard]
+    C --> D[Purchase request]
+    D --> E{Approval<br/>by spend tier}
+    E --> F[Contract<br/>generated + sent to sign]
+    F --> G[Signed → Ordered]
+    G --> H[Received]
+    H --> I[Invoice matched<br/>to the order]
 ```
 
 Every arrow is automatic. People approve, sign, confirm delivery and
@@ -63,11 +63,11 @@ flowchart TB
 
 | Agent | In one line |
 |---|---|
-| 📄 **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, onboards and matches vendors |
-| ✅ **Approval & Inventory** | Routes requests by spend, enforces who may approve what, tracks licences and stock, suggests reorders, matches invoices to orders |
-| 📃 **Contract & Risk** | Writes contracts and reads their clauses with Legal-BERT, collects e-signatures, reminds before notice deadlines, screens vendors against sanctions lists, scores vendor risk from delivery and compliance history with an evaluated ML model and shows it before signing (High risk must be acknowledged) |
-| 🔔 **Notification** | Turns events into emails and an in-app feed; the bell counts only unread, important ones |
-| 🔐 **Auth** | Accounts, roles, and the business rules admins can change live |
+| **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, onboards and matches vendors |
+| **Approval & Inventory** | Routes requests by spend, enforces who may approve what, tracks licences and stock, suggests reorders, matches invoices to orders |
+| **Contract & Risk** | Writes contracts and reads their clauses with Legal-BERT, collects e-signatures, reminds before notice deadlines, screens vendors against sanctions lists, scores vendor risk from delivery and compliance history with an evaluated ML model and shows it before signing (High risk must be acknowledged) |
+| **Notification** | Turns events into emails and an in-app feed; the bell counts only unread, important ones |
+| **Auth** | Accounts, roles, and the business rules admins can change live |
 
 The services share one PostgreSQL database but hand work to each other
 through **events**: an outbox makes each event commit together with the
@@ -78,14 +78,14 @@ dead-letter queue instead of losing them.
 
 | | |
 |---|---|
-| 🧠 **Document AI** | A sample scanned invoice went from **0.50 → 0.93** confidence after reading table rows by position and cross-checking totals |
-| 📊 **Risk model, measured** | Random forest on 2,000 synthetic vendors: **ROC-AUC 0.715** (best possible on these labels 0.739), red-team profiles **12/12**, missing data left out instead of guessed |
-| ⚖️ **Contract clauses** | Legal-BERT on 102 held-out, lawyer-annotated contracts: F1 **0.85 / 0.80 / 0.91** for renewal, notice and expiry clauses vs **0.50 / 0.19 / 0.02** for the regex rules it replaced (kept as fallback) |
-| 🛡️ **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; vendors are screened against 25,000 sanctioned companies; invoices are held until bank details are verified |
-| ⚖️ **Separation of duties** | Nobody — not even an admin — approves their own request |
-| 🔁 **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
-| 🔎 **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
-| ✅ **Tested** | Unit suites per service plus end-to-end runs through the gateway (invoice lifecycle **71/71**, document pipeline **52/52**) |
+| **Document AI** | A sample scanned invoice went from **0.50 → 0.93** confidence after reading table rows by position and cross-checking totals |
+| **Risk model, measured** | Random forest on 2,000 synthetic vendors: **ROC-AUC 0.715** (best possible on these labels 0.739), red-team profiles **12/12**, missing data left out instead of guessed |
+| **Contract clauses** | Legal-BERT on 102 held-out, lawyer-annotated contracts: F1 **0.85 / 0.80 / 0.91** for renewal, notice and expiry clauses vs **0.50 / 0.19 / 0.02** for the regex rules it replaced (kept as fallback) |
+| **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; vendors are screened against 25,000 sanctioned companies; invoices are held until bank details are verified |
+| **Separation of duties** | Nobody — not even an admin — approves their own request |
+| **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
+| **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
+| **Tested** | Unit suites per service plus end-to-end runs through the gateway (invoice lifecycle **71/71**, document pipeline **52/52**) |
 
 ## Try it
 
@@ -105,16 +105,12 @@ git clone <repo-url> && cd ProcurementAutomation
 
 **Configuration:** `run.sh` creates `.env` from
 [`.env.example`](.env.example) on the first run, and the defaults work
-locally without editing. Every setting is listed there; the
-[configuration table](docs/readmeforme.md#configuration) explains them,
-including what must change outside development. The database schema,
-migrations and Kafka topics are set up automatically (details:
-[setup](docs/readmeforme.md#setup), [migrations](docs/readmeforme.md#migrations)).
+locally without editing. The database schema, migrations and Kafka topics
+are set up automatically.
 
 Open **http://localhost:8080** and sign in as `requester@demo.example.com`
 (password `DemoPass123!`), or `approver@…`, `finance@…`, `admin@…`. Light
-and dark themes are in Account settings. Before a demo,
-`./scripts/reset-demo.sh` backs up and rebuilds clean demo data.
+and dark themes are in Account settings.
 
 ## Tech stack
 
@@ -125,13 +121,5 @@ and dark themes are in Account settings. Before a demo,
 **Data** PostgreSQL · Redis · MinIO &nbsp;·&nbsp;
 **Frontend** React · TypeScript · Vite · Tailwind &nbsp;·&nbsp;
 **Ops** Docker Compose · nginx · Prometheus · Grafana · Loki · ClamAV
-
-## More
-
-- [Project status — visual flow](docs/project-flow.html) and its research tab (`#research`) — open in a browser
-- [Showcase guide](docs/showcase.html) — how to present it to an external evaluator or a mentor; [5-minute demo](docs/demo-5min.md) with a [backup recording](docs/demo/backup-recording.webm)
-- [Technical reference](docs/readmeforme.md) — setup, configuration, testing, internals
-- [Roadmap & open work](docs/TODO.md) · [Risk model write-up](docs/risk-model.md)
-- [Research direction](docs/RESEARCH_GAP_ANALYSIS.md) — calibrated, risk-controlled automation of procurement documents ([paper plan](docs/RESEARCH_PAPER_PLAN.md))
 
 **Team:** Anjali · Vaidehi · Niraj · Anooj
