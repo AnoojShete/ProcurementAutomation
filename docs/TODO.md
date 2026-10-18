@@ -50,7 +50,10 @@ Oct 16.
   outbox for events; retries + DLQ; idempotent migrations; audit of every
   control; runs on one machine with Docker Compose; `APP_ENV=production`
   refuses default secrets.
-- **Stage (Oct 16, 2026):** all basic requirements built (BR-1…BR-7);
+- **Stage (Oct 18, 2026):** all basic requirements built (BR-1…BR-7);
+  R0 done except FR-04 (red-team list) and FR-05 (a teammate's run);
+  UI pass UX-1 done (dark mode, names, notification feed); the stack runs
+  from a fresh clone again (REPRO-1, MinIO image);
   development ends **end of October** (mentor deadline), testing in
   November, submission in December. A research paper on calibrated
   automation is planned (RS-xx tasks).
@@ -120,22 +123,24 @@ How the pieces interact:
 | Learning from corrections | PARTIAL | per-vendor hints + thresholds (`learning.py`) | Classifier retraining; evaluation (RS-10, optional) | — |
 | Vendor match, onboarding, bank-detail dual control | COMPLETE | `vendor_matching.py`, `vendor_onboarding.py` (BR-4), payment hold | — | — |
 | FX conversion to INR | COMPLETE | `fx.py` (Frankfurter, rate captured once) | — | internet |
-| Approvals, authority, SoD, SLA reminders | COMPLETE | approval workflow (Temporal) | Terminate 6 stale workflows (P1) | person with permission |
+| Approvals, authority, SoD, SLA reminders | COMPLETE | approval workflow (Temporal); stale workflows gone after the Oct 18 reset (OPS-1) | — | — |
 | Inventory, backorders, reorder suggestions | COMPLETE | `inventory_service.py`, `reorder.py` (BR-5) | — | — |
 | Invoice ledger / matching | COMPLETE | `invoice_ledger.py`, `invoice_matches` | — | — |
 | Contracts: generation, built-in e-sign, renewals | COMPLETE | `contract_service.py`, renewal workflow (FR-01, FR-02) | — | — |
 | Risk shown before signing | COMPLETE | `signing_risk()` (BR-6) | External e-sign path would need the check at send time | — |
-| Vendor risk model | PARTIAL | RF + overrides + platform signals (FR-04, BR-7) | Red-team vs agent doc, sanctions (FR-14), drift min-sample decision | decision |
+| Vendor risk model | PARTIAL | RF + overrides + platform signals + sanctions screening (FR-04, BR-7, FR-14) | Red-team vs agent doc, drift min-sample decision (DRIFT-1) | decision |
 | Clause extraction with a model | COMPLETE | Legal-BERT (CUAD) primary, regex fallback; CUAD test F1 0.85 / 0.80 / 0.91 vs rules 0.50 / 0.19 / 0.02 (FR-13) | Contracts from outside (we only read our own) | — |
 | Licence-usage anomaly model | COMPLETE | IsolationForest + SHAP on 360 simulated licences, ROC-AUC 0.95 (FR-32) | Real usage data | — |
-| Notifications | COMPLETE | notification-agent (SMTP / Mailpit), retry + DLQ, health (FR-31) | Coverage audit (FR-10) | — |
+| Notifications | COMPLETE | notification-agent (SMTP / Mailpit), retry + DLQ, health (FR-31), coverage audit (FR-10); in-app feed with per-person read receipts and an unread-only bell (UX-1) | Gaps listed for Anooj (FR-10) | — |
+| Frontend UI | COMPLETE | Ledger design system (`docs/design-direction.md`), dark mode saved per account, names instead of emails, clickable dashboard figures, one admin **System** page (UX-1) | — | — |
+| Demo readiness | PARTIAL | `docs/demo-script.html` (18/18), 5-minute cut `docs/demo-5min.md` (6/6) + backup recording, `scripts/reset-demo.sh` (FR-05) | A teammate's run on fresh data | a teammate |
 | Email automation, chatbot | OUT OF SCOPE | Anooj's | — | — |
 | Observability (metrics, logs, correlation id) | COMPLETE | Prometheus, Grafana, Loki (FR-07) | — | — |
 | Failed-events / Kafka log | COMPLETE | Control Panel (FR-06) | — | — |
 | CI | PARTIAL | builds images only | Run tests in CI (FR-25) | — |
 | Kubernetes / PySpark claims | BLOCKED | none | Needs an architecture decision (FR-15, FR-16) | user decision |
 | Credentials for any shared deploy | BLOCKED | dev defaults | Rotate GSTINCheck key; real secrets (P0) | a person |
-| Linux (Ubuntu VM) run | UNVERIFIED | steps in `readmeforme.md` | Fresh-clone rehearsal (FR-26) | VM |
+| Linux (Ubuntu VM) run | UNVERIFIED | steps in `readmeforme.md`; macOS fresh-clone build passes and every image pulls (FR-26, REPRO-1) | Full rehearsal on the VM (FR-26) | VM |
 | Research: calibrated document gate | PENDING | — | RS-01…RS-12 | — |
 
 ## A.4 Decisions, constraints and known limitations
@@ -239,18 +244,21 @@ explanations, LLM agent orchestration.
 
 ## A.6 Immediate next actions
 
-1. **OPS-1** — terminate the six stale approval workflows (command in
-   Part B P1) and cancel request `90261afb`. Needs your permission.
-2. **FR-04 / FR-05** — the Agent doc's red-team list (FR-04); a teammate
-   runs the demo script on fresh data (FR-05). The last two R0 items.
+(Oct 18: OPS-1, REPRO-1 and UX-1 done.)
+
+1. **FR-05** — a teammate runs `docs/demo-5min.md` (or the full
+   `docs/demo-script.html`) by hand after `./scripts/reset-demo.sh`.
+2. **FR-04** — the Agent doc's red-team list, the last R0 item.
 3. **FR-25** — tests in CI: `scripts/test-service.sh all`,
    `scripts/test-root.sh`, `npm run typecheck`.
-4. **RS-02** — extend the synthetic generator into a procurement world
+4. **FR-26** — the full fresh-clone rehearsal on the Ubuntu VM.
+5. **RS-02** — extend the synthetic generator into a procurement world
    (vendor master, POs, ledger, injections); start with 300 documents to
    test the harness.
-5. **RS-01 / RS-03** — evidence export and the batch harness, so the
+6. **RS-01 / RS-03** — evidence export and the batch harness, so the
    first B0-vs-B1 numbers exist before November.
-6. **RS-08 prep** — read DocILE's terms of use; decide DocILE vs FATURA.
+7. **DRIFT-1 / SEC-1** — your decision on the drift minimum sample; the
+   GSTINCheck key still needs rotating by its owner.
 
 ---
 
@@ -1035,7 +1043,10 @@ before any other roadmap item.
   Skip the immediate child when no units are available — needs a check of
   what the approval workflow and events expect. *Why: approvers see ₹0
   requests with no items.*
-- [ ] (Oct 16: decided — terminate it; the terminate command was blocked by
+- [x] (OPS-1. *Evidence (Oct 18):* the demo-data reset, the user's
+  choice, cleared Temporal's state together with Postgres: 0 open
+  `approval-` workflows and request `90261afb` no longer exists. Nothing
+  was terminated by hand.) (Oct 16: decided — terminate it; the terminate command was blocked by
   Claude Code's permission check, so it is still Running. Run:
   `docker compose exec temporal sh -c 'tctl --address $(hostname -i):7233
   --ns default workflow terminate -w approval-<id> -r "<reason>"'` for it

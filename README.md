@@ -66,7 +66,7 @@ flowchart TB
 | 📄 **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, onboards and matches vendors |
 | ✅ **Approval & Inventory** | Routes requests by spend, enforces who may approve what, tracks licences and stock, suggests reorders, matches invoices to orders |
 | 📃 **Contract & Risk** | Writes contracts and reads their clauses with Legal-BERT, collects e-signatures, reminds before notice deadlines, screens vendors against sanctions lists, scores vendor risk from delivery and compliance history with an evaluated ML model and shows it before signing (High risk must be acknowledged) |
-| 🔔 **Notification** | Turns events into emails |
+| 🔔 **Notification** | Turns events into emails and an in-app feed; the bell counts only unread, important ones |
 | 🔐 **Auth** | Accounts, roles, and the business rules admins can change live |
 
 The services share one PostgreSQL database but hand work to each other
@@ -112,7 +112,9 @@ migrations and Kafka topics are set up automatically (details:
 [setup](docs/readmeforme.md#setup), [migrations](docs/readmeforme.md#migrations)).
 
 Open **http://localhost:8080** and sign in as `requester@demo.example.com`
-(password `DemoPass123!`), or `approver@…`, `finance@…`, `admin@…`.
+(password `DemoPass123!`), or `approver@…`, `finance@…`, `admin@…`. Light
+and dark themes are in Account settings. Before a demo,
+`./scripts/reset-demo.sh` backs up and rebuilds clean demo data.
 
 ## Tech stack
 

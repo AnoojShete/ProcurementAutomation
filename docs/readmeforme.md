@@ -45,7 +45,10 @@ for what's open (with the roadmap), `git log` for what changed, and
 Infrastructure (22 containers in total, `docker-compose.yml` +
 `docker-compose.override.yml`): Postgres, Redis, Redpanda (Kafka API) and
 its one-shot `redpanda-init`, Temporal + Temporal UI, MinIO, ClamAV,
-Mailpit, MLflow, Prometheus, Grafana, kafka-exporter, nginx.
+Mailpit, MLflow, Prometheus, Grafana, kafka-exporter, nginx. Every image
+is pinned (`tests/test_env_example.py`). MinIO is `pgsty/minio`, the
+community continuation, because `minio/minio` can no longer be pulled;
+`install.sh` creates the bucket with the `mc` inside that container.
 
 Shared contracts:
 - Kafka events: [`shared/schemas/events.md`](../shared/schemas/events.md)
@@ -158,6 +161,13 @@ running. `make run | up | down | logs | reset | test | e2e` are shortcuts
 
 Teardown: `docker compose down` (keeps data) or `docker compose down -v`
 (deletes all volumes).
+
+Before a demo: `./scripts/reset-demo.sh` backs up Postgres and MinIO to
+`.run/backups/`, deletes only the data volumes (model caches, the
+sanctions list and ClamAV signatures stay), restarts, seeds, and runs the
+five demo scenarios so the history comes from the real flows (~3 min;
+`--yes` skips the question). The e2e suites leave test data behind, so
+run it after them.
 
 ## Configuration
 
@@ -315,14 +325,16 @@ the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit
 
 | Command | What | Result |
 |---|---|---|
-| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 17: 823 passed (contract-risk 198, approval-inventory 178, document-vendor 328, notification 54, auth 65) |
-| root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | 123 passed, 1 failed (`test_mailer`: `.env.example` points at Gmail, not Mailpit), 4 skipped; `test_email_action.py` needs `redis` in the image |
+| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 17: 823 passed (contract-risk 198, approval-inventory 178, document-vendor 328, notification 54, auth 65); Oct 18 after UX-1: auth 74, notification 58 |
+| root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | Oct 18: 142 + 14 passed, 4 skipped (the chatbot's live script) |
 | `make e2e` | Bash flow through the gateway: login, ClamAV reject/accept, request → approve → contract → signed webhook → risk → email → business-rule change | 17/17 (Sep 28) |
 | `python tests/e2e/auth_flows.py` | Sign-up → email → confirm → login → change password → logout → forgot/reset, expired / reused links, lockout, enumeration, rate limit (reads Mailpit) | 42/42 |
 | `python tests/e2e/invoice_lifecycle.py` | One fresh vendor's quote + invoice through all five agents, no DB shortcuts | 71/71 (adds auto-send after approval, mark-as-received, risk signal coverage) |
 | `python -m pytest tests/e2e/test_flow.py` | Core flow + webhook bad-signature / replay | passed |
 | `python tests/e2e/document_pipeline.py [--quick]` | Normal / huge / corrupt / empty / wrong-type / pathological files, duplicates, outages | 52/52 (`--quick`, Oct 15) |
 | `python tests/e2e/ui_flows.py` | Browser (Playwright): back arrow, clickable lifecycle, approve and sign from lifecycle steps, approval-inbox routing, license page's open-request panel | 11/11 (needs `pip install playwright && python -m playwright install chromium`) |
+| `python tests/e2e/demo_scenarios.py` | The five demo scenarios performed in a browser and checked → `docs/demo-script.html` | 18/18 |
+| `python tests/e2e/demo_5min.py` | The 5-minute demo (`docs/demo-5min.md`) rehearsed and recorded → `docs/demo/backup-recording.webm` | 6/6 (Oct 18, 4 runs) |
 | `cd frontend && npm run typecheck` | TypeScript | clean |
 
 ```bash
@@ -334,6 +346,8 @@ pip install -r tests/e2e/requirements.txt
 python tests/e2e/showcase_screens.py
 # the demo script: five scenarios performed and checked live → docs/demo-script.html (~5 min)
 python tests/e2e/demo_scenarios.py
+# the 5-minute demo, rehearsed and recorded → docs/demo/backup-recording.webm
+python tests/e2e/demo_5min.py
 ```
 
 `scripts/test-service.sh` mounts `data/` read-only, so tests on the demo
@@ -372,9 +386,11 @@ shared/
 frontend/        React + TypeScript + Vite + Tailwind: src/pages (one home page per item), src/api (one module per agent),
                  src/components/<agent>/ (each agent's action panels); legacy-static/ = old version, unused
 infra/           nginx/nginx.conf, redpanda/ (acls.conf, bootstrap.sh), prometheus/, grafana/ (k8s/ is empty)
-tests/           root tests; e2e/ (run.sh, auth_flows.py, invoice_lifecycle.py, document_pipeline.py, test_flow.py, ui_flows.py)
+tests/           root tests; e2e/ (run.sh, auth_flows.py, invoice_lifecycle.py, document_pipeline.py, test_flow.py, ui_flows.py,
+                 showcase_screens.py, demo_scenarios.py, demo_5min.py)
 data/            synthetic datasets + provenance READMEs
-scripts/         test-service.sh, seed-demo-data.sh, download-models.sh, ensure-docker.sh, ci-build.sh, generate_sso_logs.py
+scripts/         test-service.sh, test-root.sh, seed-demo-data.sh, reset-demo.sh, download-models.sh, ensure-docker.sh, ci-build.sh,
+                 generate_sso_logs.py
 run.sh, install.sh, Makefile, docker-compose.yml, docker-compose.override.yml, .env.example, simulate_esign.py
 ```
 
@@ -638,6 +654,11 @@ work).
 - **LayoutLMv3 "skipped_model_unavailable"**: run `./scripts/download-models.sh`.
 - **ClamAV unhealthy / uploads 503**: it needs ~1 GB RAM; raise Docker's
   memory limit.
+- **`minio/minio` or `minio/mc` won't pull**: they left Docker Hub and
+  quay.io; the compose file uses `pgsty/minio` — pull again from a current
+  checkout.
+- **Leftover "E2E Test Vendor" / "Zenith Test Systems" rows**: e2e test
+  data; `./scripts/reset-demo.sh` clears it (it backs up first).
 
 ## Data provenance
 

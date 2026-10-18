@@ -17,11 +17,14 @@ claim · **[X]** evaluates the claim · **[O]** optional, can be dropped.
 - [x] R0 items FR-01, FR-02, FR-03, FR-06, FR-07, FR-30
 - [x] Fixes: 400 on out-of-stock requests, no ₹0 split requests, vendor
       page reload
+- [x] UI pass: dark mode, names instead of emails, clickable figures, one
+      System page, unread-only notification bell [UX-1] (Oct 18)
+- [x] MinIO image replaced so a fresh clone starts again [REPRO-1] (Oct 18)
 
 ## Phase 0 — Unblock (today)
 
-- [ ] Terminate the six stale approval workflows and cancel request
-      `90261afb` [OPS-1] **[E]**
+- [x] Terminate the six stale approval workflows and cancel request
+      `90261afb` [OPS-1] **[E]** — cleared by the Oct 18 demo-data reset
 - [ ] Decide the drift-check minimum sample (e.g. 30 vendors) [DRIFT-1] **[E]**
 
 **Done when:** no `approval-…` workflow is left Running for a deleted or
@@ -29,7 +32,7 @@ dead request.
 
 ## Phase 1 — Finish what the presentation needs (by Oct 31)
 
-- [ ] A teammate runs `docs/demo-script.html` by hand from a fresh `./run.sh` (the script itself is done and checked 18/18 by `tests/e2e/demo_scenarios.py`) [FR-05] **[E]**
+- [ ] A teammate runs `docs/demo-5min.md` (or the full `docs/demo-script.html`) by hand after `./scripts/reset-demo.sh` (scripts done: full one 18/18 by `tests/e2e/demo_scenarios.py`, 5-minute cut 6/6 by `tests/e2e/demo_5min.py`, backup recording in `docs/demo/`) [FR-05] **[E]**
 - [x] Draft the presentation from the templates [FR-12] **[E]** — paste into the Word templates left
 - [x] Add retry + DLQ to the notification consumer; tell Anooj [FR-31] **[E]**
 - [x] Make model routing/fallback visible in a demo [FR-08] **[E]**
@@ -85,8 +88,8 @@ paper will use, negative results included.
 - [ ] Put the gate behind rule `document.review_policy`, heuristic
       default; show evidence on the review page [RS-11] **[E]**
 - [ ] Run the tests in CI [FR-25] **[E]**
-- [ ] Fix the two failing root tests (one is Anooj's) [TEST-1] **[E]**
-- [ ] Do the fresh-clone rehearsal in the UTM Ubuntu VM [FR-26] **[E]**
+- [x] Fix the two failing root tests (one is Anooj's) [TEST-1] **[E]**
+- [ ] Do the fresh-clone rehearsal in the UTM Ubuntu VM [FR-26] **[E]** — macOS build from a clean copy passes; the VM run is left
 - [ ] Close the security P1s [FR-27] **[E]**
 - [ ] Final documentation pass [FR-28] **[E]**
 
@@ -112,8 +115,8 @@ in parallel because of the end-of-October deadline.
 
 ## Next three actions
 
-1. Terminate the stale workflows [OPS-1].
-2. Write the demo script [FR-05].
+1. A teammate rehearses the 5-minute demo on reset data [FR-05].
+2. Finish the red-team list for the risk write-up [FR-04].
 3. Start the procurement-world generator with a 300-document pilot [RS-02].
 
 ## Most important unresolved dependency
