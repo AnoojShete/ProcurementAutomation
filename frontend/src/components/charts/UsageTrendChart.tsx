@@ -82,7 +82,7 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
         <span>Total Licensed: {totalSeats} seats</span>
       </div>
 
-      <div className="relative overflow-hidden rounded-lg border border-slate-100 bg-white p-2">
+      <div className="relative overflow-hidden rounded-lg border border-slate-100 bg-sheet p-2">
         <svg
           viewBox="0 0 800 220"
           className="h-56 w-full overflow-visible"
@@ -90,8 +90,8 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
         >
           <defs>
             <linearGradient id="usageGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+              <stop offset="0%" style={{ stopColor: "rgb(var(--accent))" }} stopOpacity="0.25" />
+              <stop offset="100%" style={{ stopColor: "rgb(var(--accent))" }} stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
@@ -101,7 +101,7 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
             const val = Math.round(maxVal - (maxVal - minVal) * ratio);
             return (
               <g key={ratio}>
-                <line x1="45" y1={y} x2="780" y2={y} stroke="#f1f5f9" strokeWidth="1" />
+                <line x1="45" y1={y} x2="780" y2={y} className="stroke-rule" strokeWidth="1" />
                 <text x="38" y={y + 4} textAnchor="end" className="fill-slate-400 text-caption">
                   {val}
                 </text>
@@ -115,7 +115,7 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
             y1={thresholdY}
             x2="780"
             y2={thresholdY}
-            stroke="#f43f5e"
+            className="stroke-danger-500"
             strokeWidth="1.5"
             strokeDasharray="4 4"
           />
@@ -128,7 +128,7 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
             <path
               d={pathD}
               fill="none"
-              stroke="#2563eb"
+              className="stroke-accent"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -157,7 +157,7 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
                 y1="20"
                 x2={hoveredPoint.x}
                 y2="185"
-                stroke="#94a3b8"
+                className="stroke-ink-3"
                 strokeWidth="1"
                 strokeDasharray="2 2"
               />
@@ -165,8 +165,7 @@ export function UsageTrendChart({ data, thresholdSeats, totalSeats }: UsageTrend
                 cx={hoveredPoint.x}
                 cy={hoveredPoint.y}
                 r="5"
-                fill="#2563eb"
-                stroke="#ffffff"
+                className="fill-accent stroke-sheet"
                 strokeWidth="2"
               />
             </g>

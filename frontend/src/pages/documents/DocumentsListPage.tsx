@@ -100,7 +100,6 @@ export function DocumentsListPage() {
             loading={loading}
             onRowClick={(d) => navigate(`/app/documents/${d.id}`)}
             emptyTitle={scope === "needs-review" ? "No documents require review" : "No documents yet"}
-            emptyDescription="Uploaded purchase orders, invoices, and quotes will appear here once processed."
           />
         </CardBody>
       </Card>

@@ -185,7 +185,7 @@ export function ReliabilityPanel({ showcase }: { showcase: boolean }) {
               aria-label="Filter dead-letter events"
               value={dlqFilter}
               onChange={(e) => setDlqFilter(e.target.value as typeof dlqFilter)}
-              className="h-7 rounded-md border border-surface-border bg-white px-2 text-xs"
+              className="h-7 rounded-md border border-surface-border bg-sheet px-2 text-xs"
             >
               <option value="open">Open</option>
               <option value="replayed">Replayed</option>

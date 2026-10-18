@@ -44,7 +44,7 @@ async def main():
         await pg.go_forward(); await pg.wait_for_timeout(1500)
 
         await pg.get_by_role("button", name="Request created", exact=True).click(); await pg.wait_for_timeout(300)
-        check("clicking a completed step shows its info", await pg.locator("text=Raised by requester@demo.example.com").is_visible())
+        check("clicking a completed step shows its info", await pg.locator("text=Raised by Anooj").is_visible())
         await pg.get_by_role("button", name="Approval", exact=True).click(); await pg.wait_for_timeout(300)
         await panel.get_by_role("button", name="Approve").click()
         try:

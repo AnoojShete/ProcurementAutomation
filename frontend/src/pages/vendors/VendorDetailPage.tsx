@@ -126,14 +126,14 @@ export function VendorDetailPage() {
 
       {/* The risk score lives in the Vendor Risk panel below, not twice. */}
       <LedgerStrip cols={3} label="Vendor figures">
-        <MetricCard label="Approved spend" value={formatCurrency(totalSpend)} icon={IndianRupee} />
-        <MetricCard label="Open requests" value={openRequests} icon={FileText} tone="warning" />
-        <MetricCard label="Contracts" value={vendorContracts.length} icon={ScrollText} />
+        <MetricCard label="Approved spend" value={formatCurrency(totalSpend)} icon={IndianRupee} to={`/app/requests?scope=all&vendor=${id}&status=approved,ordered,fulfilled`} />
+        <MetricCard label="Open requests" value={openRequests} icon={FileText} tone="warning" to={`/app/requests?scope=all&vendor=${id}&status=pending_approval`} />
+        <MetricCard label="Contracts" value={vendorContracts.length} icon={ScrollText} to={`/app/contracts?vendor=${id}`} />
       </LedgerStrip>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader title="Vendor Risk" subtitle="Why is this vendor rated this way?" />
+          <CardHeader title="Vendor Risk" />
           <CardBody>
             {!risk ? (
               <p className="py-6 text-center text-sm text-slate-500">This vendor hasn't been risk-scored yet.</p>

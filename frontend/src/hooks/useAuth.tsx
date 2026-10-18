@@ -1,13 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { authApi } from "@/api/auth";
 import { ApiError, endSession, hasSession, setAccessToken, setUnauthorizedHandler } from "@/api/client";
-import type { CurrentUser } from "@/types/api";
+import type { CurrentUser, ThemePreference } from "@/types/api";
 
 interface AuthContextValue {
   user: CurrentUser | null;
   status: "restoring" | "authenticated" | "unauthenticated";
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Saves your own name / theme and refreshes `user`. */
+  updateProfile: (changes: { display_name?: string; theme?: ThemePreference }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -63,7 +65,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value = useMemo(() => ({ user, status, login, logout }), [user, status, login, logout]);
+  const updateProfile = useCallback(async (changes: { display_name?: string; theme?: ThemePreference }) => {
+    const res = await authApi.updateMe(changes);
+    setUser(res.data);
+  }, []);
+
+  const value = useMemo(
+    () => ({ user, status, login, logout, updateProfile }),
+    [user, status, login, logout, updateProfile],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

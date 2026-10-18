@@ -46,6 +46,16 @@ class NotificationLog(Base):
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
+class NotificationRead(Base):
+    """One person has read one notification in the app (see
+    app/services/feed.py). Created by migrations/0001_notification_tables.sql."""
+    __tablename__ = "notification_reads"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    notification_id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
 class NotificationDigestQueue(Base):
     """Non-urgent events queued here instead of sent immediately; a
     periodic background task batches each recipient's queued rows into one

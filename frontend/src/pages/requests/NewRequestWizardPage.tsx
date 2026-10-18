@@ -222,22 +222,16 @@ function StepDetails({
 }) {
   return (
     <Card>
-      <CardHeader title="Request Details" subtitle="What are you requesting, and for which department?" />
+      <CardHeader title="Request Details" />
       <CardBody className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50/70 p-3.5 text-sm">
-          <div className="flex items-center gap-2.5">
-            <UploadCloud className="size-5 shrink-0 text-brand-600" />
-            <div>
-              <p className="font-medium text-brand-900">Have an invoice, quote, or PO?</p>
-              <p className="text-xs text-brand-700">
-                You can skip manual entry — upload your document and we'll auto-extract the vendor, amount, and details.
-              </p>
-            </div>
-          </div>
-          <Button size="sm" variant="secondary" onClick={onSkipToDocuments}>
-            Upload a document to auto-fill
-          </Button>
-        </div>
+        <button
+          type="button"
+          onClick={onSkipToDocuments}
+          className="inline-flex items-center gap-2 self-start text-sm font-medium text-accent hover:underline"
+        >
+          <UploadCloud className="size-4 shrink-0" aria-hidden="true" />
+          Have an invoice, quote, or PO?
+        </button>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Category">
@@ -309,7 +303,7 @@ function StepVendor({
     <Card>
       <CardHeader
         title="Vendor"
-        subtitle="Select the vendor this request is for (Optional if uploading document)"
+        subtitle="Optional if you upload a document"
         action={
           <Button size="sm" variant="ghost" onClick={onSkipToDocuments}>
             Skip to document upload
@@ -358,9 +352,6 @@ function StepVendor({
           <Lock className="size-3.5" />
           Add a new vendor
         </button>
-        <p className="text-xs text-slate-400">
-          Optional — you can skip this step. If you upload an invoice or quote in the next step, the vendor is automatically recognized.
-        </p>
       </CardBody>
     </Card>
   );
@@ -420,10 +411,8 @@ function StepDocuments({
     <Card>
       <CardHeader
         title="Supporting Documents"
-        subtitle="Upload your purchase order, invoice, or quote to auto-fill details"
       />
       <CardBody className="flex flex-col gap-4">
-        <InlineInfo message="Documents are processed by Document Intelligence. Vendor, amount, and items will be automatically extracted and linked to your purchase request." />
         <FileUploader onFileSelected={handleFile} accept=".pdf,.png,.jpg,.jpeg" disabled={uploading || polling} />
         {error && <InlineError message={error} />}
         {(uploading || state.document) && (
@@ -516,7 +505,7 @@ function StepReview({
     <Card>
       <CardHeader
         title="Review & Confirm"
-        subtitle="Review extracted details below. You can adjust any values before submitting."
+        subtitle="Adjust any values before submitting."
       />
       <CardBody className="flex flex-col gap-5">
         {amount <= 0 && (
@@ -636,7 +625,7 @@ function StepSubmit({
 }) {
   return (
     <Card>
-      <CardHeader title="Submit" subtitle="Here's how this request will be routed" />
+      <CardHeader title="Submit" subtitle="How this request will be routed" />
       <CardBody className="flex flex-col gap-4">
         <div className="rounded-lg border border-surface-border p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Approval Chain</p>

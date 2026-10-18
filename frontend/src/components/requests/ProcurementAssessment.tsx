@@ -27,7 +27,7 @@ export function ProcurementAssessment({
   const chain = request.approval_chain ?? [];
 
   return (
-    <div className="rounded-md border border-surface-border bg-white">
+    <div className="rounded-md border border-surface-border bg-sheet">
       <div className="border-b border-surface-border px-4 py-2.5">
         <h3 className="text-sm font-semibold text-slate-900">Procurement checks</h3>
       </div>

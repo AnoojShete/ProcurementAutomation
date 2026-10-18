@@ -1,10 +1,10 @@
 import { ExternalLink, HeartPulse } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePageHeader } from "@/hooks/usePageTitle";
+import { usePeople } from "@/hooks/usePeople";
 import { api } from "@/api/client";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { InlineInfo } from "@/components/ui/ErrorState";
 import { INFRA_LINKS, PLATFORM_SERVICES } from "@/lib/constants";
 
 interface Quota {
@@ -21,7 +21,7 @@ interface LiveModeStatus {
 }
 
 export function SystemHealthPage() {
-  usePageHeader("System Health");
+  usePageHeader("System Health", "System");
   const [liveMode, setLiveMode] = useState<LiveModeStatus | null>(null);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export function SystemHealthPage() {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader title="Live Verification Mode" subtitle="Real registry calls are limited by the shared safety quota." />
+        <CardHeader title="Live Verification Mode" />
         <CardBody>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <button
@@ -69,10 +69,9 @@ export function SystemHealthPage() {
           {liveMode?.message && <p className="mt-3 text-sm text-rose-600">{liveMode.message}</p>}
         </CardBody>
       </Card>
-      <InlineInfo message="The API gateway only proxies business endpoints (/api/requests, /api/documents, …) — each service's own /health check isn't exposed through it, so live per-service status can't be polled from this page. Use Grafana for real-time metrics." />
 
       <Card>
-        <CardHeader title="Kafka Consumer Lag" subtitle="Live view of unconsumed messages by group" />
+        <CardHeader title="Kafka Consumer Lag" />
         <CardBody>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <LagMonitor />
@@ -81,7 +80,7 @@ export function SystemHealthPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Model Routing Log" subtitle="Recent routing decisions" />
+        <CardHeader title="Model Routing Log" />
         <CardBody>
           <RoutingLog />
         </CardBody>
@@ -90,7 +89,6 @@ export function SystemHealthPage() {
       <Card>
         <CardHeader
           title="SSO Usage Anomaly Model Runs"
-          subtitle="Isolation Forest execution state, license scoring deltas, and insufficient history tracking"
         />
         <CardBody>
           <SsoUsageModelMonitor />
@@ -99,7 +97,7 @@ export function SystemHealthPage() {
 
 
       <Card>
-        <CardHeader title="Live Activity Feed" subtitle="Recent notifications and events" />
+        <CardHeader title="Live Activity Feed" />
         <CardBody>
           <ActivityFeed />
         </CardBody>
@@ -112,7 +110,6 @@ export function SystemHealthPage() {
               <HeartPulse className="size-4 text-brand-600" /> Platform Services
             </span>
           }
-          subtitle="What each service owns in the procurement pipeline"
         />
         <CardBody>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -130,7 +127,7 @@ export function SystemHealthPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Observability Tools" subtitle="Detailed metrics, workflow execution, and model tracking live in these separate tools" />
+        <CardHeader title="Observability Tools" />
         <CardBody>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {INFRA_LINKS.map((link) => (
@@ -220,6 +217,7 @@ function RoutingLog() {
 }
 
 function ActivityFeed() {
+  const { nameFor } = usePeople();
   const [activities, setActivities] = useState<any[]>([]);
   useEffect(() => {
     const fetchAct = () => api.get<any[]>("/notifications/log?limit=10").then(r => setActivities(r.data)).catch(() => {});
@@ -235,7 +233,7 @@ function ActivityFeed() {
         <div key={idx} className="flex justify-between items-center text-sm border-b pb-2">
           <div>
             <span className="font-medium text-slate-700">{a.template_name}</span>
-            <span className="ml-2 text-slate-500">to {a.recipient} via {a.channel}</span>
+            <span className="ml-2 text-slate-500">to {nameFor(a.recipient)} via {a.channel}</span>
           </div>
           <span className="text-xs text-slate-400">{new Date(a.created_at).toLocaleTimeString()}</span>
         </div>
@@ -295,7 +293,7 @@ function SsoUsageModelMonitor() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between rounded-lg border border-slate-100 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between rounded-lg border border-slate-100 bg-sheet p-3">
         <span className="font-medium text-slate-700">Distribution Overview:</span>
         <div className="flex flex-wrap gap-2 text-xs">
           <Badge tone="danger">{summary.anomalous} Anomalous</Badge>

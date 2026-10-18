@@ -24,6 +24,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Tabs } from "@/components/ui/Tabs";
 import { ErrorState, InlineInfo } from "@/components/ui/ErrorState";
 import { formatDateTime } from "@/lib/format";
+import { PersonName } from "@/components/people/PersonName";
 
 const CATEGORY_TABS = [
   { key: "approval", label: "Approval" },
@@ -48,7 +49,7 @@ const VALUE_TYPE_BADGES: Record<string, { label: string; tone: "brand" | "intel"
 };
 
 export function BusinessRulesPage() {
-  usePageHeader("Business Rules");
+  usePageHeader("Business Rules", "System");
 
   const [activeTab, setActiveTab] = useState("approval");
   const [rulesGrouped, setRulesGrouped] = useState<Record<string, BusinessRule[]>>({});
@@ -270,7 +271,6 @@ export function BusinessRulesPage() {
       <Card>
         <CardHeader
           title="Business Rules Configuration"
-          subtitle="Inspect and fine-tune operational parameters, spend tiers, SLAs, and fraud tolerance across all services."
         />
         <div className="px-5 pt-2">
           <Tabs tabs={CATEGORY_TABS} active={activeTab} onChange={(k) => { setActiveTab(k); setSearchQuery(""); }} />
@@ -293,19 +293,19 @@ export function BusinessRulesPage() {
                   placeholder="Filter by rule key..."
                   value={historyFilter.rule_key || ""}
                   onChange={(e) => setHistoryFilter({ ...historyFilter, rule_key: e.target.value || undefined })}
-                  className="rounded-md border border-surface-border bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm"
+                  className="rounded-md border border-surface-border bg-sheet px-2.5 py-1.5 text-xs text-slate-800 shadow-sm"
                 />
                 <input
                   type="text"
                   placeholder="Changed by (user / email)..."
                   value={historyFilter.changed_by || ""}
                   onChange={(e) => setHistoryFilter({ ...historyFilter, changed_by: e.target.value || undefined })}
-                  className="rounded-md border border-surface-border bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm"
+                  className="rounded-md border border-surface-border bg-sheet px-2.5 py-1.5 text-xs text-slate-800 shadow-sm"
                 />
                 <select
                   value={historyFilter.category || ""}
                   onChange={(e) => setHistoryFilter({ ...historyFilter, category: e.target.value || undefined })}
-                  className="rounded-md border border-surface-border bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm"
+                  className="rounded-md border border-surface-border bg-sheet px-2.5 py-1.5 text-xs text-slate-800 shadow-sm"
                 >
                   <option value="">All Categories</option>
                   <option value="approval">Approval</option>
@@ -354,7 +354,7 @@ export function BusinessRulesPage() {
                         <tr key={item.id} className="hover:bg-slate-50">
                           <td className="py-2.5 px-3 font-mono font-medium text-slate-900">{item.rule_key}</td>
                           <td className="py-2.5 px-3 whitespace-nowrap text-slate-500">{formatDateTime(item.changed_at)}</td>
-                          <td className="py-2.5 px-3 text-slate-700">{item.changed_by}</td>
+                          <td className="py-2.5 px-3 text-slate-700"><PersonName email={item.changed_by} /></td>
                           <td className="py-2.5 px-3 font-mono text-slate-600 max-w-44 truncate" title={JSON.stringify(item.old_value)}>
                             {JSON.stringify(item.old_value)}
                           </td>
@@ -381,7 +381,7 @@ export function BusinessRulesPage() {
                     aria-label="Search rules in this section"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-lg border border-surface-border bg-white pl-9 pr-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-lg border border-surface-border bg-sheet pl-9 pr-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
                   />
                 </div>
                 <span className="text-xs text-slate-500">
@@ -400,7 +400,7 @@ export function BusinessRulesPage() {
                     return (
                       <div
                         key={rule.rule_key}
-                        className="flex flex-col justify-between rounded-xl border border-surface-border bg-white p-4 shadow-subtle hover:border-slate-300 transition-all sm:flex-row sm:items-center gap-4"
+                        className="flex flex-col justify-between rounded-xl border border-surface-border bg-sheet p-4 shadow-subtle hover:border-slate-300 transition-all sm:flex-row sm:items-center gap-4"
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -548,7 +548,7 @@ export function BusinessRulesPage() {
                     max={editingRule.max_value ?? undefined}
                     value={editValue}
                     onChange={(e) => setEditValue(parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-md border border-surface-border bg-white pl-7 pr-3 py-1.5 text-sm text-slate-800 shadow-sm"
+                    className="w-full rounded-md border border-surface-border bg-sheet pl-7 pr-3 py-1.5 text-sm text-slate-800 shadow-sm"
                   />
                   {editingRule.min_value !== null && editingRule.max_value !== null && (
                     <p className="mt-1 text-caption text-slate-500">
@@ -565,7 +565,7 @@ export function BusinessRulesPage() {
                     max={editingRule.max_value ?? 1}
                     value={editValue}
                     onChange={(e) => setEditValue(parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-md border border-surface-border bg-white pl-3 pr-7 py-1.5 text-sm text-slate-800 shadow-sm"
+                    className="w-full rounded-md border border-surface-border bg-sheet pl-3 pr-7 py-1.5 text-sm text-slate-800 shadow-sm"
                   />
                   <span className="absolute right-3 top-2 text-sm text-slate-500">
                     {editingRule.max_value && editingRule.max_value <= 1 ? "rate (0-1)" : "%"}
@@ -589,7 +589,7 @@ export function BusinessRulesPage() {
                           .filter((n) => !isNaN(n));
                         setEditValue(parsed);
                       }}
-                      className="w-full rounded-md border border-surface-border bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm"
+                      className="w-full rounded-md border border-surface-border bg-sheet px-3 py-1.5 text-sm text-slate-800 shadow-sm"
                     />
                     <p className="mt-1 text-caption text-slate-500">Comma-separated integers in descending order</p>
                   </div>
@@ -602,7 +602,7 @@ export function BusinessRulesPage() {
                       max={editingRule.max_value ?? undefined}
                       value={editValue}
                       onChange={(e) => setEditValue(parseInt(e.target.value) || 0)}
-                      className="w-full rounded-md border border-surface-border bg-white pl-3 pr-14 py-1.5 text-sm text-slate-800 shadow-sm"
+                      className="w-full rounded-md border border-surface-border bg-sheet pl-3 pr-14 py-1.5 text-sm text-slate-800 shadow-sm"
                     />
                     <span className="absolute right-3 top-2 text-xs text-slate-500">{editingRule.value_type}</span>
                     {editingRule.min_value !== null && editingRule.max_value !== null && (
@@ -625,7 +625,7 @@ export function BusinessRulesPage() {
                         editingRule.value_type === "float" ? parseFloat(e.target.value) || 0 : parseInt(e.target.value) || 0,
                       )
                     }
-                    className="w-full rounded-md border border-surface-border bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm"
+                    className="w-full rounded-md border border-surface-border bg-sheet px-3 py-1.5 text-sm text-slate-800 shadow-sm"
                   />
                   {editingRule.min_value !== null && editingRule.max_value !== null && (
                     <p className="mt-1 text-caption text-slate-500">
@@ -644,7 +644,7 @@ export function BusinessRulesPage() {
                       setEditValue(e.target.value);
                     }
                   }}
-                  className="w-full font-mono text-xs rounded-md border border-surface-border bg-white p-2 text-slate-800 shadow-sm"
+                  className="w-full font-mono text-xs rounded-md border border-surface-border bg-sheet p-2 text-slate-800 shadow-sm"
                 />
               )}
             </div>
@@ -659,7 +659,7 @@ export function BusinessRulesPage() {
                 placeholder="Explain the business rationale for modifying this rule (e.g. quarterly policy update approved by VP Finance)..."
                 value={editJustification}
                 onChange={(e) => setEditJustification(e.target.value)}
-                className="w-full rounded-md border border-surface-border bg-white p-2.5 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
+                className="w-full rounded-md border border-surface-border bg-sheet p-2.5 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
               />
               <div className="flex justify-between text-caption text-slate-500 mt-1">
                 <span>Required for audit trail and compliance.</span>
@@ -730,7 +730,7 @@ export function BusinessRulesPage() {
                 placeholder="Reason for restoring system default value..."
                 value={resetJustification}
                 onChange={(e) => setResetJustification(e.target.value)}
-                className="w-full rounded-md border border-surface-border bg-white p-2 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
+                className="w-full rounded-md border border-surface-border bg-sheet p-2 text-xs text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none"
               />
               <div className="text-right text-caption text-slate-500 mt-1">
                 <span className={resetJustification.trim().length < 10 ? "text-rose-500 font-medium" : "text-emerald-600 font-medium"}>
@@ -835,7 +835,7 @@ function SpendTiersEditor({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-surface-border bg-white">
+      <div className="overflow-x-auto rounded-lg border border-surface-border bg-sheet">
         <table className="w-full text-left text-xs">
           <thead className="border-b border-surface-border bg-surface-subtle font-semibold text-slate-700">
             <tr>

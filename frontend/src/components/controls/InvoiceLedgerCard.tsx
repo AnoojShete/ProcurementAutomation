@@ -15,7 +15,7 @@ export function InvoiceLedgerCard({ requestId, currency = "INR" }: { requestId: 
 
   return (
     <Card>
-      <CardHeader title="Invoice ledger" subtitle="Invoices booked against this request's lines" />
+      <CardHeader title="Invoice ledger" />
       <CardBody className="flex flex-col gap-3 text-13">
         <div>
           <div className="flex justify-between text-slate-600">

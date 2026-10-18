@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Boxes, PackageCheck, PackageMinus, PackageX, Pencil } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
@@ -41,6 +42,13 @@ export function InventoryPage() {
     [hardware],
   );
   const toReorder = hardware.filter((i) => i.reorder?.needs_reorder);
+
+  // Figures (here and on the dashboard, via #reorder) jump to their list.
+  const { hash } = useLocation();
+  const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  useEffect(() => {
+    if (snapshot && hash) jumpTo(hash.slice(1));
+  }, [snapshot, hash]);
 
   const hwColumns: Column<InventoryItem>[] = [
     { key: "name", header: "Item", render: (i) => <span className="font-medium text-slate-800">{i.name}</span> },
@@ -114,7 +122,7 @@ export function InventoryPage() {
       render: (l) => (
         <a
           href={`/app/licenses/${l.id}`}
-          className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-slate-200 bg-sheet px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
           Details
         </a>
@@ -128,15 +136,15 @@ export function InventoryPage() {
   return (
     <div className="flex flex-col gap-6">
       <LedgerStrip cols={4} label="Inventory figures">
-        <MetricCard label="Available Units" value={totals.available} icon={PackageCheck} tone="success" />
-        <MetricCard label="Reserved Units" value={totals.reserved} icon={Boxes} tone="brand" />
-        <MetricCard label="SKUs to Reorder" value={totals.lowStock} icon={PackageMinus} tone={totals.lowStock ? "warning" : "success"} />
-        <MetricCard label="Requests Partially Backordered" value={backorderedRequests.length} icon={PackageX} tone={backorderedRequests.length ? "warning" : "success"} />
+        <MetricCard label="Available Units" value={totals.available} icon={PackageCheck} tone="success" onClick={() => { setTab("hardware"); jumpTo("stock"); }} />
+        <MetricCard label="Reserved Units" value={totals.reserved} icon={Boxes} tone="brand" onClick={() => { setTab("hardware"); jumpTo("stock"); }} />
+        <MetricCard label="SKUs to Reorder" value={totals.lowStock} icon={PackageMinus} tone={totals.lowStock ? "warning" : "success"} onClick={() => jumpTo(toReorder.length ? "reorder" : "stock")} />
+        <MetricCard label="Requests Partially Backordered" value={backorderedRequests.length} icon={PackageX} tone={backorderedRequests.length ? "warning" : "success"} to="/app/requests?backordered=1" />
       </LedgerStrip>
 
       {toReorder.length > 0 && (
-        <Card>
-          <CardHeader title="Reorder Suggestions" subtitle="From stock on the shelf and backordered requests" />
+        <Card id="reorder" className="scroll-mt-4">
+          <CardHeader title="Reorder Suggestions" />
           <CardBody className="flex flex-col gap-2">
             {toReorder.map((i) => (
               <div key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-surface-border px-3.5 py-2.5 text-sm">
@@ -153,6 +161,7 @@ export function InventoryPage() {
         </Card>
       )}
 
+      <div id="stock" className="scroll-mt-4" />
       <Tabs
         tabs={[
           { key: "hardware", label: "Hardware", count: hardware.length },
@@ -165,7 +174,6 @@ export function InventoryPage() {
       <Card>
         <CardHeader
           title={tab === "hardware" ? "Hardware Inventory" : "License Inventory"}
-          subtitle={tab === "hardware" ? "Reorder point and quantity are set per item, or default to a share of total stock (Business Rules)" : "Utilisation is measured over rolling 30/60/90-day windows"}
         />
         <CardBody>
           {tab === "hardware" ? (
@@ -182,7 +190,7 @@ export function InventoryPage() {
 
       {backorderedRequests.length > 0 && (
         <Card>
-          <CardHeader title="Partial Fulfillment" subtitle="Requests where demand exceeded available stock" />
+          <CardHeader title="Partial Fulfillment" />
           <CardBody className="flex flex-col gap-2">
             {backorderedRequests.map((r) => (
               <div key={r.id} className="flex items-center justify-between rounded-lg border border-warning-50 bg-warning-50/40 px-3.5 py-2.5 text-sm">

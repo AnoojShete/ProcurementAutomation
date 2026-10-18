@@ -185,10 +185,10 @@ evidence for FR/BR items are in Part B under the same ID.
 
 | ID | Task | Status | Pri | Depends on | Files | Acceptance | For |
 |---|---|---|---|---|---|---|---|
-| OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | BLOCKED (permission; Oct 17: tried again, blocked by Claude Code's permission check; the two other open `approval-` workflows, `0ca1ad3a`/`adbfc130`, are live licence reclaims, leave them) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
-| REPRO-1 | Replace the MinIO image: `minio/minio` (and `minio/mc`, used by `install.sh`) can no longer be pulled from Docker Hub or quay.io, so a fresh clone can't start | PENDING (decision) | P0 | user | `docker-compose.yml`, `install.sh` | `docker compose pull` works on a clean machine; uploads and downloads pass e2e | Core |
+| OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | COMPLETE (Oct 18: the demo-data reset (user's choice) cleared Temporal's state with Postgres, so 0 open approval workflows and PR `90261afb` is gone; before that: BLOCKED (permission; Oct 17: tried again, blocked by Claude Code's permission check; the two other open `approval-` workflows, `0ca1ad3a`/`adbfc130`, are live licence reclaims, leave them) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
+| REPRO-1 | Replace the MinIO image: `minio/minio` (and `minio/mc`, used by `install.sh`) can no longer be pulled from Docker Hub or quay.io, so a fresh clone can't start | COMPLETE (Oct 18: `pgsty/minio:RELEASE.2026-08-04T00-00-00Z`, the community continuation, chosen by the user; volume backed up first to `.run/backups/miniodata-20261018-0006.tgz`; 373 objects before and after, old documents download through the API, document pipeline e2e 52/52; `install.sh` runs `mc` inside the MinIO container; `test_images_are_pinned` allows no exceptions) | P0 | user | `docker-compose.yml`, `install.sh` | `docker compose pull` works on a clean machine; uploads and downloads pass e2e | Core |
 | SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
-| FR-05 | Demo script | PARTIAL (`docs/demo-script.html`, verified 18/18 by `tests/e2e/demo_scenarios.py`; a teammate's run left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
+| FR-05 | Demo script | PARTIAL (`docs/demo-script.html`, verified 18/18 by `tests/e2e/demo_scenarios.py`; Oct 18: 5-minute cut `docs/demo-5min.md` with checked fallbacks, rehearsed 6/6 by `tests/e2e/demo_5min.py` (4 runs, 35–42 s of actions), backup recording `docs/demo/backup-recording.webm`, `scripts/reset-demo.sh` for a clean demo state (run end to end: 2 min 23 s); a teammate's run left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
 | FR-12 | Presentation draft, template-shaped docs | COMPLETE (team pastes into templates) | P1 | FR-05 | `docs/results/`, `docs/presentation-outline.md` | Draft reviewed by team | Core |
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
 | FR-08 | Model routing and fallback, demonstrable | COMPLETE | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
@@ -204,6 +204,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-15/16 | PySpark / Kubernetes claims | BLOCKED (decision) | P3 | user | — | Built or removed from docs | Core |
 | FR-17/18/19 | DB & storage pages, trace view, re-verify minutes | PENDING | P2 | — | frontend | Part B "Done when" | Core |
 | FR-20…24 | R2 competitive features (delivery alerts, scorecard, report, SaaS overlap, MCP) | PENDING | P3 | R0 + R1 done, and only if asked | — | Part B "Done when" | Core |
+| UX-1 | UI pass: dark mode, clickable figures, one System page, names not emails, lavender Fulfilled, less text, unread-only bell | COMPLETE (Oct 18; see Part B) | P1 | — | frontend, auth-service `0013`, notification-agent feed | Each item verified live; badge counts unread only | Core |
 
 ### Testing, deployment and documentation (R3, November)
 
@@ -211,7 +212,7 @@ evidence for FR/BR items are in Part B under the same ID.
 |---|---|---|---|---|---|---|
 | FR-25 | CI runs the service suites and root tests | PENDING | P1 | — | CI fails on a failing test | Core |
 | TEST-1 | Fix pre-existing failing root tests (`test_mailer`; `test_email_action` needs `redis` — Anooj) | COMPLETE (Oct 17: `test-root.sh` 139 passed + 14 passed, 4 skipped = chatbot live script) | P1 | — | Root suite green | Core |
-| FR-26 | Fresh-clone rehearsal on Ubuntu (UTM) | PARTIAL (Oct 18, macOS: from a copy holding only what a clone would (tracked + new unignored files, no `.env`/`dist`/`secrets`), all 6 service images and the frontend build; every third-party image is pullable **except MinIO** (REPRO-1). Not run as a second stack: Docker's 7.75 GB is mostly used by the live one. Still open: a full run on the VM) | P1 | VM | `docs/results/fresh-clone.md` with times | Core |
+| FR-26 | Fresh-clone rehearsal on Ubuntu (UTM) | PARTIAL (Oct 18, macOS: from a copy holding only what a clone would (tracked + new unignored files, no `.env`/`dist`/`secrets`), all 6 service images and the frontend build; every third-party image is pullable (MinIO after REPRO-1). Not run as a second stack: Docker's 7.75 GB is mostly used by the live one. Still open: a full run on the VM) | P1 | VM | `docs/results/fresh-clone.md` with times | Core |
 | FR-27 | Security P1s (dependency upgrades etc.) | PENDING | P1 | — | Part B list closed | Core |
 | FR-28 | Final documentation pass | PENDING | P1 | all | Templates filled | Both |
 
@@ -1195,6 +1196,43 @@ before any other roadmap item.
   through `shared/mailer.py` since Oct 11, SMTP with `EMAIL_MODE=smtp`.)*
 - [ ] Assistant/chatbot must call `/orders/summary/latest` with a staff or
   service token (requesters get 403).
+
+### UX-1 — UI pass (Oct 18)
+
+- **Dark mode**: `:root[data-theme="dark"]` in `frontend/src/styles/tokens.css`
+  redefines every token; Tailwind's `white` now means "text on a solid
+  fill" (`--on-fill`), surfaces use `sheet`. Saved per account
+  (`auth_users.theme`, migration `0013_user_profile`, `PATCH /auth/me`),
+  applied before first paint by `public/theme-init.js`. Account settings →
+  Appearance: Light / Dark / Match device.
+- **Names**: `auth_users.display_name`; `seed_demo_users.py` names the
+  demo accounts Anjali (admin), Niraj (finance), Anooj (requester),
+  Vaidehi (approver); `approver2@` has none. `GET /auth/people` feeds
+  `usePeople()` / `<PersonName>`; for an admin a name opens
+  `/app/users/:id`.
+- **Notifications**: per-person read receipts (`notification_reads`);
+  `GET /notifications/feed`, `/unread-count`, `POST /{id}/read`,
+  `/read-all`. "Important" = urgent, delivered, not a digest roll-up or
+  `contract.signed`, addressed to you or a mailbox your role reads
+  (`config.yaml` `role_mailboxes`). History and the system log keep the rest.
+- **Admin nav**: one **System** item → `/app/system` (cards for System
+  Health, Users, Controls, Control Panel, Business Rules, Audit); each page
+  keeps its route.
+- **Clickable figures**: `MetricCard to=…`; lists read their filter from
+  the URL (`/app/requests?status=…&scope=…`, `/app/vendors?risk=High`,
+  `/app/contracts?renewal=60`, `/app/approvals?due=overdue`,
+  `/app/licenses?status=…`, `/app/inventory#reorder`).
+- **Fulfilled** status: lavender `received` role + package-check glyph.
+- The "SaaS procurement — Engineering" request on hold came from
+  `tests/e2e/ui_flows.py`, which creates that request as test data and
+  leaves it pending if it stops early. Not present after the Oct 18 reset.
+- *Evidence (Oct 18):* auth-service 74 passed (4 new profile tests,
+  Postgres-backed); notification-agent 58 passed incl. `tests/test_feed.py`
+  (4, real Postgres; dropping the urgent-only filter makes it fail);
+  `test-root.sh` 142 + 14 passed; `npm run build` clean; Playwright:
+  four dashboards in both themes, no page errors; badge 2 → 1 on reading
+  one → gone after "Mark all as read", still gone after reload and in a new
+  session; Dark chosen in settings applied in a fresh browser.
 
 ## P2
 

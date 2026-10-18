@@ -51,10 +51,11 @@ export const CONTRACT_TEMPLATES: { value: string; label: string }[] = [
 ];
 
 export const DEMO_ACCOUNTS: { role: string; email: string; password: string; label: string }[] = [
-  { role: "requester", email: "requester@demo.example.com", password: "DemoPass123!", label: "Requester" },
-  { role: "approver", email: "approver@demo.example.com", password: "DemoPass123!", label: "Approver" },
-  { role: "finance", email: "finance@demo.example.com", password: "DemoPass123!", label: "Finance" },
-  { role: "admin", email: "admin@demo.example.com", password: "DemoPass123!", label: "Admin" },
+  // Names match services/auth-service/seed_demo_users.py.
+  { role: "admin", email: "admin@demo.example.com", password: "DemoPass123!", label: "Anjali · Admin" },
+  { role: "finance", email: "finance@demo.example.com", password: "DemoPass123!", label: "Niraj · Finance" },
+  { role: "requester", email: "requester@demo.example.com", password: "DemoPass123!", label: "Anooj · Requester" },
+  { role: "approver", email: "approver@demo.example.com", password: "DemoPass123!", label: "Vaidehi · Approver" },
 ];
 
 export const INFRA_LINKS = [

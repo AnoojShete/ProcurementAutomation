@@ -1,3 +1,4 @@
+import { usePeople } from "@/hooks/usePeople";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Clock } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
@@ -18,6 +19,7 @@ import { formatDate, formatDateTime, titleCase } from "@/lib/format";
 export function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [params] = useSearchParams();
+  const { withNames } = usePeople();
   const { data: contract, loading, error, reload } = useApi(() => contractsApi.get(id!), [id]);
   usePageHeader(contract ? `Contract ${contract.id.slice(0, 8)}` : "Contract", "Contracts");
   const { data: vendors } = useApi(() => vendorsApi.list(200), []);
@@ -86,7 +88,7 @@ export function ContractDetailPage() {
         <div className="flex items-start gap-2 rounded-md border border-success-500/30 bg-success-50 px-4 py-2.5 text-13 text-slate-800">
           <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-600" />
           <span>
-            Signed by <span className="font-medium">{contract.signed_by ?? "the signer"}</span> on{" "}
+            Signed by <span className="font-medium">{withNames(contract.signed_by) || "the signer"}</span> on{" "}
             {formatDateTime(contract.signed_at)}. The signed copy includes a certificate of completion with the
             signing audit trail.
           </span>
@@ -108,7 +110,7 @@ export function ContractDetailPage() {
               <Row label="Next Renewal Reminder" value={contract.next_renewal_reminder ? formatDate(contract.next_renewal_reminder) : "—"} />
               <Row label="Generated" value={formatDateTime(contract.generated_at)} />
               {contract.signed_at && <Row label="Signed" value={formatDateTime(contract.signed_at)} />}
-              {contract.signed_by && <Row label="Signed By" value={contract.signed_by} />}
+              {contract.signed_by && <Row label="Signed By" value={withNames(contract.signed_by)} />}
               {contract.signature_certificate?.signer_designation && (
                 <Row label="Designation" value={contract.signature_certificate.signer_designation} />
               )}
@@ -118,7 +120,7 @@ export function ContractDetailPage() {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader title="Contract text" subtitle="As generated from the template; clause extraction runs on this text" />
+          <CardHeader title="Contract text" />
           <CardBody>
             {contract.contract_text ? (
               <pre
@@ -134,7 +136,7 @@ export function ContractDetailPage() {
             )}
 
             {contract.status === "signed" && (
-              <div className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+              <div className="mt-4 rounded-md border border-slate-200 bg-sheet p-4">
                 <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Executed Signature</h4>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
@@ -175,7 +177,7 @@ export function ContractDetailPage() {
 
       {renewalMilestones.length > 0 && (
         <Card>
-          <CardHeader title="Renewal Timeline" subtitle="Alert milestones before the notice deadline" />
+          <CardHeader title="Renewal Timeline" />
           <CardBody>
             <div className="flex flex-col gap-0 sm:flex-row">
               {renewalMilestones.map((m, i) => (

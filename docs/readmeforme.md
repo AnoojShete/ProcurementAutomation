@@ -242,22 +242,26 @@ Only :8080 is reachable from other machines; every other port is bound to
 
 ### Demo accounts
 
-Seeded when `APP_ENV=development`, password `DemoPass123!` for all:
-`requester@`, `approver@`, `approver2@`, `finance@`, `admin@demo.example.com`.
-The login page has one-click buttons for them.
+Seeded when `APP_ENV=development`, password `DemoPass123!` for all
+(`@demo.example.com`): `admin@` **Anjali**, `finance@` **Niraj**,
+`requester@` **Anooj**, `approver@` **Vaidehi**, and `approver2@` (no
+name, for separation-of-duties checks). The login page has one-click
+buttons for them. Pages show these names wherever the data holds an email.
 
 ### Roles and accounts
 
 - **requester**: create purchase requests, upload documents, see own items.
 - **approver** / **finance**: approval inbox (only levels they're assigned
   to in the approval authority matrix), licenses, vendors, risk (finance).
-- **admin**: everything, plus Users, Business Rules, System Health, Audit.
+- **admin**: everything, plus **System** (`/app/system`): cards for
+  System Health, Users, Controls, Control Panel, Business Rules and Audit.
 
 Sign-up creates a *requester* after the email is confirmed; an admin
 changes roles on **Users** (`/app/users`). A new approver also needs an
 assignment on the Controls → Approval authority tab before they can
-approve. Everyone can change their password and sign out of all devices
-on **Account** (`/app/account`, click your name in the sidebar).
+approve. Everyone can set their name, the theme (Light / Dark / Match
+device, saved on the account) and password, and sign out of all devices,
+on **Account settings** (`/app/account`, click your name in the sidebar).
 
 ### Finding your way around the app
 
@@ -282,6 +286,15 @@ on **Account** (`/app/account`, click your name in the sidebar).
   signing dialog. `?step=approval` in the URL opens a step directly.
 - **Back arrow** at the top left of every page except the dashboard (and
   on the signed-out pages, back to sign-in).
+- **Every dashboard figure opens its list**, filtered to what it counts:
+  the filter is in the URL (`/app/requests?scope=mine&status=pending_approval`,
+  `/app/vendors?risk=High`, `/app/contracts?renewal=60`,
+  `/app/approvals?due=overdue`, `/app/licenses?status=anomalous`) and a
+  chip above the list clears it.
+- **Notifications**: the bell counts unread *important* notifications
+  (urgent and delivered, sent to you or to a mailbox your role reads);
+  reading one on the Notifications page lowers it. History and the
+  system log (staff) hold everything else.
 
 API example:
 

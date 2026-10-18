@@ -59,6 +59,8 @@ cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + v
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service
 python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fails loudly if a step breaks)
 python tests/e2e/demo_scenarios.py        # the five demo scenarios, checked live → docs/demo-script.html
+python tests/e2e/demo_5min.py             # the 5-minute demo (docs/demo-5min.md) rehearsed + recorded → docs/demo/backup-recording.webm
+./scripts/reset-demo.sh                   # back up, clear the data volumes, rebuild realistic demo data (~3 min)
 ```
 
 e2e scripts need `pip install -r tests/e2e/requirements.txt` on the host.
@@ -108,6 +110,9 @@ ad-hoc pass (undefined names).
   30/min burst 20, forgot-password/resend 6/min. Running e2e suites back to
   back trips them — wait a minute between suites. `auth_flows.py` waits out
   `rate_limited` 429s itself.
+- **e2e suites leave test data** ("E2E Test Vendor", "Zenith Test Systems…",
+  `happy_invoice.pdf`) in whatever stack they run against. Before a demo,
+  `./scripts/reset-demo.sh` (it backs up first).
 - **`APP_ENV` defaults to production**: published default secrets are
   refused, no demo accounts, no showcase endpoints, `EMAIL_MODE=dev`
   refused. The compose stack sets `APP_ENV=development`.

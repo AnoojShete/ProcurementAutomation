@@ -112,8 +112,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24" role="presentation">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-popover animate-slide-up">
+      <div className="absolute inset-0 bg-scrim/40" onClick={onClose} aria-hidden="true" />
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl bg-sheet shadow-popover animate-slide-up">
         <div className="flex items-center gap-2 border-b border-surface-border px-4 py-3">
           <Search className="size-4 text-slate-400" />
           <input

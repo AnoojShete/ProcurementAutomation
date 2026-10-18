@@ -6,7 +6,7 @@
 This chapter presents the implemented system through screenshots and its main logic, reports the testing carried out, and evaluates the models against simple baselines. All screenshots were taken from the running system with the synthetic demonstration data on 16 October 2026; all test results are dated.
 
 \section{Screenshots of the System}\label{sec:screens}
-Figures~\ref{fig:scr-lifecycle} to~\ref{fig:scr-control} show the main screens of the implemented frontend. Each item has one home page that holds all its actions.
+Figures~\ref{fig:scr-lifecycle} to~\ref{fig:scr-control} show the main screens of the implemented frontend. Each item has one home page that holds all its actions: a request with its lifecycle (Figure~\ref{fig:scr-lifecycle}), a document under review (Figure~\ref{fig:scr-document}), a vendor's risk (Figure~\ref{fig:scr-vendor}), a licence flagged for reclaim (Figure~\ref{fig:scr-licence}) and a signed contract (Figure~\ref{fig:scr-contract}); the Control Panel (Figure~\ref{fig:scr-control}) shows the agents' events live.
 
 \begin{figure}[!htbp]
 \centering
@@ -54,7 +54,7 @@ s_f = c_f \cdot q, \qquad S = \frac{\sum_{f \in F} w_f\, s_f}{\sum_{f \in F} w_f
 \end{equation}
 where $F$ excludes line items when a document has none, and $\theta$ is 0.8 or a per-vendor threshold learned from reviewers' corrections. Listing~\ref{lst:confidence} shows the implementation.
 
-\begin{lstlisting}[caption={Confidence scoring and the review gate (document-vendor-agent, \texttt{confidence.py})}, label={lst:confidence}]
+\begin{lstlisting}[caption={[Confidence scoring and the review gate]Confidence scoring and the review gate (document-vendor-agent, \texttt{confidence.py})}, label={lst:confidence}]
 def build_confidence_scores(classification_confidence, field_confidences, text_quality):
     scores = {"classification": round(classification_confidence * text_quality, 3)}
     for field_name, conf in field_confidences.items():
@@ -80,7 +80,7 @@ def needs_review(overall, threshold=None):
 
 \paragraph{Race-safe stock reservation.} A short-lived Redis lock per SKU guards the check-and-decrement, while the reservation itself is stored in PostgreSQL. Each acquisition uses a fresh token so that a retry can never release another request's lock (Listing~\ref{lst:reserve}).
 
-\begin{lstlisting}[caption={Stock reservation under a Redis lock (approval-inventory-agent, \texttt{inventory\_service.py})}, label={lst:reserve}]
+\begin{lstlisting}[caption={[Stock reservation under a Redis lock]Stock reservation under a Redis lock (approval-inventory-agent, \texttt{inventory\_service.py})}, label={lst:reserve}]
 async def reserve_stock(db, redis_client, sku, request_id, quantity) -> bool:
     lock = InventoryLock(redis_client, ttl=10)  # 10s safety TTL, released in ms
     lock_token = str(uuid.uuid4())              # unique per acquisition
@@ -102,7 +102,7 @@ async def reserve_stock(db, redis_client, sku, request_id, quantity) -> bool:
 
 \paragraph{Verified, replay-safe signature callback.} The webhook is not JWT-authenticated, because the provider has no platform account. It is trusted only if an HMAC-SHA256 signature over the canonical JSON body matches, compared in constant time, and a provider event ID is accepted only once (Listing~\ref{lst:webhook}).
 
-\begin{lstlisting}[caption={HMAC verification and replay protection (contract-risk-agent, \texttt{webhook\_service.py})}, label={lst:webhook}]
+\begin{lstlisting}[caption={[HMAC verification and replay protection]HMAC verification and replay protection (contract-risk-agent, \texttt{webhook\_service.py})}, label={lst:webhook}]
 def verify_signature(payload: dict, signature: str) -> None:
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     expected = hmac.new(settings.esign_webhook_secret.encode("utf-8"), canonical, hashlib.sha256).hexdigest()
@@ -123,11 +123,11 @@ async def mark_contract_signed(db, kafka_producer, contract_id, signed_by, signe
 Testing was carried out at three levels: unit tests for each service and for the shared code, end-to-end tests through the gateway against the running stack, and black-box probes of externally visible behaviour. Every bug fixed during the two audit passes received a regression test, and each such test was checked by reverting the fix and watching it fail.
 
 \subsection{Unit Testing}
-Each service has its own pytest suite, run inside that service's Docker image with the source mounted (\code{./scripts/test-service.sh all}). The suites test logic, schemas, API behaviour and the wiring of every enforced business rule (each rule is set to two values and the test checks that behaviour changes). On 18 October 2026 all 823 tests passed, with none failing or skipped (Table~\ref{tab:unit}). A further suite tests the shared code and configuration: event outbox and dead-letter handling, the request state machine, Kafka permissions against the code, log redaction, correlation IDs, e-mail approval actions and the business-rules registry. On the same day it passed 156 tests; 4 tests of the assistant's live script were skipped because they need a running language model.
+Each service has its own pytest suite, run inside that service's Docker image with the source mounted (\code{./scripts/test-service.sh all}). The suites test logic, schemas, API behaviour and the wiring of every enforced business rule (each rule is set to two values and the test checks that behaviour changes). Re-run for this report on the evening of 17 October 2026, after the audit fixes, all 823 tests passed, with none failing or skipped (Table~\ref{tab:unit}). A further suite tests the shared code and configuration: event outbox and dead-letter handling, the request state machine, Kafka permissions against the code, log redaction, correlation IDs, e-mail approval actions and the business-rules registry. Re-run on 18 October 2026, it passed 156 tests; 4 tests of the assistant's live script were skipped because they need a running language model.
 
 \begin{table}[!htbp]
 \centering\tablestyle
-\caption{Unit tests per service (run on 18 October 2026)}\label{tab:unit}
+\caption{Unit tests per service (run on 17 October 2026)}\label{tab:unit}
 \begin{tabularx}{\textwidth}{|L{0.25\textwidth}|C{0.09\textwidth}|Y|}
 \hline
 \textbf{Service} & \textbf{Passed} & \textbf{Areas covered} \\ \hline
@@ -149,7 +149,7 @@ The end-to-end suites drive the running stack through the gateway exactly as a c
 \begin{tabularx}{\textwidth}{|L{0.30\textwidth}|Y|C{0.10\textwidth}|C{0.14\textwidth}|}
 \hline
 \textbf{Suite} & \textbf{What it exercises} & \textbf{Result} & \textbf{Date run} \\ \hline
-\code{make e2e} (gateway) & Request, approval, contract, signature, risk, notification, rule change & 17 / 17 & 18 Oct 2026 \\ \hline
+\code{make e2e} (gateway) & Request, approval, contract, signature, risk, notification, rule change & 17 / 17 & 17 Oct 2026 \\ \hline
 \code{invoice_lifecycle.py} & One vendor's quote and invoice through all five services & 71 / 71 & 17 Oct 2026 \\ \hline
 \code{document_pipeline.py --quick} & Normal, oversized, corrupt, empty and mistyped files; duplicates; outages & 52 / 52 & 17 Oct 2026 \\ \hline
 \code{auth_flows.py} & Sign-up, e-mail confirmation, password change and reset, expired and reused links, lockout, rate limits & 42 / 42 & 17 Oct 2026 \\ \hline
@@ -160,11 +160,11 @@ The end-to-end suites drive the running stack through the gateway exactly as a c
 Integration also exposed problems that unit tests could not, which were fixed centrally: the gateway did not strip the API prefix (every route returned 404), the broker advertised an unreachable address, UUID columns were typed as strings, Alembic version tables of two services collided, and ClamAV's slow start blocked the services that depended on it.
 
 \subsection{Black-box Testing}
-Black-box probes test externally visible behaviour without reference to the code. The cases in Table~\ref{tab:bb} were sent through the gateway to the running stack on 18 October 2026; the ``Before'' column records cases that the 17 October audit had found failing and that were fixed with regression tests.
+Black-box probes test externally visible behaviour without reference to the code. The cases in Table~\ref{tab:bb} were sent through the gateway to the running stack on 17 October 2026, after the audit fixes; the ``Before'' column records cases that the 17 October audit had found failing and that were fixed with regression tests.
 
 \begin{table}[!htbp]
 \centering\tablestyle
-\caption{Black-box test cases (run through the gateway on 18 October 2026)}\label{tab:bb}
+\caption{Black-box test cases (run through the gateway on 17 October 2026)}\label{tab:bb}
 \begin{tabularx}{\textwidth}{|C{0.06\textwidth}|L{0.30\textwidth}|Y|L{0.17\textwidth}|}
 \hline
 \textbf{ID} & \textbf{Scenario} & \textbf{Expected and observed result} & \textbf{Before the audit fix} \\ \hline
@@ -206,7 +206,7 @@ Extraction was measured against ground truth on 15 generated PDFs and 6 generate
 \begin{table}[!htbp]
 \centering\tablestyle
 \caption{Field-extraction accuracy by field (share of documents with the field correct)}\label{tab:extract}
-\begin{tabularx}{\textwidth}{|Y|C{0.09\textwidth}|C{0.08\textwidth}|C{0.10\textwidth}|C{0.08\textwidth}|C{0.07\textwidth}|C{0.08\textwidth}|C{0.08\textwidth}|}
+\begin{tabularx}{\textwidth}{|Y|C{0.07\textwidth}|C{0.08\textwidth}|C{0.09\textwidth}|C{0.07\textwidth}|C{0.07\textwidth}|C{0.10\textwidth}|C{0.06\textwidth}|}
 \hline
 \textbf{Input} & \textbf{Type} & \textbf{Vendor} & \textbf{Number} & \textbf{Date} & \textbf{Total} & \textbf{Currency} & \textbf{All} \\ \hline
 PDFs (15) & 100\% & 100\% & 100\% & 100\% & 100\% & 100\% & 100\% \\ \hline
@@ -221,7 +221,7 @@ The Legal-BERT model and the regular-expression rules were compared on the 102 c
 \begin{figure}[!htbp]
 \centering
 \begin{tikzpicture}
-\begin{axis}[reportbars, height=5.6cm, ymax=1.1, ylabel={F1 score}, symbolic x coords={Renewal term, Notice period, Expiration date}, xtick=data, legend entries={Regular-expression rules, Legal-BERT (CUAD)}, nodes near coords={\pgfmathprintnumber[fixed, precision=2]{\pgfplotspointmeta}}]
+\begin{axis}[reportbars, height=5.6cm, ymax=1.1, ylabel={F1 score}, symbolic x coords={Renewal term, Notice period, Expiration date}, xtick=data, legend entries={Regular-expression rules, Legal-BERT (CUAD)}, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=2]{\pgfplotspointmeta}}]
 \addplot[fill=chartA, draw=chartA] coordinates {(Renewal term,0.50) (Notice period,0.19) (Expiration date,0.02)};
 \addplot[fill=chartB, draw=chartB] coordinates {(Renewal term,0.85) (Notice period,0.80) (Expiration date,0.91)};
 \end{axis}
@@ -235,7 +235,7 @@ The anomaly model was evaluated on 600 simulated licences (seed 2026), 30\% of w
 \begin{figure}[!htbp]
 \centering
 \begin{tikzpicture}
-\begin{axis}[reportbars, height=5.8cm, ymax=1.12, ylabel={Score on 120 test licences}, symbolic x coords={Low utilisation alone, Previous model, Nine raw features, Shipped model}, xtick=data, xticklabel style={align=center, text width=2.6cm}, legend entries={ROC-AUC, Average precision}, nodes near coords={\pgfmathprintnumber[fixed, precision=3]{\pgfplotspointmeta}}]
+\begin{axis}[reportbars, height=5.8cm, ymax=1.12, ylabel={Score on 120 test licences}, symbolic x coords={Low utilisation alone, Previous model, Nine raw features, Shipped model}, xtick=data, xticklabel style={align=center, text width=2.6cm}, legend entries={ROC-AUC, Average precision}, bar width=15pt, enlarge x limits=0.14, every node near coord/.append style={font=\tiny}, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=3]{\pgfplotspointmeta}}]
 \addplot[fill=chartA, draw=chartA] coordinates {(Low utilisation alone,0.687) (Previous model,0.659) (Nine raw features,0.849) (Shipped model,0.954)};
 \addplot[fill=chartB, draw=chartB] coordinates {(Low utilisation alone,0.608) (Previous model,0.549) (Nine raw features,0.744) (Shipped model,0.873)};
 \end{axis}
@@ -249,7 +249,7 @@ The risk model was evaluated on 2,000 synthetic vendors (360 with an incident), 
 \begin{figure}[!htbp]
 \centering
 \begin{tikzpicture}
-\begin{axis}[reportbars, width=0.7\textwidth, height=5.4cm, ymax=0.5, ylabel={Incident rate}, symbolic x coords={Low, Medium, High}, xtick=data, enlarge x limits=0.3, bar width=24pt, nodes near coords={\pgfmathprintnumber[fixed, precision=3]{\pgfplotspointmeta}}]
+\begin{axis}[reportbars, width=0.7\textwidth, height=5.4cm, ymax=0.5, ylabel={Incident rate}, symbolic x coords={Low, Medium, High}, xtick=data, enlarge x limits=0.3, bar width=24pt, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=3]{\pgfplotspointmeta}}]
 \addplot[fill=chartB, draw=chartB] coordinates {(Low,0.065) (Medium,0.200) (High,0.403)};
 \end{axis}
 \end{tikzpicture}

@@ -90,6 +90,8 @@
     legend style={draw=none, font=\footnotesize, legend columns=-1, at={(0.5,1.03)}, anchor=south},
     tick label style={font=\footnotesize}, label style={font=\footnotesize},
     nodes near coords, every node near coord/.append style={font=\scriptsize},
+    /tikz/every even column/.append style={column sep=0.6cm},
+    legend image code/.code={\draw[#1, draw=none] (0cm,-0.1cm) rectangle (0.3cm,0.1cm);},
   },
 }
 
@@ -102,6 +104,8 @@
   showstringspaces=false, breaklines=true, language=Python, captionpos=b,
 }
 \renewcommand{\lstlistingname}{Listing}
+\captionsetup[lstlisting]{justification=raggedright,singlelinecheck=false}
+\renewcommand{\bibname}{References}
 
 \setlength{\emergencystretch}{2.5em}
 \newcommand{\Rs}{Rs.\,}

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { InlineError, InlineInfo, InlineSuccess } from "@/components/ui/ErrorState";
 import { formatDateTime } from "@/lib/format";
 import type { PurchaseRequest } from "@/types/api";
+import { PersonName } from "@/components/people/PersonName";
 
 const STAFF = ["approver", "finance", "admin"];
 
@@ -95,7 +96,13 @@ export function ApprovalActions({
         {done && <InlineSuccess message={done} />}
         <p className="text-sm text-slate-600">
           {request.status === "rejected" ? "Rejected" : "Approval complete"}
-          {last ? ` — last decision by ${last.decided_by} on ${formatDateTime(last.decided_at)}.` : "."}
+          {last ? (
+            <>
+              {" "}— last decision by <PersonName email={last.decided_by} /> on {formatDateTime(last.decided_at)}.
+            </>
+          ) : (
+            "."
+          )}
         </p>
       </div>
     );

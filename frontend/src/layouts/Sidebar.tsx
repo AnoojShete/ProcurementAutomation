@@ -22,9 +22,16 @@ export function Sidebar({
   const items = ROLE_NAV[user.role];
   // Only the most specific matching item is active: on /app/requests/new,
   // "New Request" and not also "My Requests".
+  const matchLength = (item: (typeof items)[number]) =>
+    Math.max(
+      -1,
+      ...[item.to, ...(item.match ?? [])]
+        .filter((to) => matchPath({ path: to, end: to === item.to ? (item.end ?? false) : false }, pathname))
+        .map((to) => to.length),
+    );
   const activeTo = items
-    .filter((item) => matchPath({ path: item.to, end: item.end ?? false }, pathname))
-    .sort((a, b) => b.to.length - a.to.length)[0]?.to;
+    .filter((item) => matchLength(item) >= 0)
+    .sort((a, b) => matchLength(b) - matchLength(a))[0]?.to;
 
   const content = (
     <div className="flex h-full flex-col border-r border-rule bg-paper">
@@ -68,11 +75,11 @@ export function Sidebar({
       <div className="border-t border-rule p-2">
         <div className={cn("flex items-center gap-2.5 rounded px-2 py-1.5", collapsed && "justify-center")}>
           <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sheet text-caption font-semibold text-ink-2 ring-1 ring-rule-mid" aria-hidden="true">
-            {initials(user.email)}
+            {initials(user.display_name || user.email)}
           </div>
           {!collapsed && (
-            <NavLink to="/app/account" onClick={onCloseMobile} title="Account settings" className="min-w-0 flex-1 rounded leading-tight hover:underline">
-              <p className="truncate text-caption font-medium text-ink">{user.email}</p>
+            <NavLink to="/app/account" onClick={onCloseMobile} title="Account settings" className="min-w-0 flex-1 rounded leading-tight">
+              <p className="truncate text-caption font-medium text-ink">{user.display_name || user.email}</p>
               <p className="text-caption text-ink-3">{ROLE_LABELS[user.role]}</p>
             </NavLink>
           )}
@@ -106,7 +113,7 @@ export function Sidebar({
 
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-ink/35 animate-fade-in" onClick={onCloseMobile} aria-hidden="true" />
+          <div className="absolute inset-0 bg-scrim/40 animate-fade-in" onClick={onCloseMobile} aria-hidden="true" />
           <div role="dialog" aria-modal="true" aria-label="Navigation" className="absolute left-0 top-0 h-full w-64 animate-slide-in-right shadow-popover">
             {content}
           </div>

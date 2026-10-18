@@ -60,7 +60,7 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
           {messages.length > 0 && (
             <button 
               onClick={handleClearChat}
-              className="text-slate-400 hover:text-blue-600 transition-colors flex items-center text-xs font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-slate-200"
+              className="text-slate-400 hover:text-blue-600 transition-colors flex items-center text-xs font-medium bg-sheet px-2 py-1 rounded-md shadow-sm border border-slate-200"
               title="Start New Chat"
             >
               <MessageSquarePlus className="w-4 h-4 mr-1" /> New Chat
@@ -79,7 +79,7 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
                   <button
                     key={i}
                     onClick={() => handleSend(prompt)}
-                    className="text-left px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-600 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm"
+                    className="text-left px-4 py-2 rounded-xl bg-sheet border border-slate-200 text-xs text-slate-600 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-sm"
                   >
                     {prompt}
                   </button>
@@ -93,7 +93,7 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                   m.role === "user" 
                     ? "bg-blue-600 text-white rounded-br-none" 
-                    : "bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm overflow-x-auto"
+                    : "bg-sheet border border-slate-200 text-slate-800 rounded-bl-none shadow-sm overflow-x-auto"
                 }`}
               >
                 {m.role === "user" ? (
@@ -110,7 +110,7 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
           ))}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-white border border-slate-200 text-slate-500 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm flex items-center text-sm">
+              <div className="bg-sheet border border-slate-200 text-slate-500 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm flex items-center text-sm">
                 <Loader2 className="h-4 w-4 animate-spin mr-2 text-blue-500" /> Thinking...
               </div>
             </div>
@@ -118,14 +118,14 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div className="p-4 bg-sheet border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }} className="flex gap-2">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask a question..."
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-sheet"
               disabled={isLoading}
             />
             <button

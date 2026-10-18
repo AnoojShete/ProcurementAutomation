@@ -21,6 +21,8 @@ import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DocketHeader, RefCopy } from "@/components/ui/DocketHeader";
 import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
+import { PersonName } from "@/components/people/PersonName";
+import { usePeople } from "@/hooks/usePeople";
 import { formatCurrency, formatDate, formatDateTime, titleCase } from "@/lib/format";
 import { deriveLifecycle, type LifecycleStage } from "@/lib/lifecycle";
 import type { Contract, DocumentRecord, PurchaseRequest, VendorRisk, VendorSummary } from "@/types/api";
@@ -31,6 +33,7 @@ import type { Contract, DocumentRecord, PurchaseRequest, VendorRisk, VendorSumma
 export function RequestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [params, setParams] = useSearchParams();
+  const { withNames } = usePeople();
   const { data: request, loading, error, reload } = useApi(() => requestsApi.get(id!), [id]);
   usePageHeader(request ? `${titleCase(request.request_type)} Request` : "Request", "Requests");
 
@@ -103,7 +106,7 @@ export function RequestDetailPage() {
       key: "created",
       title: "Request raised",
       timestamp: formatDateTime(request.created_at),
-      actor: request.requested_by ?? undefined,
+      actor: request.requested_by ? <PersonName email={request.requested_by} /> : undefined,
       description: `${formatCurrency(request.amount, request.currency ?? "INR")} · ${titleCase(request.request_type)}`,
     },
     ...(attachedDoc
@@ -122,7 +125,7 @@ export function RequestDetailPage() {
         key: h.id,
         title: `${h.decision === "approved" ? "Approved" : "Rejected"}${h.decision_level ? ` · ${titleCase(h.decision_level)}` : ""}`,
         timestamp: formatDateTime(h.decided_at),
-        actor: h.decided_by,
+        actor: <PersonName email={h.decided_by} />,
         description: h.comments ?? undefined,
         tone: h.decision === "approved" ? "success" : "danger",
         stamp: h.decision === "approved" ? "Approved" : "Rejected",
@@ -150,7 +153,7 @@ export function RequestDetailPage() {
             key: `signed-${shownContract.id}`,
             title: "Contract signed",
             timestamp: formatDateTime(shownContract.signed_at),
-            actor: shownContract.signed_by ?? "Signer",
+            actor: withNames(shownContract.signed_by) || "Signer",
             tone: "success",
             stamp: "Signed",
             at: shownContract.signed_at,
@@ -175,7 +178,7 @@ export function RequestDetailPage() {
         reference={<RefCopy prefix="PR" id={request.id} />}
         title={`${titleCase(request.request_type)} procurement — ${request.department ?? "no department"}`}
         status={<StatusBadge status={request.status} />}
-        meta={<span>Submitted by {request.requested_by ?? "—"} on {formatDate(request.created_at)}</span>}
+        meta={<span>Submitted by <PersonName email={request.requested_by} /> on {formatDate(request.created_at)}</span>}
       />
 
       <LedgerStrip cols={4} label="Request figures">
@@ -195,7 +198,7 @@ export function RequestDetailPage() {
       </LedgerStrip>
 
       <Card>
-        <CardHeader title="Procurement lifecycle" subtitle="Select a step for its details or to act on it" />
+        <CardHeader title="Procurement lifecycle" />
         <CardBody className="overflow-x-auto scrollbar-thin" tabIndex={0} role="region" aria-label="Procurement lifecycle steps">
           <LifecycleStepper stages={lifecycle} onSelect={select} selectedKey={selectedKey} />
         </CardBody>
@@ -226,7 +229,7 @@ export function RequestDetailPage() {
             <CardHeader title="Request information" />
             <CardBody>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-                <Field label="Requester" value={request.requested_by} />
+                <Field label="Requester" value={<PersonName email={request.requested_by} />} />
                 <Field label="Department" value={request.department} />
                 <Field label="Category" value={titleCase(request.request_type)} />
                 <Field
@@ -260,7 +263,7 @@ export function RequestDetailPage() {
           )}
 
           <Card>
-            <CardHeader title="Approval" subtitle={request.status === "pending_approval" ? "Decide here or from the lifecycle's Approval step" : undefined} />
+            <CardHeader title="Approval"  />
             <CardBody className="flex flex-col gap-4">
               <ApprovalChainVisual request={request} />
               <ApprovalActions request={request} onDecided={refresh} />
@@ -285,7 +288,7 @@ export function RequestDetailPage() {
                   <div className="flex items-center justify-between text-xs text-slate-500">
                     <span>
                       {titleCase(contract.template_used)}
-                      {contract.signed_by && ` · signed by ${contract.signed_by}`}
+                      {contract.signed_by && ` · signed by ${withNames(contract.signed_by)}`}
                     </span>
                     <Link to={`/app/contracts/${contract.id}`} className="font-medium text-accent hover:underline">
                       Open contract
@@ -297,7 +300,7 @@ export function RequestDetailPage() {
             </Card>
           )}
 
-          <Section title="Paper trail" subtitle="Who did what, and when">
+          <Section title="Paper trail">
             <Timeline events={trail} />
           </Section>
         </div>
@@ -325,11 +328,12 @@ function StageDetails({
   attachedDoc?: DocumentRecord | null;
   onChanged: () => void;
 }) {
+  const { withNames } = usePeople();
   switch (stage.key) {
     case "created":
       return (
         <p className="text-sm text-slate-700">
-          Raised by {request.requested_by ?? "—"} ({request.department ?? "no department"}) on {formatDateTime(request.created_at)} for{" "}
+          Raised by <PersonName email={request.requested_by} /> ({request.department ?? "no department"}) on {formatDateTime(request.created_at)} for{" "}
           {formatCurrency(request.amount, request.currency ?? "INR")}.
         </p>
       );
@@ -391,7 +395,7 @@ function StageDetails({
         <div className="flex flex-col gap-2">
           <p className="text-sm text-slate-700">
             {contract.status === "signed"
-              ? `Signed by ${contract.signed_by ?? "the signer"} on ${formatDateTime(contract.signed_at)}.`
+              ? `Signed by ${withNames(contract.signed_by) || "the signer"} on ${formatDateTime(contract.signed_at)}.`
               : contract.status === "pending_signature"
                 ? `${contract.sent_automatically ? "Sent for signature automatically after approval — w" : "W"}aiting for signature (${contract.esign_provider_ref ?? "built-in e-sign"}).`
                 : "Not sent for signature yet."}

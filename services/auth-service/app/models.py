@@ -31,6 +31,9 @@ class User(Base):
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     password_changed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # migrations/versions/0013_user_profile.py
+    display_name: Mapped[Optional[str]] = mapped_column(String(100))
+    theme: Mapped[str] = mapped_column(String(10), nullable=False, default="system")
 
 
 class BusinessRule(Base):

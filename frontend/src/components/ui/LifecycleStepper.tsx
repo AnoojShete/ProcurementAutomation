@@ -1,4 +1,4 @@
-import { Ban, Check, Loader2, X } from "lucide-react";
+import { Ban, Check, Loader2, PackageCheck, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { LifecycleStage } from "@/lib/lifecycle";
 
@@ -16,6 +16,13 @@ function Marker({ stage, index }: { stage: LifecycleStage; index: number }) {
   const base = "relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full";
   switch (stage.state) {
     case "completed":
+      // Received goods get the "received" lavender, like the Fulfilled status.
+      if (stage.key === "fulfillment")
+        return (
+          <span className={cn(base, "bg-received text-white")}>
+            <PackageCheck className="size-3.5" strokeWidth={2.25} />
+          </span>
+        );
       return (
         <span className={cn(base, "bg-success-500 text-white")}>
           <Check className="size-3.5" strokeWidth={2.75} />

@@ -13,7 +13,7 @@
     @apply bg-paper font-sans text-sm text-ink;
   }
   :focus-visible {
-    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-white rounded-sm;
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-sheet rounded-sm;
   }
   ::selection {
     @apply bg-brand-200;

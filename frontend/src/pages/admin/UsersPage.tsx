@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Search } from "lucide-react";
 import { authApi } from "@/api/auth";
 import { ApiError } from "@/api/client";
@@ -16,7 +17,7 @@ import { formatDateTime } from "@/lib/format";
 const ROLES: Role[] = ["requester", "approver", "finance", "admin"];
 
 export function UsersPage() {
-  usePageHeader("Users");
+  usePageHeader("Users", "System");
   const { user: me } = useAuth();
   const [users, setUsers] = useState<AccountUser[]>([]);
   const [query, setQuery] = useState("");
@@ -62,11 +63,19 @@ export function UsersPage() {
 
   const columns: Column<AccountUser>[] = [
     {
+      key: "name",
+      header: "Name",
+      render: (u) => (
+        <Link to={`/app/users/${u.id}`} className="font-medium text-ink no-underline hover:text-ink">
+          {u.display_name || "—"}
+        </Link>
+      ),
+      sortValue: (u) => u.display_name ?? "",
+    },
+    {
       key: "email",
       header: "Email",
-      render: (u) => (
-        <span className="font-medium text-slate-900">{u.email}</span>
-      ),
+      render: (u) => <span className="text-ink-2">{u.email}</span>,
       sortValue: (u) => u.email,
     },
     {
@@ -139,17 +148,13 @@ export function UsersPage() {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600">
-        New sign-ups start as requesters. Changing a role or disabling an
-        account signs that person out within the access-token lifetime.
-      </p>
       {actionError && <InlineError message={actionError} />}
       <div className="relative max-w-xs">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
         <input
           className="field pl-8"
-          placeholder="Search by email"
-          aria-label="Search users by email"
+          placeholder="Search by name or email"
+          aria-label="Search users by name or email"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

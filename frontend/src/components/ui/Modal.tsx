@@ -40,7 +40,7 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" role="presentation">
-      <div className="absolute inset-0 bg-ink/35" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-scrim/40" onClick={onClose} aria-hidden="true" />
       <div
         ref={ref}
         role="dialog"

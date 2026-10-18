@@ -50,7 +50,7 @@ export function RiskSignalsCard({ vendorId, canEdit, onRescored }: { vendorId: s
 
   return (
     <Card>
-      <CardHeader title="Risk Signals" subtitle="What the risk model is told about this vendor" />
+      <CardHeader title="Risk Signals" />
       <CardBody className="flex flex-col gap-4 text-sm">
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">From platform history</p>

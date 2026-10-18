@@ -296,7 +296,7 @@ export function DigitalSignatureModal({
                 type="button"
                 onClick={() => setSignMode("draw")}
                 className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors ${
-                  signMode === "draw" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                  signMode === "draw" ? "bg-sheet text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <PenTool className="size-3.5" />
@@ -306,7 +306,7 @@ export function DigitalSignatureModal({
                 type="button"
                 onClick={() => setSignMode("type")}
                 className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors ${
-                  signMode === "type" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                  signMode === "type" ? "bg-sheet text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <Type className="size-3.5" />
@@ -328,7 +328,7 @@ export function DigitalSignatureModal({
                 onTouchStart={startDrawing}
                 onTouchMove={draw}
                 onTouchEnd={stopDrawing}
-                className="h-36 w-full cursor-crosshair rounded-lg border border-dashed border-slate-300 bg-white shadow-inner touch-none"
+                className="h-36 w-full cursor-crosshair rounded-lg border border-dashed border-slate-300 bg-[#fff] shadow-inner touch-none"
               />
               <div className="mt-1 flex items-center justify-between px-1 text-xs text-slate-400">
                 <span>Sign above using mouse, trackpad, or touch</span>
@@ -377,7 +377,7 @@ export function DigitalSignatureModal({
                 </div>
               </div>
 
-              <div className="flex h-24 items-center justify-center rounded-lg border border-slate-200 bg-white p-4 shadow-inner">
+              <div className="flex h-24 items-center justify-center rounded-lg border border-slate-200 bg-[#fff] p-4 shadow-inner">
                 <span
                   className={
                     typedFont === "cursive"

@@ -127,7 +127,7 @@ Open **http://localhost:8080** and sign in as `requester@demo.example.com`
 ## More
 
 - [Project status — visual flow](docs/project-flow.html) and its research tab (`#research`) — open in a browser
-- [Showcase guide](docs/showcase.html) — how to present it to an external evaluator or a mentor
+- [Showcase guide](docs/showcase.html) — how to present it to an external evaluator or a mentor; [5-minute demo](docs/demo-5min.md) with a [backup recording](docs/demo/backup-recording.webm)
 - [Technical reference](docs/readmeforme.md) — setup, configuration, testing, internals
 - [Roadmap & open work](docs/TODO.md) · [Risk model write-up](docs/risk-model.md)
 - [Research direction](docs/RESEARCH_GAP_ANALYSIS.md) — calibrated, risk-controlled automation of procurement documents ([paper plan](docs/RESEARCH_PAPER_PLAN.md))

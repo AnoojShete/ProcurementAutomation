@@ -2,12 +2,13 @@ import { Check, Clock, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { titleCase } from "@/lib/format";
 import type { PurchaseRequest } from "@/types/api";
+import { PersonName } from "@/components/people/PersonName";
 
 export function ApprovalChainVisual({ request }: { request: PurchaseRequest }) {
   const chain = request.approval_chain ?? [];
   const rejected = request.status === "rejected";
   const nodes = [
-    { label: "Requester", sub: request.requested_by ?? undefined },
+    { label: "Requester", sub: request.requested_by ? <PersonName email={request.requested_by} /> : undefined },
     ...chain.map((role) => ({ label: titleCase(role), sub: undefined })),
     { label: "Approved", sub: undefined },
   ];

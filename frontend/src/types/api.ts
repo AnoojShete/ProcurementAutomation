@@ -4,10 +4,22 @@
 
 export type Role = "requester" | "approver" | "finance" | "admin";
 
+export type ThemePreference = "light" | "dark" | "system";
+
 export interface CurrentUser {
   id: string;
   email: string;
   role: Role;
+  display_name: string | null;
+  theme: ThemePreference;
+}
+
+/** One row of the people directory (GET /auth/people). */
+export interface Person {
+  id: string;
+  email: string;
+  role: Role;
+  display_name: string | null;
 }
 
 /** An account as the admin Users page sees it. */
@@ -400,6 +412,11 @@ export interface NotificationLogEntry {
   error: string | null;
   sent_at: string | null;
   created_at: string | null;
+}
+
+/** A notification in your own feed, with your read state. */
+export interface FeedEntry extends NotificationLogEntry {
+  read: boolean;
 }
 
 // --- health ---

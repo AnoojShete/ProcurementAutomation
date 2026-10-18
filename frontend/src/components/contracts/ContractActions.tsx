@@ -251,7 +251,7 @@ export function ContractActions({
         onClose={() => setSignOpen(false)}
         contract={contract}
         defaultSignerEmail={user?.email ?? ""}
-        defaultSignerName={user?.email?.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ?? ""}
+        defaultSignerName={user?.display_name || user?.email?.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || ""}
         onSuccess={() => {
           setSignOpen(false);
           setSuccess("Contract signed. The signed copy and signature certificate are ready.");

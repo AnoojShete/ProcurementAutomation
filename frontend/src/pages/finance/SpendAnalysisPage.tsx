@@ -52,7 +52,7 @@ export function SpendAnalysisPage() {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader title="Total approved spend" subtitle="Across all approved and fulfilled requests" />
+        <CardHeader title="Total approved spend" />
         <CardBody>
           <p className="text-figure font-medium tabular text-ink">{formatCurrency(totalSpend)}</p>
         </CardBody>

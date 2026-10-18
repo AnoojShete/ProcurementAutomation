@@ -427,3 +427,16 @@ Tailwind defaults, used as follows:
 - Serif only for item titles. No uppercase captions. No `→` in button text.
 - Cards only around things you act on.
 - Status via the shared `Status` component only.
+
+### 12. Dark theme and the received role (Oct 18)
+
+- **Dark theme**: the same token names, redefined under
+  `:root[data-theme="dark"]` in `tokens.css` (paper `#111513`, sheet
+  `#1A1F1C`, ink `#E5EAE6`; role colours lightened so they read as text).
+  Every text pair stays at or above 5 : 1. Solid fills (primary button,
+  count badge, completed step) carry `--on-fill` text, which Tailwind's
+  `white` points to, so it flips with the theme. Surfaces use `sheet`,
+  never `white`. Scrims use `--scrim`, dark in both themes.
+- **Received** (`--received`, lavender `#5B3F99` / dark `#C6B5EF`): the
+  Fulfilled status and the completed Fulfillment step, with a
+  package-check glyph, next to done (✓), danger (✕) and accent (●).

@@ -100,7 +100,7 @@ export function SignatureCertificateModal({
         {certificate?.signature_image && (
           <div>
             <span className="text-xs font-medium text-slate-500">Signer's Signature Mark</span>
-            <div className="mt-1 flex h-20 items-center justify-center rounded-lg border border-slate-200 bg-white p-2">
+            <div className="mt-1 flex h-20 items-center justify-center rounded-lg border border-slate-200 bg-[#fff] p-2">
               <img
                 src={certificate.signature_image}
                 alt="Electronic Signature"

@@ -156,6 +156,7 @@ python tests/e2e/document_pipeline.py --quick   # expect: 52 passed, 0 failed</p
     <pre>python tests/e2e/showcase_screens.py     # retakes every screenshot on this page from the live stack (~3 min)
 python tests/e2e/demo_scenarios.py       # runs the five demo scenarios and refreshes demo-script.html (~5 min)</pre>
     <p>Step-by-step scenarios with the expected result of every click: <a href="demo-script.html"><b>demo-script.html</b></a> — each row was performed and checked on the live stack by the script above.</p>
+    <p>Only five minutes? <a href="demo-5min.md"><b>demo-5min.md</b></a>: one path through every agent, what to say, and what to do when something breaks. <code>python tests/e2e/demo_5min.py</code> rehearses it and records <a href="demo/backup-recording.webm">the backup recording</a>; <code>./scripts/reset-demo.sh</code> puts the demo data back in a clean state.</p>
     <p class="muted">The pictures below are taken by that script driving the real app (it uploads two documents, screens two vendors and switches the fallback rule on and off again). If a pipeline is broken, the script ends with <b>STEPS THAT FAILED</b> and the picture shows what was on screen — run it the day before so a broken step is found then, not live. Teammates: the pictures are also the click-path for the newer modules.</p>
 
     <h2 class="t"><svg class="i"><use href="#check"/></svg>One hour before</h2>

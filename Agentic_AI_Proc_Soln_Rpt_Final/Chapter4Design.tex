@@ -47,6 +47,8 @@ The project followed an iterative and incremental model (Figure~\ref{fig:sdlc}).
 The requirements are grouped into functional requirements, which describe what the system does, and non-functional requirements, which describe the qualities and constraints it must satisfy. Every threshold mentioned below is a business rule that an administrator can change at run time; the values given are the current settings.
 
 \subsubsection{Functional Requirements}
+Table~\ref{tab:fr} lists the functional requirements and the agent responsible for each.
+
 {\tablestyle
 \begin{longtable}{|L{0.07\textwidth}|L{0.64\textwidth}|L{0.17\textwidth}|}
 \caption{Functional requirements}\label{tab:fr}\\
@@ -81,6 +83,8 @@ FR22 & Significant actions on documents, vendors, requests and contracts are wri
 \end{longtable}}
 
 \subsubsection{Non-Functional Requirements}
+Table~\ref{tab:nfr} lists the qualities and constraints the system must satisfy.
+
 \begin{table}[!htbp]
 \centering\tablestyle
 \caption{Non-functional requirements}\label{tab:nfr}
@@ -170,7 +174,7 @@ The Level 1 diagram (Figure~\ref{fig:dfd1}) decomposes the platform into the pro
 \begin{table}[!htbp]
 \centering\tablestyle
 \caption{Level 1 DFD processes}\label{tab:dfd}
-\begin{tabularx}{\textwidth}{|C{0.07\textwidth}|L{0.18\textwidth}|L{0.28\textwidth}|Y|}
+\begin{tabularx}{\textwidth}{|C{0.09\textwidth}|L{0.18\textwidth}|L{0.26\textwidth}|Y|}
 \hline
 \textbf{Process} & \textbf{Name} & \textbf{Inputs} & \textbf{Outputs} \\ \hline
 1.0 & Authenticate, serve rules & Credentials, refresh token, rule edits & Access and refresh tokens, role, rule changes \\ \hline
@@ -187,7 +191,7 @@ Figure~\ref{fig:sequence} follows one purchase request from creation to signatur
 
 \begin{figure}[!htbp]
 \centering
-\begin{tikzpicture}[x=1cm, y=-0.62cm]
+\begin{tikzpicture}[x=0.95cm, y=-0.62cm]
 \tikzset{ll/.style={box, text width=1.55cm, minimum height=10mm, font=\scriptsize}, msg/.style={->, draw=ink}, amsg/.style={->, draw=ink, dashed}, ml/.style={font=\scriptsize, above, inner sep=1pt, fill=white}, self/.style={font=\scriptsize, right, inner sep=1pt, align=left}}
 \foreach \x/\n/\t/\s in {0/rq/Requester/ext, 2.1/gw/Frontend and gateway/infra, 4.2/ap/Approval agent/agB, 6.3/tp/Temporal/infra, 8.4/kf/Kafka bus/infra, 10.5/ct/Contract agent/agC, 12.6/nt/Notification agent/agD, 14.7/av/Approver/ext}
   { \node[ll, \s] (\n) at (\x,0) {\t}; \draw[dotted, draw=black!50] (\n.south) -- (\x,21.2); }
@@ -407,7 +411,7 @@ The block diagram (Figure~\ref{fig:block}) shows the deployed components and the
 \begin{figure}[!htbp]
 \centering
 \begin{tikzpicture}
-\tikzset{svc/.style={box, text width=2.15cm, minimum height=15mm, font=\scriptsize}, inf/.style={infra, text width=1.5cm, minimum height=10mm, font=\scriptsize}}
+\tikzset{svc/.style={box, text width=2.15cm, minimum height=15mm, font=\scriptsize}, inf/.style={infra, text width=1.62cm, minimum height=10mm, font=\scriptsize}}
 \node[ext, text width=15cm] (cl) at (0,0) {\textbf{Clients:} browser (React SPA) and API clients; only port 8080 is reachable from other machines};
 \node[infra, text width=15cm] (gw) at (0,-1.2) {\textbf{Nginx gateway :8080}: serves the frontend, routes \texttt{/api/<prefix>/}, rate limits, correlation ID};
 \draw[<->] (cl) -- (gw);

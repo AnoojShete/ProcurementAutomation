@@ -122,7 +122,7 @@ const STAGE_TONE: Record<DropStage, Tone> = {
  * each dropped file is, and the Kafka events as they happen. Read-only —
  * each row links to the item's own page for any action. */
 export function ControlPanelPage() {
-  usePageHeader("Control Panel");
+  usePageHeader("Control Panel", "System");
   const inbox = usePoll(() => controlPanelApi.inbox(), 4000);
   const storage = usePoll(() => controlPanelApi.storage(), 15000);
   const esign = usePoll(() => controlPanelApi.esign(), 15000);
@@ -130,14 +130,13 @@ export function ControlPanelPage() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-slate-600">
-        Put a vendor quote (PDF, PNG or JPEG) in the <code className="rounded bg-surface-muted px-1">./inbox</code> folder.
-        It is picked up within seconds and runs through every agent on its own; the contract goes out for signature once.
+        Drop a vendor quote (PDF, PNG or JPEG) into <code className="rounded bg-surface-muted px-1">./inbox</code> to run it through every agent.
       </p>
 
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
         {FLOW.map((step, i) => (
           <span key={step} className="flex items-center gap-1.5">
-            <span className="rounded border border-surface-border bg-white px-2 py-1 font-medium text-slate-700">{step}</span>
+            <span className="rounded border border-surface-border bg-sheet px-2 py-1 font-medium text-slate-700">{step}</span>
             {i < FLOW.length - 1 && <ArrowRight className="size-3 text-slate-400" />}
           </span>
         ))}
@@ -268,7 +267,7 @@ function DocusignCard({ esign, error }: { esign: EsignStatus | null; error: stri
 function DropsCard({ inbox, error }: { inbox: InboxStatus | null; error: string | null }) {
   return (
     <Card>
-      <CardHeader title="Dropped files" subtitle="Where each file from the drop folder is now. Refreshes every few seconds." />
+      <CardHeader title="Dropped files" />
       {!inbox ? (
         <CardBody>{error ? <InlineError message={error} /> : <Skeleton className="h-24" />}</CardBody>
       ) : inbox.drops.length === 0 && inbox.folder.waiting.length === 0 ? (
@@ -387,7 +386,7 @@ function EventLogCard() {
     };
   }, [topic, sinceHours, correlation, query]);
 
-  const field = "h-7 rounded border border-surface-border bg-white px-2 text-xs text-slate-700";
+  const field = "h-7 rounded border border-surface-border bg-sheet px-2 text-xs text-slate-700";
   return (
     <Card>
       <CardHeader
@@ -397,7 +396,7 @@ function EventLogCard() {
             {connected !== null && <StatusDot tone={connected ? "success" : "danger"} />}
           </span>
         }
-        subtitle="Every event on every topic, newest first — kept across restarts. Click a row for its fields."
+        subtitle="Click a row for its fields."
         action={
           <button
             type="button"
@@ -440,7 +439,7 @@ function EventLogCard() {
           </button>
         )}
       </div>
-      <div className="max-h-[28rem] overflow-y-auto bg-slate-950 px-3 py-2 font-mono text-xs leading-relaxed scrollbar-thin">
+      <div className="keep-light-tokens max-h-[28rem] overflow-y-auto bg-slate-950 px-3 py-2 font-mono text-xs leading-relaxed scrollbar-thin">
         {events.length === 0 && <p className="py-6 text-center text-slate-500">No events match.</p>}
         {events.map((e) => (
           <div key={e.seq} className="border-b border-white/5 last:border-0">
@@ -494,7 +493,7 @@ function FailedEventsCard() {
             <StatusDot tone={data && data.length > 0 ? "danger" : "success"} />
           </span>
         }
-        subtitle="Events a service couldn't process after retrying (dead-letter queue)."
+        subtitle="Dead-letter queue"
       />
       {error && <div className="p-4"><InlineError message={error} /></div>}
       {data && data.length === 0 && <p className="p-4 text-sm text-slate-500">None — every event was processed.</p>}
@@ -545,7 +544,7 @@ function MinioObjectsCard({ storage }: { storage: StorageStatus | null }) {
 function EnvelopesCard({ esign }: { esign: EsignStatus | null }) {
   return (
     <Card>
-      <CardHeader title="DocuSign envelopes" subtitle="Contracts sent through DocuSign, newest first" />
+      <CardHeader title="DocuSign envelopes" />
       <CardBody className="p-0">
         {!esign?.envelopes.length ? (
           <p className="p-4 text-sm text-slate-500">No contracts sent through DocuSign yet.</p>

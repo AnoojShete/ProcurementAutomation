@@ -55,6 +55,15 @@ class UserUpdateRequest(BaseModel):
     is_active: Optional[bool] = None
 
 
+Theme = Literal["light", "dark", "system"]
+
+
+class ProfileUpdateRequest(BaseModel):
+    """PATCH /auth/me: what a person may change about their own account."""
+    display_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    theme: Optional[Theme] = None
+
+
 class TokenResponse(BaseModel):
     # The refresh token is set as an httpOnly cookie, not returned here.
     access_token: str
@@ -73,6 +82,17 @@ class UserResponse(BaseModel):
     id: str
     email: str
     role: str
+    display_name: Optional[str] = None
+    theme: str = "system"
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PersonResponse(BaseModel):
+    """One row of the people directory: enough to show a name for an email."""
+    id: str
+    email: str
+    role: str
+    display_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 

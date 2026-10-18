@@ -63,3 +63,14 @@ Failures are retried and dead-lettered since FR-31.
 7. **Default recipient** `procurement-ops@example.com` receives everything
    without a named person (753 rows) — fine for development, needs a real
    distribution list.
+
+## In the app (Oct 18)
+
+The bell and the Notifications page read the same log through
+`GET /notifications/feed` with per-person read receipts
+(`notification_reads`, `app/services/feed.py`). A person's feed is mail
+to their own address plus the role mailboxes in `config.yaml`
+`role_mailboxes`. The default "Important" view and the unread count keep
+only urgent, delivered notifications, minus digest roll-ups and
+`contract.signed`; "History" shows everything sent to you, and staff
+also get the whole log. Email sending is unchanged.

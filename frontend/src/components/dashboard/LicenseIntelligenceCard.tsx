@@ -30,17 +30,15 @@ export function LicenseIntelligenceCard() {
   return (
     <Card>
       <CardHeader
-        title={
-          <span>License usage</span>
-        }
-        subtitle="Seat utilisation from SSO logins, and seats that can be reclaimed"
+        title="License usage"
+        action={<Link to="/app/licenses" className="text-13 font-medium text-accent hover:underline">View all licenses</Link>}
       />
       <CardBody className="flex flex-col gap-4">
         <LedgerStrip cols={4} label="Licences by usage">
-          <MetricCard label="Anomalous" value={summary.anomalous} tone="danger" />
-          <MetricCard label="Watch" value={summary.watch} tone="warning" />
-          <MetricCard label="Normal" value={summary.normal} tone="neutral" />
-          <MetricCard label="Insufficient history" value={summary.insufficient_history} tone="neutral" />
+          <MetricCard label="Anomalous" value={summary.anomalous} tone="danger" to="/app/licenses?status=anomalous" />
+          <MetricCard label="Watch" value={summary.watch} tone="warning" to="/app/licenses?status=watch" />
+          <MetricCard label="Normal" value={summary.normal} tone="neutral" to="/app/licenses?status=normal" />
+          <MetricCard label="Insufficient history" value={summary.insufficient_history} tone="neutral" to="/app/licenses?status=insufficient_history" />
         </LedgerStrip>
 
         {/* Savings are good news: ink on the page, never alarm red, and a
@@ -68,9 +66,6 @@ export function LicenseIntelligenceCard() {
             ) : (
               <span className="text-caption text-ink-3">Last scored {formatRelativeTime(summary.last_scoring_run)}</span>
             )}
-            <Link to="/app/licenses" className="text-sm font-medium text-accent hover:underline">
-              View all licenses
-            </Link>
           </div>
         </div>
       </CardBody>

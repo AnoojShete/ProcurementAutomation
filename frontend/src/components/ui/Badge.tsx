@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { Check, X } from "lucide-react";
+import { Check, PackageCheck, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-type Tone = "neutral" | "success" | "warning" | "danger" | "brand" | "intel";
+type Tone = "neutral" | "success" | "warning" | "danger" | "brand" | "intel" | "received";
 
 // One tone map for every status in the app: tint fill, tone text (all ≥ 5.6 : 1).
 const toneClasses: Record<Tone, string> = {
@@ -12,11 +12,13 @@ const toneClasses: Record<Tone, string> = {
   danger: "bg-danger-50 text-danger-600",
   brand: "bg-brand-50 text-brand-700",
   intel: "bg-sheet-sunk text-ink-2",
+  received: "bg-received-tint text-received",
 };
 
 /** Leading glyph, so state never rides on colour alone:
- * ✓ done · ✕ failed · ● in progress / waiting · ○ neutral. */
+ * ✓ done · ✕ failed · ● in progress / waiting · ○ neutral · package received. */
 function Glyph({ tone }: { tone: Tone }) {
+  if (tone === "received") return <PackageCheck className="size-3 shrink-0" strokeWidth={2.25} aria-hidden="true" />;
   if (tone === "success") return <Check className="size-3 shrink-0" strokeWidth={2.5} aria-hidden="true" />;
   if (tone === "danger") return <X className="size-3 shrink-0" strokeWidth={2.5} aria-hidden="true" />;
   if (tone === "neutral" || tone === "intel")
@@ -74,7 +76,7 @@ const REQUEST_STATUS_TONE: Record<string, Tone> = {
   approved: "success",
   ordered: "brand",
   rejected: "danger",
-  fulfilled: "brand",
+  fulfilled: "received",
   partially_invoiced: "brand",
   invoice_received: "success",
 };

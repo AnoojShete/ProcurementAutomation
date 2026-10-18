@@ -50,3 +50,8 @@ def urgent_risk_bands() -> list:
 @lru_cache
 def urgent_renewal_alert_levels() -> list:
     return [str(x) for x in load_config().get("urgent_renewal_alert_levels", ["15"])]
+
+
+@lru_cache
+def role_mailboxes() -> dict:
+    return {role: list(boxes) for role, boxes in (load_config().get("role_mailboxes") or {}).items()}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   RotateCcw,
   Search,
@@ -40,7 +40,9 @@ export function LicensesListPage() {
 
   // Filter and search state
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  // ?status=anomalous|watch|normal|insufficient_history from the dashboard.
+  const [params] = useSearchParams();
+  const [selectedStatus, setSelectedStatus] = useState<string>(params.get("status") ?? "all");
   const [currentPage, setCurrentPage] = useState(1);
 
   const pageSize = 50;
@@ -160,7 +162,6 @@ export function LicensesListPage() {
       <Card>
         <CardHeader
           title="License Inventory & Usage Anomalies"
-          subtitle="Real-time SSO usage scoring powered by Isolation Forest to detect inactive and declining seat subscriptions"
         />
         <CardBody className="flex flex-col gap-4">
           {/* Filter and Search Bar */}
@@ -191,7 +192,7 @@ export function LicensesListPage() {
                     setSelectedStatus(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none"
+                  className="rounded-md border border-slate-300 bg-sheet px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none"
                 >
                   <option value="all">All Licenses</option>
                   <option value="anomalous">Anomalous (Needs Action)</option>
@@ -221,7 +222,7 @@ export function LicensesListPage() {
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody className="divide-y divide-slate-200 bg-sheet">
                 {paginatedLicenses.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-slate-400">

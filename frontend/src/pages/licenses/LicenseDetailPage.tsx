@@ -30,6 +30,7 @@ import type {
   AnomalyStatus,
   PurchaseRequest,
 } from "@/types/api";
+import { PersonName } from "@/components/people/PersonName";
 
 const OPEN_STATUSES = ["pending_grace_period", "pending_approval"];
 
@@ -227,7 +228,7 @@ export function LicenseDetailPage() {
         <Card key={req.id}>
           <CardHeader
             title={`Open ${req.request_type === "reclaim" ? "reclaim" : "license"} request`}
-            subtitle={`Raised by ${req.requested_by ?? "system"}`}
+            subtitle={<>Raised by <PersonName email={req.requested_by} fallback="system" /></>}
             action={
               <Link to={`/app/requests/${req.id}`} className="text-xs text-brand-700 hover:underline">
                 PR-{req.id.slice(0, 8)}
@@ -248,7 +249,7 @@ export function LicenseDetailPage() {
 
       {/* Overview Metric Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-slate-200 bg-sheet p-4">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Application</span>
             <Building className="size-4 text-brand-600" />
@@ -257,7 +258,7 @@ export function LicenseDetailPage() {
           <p className="text-xs text-slate-500">{license.vendor_name || "Enterprise Vendor"}</p>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-slate-200 bg-sheet p-4">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Seat Utilisation</span>
             <Users className="size-4 text-brand-600" />
@@ -270,7 +271,7 @@ export function LicenseDetailPage() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-slate-200 bg-sheet p-4">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Last User Login</span>
             <Clock className="size-4 text-amber-600" />
@@ -281,7 +282,7 @@ export function LicenseDetailPage() {
           <p className="text-xs text-slate-500">Across all licensed users</p>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-slate-200 bg-sheet p-4">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Annual Seat Cost</span>
             <DollarSign className="size-4 text-emerald-600" />
@@ -297,7 +298,6 @@ export function LicenseDetailPage() {
       <Card>
         <CardHeader
           title="Usage Trend Analysis (Last 90 Days)"
-          subtitle="Daily active users logging into this SaaS application via SSO"
         />
         <CardBody>
           <UsageTrendChart
@@ -312,7 +312,6 @@ export function LicenseDetailPage() {
       <Card>
         <CardHeader
           title="Why was this flagged?"
-          subtitle="Top contributing behavioral signals evaluated by the Isolation Forest model"
         />
         <CardBody>
           {license.anomaly_score === null ? (
@@ -382,7 +381,6 @@ export function LicenseDetailPage() {
       <Card>
         <CardHeader
           title="Reclaim & Review History"
-          subtitle="Audit log of previous reclaim requests and administrative reviews for this license"
         />
         <CardBody>
           {reclaimHistory.length === 0 ? (
@@ -438,9 +436,6 @@ export function LicenseDetailPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-slate-800">Available Actions</p>
-              <p className="text-xs text-slate-500">
-                Initiate automated reclaim flow or mark as reviewed to set a temporary cooldown
-              </p>
             </div>
 
             <div className="flex items-center gap-3">

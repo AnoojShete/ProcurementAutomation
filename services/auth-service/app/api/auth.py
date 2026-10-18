@@ -23,8 +23,8 @@ from app import account_tokens, audit, emails, lockout
 from app.database import get_db
 from app.models import User
 from app.schemas import (
-    AccessTokenResponse, ChangePasswordRequest, DataResponse, EmailOnlyRequest, LoginRequest, RegisterRequest,
-    ResetPasswordRequest, TokenRequest, TokenResponse, UserResponse,
+    AccessTokenResponse, ChangePasswordRequest, DataResponse, EmailOnlyRequest, LoginRequest, ProfileUpdateRequest,
+    RegisterRequest, ResetPasswordRequest, TokenRequest, TokenResponse, UserResponse,
 )
 from app.security import (
     PasswordPolicyError, check_password_policy, hash_password, is_password_breached, needs_rehash, normalize_email,
@@ -254,6 +254,22 @@ async def _current_db_user(db: AsyncSession, current_user: CurrentUser) -> User:
 @router.get("/me", response_model=DataResponse)
 async def me(current_user: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     return DataResponse(data=UserResponse.model_validate(await _current_db_user(db, current_user)))
+
+
+@router.patch("/me", response_model=DataResponse)
+async def update_me(data: ProfileUpdateRequest, current_user: CurrentUser = Depends(get_current_user),
+                    db: AsyncSession = Depends(get_db)):
+    """Your own name and theme. Role, email and status stay with an admin."""
+    user = await _current_db_user(db, current_user)
+    if data.display_name is not None:
+        name = " ".join(data.display_name.split())
+        if not name:
+            raise HTTPException(status_code=422, detail="Name can't be blank.")
+        user.display_name = name
+    if data.theme is not None:
+        user.theme = data.theme
+    await db.commit()
+    return DataResponse(data=UserResponse.model_validate(user))
 
 
 # ---------------------------------------------------------------- passwords

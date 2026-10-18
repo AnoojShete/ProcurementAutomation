@@ -26,6 +26,7 @@ OUT = os.path.join(ROOT, "docs", "showcase")
 DOCS = os.path.join(ROOT, "data", "synthetic-invoices")
 PASSWORD = "DemoPass123!"
 VENDOR = "11111111-1111-1111-1111-111111111111"     # demo vendor (seed-demo-data.sh)
+DEMO_REQUEST = "22222222-2222-2222-2222-222222222222"  # approved request (seed-demo-data.sh)
 LICENCE_DROPOFF = "33333333-0000-0000-0000-000000000003"   # Docker Pro
 failures: list[str] = []
 
@@ -158,6 +159,17 @@ async def sanctions(s, admin):
     """FR-14: screen a vendor against the consolidated sanctions list."""
     vendors = requests.get(f"{API}/vendors/?limit=200", headers=H(admin), timeout=30).json()["data"]
     listed = next((v for v in vendors if "rosoboronexport" in v["name"].lower()), None)
+    if listed is None:
+        # A fresh stack has no vendor on the list: onboard one named like a
+        # listed exporter, the way finance would.
+        r = requests.post(f"{API}/vendors/onboard", headers=H(token("finance")), timeout=60, json={
+            "name": "Rosoboronexport OJSC", "contact_email": "info@rosoboronexport.example", "category": "Hardware",
+            "confirm": ["no_gstin"], "no_gstin_reason": "Foreign vendor (Russia), not registered for GST in India"})
+        if r.status_code != 201:
+            failures.append(f"sanctions: onboarding the listed vendor failed: {r.status_code} {r.text[:200]}")
+        else:
+            d = r.json()["data"]
+            listed = d if "id" in d else d["vendor"]
     for i, (vid, label) in enumerate([(VENDOR, "clean"), (listed and listed["id"], "match")]):
         if not vid:
             failures.append("sanctions: test vendor 'Rosoboronexport OJSC' not found")
@@ -212,7 +224,14 @@ async def approval(s, admin):
 async def contract(s, admin):
     """Contract with the vendor's risk shown before signing."""
     contracts = requests.get(f"{API}/contracts/?limit=20", headers=H(admin), timeout=30).json()["data"]
-    unsigned = next((c for c in contracts if c.get("status") in ("draft", "sent_for_signature")), contracts[0])
+    unsigned = next((c for c in contracts if c.get("status") in ("draft", "pending_signature")), None)
+    if unsigned is None:
+        # Everything is signed (e.g. right after demo_scenarios.py): generate
+        # one from the seeded approved request, as seed-demo-data.sh suggests.
+        r = requests.post(f"{API}/contracts/generate", headers=H(token("finance")), timeout=60,
+                          json={"purchase_request_id": DEMO_REQUEST, "template_name": "hardware_purchase"})
+        r.raise_for_status()
+        unsigned = r.json()["data"]
     await s.shot("contract", "01-contract-risk.png", "finance", f"/app/contracts/{unsigned['id']}", "text=Vendor risk")
     await s.shot("contract", "02-renewal-timeline.png", "finance", scroll_to="text=Renewal Timeline")
     await s.shot("contract", "03-vendor-risk.png", "finance", f"/app/vendors/{VENDOR}", "text=Risk Signals",

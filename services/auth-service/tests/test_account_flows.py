@@ -106,6 +106,7 @@ def env(database):
     register_error_handlers(app)
     app.include_router(auth.router, prefix="/api/auth")
     app.include_router(users.router, prefix="/api/auth/users")
+    app.include_router(users.people_router, prefix="/api/auth/people")
     app.dependency_overrides[get_db] = db
     outbox = Outbox()
     with patch("app.emails.send_quietly", outbox), \
@@ -470,3 +471,61 @@ def test_email_is_unique_regardless_of_case_in_the_database(env):
     signup(client, outbox, "unique@example.com")
     with pytest.raises(psycopg2.errors.IntegrityError):
         sql(db, "INSERT INTO auth_users (email, hashed_password, role) VALUES ('UNIQUE@example.com', 'x', 'requester')")
+
+
+# ------------------------------------------------------------ profile
+
+def test_profile_name_and_theme_persist_across_sessions(env):
+    client, outbox, db = env
+    verified_user(client, outbox, "theme.fan@example.com")
+    me = bearer(login(client, "theme.fan@example.com"))
+    data = client.get("/api/auth/me", headers=me).json()["data"]
+    assert data["theme"] == "system" and data["display_name"] is None
+
+    r = client.patch("/api/auth/me", headers=me, json={"theme": "dark", "display_name": "  Theme   Fan "})
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["theme"] == "dark" and r.json()["data"]["display_name"] == "Theme Fan"
+
+    # A fresh sign-in (new session) gets the saved choice back.
+    client.cookies.clear()
+    again = client.get("/api/auth/me", headers=bearer(login(client, "theme.fan@example.com"))).json()["data"]
+    assert again["theme"] == "dark" and again["display_name"] == "Theme Fan"
+
+    assert client.patch("/api/auth/me", headers=me, json={"theme": "neon"}).status_code == 422
+    assert client.patch("/api/auth/me", headers=me, json={"display_name": "   "}).status_code == 422
+    with pytest.raises(psycopg2.errors.CheckViolation):
+        sql(db, "UPDATE auth_users SET theme = 'neon' WHERE email = 'theme.fan@example.com'")
+
+
+def test_profile_update_cannot_change_role(env):
+    client, outbox, db = env
+    verified_user(client, outbox, "sneaky@example.com")
+    me = bearer(login(client, "sneaky@example.com"))
+    client.patch("/api/auth/me", headers=me, json={"role": "admin", "theme": "light"})
+    [(role,)] = sql(db, "SELECT role FROM auth_users WHERE email = 'sneaky@example.com'")
+    assert role == "requester"
+
+
+def test_people_directory_names_without_internals(env):
+    client, outbox, db = env
+    verified_user(client, outbox, "named@example.com")
+    sql(db, "UPDATE auth_users SET display_name = 'Named Person' WHERE email = 'named@example.com'")
+    people = client.get("/api/auth/people", headers=bearer(login(client, "named@example.com"))).json()["data"]
+    assert people == [{"id": people[0]["id"], "email": "named@example.com", "role": "requester",
+                       "display_name": "Named Person"}]
+    client.cookies.clear()
+    assert client.get("/api/auth/people").status_code == 401
+
+
+def test_admin_opens_a_user_profile(env):
+    client, outbox, db = env
+    verified_user(client, outbox, "chief@example.com")
+    sql(db, "UPDATE auth_users SET role = 'admin' WHERE email = 'chief@example.com'")
+    verified_user(client, outbox, "staff@example.com")
+    [(staff_id,)] = sql(db, "SELECT id::text FROM auth_users WHERE email = 'staff@example.com'")
+    staff = bearer(login(client, "staff@example.com"))
+    assert client.get(f"/api/auth/users/{staff_id}", headers=staff).status_code == 403
+    chief = bearer(login(client, "chief@example.com"))
+    r = client.get(f"/api/auth/users/{staff_id}", headers=chief)
+    assert r.status_code == 200 and r.json()["data"]["email"] == "staff@example.com"
+    assert "hashed_password" not in r.json()["data"]

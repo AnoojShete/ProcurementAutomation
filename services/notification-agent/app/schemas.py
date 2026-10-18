@@ -34,3 +34,8 @@ class NotificationLogEntry(BaseModel):
     created_at: Optional[datetime]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FeedEntry(NotificationLogEntry):
+    """A notification in someone's in-app feed, with their read state."""
+    read: bool = False

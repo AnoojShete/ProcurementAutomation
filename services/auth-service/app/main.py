@@ -44,5 +44,6 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_sch
 app.include_router(health.router)
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(users.router, prefix="/auth/users", tags=["Users"])
+app.include_router(users.people_router, prefix="/auth/people", tags=["Users"])
 app.include_router(business_rules.admin_router)
 app.include_router(business_rules.internal_router)

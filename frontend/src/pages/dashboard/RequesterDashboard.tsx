@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, Clock, FilePlus2, PackageCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { usePeople } from "@/hooks/usePeople";
 import { useApi } from "@/hooks/useApi";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { requestsApi } from "@/api/requests";
@@ -22,6 +23,7 @@ import { useNavigate } from "react-router-dom";
 
 export function RequesterDashboard() {
   const { user } = useAuth();
+  const { nameFor } = usePeople();
   usePageHeader("Dashboard");
   const navigate = useNavigate();
   const { data: allRequests, loading, error, reload } = useApi(() => requestsApi.list(200), []);
@@ -69,7 +71,7 @@ export function RequesterDashboard() {
           </>
         ),
         cta: "Track requests",
-        to: "/app/requests",
+        to: "/app/requests?scope=mine&status=pending_approval",
       });
     }
     return items;
@@ -86,21 +88,21 @@ export function RequesterDashboard() {
       .forEach((r) => {
         events.push({
           key: `${r.id}-created`,
-          title: `Request submitted — ${r.request_type ?? "purchase"}`,
+          title: `Request submitted — ${titleCase(r.request_type ?? "purchase")}`,
           timestamp: formatDateTime(r.created_at),
           description: `${formatCurrency(r.amount, r.currency ?? "INR")} · ${r.department ?? ""}`,
         });
         (r.approval_history ?? []).forEach((h) => {
           events.push({
             key: h.id,
-            title: `${h.decision === "approved" ? "Approved" : "Rejected"} by ${h.decided_by}`,
+            title: `${h.decision === "approved" ? "Approved" : "Rejected"} by ${nameFor(h.decided_by)}`,
             timestamp: formatDateTime(h.decided_at),
             tone: h.decision === "approved" ? "success" : "danger",
           });
         });
       });
     return events.sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? "")).slice(0, 8);
-  }, [myRequests]);
+  }, [myRequests, nameFor]);
 
   const columns: Column<PurchaseRequest>[] = [
     { key: "id", header: "Request", render: (r) => <span className="font-mono text-caption text-ink-2">PR-{r.id.slice(0, 8)}</span> },
@@ -113,7 +115,7 @@ export function RequesterDashboard() {
       header: "Next Action",
       render: (r) =>
         r.status === "pending_approval" ? (
-          <span className="text-slate-500">Awaiting {r.approval_chain?.[r.current_approver_index] ?? "approval"}</span>
+          <span className="text-slate-500">Awaiting {titleCase(r.approval_chain?.[r.current_approver_index] ?? "approval")}</span>
         ) : r.status === "approved" ? (
           <span className="text-slate-500">Awaiting contract</span>
         ) : (
@@ -127,10 +129,7 @@ export function RequesterDashboard() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <Greeting
-          name={user?.email.split("@")[0] ?? "there"}
-          subtitle="Here's what's happening with your procurement requests."
-        />
+        <Greeting />
         <Button icon={<FilePlus2 className="size-4" />} onClick={() => navigate("/app/requests/new")}>
           New Purchase Request
         </Button>
@@ -139,16 +138,16 @@ export function RequesterDashboard() {
       <AttentionCard items={attentionItems} />
 
       <LedgerStrip cols={4} loading={loading} label="Your requests">
-          <MetricCard label="Open Requests" value={kpis.open} icon={FilePlus2} tone="brand" />
-          <MetricCard label="Awaiting Approval" value={kpis.awaitingApproval} icon={Clock} tone="warning" />
-          <MetricCard label="Approved" value={kpis.approved} icon={CheckCircle2} tone="success" />
-          <MetricCard label="Fulfilled" value={kpis.fulfilled} icon={PackageCheck} tone="brand" />
+          <MetricCard label="Open Requests" value={kpis.open} icon={FilePlus2} tone="brand" to="/app/requests?scope=mine&status=open" />
+          <MetricCard label="Awaiting Approval" value={kpis.awaitingApproval} icon={Clock} tone="warning" to="/app/requests?scope=mine&status=pending_approval" />
+          <MetricCard label="Approved" value={kpis.approved} icon={CheckCircle2} tone="success" to="/app/requests?scope=mine&status=approved" />
+          <MetricCard label="Fulfilled" value={kpis.fulfilled} icon={PackageCheck} tone="received" to="/app/requests?scope=mine&status=fulfilled" />
         </LedgerStrip>
 
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="Recent requests" subtitle="Your most recently submitted purchase requests" />
+          <CardHeader title="Recent requests" />
           <CardBody>
             <DataTable
               columns={columns}
@@ -157,12 +156,11 @@ export function RequesterDashboard() {
               loading={loading}
               onRowClick={(r) => navigate(`/app/requests/${r.id}`)}
               emptyTitle="No requests yet"
-              emptyDescription="Create your first purchase request to get started."
             />
           </CardBody>
         </Card>
 
-        <Section title="Your paper trail" subtitle="Recent updates across your requests">
+        <Section title="Your paper trail">
           <Timeline events={activity} />
           <Link to="/app/requests" className="mt-4 inline-block text-sm font-medium text-accent hover:underline">
             View all requests

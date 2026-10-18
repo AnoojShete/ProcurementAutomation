@@ -25,7 +25,7 @@ export function Drawer({
 
   return (
     <div className="fixed inset-0 z-40" role="presentation">
-      <div className="absolute inset-0 bg-ink/35 animate-fade-in" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-scrim/40 animate-fade-in" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"

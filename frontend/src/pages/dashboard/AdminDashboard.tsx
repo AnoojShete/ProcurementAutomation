@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { AlertTriangle, Boxes, Building2, FileText, PackageSearch, ScrollText } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { usePageHeader } from "@/hooks/usePageTitle";
@@ -13,7 +14,6 @@ import { AttentionCard, type AttentionItem } from "@/components/dashboard/Attent
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { LicenseIntelligenceCard } from "@/components/dashboard/LicenseIntelligenceCard";
-import { useAuth } from "@/hooks/useAuth";
 
 import { PLATFORM_SERVICES } from "@/lib/constants";
 
@@ -26,7 +26,6 @@ const AGENT_LABELS: Record<string, { agent: string; owns: string }> = {
 };
 
 export function AdminDashboard() {
-  const { user } = useAuth();
   usePageHeader("Overview");
   const { data: requests, loading: reqLoading } = useApi(() => requestsApi.list(200), []);
   const { data: vendors, loading: vendorsLoading } = useApi(() => vendorsApi.list(200), []);
@@ -52,7 +51,7 @@ export function AdminDashboard() {
           </>
         ),
         cta: "Review contracts",
-        to: "/app/contracts",
+        to: "/app/contracts?renewal=30",
       });
     }
     if (highRiskVendors > 0) {
@@ -64,7 +63,7 @@ export function AdminDashboard() {
           </>
         ),
         cta: "Review risk",
-        to: "/app/risk",
+        to: "/app/vendors?risk=High",
       });
     }
     if (lowStockItems.length > 0) {
@@ -76,7 +75,7 @@ export function AdminDashboard() {
           </>
         ),
         cta: "View inventory",
-        to: "/app/inventory",
+        to: "/app/inventory#reorder",
       });
     }
     return items;
@@ -86,17 +85,17 @@ export function AdminDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Greeting name={user?.email.split("@")[0] ?? "there"} subtitle="Platform-wide procurement command center." />
+      <Greeting />
 
       <AttentionCard items={attentionItems} />
 
       <LedgerStrip cols={6} loading={loading} label="Platform figures">
-          <MetricCard label="Total Requests" value={requests?.length ?? 0} icon={FileText} tone="brand" />
-          <MetricCard label="Active Vendors" value={vendors?.filter((v) => v.status === "active").length ?? 0} icon={Building2} tone="brand" />
-          <MetricCard label="Pending Approvals" value={pendingApprovals} icon={ScrollText} tone="warning" />
-          <MetricCard label="Contracts" value={contracts?.length ?? 0} icon={ScrollText} tone="brand" />
-          <MetricCard label="High Risk Vendors" value={highRiskVendors} icon={AlertTriangle} tone={highRiskVendors ? "danger" : "success"} />
-          <MetricCard label="Inventory Alerts" value={lowStockItems.length} icon={PackageSearch} tone={lowStockItems.length ? "warning" : "success"} />
+          <MetricCard label="Total Requests" value={requests?.length ?? 0} icon={FileText} tone="brand" to="/app/requests?scope=all" />
+          <MetricCard label="Active Vendors" value={vendors?.filter((v) => v.status === "active").length ?? 0} icon={Building2} tone="brand" to="/app/vendors?status=active" />
+          <MetricCard label="Pending Approvals" value={pendingApprovals} icon={ScrollText} tone="warning" to="/app/requests?scope=all&status=pending_approval" />
+          <MetricCard label="Contracts" value={contracts?.length ?? 0} icon={ScrollText} tone="brand" to="/app/contracts" />
+          <MetricCard label="High Risk Vendors" value={highRiskVendors} icon={AlertTriangle} tone={highRiskVendors ? "danger" : "success"} to="/app/vendors?risk=High" />
+          <MetricCard label="Inventory Alerts" value={lowStockItems.length} icon={PackageSearch} tone={lowStockItems.length ? "warning" : "success"} to="/app/inventory#reorder" />
         </LedgerStrip>
 
       <LicenseIntelligenceCard />
@@ -105,7 +104,7 @@ export function AdminDashboard() {
       <OrderStatusCard />
 
       <Card>
-        <CardHeader title="Agent Activity" subtitle="Each domain service and what it owns in the pipeline" />
+        <CardHeader title="Agents" action={<Link to="/app/system-health" className="text-13 font-medium text-accent hover:underline">System health</Link>} />
         <CardBody>
           <ul className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
             {PLATFORM_SERVICES.map((svc) => {
@@ -121,9 +120,6 @@ export function AdminDashboard() {
               );
             })}
           </ul>
-          <p className="mt-3 text-xs text-slate-400">
-            Detailed per-service throughput and error rates are in Grafana — see System Health.
-          </p>
         </CardBody>
       </Card>
     </div>

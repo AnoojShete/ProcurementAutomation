@@ -16,7 +16,7 @@ export function VendorRiskPanel({ risk, compact = false }: { risk: SigningRisk; 
     <div
       className={cn(
         "rounded-lg border p-3.5 text-sm",
-        alarming ? "border-danger-500/30 bg-danger-50" : "border-surface-border bg-white",
+        alarming ? "border-danger-500/30 bg-danger-50" : "border-surface-border bg-sheet",
       )}
     >
       <div className="flex flex-wrap items-center gap-2">

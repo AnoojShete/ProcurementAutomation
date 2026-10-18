@@ -53,8 +53,8 @@ export function OrderStatusCard() {
         title="Order status"
         subtitle={
           summary
-            ? `Checked ${formatRelativeTime(summary.generated_at)} by the order monitor · runs hourly`
-            : "Checked hourly by the order monitor"
+            ? `Checked ${formatRelativeTime(summary.generated_at)}`
+            : undefined
         }
         action={action}
       />
@@ -64,22 +64,29 @@ export function OrderStatusCard() {
         </CardBody>
       ) : !summary ? (
         <CardBody className="text-13 text-slate-600">
-          {error && !/no order summary/i.test(error) ? error : "No check has run yet. The first one runs shortly after startup."}
+          {error && !/no order summary/i.test(error) ? error : "No check has run yet."}
           {runError && <p className="mt-1 text-danger-600">{runError}</p>}
         </CardBody>
       ) : (
         <>
-          <dl className="grid grid-cols-2 divide-surface-border border-b border-surface-border sm:grid-cols-4 sm:divide-x">
-            <Stat label="Awaiting approval" value={summary.counts.pending_approval} flag={summary.counts.approval_overdue} flagLabel="past SLA" />
-            <Stat label="Awaiting signature" value={summary.counts.awaiting_signature} />
+          <div className="grid grid-cols-2 divide-surface-border border-b border-surface-border sm:grid-cols-4 sm:divide-x">
+            <Stat
+              label="Awaiting approval"
+              value={summary.counts.pending_approval}
+              flag={summary.counts.approval_overdue}
+              flagLabel="past SLA"
+              to="/app/requests?scope=all&status=pending_approval"
+            />
+            <Stat label="Awaiting signature" value={summary.counts.awaiting_signature} to="/app/contracts?status=pending_signature" />
             <Stat
               label="Awaiting delivery"
               value={summary.counts.awaiting_delivery}
               flag={summary.counts.delivery_overdue}
               flagLabel="overdue"
+              to="/app/requests?scope=all&status=ordered"
             />
-            <Stat label="Backordered" value={summary.counts.backordered} />
-          </dl>
+            <Stat label="Backordered" value={summary.counts.backordered} to="/app/requests?scope=all&backordered=1" />
+          </div>
           <CardBody className="flex flex-col gap-3">
             <p className="text-13 text-slate-600">
               Since the previous check: {summary.changes.new_requests} new, {summary.changes.approved} approved,{" "}
@@ -116,18 +123,18 @@ export function OrderStatusCard() {
   );
 }
 
-function Stat({ label, value, flag, flagLabel }: { label: string; value: number; flag?: number; flagLabel?: string }) {
+function Stat({ label, value, flag, flagLabel, to }: { label: string; value: number; flag?: number; flagLabel?: string; to: string }) {
   return (
-    <div className="px-4 py-3">
-      <dt className="text-xs text-slate-600">{label}</dt>
-      <dd className="mt-0.5 flex items-baseline gap-2">
+    <Link to={to} className="block px-4 py-3 transition-colors duration-1 hover:bg-sheet-sunk focus-visible:ring-inset focus-visible:ring-offset-0">
+      <span className="block text-xs text-slate-600">{label}</span>
+      <span className="mt-0.5 flex items-baseline gap-2">
         <span className="text-xl font-semibold tabular text-slate-900">{value}</span>
         {!!flag && (
           <span className="text-xs font-medium text-danger-600">
             {flag} {flagLabel}
           </span>
         )}
-      </dd>
-    </div>
+      </span>
+    </Link>
   );
 }

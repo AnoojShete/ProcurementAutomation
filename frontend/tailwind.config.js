@@ -25,6 +25,11 @@ export default {
         rule: { DEFAULT: c("rule"), mid: c("rule-mid"), strong: c("rule-strong") },
         ink: { DEFAULT: c("ink"), 2: c("ink-2"), 3: c("ink-3") },
         accent: { DEFAULT: c("accent"), hover: c("accent-hover"), tint: c("accent-tint") },
+        // Fulfilled / received: lavender, its own role next to done/danger.
+        received: { DEFAULT: c("received"), tint: c("received-tint"), soft: c("received-soft") },
+        // Text on a solid fill. Surfaces use `sheet`, never `white`.
+        white: c("on-fill"),
+        scrim: c("scrim"),
 
         // Existing names, re-pointed so every page picks up the palette.
         brand: {
@@ -109,7 +114,7 @@ export default {
         // Floating layers only; page content is flat.
         card: "none",
         button: "none",
-        popover: "0 1px 2px rgb(24 33 28 / 0.08), 0 8px 24px rgb(24 33 28 / 0.12)",
+        popover: "0 1px 2px rgb(var(--scrim) / 0.08), 0 8px 24px rgb(var(--scrim) / 0.12)",
       },
       borderRadius: {
         // 2px tags, 4px controls and sections, 8px modals/popovers.

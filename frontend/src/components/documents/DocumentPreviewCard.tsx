@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { documentTypeLabel, formatDateTime } from "@/lib/format";
 import type { DocumentRecord } from "@/types/api";
 import { DocumentAmount } from "./DocumentAmount";
+import { PersonName } from "@/components/people/PersonName";
 
 const FILE_ICON_BG: Record<string, string> = {
   pdf: "bg-danger-50 text-danger-600",
@@ -191,7 +192,7 @@ export function DocumentPreviewCard({
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="bg-white/90 backdrop-blur shadow-sm text-xs"
+                  className="bg-sheet/90 backdrop-blur shadow-sm text-xs"
                   onClick={() => setModalOpen(true)}
                   icon={<Maximize2 className="size-3" />}
                 >
@@ -256,7 +257,11 @@ export function DocumentPreviewCard({
         footer={
           <div className="flex w-full items-center justify-between">
             <span className="text-xs text-slate-500">
-              {doc?.uploaded_by && `Uploaded by ${doc.uploaded_by} · `}
+              {doc?.uploaded_by && (
+                <>
+                  Uploaded by <PersonName email={doc.uploaded_by} /> ·{" "}
+                </>
+              )}
               {doc?.uploaded_at && formatDateTime(doc.uploaded_at)}
             </span>
             <div className="flex gap-2">

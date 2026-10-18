@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { AlertTriangle, IndianRupee, PieChart, RefreshCcw, ScrollText } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { usePageHeader } from "@/hooks/usePageTitle";
@@ -14,10 +15,8 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { CategoryBarChart } from "@/components/charts/CategoryBarChart";
 import { formatCurrency, titleCase } from "@/lib/format";
 import { APPROVER_ROLES } from "@/lib/constants";
-import { useAuth } from "@/hooks/useAuth";
 
 export function FinanceDashboard() {
-  const { user } = useAuth();
   usePageHeader("Dashboard");
   const { data: requests, loading: reqLoading } = useApi(() => requestsApi.list(200), []);
   const { data: vendors, loading: vendorsLoading } = useApi(() => vendorsApi.list(200), []);
@@ -61,7 +60,7 @@ export function FinanceDashboard() {
           </>
         ),
         cta: "Review",
-        to: "/app/approvals",
+        to: `/app/approvals?role=${APPROVER_ROLES[1].value}`,
       });
     }
     if ((renewals?.length ?? 0) > 0) {
@@ -73,7 +72,7 @@ export function FinanceDashboard() {
           </>
         ),
         cta: "View contracts",
-        to: "/app/contracts",
+        to: "/app/contracts?renewal=60",
       });
     }
     if (highRiskVendors.length > 0) {
@@ -85,7 +84,7 @@ export function FinanceDashboard() {
           </>
         ),
         cta: "Review vendors",
-        to: "/app/vendors",
+        to: "/app/vendors?risk=High",
       });
     }
     return items;
@@ -95,28 +94,29 @@ export function FinanceDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Greeting name={user?.email.split("@")[0] ?? "there"} subtitle="Spend, budget, and vendor risk across the organization." />
+      <Greeting />
 
       <AttentionCard items={attentionItems} />
 
       <LedgerStrip cols={5} loading={loading} label="Finance figures">
-          <MetricCard label="Pending Financial Approval" value={financeInbox.data?.length ?? 0} icon={ScrollText} tone="warning" />
-          <MetricCard label="Monthly Spend" value={formatCurrency(monthlySpend)} icon={IndianRupee} tone="brand" />
+          <MetricCard label="Pending Financial Approval" value={financeInbox.data?.length ?? 0} icon={ScrollText} tone="warning" to={`/app/approvals?role=${APPROVER_ROLES[1].value}`} />
+          <MetricCard label="Monthly Spend" value={formatCurrency(monthlySpend)} icon={IndianRupee} tone="brand" to="/app/spend" />
           <MetricCard
             label="High-Risk Vendors"
             value={highRiskVendors.length}
             icon={AlertTriangle}
             tone={highRiskVendors.length ? "danger" : "success"}
+            to="/app/vendors?risk=High"
           />
-          <MetricCard label="Contract Renewals (60d)" value={renewals?.length ?? 0} icon={RefreshCcw} tone="warning" />
-          <MetricCard label="Active Contracts" value={contracts?.filter((c) => c.status === "signed").length ?? 0} icon={PieChart} tone="brand" />
+          <MetricCard label="Contract Renewals (60d)" value={renewals?.length ?? 0} icon={RefreshCcw} tone="warning" to="/app/contracts?renewal=60" />
+          <MetricCard label="Active Contracts" value={contracts?.filter((c) => c.status === "signed").length ?? 0} icon={PieChart} tone="brand" to="/app/contracts?status=signed" />
         </LedgerStrip>
 
 
       <OrderStatusCard />
 
       <Card>
-        <CardHeader title="Spend by Request Type" subtitle="Approved and fulfilled requests, grouped by category" />
+        <CardHeader title="Spend by Request Type" action={<Link to="/app/spend" className="text-13 font-medium text-accent hover:underline">Spend analysis</Link>} />
         <CardBody>
           {spendByCategory.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">No approved spend recorded yet.</p>

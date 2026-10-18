@@ -2,7 +2,9 @@ import { api } from "./client";
 import type {
   AccountUser,
   CurrentUser,
+  Person,
   Role,
+  ThemePreference,
   TokenResponse,
 } from "@/types/api";
 
@@ -16,6 +18,9 @@ export const authApi = {
       { skipAuthRetry: true },
     ),
   me: () => api.get<CurrentUser>("/auth/me"),
+  updateMe: (changes: { display_name?: string; theme?: ThemePreference }) =>
+    api.patch<CurrentUser>("/auth/me", changes),
+  people: () => api.get<Person[]>("/auth/people"),
 
   register: (email: string, password: string) =>
     api.post<Message>(
@@ -58,6 +63,7 @@ export const authApi = {
     api.get<AccountUser[]>(
       `/auth/users${q ? `?q=${encodeURIComponent(q)}` : ""}`,
     ),
+  getUser: (id: string) => api.get<AccountUser>(`/auth/users/${id}`),
   updateUser: (id: string, changes: { role?: Role; is_active?: boolean }) =>
     api.patch<AccountUser>(`/auth/users/${id}`, changes),
 };

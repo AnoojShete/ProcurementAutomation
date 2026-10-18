@@ -10,7 +10,7 @@ import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { RiskBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { ErrorState, InlineError, InlineInfo } from "@/components/ui/ErrorState";
+import { ErrorState, InlineError } from "@/components/ui/ErrorState";
 import type { VendorSummary } from "@/types/api";
 import { ApiError } from "@/api/client";
 
@@ -57,9 +57,9 @@ export function RiskDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <LedgerStrip cols={3} label="Vendors by risk band">
-        <MetricCard label="Low risk" value={distribution.Low} icon={ShieldCheck} tone="success" hint={`${Math.round((distribution.Low / total) * 100)}% of scored vendors`} />
-        <MetricCard label="Medium risk" value={distribution.Medium} icon={ShieldQuestion} tone="warning" hint={`${Math.round((distribution.Medium / total) * 100)}% of scored vendors`} />
-        <MetricCard label="High risk" value={distribution.High} icon={AlertTriangle} tone="danger" hint={`${Math.round((distribution.High / total) * 100)}% of scored vendors`} />
+        <MetricCard label="Low risk" value={distribution.Low} icon={ShieldCheck} tone="success" hint={`${Math.round((distribution.Low / total) * 100)}% of scored vendors`} to="/app/vendors?risk=Low" />
+        <MetricCard label="Medium risk" value={distribution.Medium} icon={ShieldQuestion} tone="warning" hint={`${Math.round((distribution.Medium / total) * 100)}% of scored vendors`} to="/app/vendors?risk=Medium" />
+        <MetricCard label="High risk" value={distribution.High} icon={AlertTriangle} tone="danger" hint={`${Math.round((distribution.High / total) * 100)}% of scored vendors`} to="/app/vendors?risk=High" />
       </LedgerStrip>
 
       <Card>
@@ -88,7 +88,7 @@ export function RiskDashboardPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Vendor Risk" subtitle="Click a vendor for contributing factors and assessment history" />
+        <CardHeader title="Vendor Risk" />
         <CardBody>
           <DataTable
             columns={columns}
@@ -103,7 +103,7 @@ export function RiskDashboardPage() {
 
       {user?.role === "admin" && (
         <Card>
-          <CardHeader title="Model Drift Monitoring" subtitle="Population Stability Index vs. the training-time score distribution — a monitoring signal only, never auto-retrains" />
+          <CardHeader title="Model Drift Monitoring" subtitle="Population Stability Index against the training distribution" />
           <CardBody className="flex flex-col gap-3">
             <Button variant="secondary" loading={driftLoading} onClick={runDriftCheck}>
               Run Drift Check
@@ -112,7 +112,6 @@ export function RiskDashboardPage() {
             {driftResult && (
               <pre className="overflow-x-auto rounded-lg bg-surface-subtle p-3 text-xs text-slate-700">{JSON.stringify(driftResult, null, 2)}</pre>
             )}
-            <InlineInfo message="The vendor risk model is trained on documented synthetic data for this environment — treat scores as a demonstration of the scoring pipeline, not live external intelligence." />
           </CardBody>
         </Card>
       )}

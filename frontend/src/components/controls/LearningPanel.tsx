@@ -188,7 +188,7 @@ export function LearningPanel({ showcase }: { showcase: boolean }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-surface-border bg-white px-4 py-3">
+    <div className="rounded-md border border-surface-border bg-sheet px-4 py-3">
       <p className="text-xs text-slate-600">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular text-slate-900">{value}</p>
     </div>

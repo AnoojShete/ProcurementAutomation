@@ -6,11 +6,17 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { PageHeaderProvider, usePageTitle } from "@/hooks/usePageTitle";
 import { BotMessageSquare } from "lucide-react";
 import { ChatDrawer } from "@/components/ui/ChatDrawer";
+import { PeopleProvider } from "@/hooks/usePeople";
+import { UnreadNotificationsProvider } from "@/hooks/useUnreadNotifications";
 
 export function AppShell() {
   return (
     <PageHeaderProvider>
-      <AppShellInner />
+      <PeopleProvider>
+        <UnreadNotificationsProvider>
+          <AppShellInner />
+        </UnreadNotificationsProvider>
+      </PeopleProvider>
     </PageHeaderProvider>
   );
 }
@@ -19,7 +25,7 @@ function AppShellInner() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false); // NEW STATE
+  const [chatOpen, setChatOpen] = useState(false);
   const { title, breadcrumb } = usePageTitle();
 
   useEffect(() => {
