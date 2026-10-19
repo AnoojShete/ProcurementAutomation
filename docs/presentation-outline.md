@@ -20,7 +20,7 @@ follows the deck ([docs/showcase.html](showcase.html)).
 | 10 | Reliability & controls | Outbox + retries + dead-letter queue, failed events visible, one correlation id through all logs, model fallback on demand | `screens/10-control-panel.png`, `screens/12-system-health.png`, `results/logs-correlation.png` |
 | 11 | Results (ML) | Each model measured on held-out data against a baseline | Table from `results/README.md` (extraction, classifier, risk, licence anomaly, clauses) |
 | 12 | Testing | Unit suites per service + end-to-end runs through the gateway; every fix proven by reverting it | Counts from `results/README.md` |
-| 13 | Research direction | When can an invoice skip review? Calibrated, risk-controlled automation using company records | `docs/project-flow.html#research` |
+| 13 | Research direction | When can an invoice skip review? Calibrated, risk-controlled automation using company records. First run (3,000 synthetic invoices): company records lift AUROC 0.74 → 0.94, but at a ≤ 5 % error budget nothing can be certified yet — the duplicate rule misses resubmitted invoices; today's rule accepts 41 % with 6.8 % wrong | `docs/project-flow.html#research`, `results/selective.md` |
 | 14 | Limits & next steps | All data synthetic; noisy scans read poorly; prototype, not production (CI tests, secrets, TLS next) | Bullets |
 | A | Appendix: run it | `./run.sh` (builds what changed, starts everything), `./scripts/seed-demo-data.sh`, `install.sh` (first run) | Terminal screenshot of `./run.sh` output |
 

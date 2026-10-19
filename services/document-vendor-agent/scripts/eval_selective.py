@@ -213,9 +213,13 @@ def compute_evidence(world: dict, extraction: dict, noise: float = 0.0, noise_se
     tol = ledger.Tolerances()
     match_threshold = load_vendor_matching_config().get("fuzzy_match_threshold", 88)
     lookalike_min = 70  # rule vendor.lookalike_min_similarity (default)
+    # The live values are the business rules (auth-service seeds), which
+    # override config.yaml: document.duplicate_invoice_amount_tolerance_pct
+    # 0.02, document.duplicate_invoice_date_window_days 7,
+    # vendor.duplicate_invoice_number_fuzzy_threshold 85.
     dup_cfg = load_duplicate_detection_config()
-    dup_tol = float(dup_cfg.get("amount_tolerance_pct", 0.01))
-    dup_days = int(dup_cfg.get("date_window_days", 5))
+    dup_tol = 0.02
+    dup_days = 7
     dup_num = int(dup_cfg.get("document_number_fuzzy_threshold", 85))
     review_threshold = float(load_extraction_config().get("confidence_threshold", 0.8))
 

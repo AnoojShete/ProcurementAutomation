@@ -50,13 +50,15 @@ Oct 16.
   outbox for events; retries + DLQ; idempotent migrations; audit of every
   control; runs on one machine with Docker Compose; `APP_ENV=production`
   refuses default secrets.
-- **Stage (Oct 18, 2026):** all basic requirements built (BR-1…BR-7);
+- **Stage (Oct 20, 2026):** all basic requirements built (BR-1…BR-7);
   R0 done except FR-04 (red-team list) and FR-05 (a teammate's run);
   UI pass UX-1 done (dark mode, names, notification feed); the stack runs
-  from a fresh clone again (REPRO-1, MinIO image);
+  from a fresh clone again (REPRO-1, MinIO image); Oct 19: security
+  upgrades (FR-27, mostly), deployment guide + backups (DEP-1), first
+  research run (RS-01…07, RS-09: `docs/results/selective.md`);
   development ends **end of October** (mentor deadline), testing in
-  November, submission in December. A research paper on calibrated
-  automation is planned (RS-xx tasks).
+  November, submission in December. Open decisions: DUP-1, E2E-1, SEC-1
+  (key owner).
 
 ## A.2 Architecture and implementation context
 
@@ -234,8 +236,8 @@ evidence for FR/BR items are in Part B under the same ID.
 | RS-03 | Batch harness: seed a world into the stack, run documents through the real pipeline, collect evidence + labels | COMPLETE, changed (Oct 19: `scripts/eval_selective.py extract|evaluate`. Not through the stack: reading runs in-process with the production code, enterprise evidence against the generated master/ledger with the production rules and the ledger's own `evaluate()`; 58 min to read 3,000, 35 s to evaluate) | P1 | RS-01, RS-02 | new `scripts/eval_selective.py` | One command produces the labelled dataset | Research |
 | RS-04 | Calibrators (logistic, hist-gradient-boosting) + LTT gate at document level | COMPLETE (Oct 19: `app/services/selective_gate.py`, logistic + HGB, fixed-sequence LTT with binomial p-values; `tests/test_selective_gate.py` incl. a risk-control simulation that fails with a naive threshold) | P1 | RS-03 | new `app/services/selective_gate.py` | Gate returns accept/defer with p and evidence | Research |
 | RS-05 | Baselines B0 (current), B1 doc-only calibrated, B2 rules-only | COMPLETE (Oct 19: B0, B1, B2, P and FC on the same splits) | P1 | RS-03 | eval script | All four systems scored on same splits | Research |
-| RS-06 | RQ1 + RQ2 experiments, 20 vendor-grouped splits, bootstrap CIs | COMPLETE (Oct 19: 20 vendor-grouped splits, bootstrap CIs. H1 not supported at α ≤ 5 %: no calibrated gate accepts anything; P vs B1 AUROC 0.941 vs 0.741; B0 6.8 % / B2 12.9 % wrong among accepted. Exploratory P+dup: 16.6 % coverage at α = 2 %. See `RESEARCH_PAPER_PLAN.md` §9.10) | P1 | RS-04, RS-05 | `docs/results/selective.{json,md}` | Results file with coverage at α, risk, AURC | Research |
-| RS-07 | Ablations per evidence group; RQ3 robustness to stale master data | PARTIAL (Oct 19: ablation and stale-master sweep run at α = 10 % (nothing passes at ≤ 5 %); PO match matters most (AUROC 0.833 without); coverage too low for a robustness curve) | P1 | RS-06 | same | Ablation + noise-sensitivity tables | Research |
+| RS-06 | RQ1 + RQ2 experiments, 20 vendor-grouped splits, bootstrap CIs | COMPLETE (Oct 19: 20 vendor-grouped splits, bootstrap CIs. H1 not supported at α ≤ 5 %: no calibrated gate accepts anything; P vs B1 AUROC 0.938 vs 0.741; B0 6.8 % / B2 12.8 % wrong among accepted. Exploratory P+dup: 12.1 % coverage at α = 2 % (35.4 % at 5 %). Oct 20: re-evaluated with the live duplicate-rule values (2 % / 7 days). See `RESEARCH_PAPER_PLAN.md` §9.10) | P1 | RS-04, RS-05 | `docs/results/selective.{json,md}` | Results file with coverage at α, risk, AURC | Research |
+| RS-07 | Ablations per evidence group; RQ3 robustness to stale master data | PARTIAL (Oct 19: ablation and stale-master sweep run at α = 10 % (nothing passes at ≤ 5 %); PO match matters most (AUROC 0.831 without); coverage too low for a robustness curve) | P1 | RS-06 | same | Ablation + noise-sensitivity tables | Research |
 | RS-08 | External validity on DocILE (check terms) or FATURA with derived context | PENDING | P2 | RS-04 | same | Run reported, or reason it could not be | Research |
 | RS-09 | Failure analysis of accepted-but-wrong documents | COMPLETE (Oct 19: accepted-but-wrong by injection, visual and misread field, for P+dup-hgb at α = 10 %; top: arithmetic and overbilling on scans, misread totals on mild scans) | P1 | RS-06 | same | Categorised examples in results | Research |
 | RS-10 | (optional) Drift + reviewer-feedback recalibration (RQ4) | PENDING | P3 | RS-06 | `learning.py` | Per-window risk table | Research |

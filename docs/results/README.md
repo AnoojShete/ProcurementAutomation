@@ -18,7 +18,7 @@ documents.
 | **Notification** | [samples/notification-agent.json](samples/notification-agent.json) | [13 notifications](screens/13-notifications.png) | 11 of 17 event topics consumed; coverage and gaps in [../notifications.md](../notifications.md); failed events retried and dead-lettered (FR-31) |
 | **Auth & business rules** | [samples/auth-service-rule.json](samples/auth-service-rule.json) | [11 business rules](screens/11-business-rules.png) | 47 rules, 37 enforced, each with a behaviour test ([../business-rules.md](../business-rules.md)) |
 | **Platform** | — | [10 control panel](screens/10-control-panel.png), [12 system health](screens/12-system-health.png), [logs by correlation id](logs-correlation.png) | Gateway e2e (`make e2e`) 17/17; model fallback shown on demand ([../model-routing.md](../model-routing.md)) |
-| **Research: selective automation** | [selective.json](selective.json) | — | 3,000 synthetic invoices, 20 vendor-grouped splits: no calibrated gate accepts anything at α ≤ 5 % (H1 not supported yet); enterprise evidence AUROC 0.941 vs 0.741 document-only; today's heuristic accepts 41 % with 6.8 % wrong ([selective.md](selective.md)) |
+| **Research: selective automation** | [selective.json](selective.json) | — | 3,000 synthetic invoices, 20 vendor-grouped splits: no calibrated gate accepts anything at α ≤ 5 % (H1 not supported yet); enterprise evidence AUROC 0.938 vs 0.741 document-only; today's heuristic accepts 41 % with 6.8 % wrong ([selective.md](selective.md)) |
 
 ## Tests (19 Oct 2026, after the FastAPI 0.148 / Starlette 1.9 / Docling 2.140 upgrade)
 

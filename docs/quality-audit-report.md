@@ -5,6 +5,11 @@ black-box testing through the gateway, controlled dependency failures, a
 browser crawl, then fixes with regression tests. How to rerun everything and
 the full scenario matrix are in [testing-strategy.md](testing-strategy.md).
 
+> **Update, October 19:** QA-06 and QA-21 fixed; access tokens shortened
+> to 15 minutes; Python and frontend dependencies upgraded; production
+> start-up checked and backups added (`docs/deployment.md`). Status of every
+> item: `docs/TODO.md`. The rest of this report is as written on Oct 17.
+
 **Assessment: READY WITH KNOWN ISSUES** for the local demonstration and
 submission. Not ready for a shared or public deployment until the open P0
 (credential rotation, SEC-1 in TODO.md) and the session items below are done.
@@ -44,7 +49,7 @@ data; **high** — data corruption or exposure that one user can trigger;
 | QA-07 | High | Any signed-in user can read every contract and its PDFs (known P1) | contract-risk: `api/contracts.py`, `contract_service.py` | **Fixed** |
 | QA-04 | Medium | Invalid amounts (negative, ∞, 1e300) give 500 instead of 422 | approval-inventory: `schemas.py` | **Fixed** |
 | QA-05 | Medium | `limit=-1` → 500; `limit=10^7` reads the whole table | 10 list endpoints in 4 services | **Fixed** |
-| QA-06 | Medium | `/auth/logout` doesn't revoke the refresh token | auth-service | Open |
+| QA-06 | Medium | `/auth/logout` doesn't revoke the refresh token | auth-service | Fixed Oct 19 |
 | QA-08 | Medium | Requesters' Notifications page and bell fail with 403 | notification-agent: `api/notifications.py` | **Fixed** |
 | QA-19 | Medium | A request is committed before its `approval.requested` event | approval-inventory: `approval_service.py` | Open |
 | QA-09 | Low | Vendor page tells requesters/approvers "no payment changes" (actually a 403) | frontend: `VendorDetailPage.tsx` | **Fixed** |
@@ -58,7 +63,7 @@ data; **high** — data corruption or exposure that one user can trigger;
 | QA-17 | Low | Error messages carry internals / echo input | shared auth; approval-inventory 422 handler | Open |
 | QA-18 | Low | 11 form controls have no accessible name | frontend (7 files) | **Fixed** |
 | QA-20 | Low | `inventory` has no CHECK constraints | DB | Open (recommendation) |
-| QA-21 | Low | `react-router` 6.x moderate advisory | frontend dependency | Open |
+| QA-21 | Low | `react-router` 6.x moderate advisory | frontend dependency | Fixed Oct 19 (7.18) |
 | QA-22 | Low | Chatbot root tests are silently skipped | `tests/test_chatbot_e2e.py` | Open (owner: Anooj) |
 
 Already tracked in TODO.md and confirmed, not re-filed: access tokens stay
@@ -156,7 +161,7 @@ inventory); contracts, vendor risk list (contract-risk); documents, review
 queue, vendors, model-routing log (document-vendor); notification log.
 Tests in three services.
 
-### QA-06 — Medium — logout doesn't revoke the refresh token (open)
+### QA-06 — Medium — logout doesn't revoke the refresh token (fixed Oct 19: `jti` recorded in `auth_revoked_refresh_tokens`, migration 0014; replay → 401)
 
 - **Reproduce:** log in (cookie + CSRF token), save the cookies, call
   `/auth/logout`, then call `/auth/refresh` with the saved cookies.

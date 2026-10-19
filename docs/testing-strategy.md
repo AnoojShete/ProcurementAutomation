@@ -112,9 +112,9 @@ the fix), BLOCKED, NOT RUN. "Evidence" names the probe log line or test.
 | AUTH-13 | Internal | `/internal/email-actions/mint` via gateway | Not reachable | 405 from nginx | PASS |
 | SES-01 | Refresh | Cookie + CSRF header | 200 | 200 | PASS |
 | SES-02 | Refresh | Cookie without CSRF header | 403 | 403 | PASS |
-| SES-03 | Logout | Replay refresh cookie after `/auth/logout` | 401 | **200** | FAIL — QA-06 (open) |
+| SES-03 | Logout | Replay refresh cookie after `/auth/logout` | 401 | 401 (Oct 19; was 200) | PASS — QA-06 fixed: logout records the `jti` (`test_logout_ends_a_copied_refresh_cookie`) |
 | SES-04/05 | Logout-all | Other device refreshes | 401 | 401 "session has ended" | PASS |
-| SES-06 | Logout-all | Old access token | 401 | 200 until expiry (≤60 min) | FAIL — known P1, open |
+| SES-06 | Logout-all | Old access token | 401 | 200 until expiry (≤15 min since Oct 19; was 60) | FAIL — accepted: tokens are checked without a DB lookup; window shortened |
 | e2e | Account flows | `auth_flows.py` | all pass | 42/42 | PASS |
 
 ### 5.2 Purchase requests and approvals
@@ -212,8 +212,8 @@ requester at 390 / 1440 px, then finance at 1440 px after the fixes.
 |---|---|
 | `tsc` + `vite build` | pass |
 | `ruff --select F` (undefined names etc.) | 0 undefined names; 130 unused / duplicate imports (cosmetic, not changed) |
-| `npm audit --omit=dev` | 2 moderate: `react-router` 6.x open redirect via backslash in `<Link>`; fix only in 7.x (breaking) — not upgraded |
-| Python advisories | already tracked in TODO.md (Starlette 0.37.2, Pillow 10.4.0, pdfminer.six, MLflow 2.14.3) |
+| `npm audit --omit=dev` | Oct 17: 2 moderate (`react-router` 6.x open redirect). Oct 19: react-router 7.18 and vite 6.4 — 0 runtime advisories; build-time `braces` / `postcss-selector-parser` via Tailwind 3 remain (`docs/deployment.md` §5) |
+| Python advisories | Oct 19, `pip-audit` on each image: 302 → 152 after upgrading FastAPI 0.148 / Starlette 1.9, Pillow 12.3, pdfminer.six 20260107, Docling 2.140, cryptography 50, aiosmtplib 5.1; left: MLflow 2.14 (+ pyarrow, protobuf), paddlepaddle 2.6, imgaug, pytest (`docs/deployment.md` §5) |
 
 ## 6. Limitations
 

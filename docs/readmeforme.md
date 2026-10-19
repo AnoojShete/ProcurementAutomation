@@ -333,13 +333,13 @@ the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit
 
 | Command | What | Result |
 |---|---|---|
-| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 17: 823 passed (contract-risk 198, approval-inventory 178, document-vendor 328, notification 54, auth 65); Oct 18 after UX-1: auth 74, notification 58 |
-| root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | Oct 18: 142 + 14 passed, 4 skipped (the chatbot's live script) |
-| `make e2e` | Bash flow through the gateway: login, ClamAV reject/accept, request → approve → contract → signed webhook → risk → email → business-rule change | 17/17 (Sep 28) |
+| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 19, after the dependency upgrades: 844 passed (contract-risk 198, approval-inventory 179, document-vendor 334, notification 58, auth 75) |
+| root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | Oct 19: 144 + 14 passed, 4 skipped (the chatbot's live script) |
+| `make e2e` | Bash flow through the gateway: login, ClamAV reject/accept, request → approve → contract → signed webhook → risk → email → business-rule change | 17/17 (Oct 19) |
 | `python tests/e2e/auth_flows.py` | Sign-up → email → confirm → login → change password → logout → forgot/reset, expired / reused links, lockout, enumeration, rate limit (reads Mailpit) | 42/42 |
-| `python tests/e2e/invoice_lifecycle.py` | One fresh vendor's quote + invoice through all five agents, no DB shortcuts | 71/71 (adds auto-send after approval, mark-as-received, risk signal coverage) |
+| `python tests/e2e/invoice_lifecycle.py` | One fresh vendor's quote + invoice through all five agents, no DB shortcuts | 71/71 (Oct 19; adds auto-send after approval, mark-as-received, risk signal coverage) |
 | `python -m pytest tests/e2e/test_flow.py` | Core flow + webhook bad-signature / replay | passed |
-| `python tests/e2e/document_pipeline.py [--quick]` | Normal / huge / corrupt / empty / wrong-type / pathological files, duplicates, outages | 52/52 (`--quick`, Oct 15) |
+| `python tests/e2e/document_pipeline.py [--quick]` | Normal / huge / corrupt / empty / wrong-type / pathological files, duplicates, outages | 48/52 (`--quick`, Oct 19): `slow_to_parse.pdf` no longer hits the 120 s limit with Docling 2.140 (TODO E2E-1); 52/52 on Oct 15 |
 | `python tests/e2e/ui_flows.py` | Browser (Playwright): back arrow, clickable lifecycle, approve and sign from lifecycle steps, approval-inbox routing, license page's open-request panel | 11/11 (needs `pip install playwright && python -m playwright install chromium`) |
 | `python tests/e2e/demo_scenarios.py` | The five demo scenarios performed in a browser and checked → `docs/demo-script.html` | 18/18 |
 | `python tests/e2e/demo_5min.py` | The 5-minute demo (`docs/demo-5min.md`) rehearsed and recorded → `docs/demo/backup-recording.webm` | 6/6 (Oct 18, 4 runs) |
@@ -442,12 +442,14 @@ run.sh, install.sh, Makefile, docker-compose.yml, docker-compose.override.yml, .
   15 min (tracked for unknown addresses too). Gateway rate limits: 30/min
   per IP on login / register / verify / reset / change-password, 6/min on
   forgot-password / resend.
-- **Sessions**: access token (60 min) in memory; refresh token (7 days) in
+- **Sessions**: access token (15 min) in memory; refresh token (7 days) in
   an httpOnly, SameSite=Strict cookie scoped to `/api/auth`, with
   double-submit CSRF on refresh and logout. Refresh tokens carry the
   user's `token_version`; changing / resetting a password, a role change,
   disabling the account or "sign out everywhere" bumps it, ending other
-  sessions at their next refresh.
+  sessions at their next refresh. Logout records the refresh token's `jti`
+  (`auth_revoked_refresh_tokens`), so a copy of the cookie can't be
+  refreshed afterwards.
 - **Everywhere**: identity for audit fields comes from the JWT, never the
   request body; role checks on every route; uploads virus-scanned (fail
   closed) and type-checked by content; bank numbers masked for non-finance

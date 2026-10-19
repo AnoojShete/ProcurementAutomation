@@ -148,11 +148,11 @@
     <h2 class="t"><svg class="i"><use href="#tool"/></svg>The day before</h2>
     <pre>./run.sh                                 # builds what changed and starts everything
 ./scripts/seed-demo-data.sh              # demo vendor, requests, licences, stock
-./scripts/download-models.sh             # once per machine (LayoutLMv3 cross-check)
+./scripts/download-models.sh             # once per machine, and after a Docling upgrade (Docling models, LayoutLMv3, Legal-BERT)
 make e2e                                 # expect: 17 passed, 0 failed
 python tests/e2e/invoice_lifecycle.py    # expect: 71 passed, 0 failed (wait a minute after make e2e)
-python tests/e2e/document_pipeline.py --quick   # expect: 52 passed, 0 failed</pre>
-    <p class="muted">All three counts were re-run on 16 Oct 2026. Wait a minute between suites — the gateway rate-limits logins per IP.</p>
+python tests/e2e/document_pipeline.py --quick   # expect: 48 passed, 4 failed — the 4 are slow_to_parse.pdf, which Docling 2.140 now reads in time (TODO E2E-1)</pre>
+    <p class="muted">All three counts were re-run on 19 Oct 2026, after the dependency upgrades. Wait a minute between suites — the gateway rate-limits logins per IP.</p>
     <pre>python tests/e2e/showcase_screens.py     # retakes every screenshot on this page from the live stack (~3 min)
 python tests/e2e/demo_scenarios.py       # runs the five demo scenarios and refreshes demo-script.html (~5 min)</pre>
     <p>Step-by-step scenarios with the expected result of every click: <a href="demo-script.html"><b>demo-script.html</b></a> — each row was performed and checked on the live stack by the script above.</p>
@@ -264,16 +264,18 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
       <div class="card"><h3>Invoice matching</h3>An invoice 2 % over the agreed price → held for review.</div>
       <div class="card"><h3>Learning</h3>Correct a field twice for one vendor; the third document arrives pre-filled.</div>
       <div class="card"><h3>Model fallback</h3>Business Rules → <i>Force Model Fallback (demo)</i> = <code>["extraction"]</code>, upload a document, then System Health → Model Routing Log shows <code>layoutlmv3_fallback · forced</code> with its duration. Set it back to <code>[]</code>. (<a href="model-routing.md">model-routing.md</a>)</div>
-      <div class="card"><h3>Research direction</h3><a href="project-flow.html#research">project-flow.html#research</a> — calibrated, risk-controlled automation (planned).</div>
+      <div class="card"><h3>Research direction</h3><a href="project-flow.html#research">project-flow.html#research</a> — calibrated, risk-controlled automation. First run on 3,000 synthetic invoices: company records lift AUROC 0.74 → 0.94, but nothing can be certified yet at a ≤ 5 % error budget (<a href="results/selective.md">results</a>).</div>
     </div>
 
     <h2 class="t"><svg class="i"><use href="#check"/></svg>Evidence to quote</h2>
     <div class="tblwrap"><table class="tbl">
-      <tr><th>Claim</th><th>Evidence (16 Oct 2026)</th></tr>
-      <tr><td>Tested per service</td><td>594 unit tests pass across the five services (document 254, approval 123, contract-risk 118, auth 60, notification 39)</td></tr>
-      <tr><td>Works end to end through the gateway</td><td><code>make e2e</code> 17/17 · invoice lifecycle through all agents 71/71 · document pipeline 52/52</td></tr>
+      <tr><th>Claim</th><th>Evidence (19 Oct 2026)</th></tr>
+      <tr><td>Tested per service</td><td>844 unit tests pass across the five services (document 334, approval 179, contract-risk 198, auth 75, notification 58)</td></tr>
+      <tr><td>Works end to end through the gateway</td><td><code>make e2e</code> 17/17 · invoice lifecycle through all agents 71/71 · document pipeline 48/52 (one timeout fixture now reads in time)</td></tr>
       <tr><td>Document reading measured</td><td>PDFs 100 % of fields; images 49 % (with preprocessing) — <code>docs/results/extraction.md</code></td></tr>
       <tr><td>Risk model measured</td><td>ROC-AUC 0.715 (best possible on these labels 0.739), red-team 12/12 — <code>docs/results/risk-model.md</code></td></tr>
+      <tr><td>Research measured</td><td>3,000 synthetic invoices: company records lift AUROC 0.74 → 0.94; today's rule accepts 41 % with 6.8 % wrong; no gate can be certified yet at ≤ 5 % — <code>docs/results/selective.md</code></td></tr>
+      <tr><td>Deployable safely</td><td>Production mode refuses the published secrets in every service; backups and restore verified — <code>docs/deployment.md</code></td></tr>
       <tr><td>Fixes proven</td><td>Each fix is checked by reverting it and watching a test fail</td></tr>
     </table></div>
 
@@ -285,7 +287,7 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
         <li>Built-in e-sign seal is tamper-evident (SHA-256), not a keyed signature.</li>
         <li>CI builds images but doesn't run tests yet; Kafka has no TLS; single machine.</li></ul></div>
       <div class="card c-w"><h3>Not built yet</h3><ul>
-        <li>Calibrated automation gate — the research plan.</li>
+        <li>Calibrated automation gate in the live pipeline — built and measured offline (<code>selective_gate.py</code>), not switched on (RS-11).</li>
         <li>Tests in CI, real secrets and TLS (November submission work).</li></ul></div>
       <div class="card c-w"><h3>Measured limits</h3><ul>
         <li>All models are evaluated on synthetic or public data, not a company's own documents.</li>

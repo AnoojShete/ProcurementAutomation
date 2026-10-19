@@ -180,7 +180,9 @@ journal, or an applied ML workshop. Pick after RQ1 results.
 
 Run: 3,000 generated invoices, 100 vendors (generator 1.0, seed 7), read
 with the production code, 20 vendor-grouped splits, δ = 0.1. Every number
-is in `docs/results/selective.json`.
+is in `docs/results/selective.json`. (Re-evaluated 20 Oct with the live
+duplicate-rule values, 2 % / 7 days instead of config.yaml's 1 % / 5 days;
+conclusions unchanged.)
 
 - **H1 not supported at the planned budgets.** At α = 1, 2 and 5 % none
   of the calibrated gates built from the production evidence (B1, P, FC)
@@ -191,25 +193,25 @@ is in `docs/results/selective.json`.
   similar, and the PO still has quantity left), plus overbilling the
   three-way match can't see when scanned line items are misread. LTT
   correctly refuses to accept anything it can't certify.
-- **Enterprise evidence does carry signal.** Threshold-free: AUROC 0.941
-  (P) vs 0.741 (B1, document only); AURC 0.135 vs 0.268. Ablation: the PO
-  match matters most (AUROC 0.833 without it), then bank details (0.900),
-  duplicates (0.919) and GSTIN (0.924).
+- **Enterprise evidence does carry signal.** Threshold-free: AUROC 0.938
+  (P) vs 0.741 (B1, document only); AURC 0.137 vs 0.268. Ablation: the PO
+  match matters most (AUROC 0.831 without it), then bank details (0.897),
+  duplicates (0.919) and GSTIN (0.921).
 - **The current rules are not risk-controlled.** B0 (today's heuristic)
-  accepts 41.4 % of invoices with 6.8 % of them wrong; B2 (all
-  enterprise checks pass) accepts 59.4 % with 12.9 % wrong.
+  accepts 41.2 % of invoices with 6.8 % of them wrong; B2 (all
+  enterprise checks pass) accepts 58.9 % with 12.8 % wrong.
 - **RQ2:** the field-composed gate (FC) accepts nothing at any α tested;
   no evidence yet for or against H2.
 - **Exploratory (decided after seeing the diagnosis, so not a test of
   H1):** adding the duplicate check without the number condition (P+dup,
   equal to setting rule `vendor.duplicate_invoice_number_fuzzy_threshold`
-  to 0) gives 16.6 % coverage at α = 2 % (risk 0.5 %, violations 10 %)
-  and 42.2 % at α = 5 % (risk 2.6 %, violations 20 %, above δ).
+  to 0) gives 12.1 % coverage at α = 2 % (risk 0.3 %, violations 5 %)
+  and 35.4 % at α = 5 % (risk 2.3 %, violations 10 %).
 - **RQ3 (at α = 10 %, added because nothing passes at ≤ 5 %):** P's AUROC
-  falls from 0.941 to 0.841 as 40 % of master data goes stale; coverage
+  falls from 0.938 to 0.838 as 40 % of master data goes stale; coverage
   is near zero throughout, so the coverage curve says little yet.
-- **Validity of the guarantee:** violation rates up to 20 % on some
-  exploratory settings exceed δ. LTT assumes calibration and test
+- **Validity of the guarantee:** violation rates reach 20 % on one
+  exploratory setting (P+dup-hgb at α = 10 %), above δ. LTT assumes calibration and test
   documents are exchangeable; vendor-grouped splits (and one vendor with
   350 of 3,000 invoices) break that, and test-set noise adds to it. To
   report: per-split risk, and a document-level split as a check.
