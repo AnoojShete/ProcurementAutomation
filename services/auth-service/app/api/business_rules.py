@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import DEFAULT_RULES_ENGINE_SECRET
 from app.database import get_db
 from app.models import BusinessRule, BusinessRuleHistory
 from app.kafka_producer import publish_business_rule_updated
@@ -333,7 +334,7 @@ async def get_internal_rules(
     x_internal_service_secret: Optional[str] = Header(None, alias="X-Internal-Service-Secret"),
     db: AsyncSession = Depends(get_db),
 ):
-    expected_secret = os.environ.get("RULES_ENGINE_INTERNAL_SECRET", "dev-rules-secret-change-me")
+    expected_secret = os.environ.get("RULES_ENGINE_INTERNAL_SECRET", DEFAULT_RULES_ENGINE_SECRET)
     if not x_internal_service_secret or not hmac.compare_digest(x_internal_service_secret, expected_secret):
         raise HTTPException(status_code=403, detail="Invalid internal service secret")
     

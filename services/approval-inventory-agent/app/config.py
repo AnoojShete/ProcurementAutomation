@@ -1,9 +1,10 @@
+import os
 import yaml
 from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from shared.runtime_env import is_development
+from shared.runtime_env import is_development, require_secret
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://procurement:procurement123@postgres:5432/procurement_db"
@@ -28,6 +29,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Shared with notification-agent for POST /internal/email-actions/mint.
+DEFAULT_INTERNAL_SERVICE_TOKEN = "dev-internal-service-token-change-me"
+require_secret("INTERNAL_SERVICE_TOKEN", os.environ.get("INTERNAL_SERVICE_TOKEN"), {DEFAULT_INTERNAL_SERVICE_TOKEN})
 
 def get_anomaly_thresholds() -> tuple[float, float]:
     import os

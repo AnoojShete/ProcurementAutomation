@@ -169,6 +169,14 @@ five demo scenarios so the history comes from the real flows (~3 min;
 `--yes` skips the question). The e2e suites leave test data behind, so
 run it after them.
 
+Backups: `./scripts/backup.sh` dumps every Postgres database (app,
+Temporal) and archives the MinIO volume into `.run/backups/` without
+stopping anything; `./scripts/restore.sh` lists them and
+`./scripts/restore.sh <stamp>` puts one back (it backs up the current data
+first, so a restore can be undone). What is and isn't backed up, and the
+checklist for a deployment beyond this machine (production secrets, HTTPS,
+the advisories still open), are in [deployment.md](deployment.md).
+
 ## Configuration
 
 Everything is read from `.env` (git-ignored; created from `.env.example`).
@@ -182,7 +190,7 @@ versions are pinned in the compose files (the same test fails on a new
 |---|---|---|
 | `APP_ENV` | `development` (set by compose) | Unset means **production**: services refuse the published default secrets below, don't seed demo accounts, disable showcase endpoints and simulated signing, and refuse `EMAIL_MODE=dev`. |
 | `JWT_SECRET`, `ESIGN_WEBHOOK_SECRET`, `RULES_ENGINE_INTERNAL_SECRET`, `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, `KAFKA_PASSWORD_*` | published dev values | Must be real secrets outside development. |
-| `JWT_EXPIRY_MINUTES` / `JWT_REFRESH_EXPIRY_DAYS` | 60 / 7 | Access token lifetime is also how long a disabled user's current token keeps working. |
+| `JWT_EXPIRY_MINUTES` / `JWT_REFRESH_EXPIRY_DAYS` | 15 / 7 | Access token lifetime is also how long a disabled user's current token keeps working. |
 | `EMAIL_MODE` | `dev` | `dev` = Mailpit (nothing leaves the machine, read mail at :8025); `smtp` = real delivery. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD` | blank | Leave blank for `dev`. For `smtp`: port defaults to 587, security to `starttls` (`ssl` for 465). |
 | `EMAIL_FROM`, `EMAIL_REPLY_TO` | `Procurement Platform <noreply@procurement.local>`, blank | With Gmail, `EMAIL_FROM` must be your Gmail address. |
@@ -363,6 +371,29 @@ Notes:
   (`<folder>-auth-service`).
 - There's no Python linter configured; CI (`.github/workflows/ci.yml`)
   only builds images.
+
+### Research experiment (selective automation)
+
+The study in [RESEARCH_PAPER_PLAN.md](RESEARCH_PAPER_PLAN.md) runs on
+generated invoices with known ground truth, inside the
+document-vendor-agent image (the stack doesn't need to be running; ~1 h
+to read 3,000 documents, then a few minutes):
+
+```bash
+docker run --rm -e APP_ENV=development -e HF_HUB_OFFLINE=1 -e GIT_COMMIT=$(git rev-parse --short HEAD) \
+  -v "$PWD:/repo" -v procurementautomation_paddleocr-models:/root/.paddleocr \
+  -w /repo/services/document-vendor-agent --entrypoint python procurementautomation-document-vendor-agent \
+  scripts/eval_selective.py extract     # then the same with: scripts/eval_selective.py evaluate
+```
+
+`extract` renders the procurement world (`scripts/procurement_world.py`)
+and reads every document with the production code, caching the result in
+`data/procurement-world/` (git-ignored; resumable). `evaluate` computes the
+evidence, runs the gates (`app/services/selective_gate.py`) on 20
+vendor-grouped splits and writes `docs/results/selective.{json,md}`. One
+worker: PaddleOCR takes ~5 GB, so two don't fit next to the stack in 8 GB.
+`scripts/export_evidence.py` exports the same kind of evidence from the
+live database (read-only).
 
 ## Project structure
 

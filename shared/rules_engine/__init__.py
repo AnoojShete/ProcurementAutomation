@@ -8,7 +8,14 @@ import logging
 from typing import Any, Optional, Dict
 import httpx
 
+from shared.runtime_env import require_secret
+
 logger = logging.getLogger(__name__)
+
+DEFAULT_INTERNAL_SECRET = "dev-rules-secret-change-me"
+# auth-service checks the same secret (app/config.py); with the published
+# default anyone on the Docker network could read every rule.
+require_secret("RULES_ENGINE_INTERNAL_SECRET", os.environ.get("RULES_ENGINE_INTERNAL_SECRET"), {DEFAULT_INTERNAL_SECRET})
 
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
@@ -22,7 +29,7 @@ def get_auth_service_url() -> str:
 
 
 def get_internal_secret() -> str:
-    return os.environ.get("RULES_ENGINE_INTERNAL_SECRET", "dev-rules-secret-change-me")
+    return os.environ.get("RULES_ENGINE_INTERNAL_SECRET", DEFAULT_INTERNAL_SECRET)
 
 
 def fetch_all_rules() -> Dict[str, Any]:

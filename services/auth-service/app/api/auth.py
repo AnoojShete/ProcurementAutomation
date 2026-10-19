@@ -9,13 +9,15 @@ Safety rules applied throughout:
   - Email links are single-use and expire (app/account_tokens.py).
   - Changing or resetting a password bumps token_version, which ends every
     other session at its next refresh.
+  - Logout records the refresh token's jti, so a copy of that cookie can't
+    be refreshed afterwards (auth_revoked_refresh_tokens).
   - The gateway rate-limits these endpoints per IP (infra/nginx/nginx.conf).
 """
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -211,6 +213,9 @@ async def refresh(request: Request, response: Response, db: AsyncSession = Depen
         raise HTTPException(status_code=401, detail=str(e))
     if claims.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="not a refresh token")
+    if await _is_revoked(db, claims.get("jti")):
+        clear_session_cookies(response)
+        raise HTTPException(status_code=401, detail="session has ended; sign in again")
 
     # Re-read the user: a password change, deactivation or role change since
     # the token was issued must take effect now, not when it expires.
@@ -226,8 +231,28 @@ async def refresh(request: Request, response: Response, db: AsyncSession = Depen
     )
 
 
+async def _is_revoked(db: AsyncSession, jti: str | None) -> bool:
+    if not jti:
+        return False
+    row = await db.execute(text("SELECT 1 FROM auth_revoked_refresh_tokens WHERE jti = :j"), {"j": jti})
+    return row.first() is not None
+
+
 @router.post("/logout", dependencies=[Depends(require_csrf)])
-async def logout(response: Response):
+async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    """Ends this session: the refresh token's jti is recorded so the cookie
+    can't be refreshed again, even if someone copied it."""
+    try:
+        claims = decode_token(refresh_token_from(request))
+    except (HTTPException, TokenError):
+        claims = None  # no or broken cookie: nothing to revoke, still sign out
+    if claims and claims.get("type") == "refresh" and claims.get("jti"):
+        await db.execute(text("DELETE FROM auth_revoked_refresh_tokens WHERE expires_at < now()"))
+        await db.execute(
+            text("INSERT INTO auth_revoked_refresh_tokens (jti, user_id, expires_at) "
+                 "VALUES (:j, :u, to_timestamp(:e)) ON CONFLICT (jti) DO NOTHING"),
+            {"j": claims["jti"], "u": claims["sub"], "e": claims["exp"]})
+        await db.commit()
     clear_session_cookies(response)
     return {"data": {"signed_out": True}}
 

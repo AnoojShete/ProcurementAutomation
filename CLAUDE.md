@@ -61,11 +61,15 @@ python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fa
 python tests/e2e/demo_scenarios.py        # the five demo scenarios, checked live → docs/demo-script.html
 python tests/e2e/demo_5min.py             # the 5-minute demo (docs/demo-5min.md) rehearsed + recorded → docs/demo/backup-recording.webm
 ./scripts/reset-demo.sh                   # back up, clear the data volumes, rebuild realistic demo data (~3 min)
+./scripts/backup.sh / restore.sh <stamp>  # Postgres + MinIO backup into .run/backups/; restore backs up first (docs/deployment.md)
 ```
 
 e2e scripts need `pip install -r tests/e2e/requirements.txt` on the host.
 There's no configured Python linter; `ruff check --select F` is a useful
 ad-hoc pass (undefined names).
+The research study (`scripts/eval_selective.py extract|evaluate` in
+document-vendor-agent) runs in that image, not through the stack; command
+in `docs/readmeforme.md` (Research experiment).
 
 ## Frontend conventions
 

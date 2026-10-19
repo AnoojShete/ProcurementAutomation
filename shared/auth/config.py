@@ -20,7 +20,7 @@ from shared.runtime_env import require_secret  # noqa: E402
 require_secret("JWT_SECRET", JWT_SECRET, {_DEFAULT_JWT_SECRET})
 
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRY_MINUTES = int(os.environ.get("JWT_EXPIRY_MINUTES", "60"))
+JWT_EXPIRY_MINUTES = int(os.environ.get("JWT_EXPIRY_MINUTES", "15"))
 JWT_REFRESH_EXPIRY_DAYS = int(os.environ.get("JWT_REFRESH_EXPIRY_DAYS", "7"))
 
 ROLES = ("requester", "approver", "finance", "admin")

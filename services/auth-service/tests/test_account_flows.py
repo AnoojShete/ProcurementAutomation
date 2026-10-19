@@ -94,7 +94,7 @@ def env(database):
     from app.database import get_db
     from shared.http.error_handlers import register_error_handlers
 
-    sql(database, "TRUNCATE auth_users, auth_tokens, auth_login_attempts, audit_log CASCADE")
+    sql(database, "TRUNCATE auth_users, auth_tokens, auth_login_attempts, auth_revoked_refresh_tokens, audit_log CASCADE")
     engine = create_async_engine(TEST_DB_URL.replace("postgresql://", "postgresql+asyncpg://"), poolclass=NullPool)
     sessions = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -216,6 +216,28 @@ def test_reset_ends_existing_sessions(env):
         client.cookies.set(k, v)
     r = client.post("/api/auth/refresh", headers=csrf(client))
     assert r.status_code == 401
+
+
+def test_logout_ends_a_copied_refresh_cookie(env):
+    client, outbox, db = env
+    email = "copied.cookie@example.com"
+    verified_user(client, outbox, email)
+    assert login(client, email).status_code == 200
+    copied = dict(client.cookies)
+
+    assert client.post("/api/auth/logout", headers=csrf(client)).status_code == 200
+    assert sql(db, "SELECT count(*) FROM auth_revoked_refresh_tokens") == [(1,)]
+
+    # Someone who copied the cookie before logout can't refresh with it.
+    for k, v in copied.items():
+        client.cookies.set(k, v)
+    r = client.post("/api/auth/refresh", headers=csrf(client))
+    assert r.status_code == 401
+
+    # Signing in again gives a new session that works.
+    client.cookies.clear()
+    assert login(client, email).status_code == 200
+    assert client.post("/api/auth/refresh", headers=csrf(client)).status_code == 200
 
 
 def test_change_password(env):

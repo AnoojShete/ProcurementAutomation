@@ -47,16 +47,16 @@ presentation draft is reviewed.
 
 ## Phase 2 — Research data and harness (critical path)
 
-- [ ] Extend `synthetic_invoice_lib.py` into a procurement world: vendor
+- [x] Extend `synthetic_invoice_lib.py` into a procurement world: vendor
       master with look-alikes, POs, ledger [RS-02] **[R]**
-- [ ] Add controlled injections: scan degradation + business errors
+- [x] Add controlled injections: scan degradation + business errors
       (amount ≠ PO, unknown vendor, duplicate, changed bank details)
       [RS-02] **[R]**
-- [ ] Generate a 300-document pilot, then ~3,000 documents / ~100 vendors
+- [x] Generate a 300-document pilot, then ~3,000 documents / ~100 vendors
       [RS-02] **[R]**
-- [ ] Write the evidence export from `pipeline_checkpoints` [RS-01] **[R]**
-- [ ] Build the batch harness that seeds the world and runs the real
-      pipeline [RS-03] **[R]**
+- [x] Write the evidence export from `pipeline_checkpoints` [RS-01] **[R]**
+- [x] Build the batch harness that seeds the world and runs the real
+      pipeline [RS-03] **[R]** — runs the production code in-process, not through the stack (Oct 19)
 - [ ] Check DocILE's terms; pick DocILE or FATURA [RS-08] **[R]**
 
 **Done when:** one command produces a labelled table (document, field,
@@ -64,20 +64,20 @@ features, correct?) for the pilot.
 
 ## Phase 3 — Gate and baselines
 
-- [ ] Score the current heuristic gate on the pilot (B0) [RS-05] **[X]**
-- [ ] Build the document-only calibrated gate (B1) [RS-05] **[X]**
-- [ ] Build the rules-only enterprise matcher (B2) [RS-05] **[X]**
-- [ ] Build the fused calibrated gate with Learn-then-Test (P) [RS-04] **[R]**
+- [x] Score the current heuristic gate on the pilot (B0) [RS-05] **[X]**
+- [x] Build the document-only calibrated gate (B1) [RS-05] **[X]**
+- [x] Build the rules-only enterprise matcher (B2) [RS-05] **[X]**
+- [x] Build the fused calibrated gate with Learn-then-Test (P) [RS-04] **[R]**
 
 **Done when:** all four systems give coverage-at-α on the same splits.
 
 ## Phase 4 — Experiments and analysis
 
-- [ ] Run RQ1 + RQ2 on 20 vendor-grouped splits with bootstrap CIs [RS-06] **[X]**
-- [ ] Run ablations per evidence group [RS-07] **[X]**
-- [ ] Run the stale-master-data robustness sweep (RQ3) [RS-07] **[X]**
+- [x] Run RQ1 + RQ2 on 20 vendor-grouped splits with bootstrap CIs [RS-06] **[X]**
+- [x] Run ablations per evidence group [RS-07] **[X]**
+- [x] Run the stale-master-data robustness sweep (RQ3) [RS-07] **[X]**
 - [ ] Run the external-validity check on public invoices [RS-08] **[X]**
-- [ ] Analyse accepted-but-wrong documents by injection type [RS-09] **[X]**
+- [x] Analyse accepted-but-wrong documents by injection type [RS-09] **[X]**
 - [ ] Run the drift / feedback study (RQ4) [RS-10] **[O]**
 
 **Done when:** `docs/results/selective.{json,md}` holds every number the
@@ -90,7 +90,7 @@ paper will use, negative results included.
 - [ ] Run the tests in CI [FR-25] **[E]**
 - [x] Fix the two failing root tests (one is Anooj's) [TEST-1] **[E]**
 - [ ] Do the fresh-clone rehearsal in the UTM Ubuntu VM [FR-26] **[E]** — macOS build from a clean copy passes; the VM run is left
-- [ ] Close the security P1s [FR-27] **[E]**
+- [ ] Close the security P1s [FR-27] **[E]** — Oct 19: upgrades, logout revocation, 15-min tokens done; MLflow, Paddle 3, QA-19 left
 - [ ] Final documentation pass [FR-28] **[E]**
 
 **Done when:** a fresh Ubuntu clone passes every suite and the docs match

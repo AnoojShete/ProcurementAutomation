@@ -1074,7 +1074,7 @@ they exist only when <code>APP_ENV=development</code>).</p>
 <table><tr><th>Variable</th><th>Mandatory</th><th>Purpose</th></tr>
 <tr><td><code>APP_ENV</code></td><td>Set by compose (development)</td><td>Unset = production: refuses published secrets, no demo users, no showcase endpoints, no simulated signing, no Mailpit.</td></tr>
 <tr><td><code>JWT_SECRET</code>, <code>ESIGN_WEBHOOK_SECRET</code>, <code>RULES_ENGINE_INTERNAL_SECRET</code>, <code>INTERNAL_SERVICE_TOKEN</code>, <code>POSTGRES_PASSWORD</code>, <code>MINIO_ROOT_PASSWORD</code>, <code>KAFKA_PASSWORD_*</code>, <code>KAFKA_ADMIN_PASSWORD</code></td><td>Yes outside development</td><td>Platform secrets. Development uses published defaults.</td></tr>
-<tr><td><code>JWT_EXPIRY_MINUTES</code> / <code>JWT_REFRESH_EXPIRY_DAYS</code></td><td>No (60 / 7)</td><td>Token lifetimes; also how long a disabled user's current access token keeps working.</td></tr>
+<tr><td><code>JWT_EXPIRY_MINUTES</code> / <code>JWT_REFRESH_EXPIRY_DAYS</code></td><td>No (15 / 7)</td><td>Token lifetimes; also how long a disabled user's current access token keeps working.</td></tr>
 <tr><td><code>EMAIL_MODE</code>, <code>SMTP_*</code>, <code>EMAIL_FROM</code>, <code>EMAIL_REPLY_TO</code>, <code>APP_BASE_URL</code>, <code>PUBLIC_BASE_URL</code></td><td>smtp settings required when EMAIL_MODE=smtp</td><td>Email delivery and link base URLs (PUBLIC_BASE_URL must be HTTPS in production for email-action links).</td></tr>
 <tr><td><code>AUTH_LOCKOUT_*</code>, <code>AUTH_COOKIE_SECURE</code></td><td>No</td><td>Lockout tuning; Secure cookies behind HTTPS.</td></tr>
 <tr><td><code>EMAIL_INTAKE_*</code></td><td>No</td><td>Intake mailbox (dev: Mailpit POP3).</td></tr>

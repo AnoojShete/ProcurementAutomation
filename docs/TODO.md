@@ -114,12 +114,12 @@ How the pieces interact:
 
 | Component or feature | Status | Existing implementation | Remaining work | Dependencies |
 |---|---|---|---|---|
-| Gateway, auth, roles, business rules | COMPLETE | nginx, auth-service, rules engine | Security P1/P2 hardening (Part B) | — |
+| Gateway, auth, roles, business rules | COMPLETE | nginx, auth-service, rules engine; logout revokes the refresh token, 15-minute access tokens (Oct 19, FR-27) | Security P2 hardening (Part B) | — |
 | Document intake: upload, drop folder, email | COMPLETE | `upload_service.py`, `inbox_watcher.py`, `email_intake.py` (BR-1) | — | ClamAV, MinIO |
-| OCR / extraction | PARTIAL | pdfplumber, Docling, PaddleOCR, preprocessing on (BR-2) | Noisy scans worse with preprocessing (44 % vs 47 %); low-quality JPGs 0–1/6 fields (FR-11); Docling cold start | — |
+| OCR / extraction | PARTIAL | pdfplumber, Docling, PaddleOCR, preprocessing on (BR-2); Docling 2.140 (Oct 19) now reads scanned PDFs with its bundled RapidOCR (before: no OCR engine, 0 characters, sent to review as unreadable) | Noisy scans worse with preprocessing (44 % vs 47 %); low-quality JPGs 0–1/6 fields (FR-11); Docling cold start; on scanned PDFs Docling joins words and the vendor name is misread (totals and numbers right) | — |
 | Classification incl. "other", PO-backed / non-PO | COMPLETE | ML classifier (kept only because it beat keywords, FR-29) with keyword fallback (BR-3) | Real documents to evaluate on | — |
 | LayoutLMv3 cross-check | PARTIAL | `layoutlm_crosscheck.py` | Runs only if model downloaded | `scripts/download-models.sh` |
-| Review routing (confidence) | COMPLETE (heuristic) | `confidence.py`: weighted score × OCR quality, threshold 0.8, force-review rules | Calibrated, risk-controlled gate = research RS-01…RS-12 | RS data |
+| Review routing (confidence) | COMPLETE (heuristic) | `confidence.py`: weighted score × OCR quality, threshold 0.8, force-review rules; gate code in `selective_gate.py` (not wired in) | Measured Oct 19: 41 % accepted, 6.8 % of those wrong on the synthetic world; duplicate rule misses resubmissions with a new number (DUP-1) | RS-11 |
 | Learning from corrections | PARTIAL | per-vendor hints + thresholds (`learning.py`) | Classifier retraining; evaluation (RS-10, optional) | — |
 | Vendor match, onboarding, bank-detail dual control | COMPLETE | `vendor_matching.py`, `vendor_onboarding.py` (BR-4), payment hold | — | — |
 | FX conversion to INR | COMPLETE | `fx.py` (Frankfurter, rate captured once) | — | internet |
@@ -139,9 +139,10 @@ How the pieces interact:
 | Failed-events / Kafka log | COMPLETE | Control Panel (FR-06) | — | — |
 | CI | PARTIAL | builds images only | Run tests in CI (FR-25) | — |
 | Kubernetes / PySpark claims | BLOCKED | none | Needs an architecture decision (FR-15, FR-16) | user decision |
-| Credentials for any shared deploy | BLOCKED | dev defaults | Rotate GSTINCheck key; real secrets (P0) | a person |
+| Credentials for any shared deploy | BLOCKED | dev defaults; production mode checked (Oct 19): every service and worker refuses the published secrets and starts with real ones ([deployment.md](deployment.md)) | Rotate GSTINCheck key (P0) | a person |
+| Backups and restore | COMPLETE | `scripts/backup.sh` / `restore.sh` (Oct 19): Postgres (app + Temporal) and MinIO; restore checked into a throwaway Postgres and volume, identical counts | Schedule it on a real host | — |
 | Linux (Ubuntu VM) run | UNVERIFIED | steps in `readmeforme.md`; macOS fresh-clone build passes and every image pulls (FR-26, REPRO-1) | Full rehearsal on the VM (FR-26) | VM |
-| Research: calibrated document gate | PENDING | — | RS-01…RS-12 | — |
+| Research: calibrated document gate | PARTIAL | First run Oct 19 (`docs/results/selective.md`): at α ≤ 5 % no calibrated gate accepts anything (H1 not supported); enterprise evidence lifts AUROC 0.74 → 0.94; current heuristic 6.8 % wrong among accepted | Duplicate-rule decision, new seed, RS-08, RS-10…12 | decision |
 
 ## A.4 Decisions, constraints and known limitations
 
@@ -192,7 +193,8 @@ evidence for FR/BR items are in Part B under the same ID.
 |---|---|---|---|---|---|---|---|
 | OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | COMPLETE (Oct 18: the demo-data reset (user's choice) cleared Temporal's state with Postgres, so 0 open approval workflows and PR `90261afb` is gone; before that: BLOCKED (permission; Oct 17: tried again, blocked by Claude Code's permission check; the two other open `approval-` workflows, `0ca1ad3a`/`adbfc130`, are live licence reclaims, leave them) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
 | REPRO-1 | Replace the MinIO image: `minio/minio` (and `minio/mc`, used by `install.sh`) can no longer be pulled from Docker Hub or quay.io, so a fresh clone can't start | COMPLETE (Oct 18: `pgsty/minio:RELEASE.2026-08-04T00-00-00Z`, the community continuation, chosen by the user; volume backed up first to `.run/backups/miniodata-20261018-0006.tgz`; 373 objects before and after, old documents download through the API, document pipeline e2e 52/52; `install.sh` runs `mc` inside the MinIO container; `test_images_are_pinned` allows no exceptions) | P0 | user | `docker-compose.yml`, `install.sh` | `docker compose pull` works on a clean machine; uploads and downloads pass e2e | Core |
-| SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
+| SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) for the key. Oct 19: services start with `APP_ENV=production` and real secrets (all 6 + workers), refuse the defaults; `RULES_ENGINE_INTERNAL_SECRET` now reaches every service that reads rules and is refused at its default; Temporal takes `POSTGRES_PASSWORD`; checklist in `docs/deployment.md` | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
+| DEP-1 | Deployment guide, production-mode check, backup and restore | COMPLETE (Oct 19: `docs/deployment.md`; `scripts/backup.sh`, `scripts/restore.sh`, used by `reset-demo.sh`; restore checked into throwaway containers: 0 errors, identical row counts and Temporal executions, every MinIO object) | P1 | — | `docs/deployment.md`, `scripts/` | Written, and each check run | Core |
 | FR-05 | Demo script | PARTIAL (`docs/demo-script.html`, verified 18/18 by `tests/e2e/demo_scenarios.py`; Oct 18: 5-minute cut `docs/demo-5min.md` with checked fallbacks, rehearsed 6/6 by `tests/e2e/demo_5min.py` (4 runs, 35–42 s of actions), backup recording `docs/demo/backup-recording.webm`, `scripts/reset-demo.sh` for a clean demo state (run end to end: 2 min 23 s); a teammate's run left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
 | FR-12 | Presentation draft, template-shaped docs | COMPLETE (team pastes into templates) | P1 | FR-05 | `docs/results/`, `docs/presentation-outline.md` | Draft reviewed by team | Core |
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
@@ -206,6 +208,8 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-29 | Train the document classifier | COMPLETE | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
 | FR-32 | Licence anomaly model evaluated and tuned | COMPLETE | P2 | — | approval-inventory-agent | `docs/results/licence-anomaly.json` | Core |
 | DRIFT-1 | Decide minimum sample before PSI is reported | PENDING (decision) | P2 | user | `drift_service.py` | Rule chosen and documented | Core |
+| DUP-1 | Duplicate check misses a resubmitted invoice with a new number: it requires numbers ≥ 85 % similar (rule `vendor.duplicate_invoice_number_fuzzy_threshold`) | PENDING (decision; found Oct 19 by RS-06: most of the errors left among the best-scored invoices) | P1 | user | `duplicate_detection.py`, auth-service rule seed | Same vendor + amount + date window flags review whatever the number, or the trade-off is documented | Core |
+| E2E-1 | `document_pipeline.py`: the `slow_to_parse.pdf` case no longer times out (Docling 2.140 reads it within 120 s), 4 checks fail | PENDING (decision: new fixture, or expect `classified` and rely on the unit test for the limit) | P2 | user | `tests/e2e/document_pipeline.py` | Suite green without weakening the time-limit check | Core |
 | FR-15/16 | PySpark / Kubernetes claims | BLOCKED (decision) | P3 | user | — | Built or removed from docs | Core |
 | FR-17/18/19 | DB & storage pages, trace view, re-verify minutes | PENDING | P2 | — | frontend | Part B "Done when" | Core |
 | FR-20…24 | R2 competitive features (delivery alerts, scorecard, report, SaaS overlap, MCP) | PENDING | P3 | R0 + R1 done, and only if asked | — | Part B "Done when" | Core |
@@ -218,22 +222,22 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-25 | CI runs the service suites and root tests | PENDING | P1 | — | CI fails on a failing test | Core |
 | TEST-1 | Fix pre-existing failing root tests (`test_mailer`; `test_email_action` needs `redis` — Anooj) | COMPLETE (Oct 17: `test-root.sh` 139 passed + 14 passed, 4 skipped = chatbot live script) | P1 | — | Root suite green | Core |
 | FR-26 | Fresh-clone rehearsal on Ubuntu (UTM) | PARTIAL (Oct 18, macOS: from a copy holding only what a clone would (tracked + new unignored files, no `.env`/`dist`/`secrets`), all 6 service images and the frontend build; every third-party image is pullable (MinIO after REPRO-1). Not run as a second stack: Docker's 7.75 GB is mostly used by the live one. Still open: a full run on the VM) | P1 | VM | `docs/results/fresh-clone.md` with times | Core |
-| FR-27 | Security P1s (dependency upgrades etc.) | PENDING | P1 | — | Part B list closed | Core |
-| FR-28 | Final documentation pass | PENDING | P1 | all | Templates filled | Both |
+| FR-27 | Security P1s (dependency upgrades etc.) | PARTIAL (Oct 19: FastAPI 0.148 / Starlette 1.9 everywhere, Pillow 12.3, pdfplumber 0.11.10 / pdfminer 20260107, Docling 2.140, accelerate 1.15, cryptography 50, aiosmtplib 5.1, react-router 7.18, vite 6.4; pip-audit 302 → 152 findings, npm high 7 → 5; logout revokes the refresh token; access tokens 15 min; `INTERNAL_SERVICE_TOKEN` refused at its default. Left, each documented in `docs/deployment.md` §5: MLflow 2.14 (3.x is a major upgrade), paddlepaddle 2.6 (PaddleOCR 3 rewrite), Tailwind 3's `braces` (build-time only); QA-19 and the smaller QA leftovers) | P1 | — | Part B list closed | Core |
+| FR-28 | Final documentation pass | PARTIAL (Oct 19: test counts, deployment guide, research results, readmeforme, README and CLAUDE.md updated; templates (`docs/forReport/`) still the owner's) | P1 | all | Templates filled | Both |
 
 ### Research (selected contribution — see `RESEARCH_PAPER_PLAN.md`)
 
 | ID | Task | Status | Pri | Depends on | Files | Acceptance | For |
 |---|---|---|---|---|---|---|---|
-| RS-01 | Evidence export: one row per (document, field) and per document from `pipeline_checkpoints` + envelope | PENDING | P1 | — | new `scripts/export_evidence.py` (document-vendor-agent) | Exports document-internal and enterprise features with document id | Research |
-| RS-02 | Procurement-world generator: vendor master (incl. look-alikes), POs, ledger, invoices/POs/quotes, controlled visual + business error injection, seeded | PENDING | P1 | — | extend `scripts/synthetic_invoice_lib.py` | ~3k docs, ~100 vendors, manifest with ground truth + injection labels | Research |
-| RS-03 | Batch harness: seed a world into the stack, run documents through the real pipeline, collect evidence + labels | PENDING | P1 | RS-01, RS-02 | new `scripts/eval_selective.py` | One command produces the labelled dataset | Research |
-| RS-04 | Calibrators (logistic, hist-gradient-boosting) + LTT gate at document level | PENDING | P1 | RS-03 | new `app/services/selective_gate.py` | Gate returns accept/defer with p and evidence | Research |
-| RS-05 | Baselines B0 (current), B1 doc-only calibrated, B2 rules-only | PENDING | P1 | RS-03 | eval script | All four systems scored on same splits | Research |
-| RS-06 | RQ1 + RQ2 experiments, 20 vendor-grouped splits, bootstrap CIs | PENDING | P1 | RS-04, RS-05 | `docs/results/selective.{json,md}` | Results file with coverage at α, risk, AURC | Research |
-| RS-07 | Ablations per evidence group; RQ3 robustness to stale master data | PENDING | P1 | RS-06 | same | Ablation + noise-sensitivity tables | Research |
+| RS-01 | Evidence export: one row per (document, field) and per document from `pipeline_checkpoints` + envelope | COMPLETE (Oct 19: `scripts/export_evidence.py`, read-only; per document and per field; 291 documents / 1,455 field rows from the live database) | P1 | — | new `scripts/export_evidence.py` (document-vendor-agent) | Exports document-internal and enterprise features with document id | Research |
+| RS-02 | Procurement-world generator: vendor master (incl. look-alikes), POs, ledger, invoices/POs/quotes, controlled visual + business error injection, seeded | COMPLETE (Oct 19: `scripts/procurement_world.py`: 100 vendors (GSTIN, bank, currency, Zipf volume), POs, 3,000 invoices, 8 business-error types (29.8 %), 4 visual conditions; seeded; invoices only, not POs/quotes) | P1 | — | extend `scripts/synthetic_invoice_lib.py` | ~3k docs, ~100 vendors, manifest with ground truth + injection labels | Research |
+| RS-03 | Batch harness: seed a world into the stack, run documents through the real pipeline, collect evidence + labels | COMPLETE, changed (Oct 19: `scripts/eval_selective.py extract|evaluate`. Not through the stack: reading runs in-process with the production code, enterprise evidence against the generated master/ledger with the production rules and the ledger's own `evaluate()`; 58 min to read 3,000, 35 s to evaluate) | P1 | RS-01, RS-02 | new `scripts/eval_selective.py` | One command produces the labelled dataset | Research |
+| RS-04 | Calibrators (logistic, hist-gradient-boosting) + LTT gate at document level | COMPLETE (Oct 19: `app/services/selective_gate.py`, logistic + HGB, fixed-sequence LTT with binomial p-values; `tests/test_selective_gate.py` incl. a risk-control simulation that fails with a naive threshold) | P1 | RS-03 | new `app/services/selective_gate.py` | Gate returns accept/defer with p and evidence | Research |
+| RS-05 | Baselines B0 (current), B1 doc-only calibrated, B2 rules-only | COMPLETE (Oct 19: B0, B1, B2, P and FC on the same splits) | P1 | RS-03 | eval script | All four systems scored on same splits | Research |
+| RS-06 | RQ1 + RQ2 experiments, 20 vendor-grouped splits, bootstrap CIs | COMPLETE (Oct 19: 20 vendor-grouped splits, bootstrap CIs. H1 not supported at α ≤ 5 %: no calibrated gate accepts anything; P vs B1 AUROC 0.941 vs 0.741; B0 6.8 % / B2 12.9 % wrong among accepted. Exploratory P+dup: 16.6 % coverage at α = 2 %. See `RESEARCH_PAPER_PLAN.md` §9.10) | P1 | RS-04, RS-05 | `docs/results/selective.{json,md}` | Results file with coverage at α, risk, AURC | Research |
+| RS-07 | Ablations per evidence group; RQ3 robustness to stale master data | PARTIAL (Oct 19: ablation and stale-master sweep run at α = 10 % (nothing passes at ≤ 5 %); PO match matters most (AUROC 0.833 without); coverage too low for a robustness curve) | P1 | RS-06 | same | Ablation + noise-sensitivity tables | Research |
 | RS-08 | External validity on DocILE (check terms) or FATURA with derived context | PENDING | P2 | RS-04 | same | Run reported, or reason it could not be | Research |
-| RS-09 | Failure analysis of accepted-but-wrong documents | PENDING | P1 | RS-06 | same | Categorised examples in results | Research |
+| RS-09 | Failure analysis of accepted-but-wrong documents | COMPLETE (Oct 19: accepted-but-wrong by injection, visual and misread field, for P+dup-hgb at α = 10 %; top: arithmetic and overbilling on scans, misread totals on mild scans) | P1 | RS-06 | same | Categorised examples in results | Research |
 | RS-10 | (optional) Drift + reviewer-feedback recalibration (RQ4) | PENDING | P3 | RS-06 | `learning.py` | Per-window risk table | Research |
 | RS-11 | Integrate gate behind rule `document.review_policy` (heuristic default); review page shows evidence | PENDING | P2 | RS-06 | `confidence.py`, frontend review page | Switchable live, heuristic default unchanged | Both |
 | RS-12 | Paper: figures, tables, draft, literature re-check | PENDING | P1 | RS-06…RS-09 | `RESEARCH_PAPER_PLAN.md` | Draft with traceable numbers | Research |
@@ -244,21 +248,21 @@ explanations, LLM agent orchestration.
 
 ## A.6 Immediate next actions
 
-(Oct 18: OPS-1, REPRO-1 and UX-1 done.)
+(Oct 19: FR-27 mostly done, DEP-1 done, RS-01…06 and RS-09 done; see
+`docs/results/selective.md`.)
 
-1. **FR-05** — a teammate runs `docs/demo-5min.md` (or the full
-   `docs/demo-script.html`) by hand after `./scripts/reset-demo.sh`.
-2. **FR-04** — the Agent doc's red-team list, the last R0 item.
-3. **FR-25** — tests in CI: `scripts/test-service.sh all`,
-   `scripts/test-root.sh`, `npm run typecheck`.
-4. **FR-26** — the full fresh-clone rehearsal on the Ubuntu VM.
-5. **RS-02** — extend the synthetic generator into a procurement world
-   (vendor master, POs, ledger, injections); start with 300 documents to
-   test the harness.
-6. **RS-01 / RS-03** — evidence export and the batch harness, so the
-   first B0-vs-B1 numbers exist before November.
-7. **DRIFT-1 / SEC-1** — your decision on the drift minimum sample; the
-   GSTINCheck key still needs rotating by its owner.
+1. **SEC-1** — the GSTINCheck key's owner revokes it (it is in public git
+   history); then decide whether to scrub the history.
+2. **DUP-1** — decide the duplicate rule (number condition or not); it
+   decides the research's main system too.
+3. **E2E-1** — pick how the time-limit e2e case should work now that
+   Docling is faster.
+4. **FR-05** — a teammate runs `docs/demo-5min.md` after
+   `./scripts/reset-demo.sh`.
+5. **RS** — after DUP-1: re-run with a new seed (`eval_selective.py
+   extract --seed 11`), then RS-08 (external validity) and RS-12.
+6. **FR-25 / FR-26** — tests in CI; the fresh-clone run on the Ubuntu VM.
+7. **FR-04, DRIFT-1** — red-team list; drift minimum sample.
 
 ---
 
@@ -1061,18 +1065,34 @@ before any other roadmap item.
   in pending_approval forever.*
 
 **Security audit follow-ups**
-- [ ] Upgrade FastAPI/Starlette (starlette 0.37.2 advisories), Pillow
+- [x] (Fixed Oct 19, FR-27: FastAPI 0.148 + Starlette 1.9 in all six
+  services (pydantic 2.14, instrumentator 8.1), Pillow 12.3, pdfplumber
+  0.11.10 / pdfminer.six 20260107, Docling 2.140 + docling-ibm-models 4,
+  accelerate 1.15, cryptography 50. *Evidence:* every service suite passes;
+  `import app.main` (and `app.worker`) in each image; real extraction in
+  the new image: text PDF via pdfplumber, scanned PDF via Docling (needed
+  its new models: `download-models.sh` now fetches them), image via
+  PaddleOCR; pip-audit 302 → 152 findings, the rest MLflow, paddlepaddle,
+  imgaug, pytest. FastAPI 0.148 no longer installs python-multipart and
+  jinja2: approval-inventory-agent crashed at startup until they were
+  declared.) Upgrade FastAPI/Starlette (starlette 0.37.2 advisories), Pillow
   10.4.0, pdfminer.six 20231228 (via pdfplumber) — all parse untrusted
   uploads; needs a coordinated upgrade and a retest of Docling/Paddle.
   *Why: known CVEs on the upload path.*
-- [ ] MLflow 2.14.3 has many advisories; bound to localhost for now.
+- [ ] (Oct 19: still 2.14.3, kept on purpose and listed in
+  `docs/deployment.md` §5; 3.x changes the model registry.) MLflow 2.14.3
+  has many advisories; bound to localhost for now.
   *Why: must not be exposed as is.*
 - [x] (Fixed Oct 17, QA audit QA-07: requesters see only contracts on their
   own requests, 404 otherwise; `test_contract_access.py`, verified live.)
   Contracts and contract PDFs are readable by any signed-in user;
   restrict to staff + the request's requester. *Why: commercial data
   leak to requesters.*
-- [ ] `/auth/logout` leaves the refresh token valid for its 7 days (only
+- [x] (Fixed Oct 19: logout records the token's `jti` in
+  `auth_revoked_refresh_tokens` (auth-service Alembic `0014`) and refresh
+  refuses it. *Evidence:* `test_logout_ends_a_copied_refresh_cookie`
+  (real Postgres) fails with the check removed; live through the gateway a
+  cookie copied before logout gets 401.) `/auth/logout` leaves the refresh token valid for its 7 days (only
   logout-all revokes). Record revoked `jti`s and check them on refresh.
   *Why: a stolen refresh token survives logout.* (QA-06,
   `docs/quality-audit-report.md`)
@@ -1084,7 +1104,10 @@ before any other roadmap item.
   (QA-16), error messages echo input / token decoder detail (QA-17), no
   CHECK on inventory quantities (QA-20), `react-router` advisory (QA-21),
   chatbot root tests skipped for lack of `pytest-asyncio` (QA-22, Anooj).
-- [ ] Access tokens stay valid for up to `JWT_EXPIRY_MINUTES` (60) after a
+- [x] (Fixed Oct 19: default `JWT_EXPIRY_MINUTES` 15 in
+  `shared/auth/config.py`, compose and `.env.example`; the frontend already
+  refreshes silently on a 401. *Evidence:* live login returns
+  `expires_in_minutes = 15`.) Access tokens stay valid for up to `JWT_EXPIRY_MINUTES` (60) after a
   user is disabled or demoted — other services verify tokens without a
   DB lookup. Shorten to ~15 min (the frontend refreshes silently) or add
   a revocation check. *Why: disabling an account isn't immediate.*
@@ -1276,9 +1299,13 @@ before any other roadmap item.
 - [ ] Purge used/expired `auth_tokens` and old `auth_login_attempts` rows.
 - [ ] `/documents/learning/stats` is readable by any signed-in user
   (vendor names and review counts only).
-- [ ] Frontend: react-router 6 → 7 (open-redirect advisory), vite/esbuild
+- [x] (Fixed Oct 19: react-router-dom 7.18.4, vite 6.4.4, `npm audit fix`.
+  *Evidence:* typecheck + build pass; every list page and client-side
+  navigation checked in a browser, no page errors. Left: `braces` /
+  `micromatch` / `postcss-selector-parser` through Tailwind 3, build-time
+  only, no patched `braces`.) Frontend: react-router 6 → 7 (open-redirect advisory), vite/esbuild
   major (dev server only); no ESLint configured.
-- [ ] notification-agent: aiosmtplib 3.0.1 → 5.x.
+- [x] (Oct 19: aiosmtplib 5.1.3; notification suite 58 passed.) notification-agent: aiosmtplib 3.0.1 → 5.x.
 - [ ] Classifier retraining from `extraction_feedback`; today learning
   covers field labels and per-vendor thresholds only.
 - [ ] `seed_demo_users.py` prints the demo password to stdout; fine

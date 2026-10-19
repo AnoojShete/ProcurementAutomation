@@ -5,8 +5,10 @@ evidence behind every claim here is in `RESEARCH_GAP_ANALYSIS.md`
 (references numbered as there, e.g. [13] = Jin et al., 2026). Tasks are
 in `TODO.md` (RS-xx) and `IMPLEMENTATION_PLAN.md`.
 
-**Status (16 Oct 2026): planned. No experiment has been run; nothing
-below is a result.**
+**Status (19 Oct 2026): first full run done (RS-01…RS-07, RS-09) on the
+synthetic procurement world. Numbers: `docs/results/selective.{json,md}`;
+summary in §9.10. Sections 9.1–9.9 are still the plan, written before
+the run.**
 
 ---
 
@@ -173,3 +175,47 @@ journal, or an applied ML workshop. Pick after RQ1 results.
 - [ ] Literature search re-run within four weeks of submission (the 2026
       literature moves fast; Jin et al. appeared in September 2026).
 - [ ] Every number in the paper traceable to `docs/results/selective.json`.
+
+## 9.10 First results (19 Oct 2026)
+
+Run: 3,000 generated invoices, 100 vendors (generator 1.0, seed 7), read
+with the production code, 20 vendor-grouped splits, δ = 0.1. Every number
+is in `docs/results/selective.json`.
+
+- **H1 not supported at the planned budgets.** At α = 1, 2 and 5 % none
+  of the calibrated gates built from the production evidence (B1, P, FC)
+  accepts anything (P-hgb: 1.8 % at α = 5 %). Reason, from the
+  diagnosis: about 5 % of the best-scored invoices carry an error no
+  current check sees, mostly **duplicates with a new invoice number**
+  (the production duplicate rule requires the numbers to be ≥ 85 %
+  similar, and the PO still has quantity left), plus overbilling the
+  three-way match can't see when scanned line items are misread. LTT
+  correctly refuses to accept anything it can't certify.
+- **Enterprise evidence does carry signal.** Threshold-free: AUROC 0.941
+  (P) vs 0.741 (B1, document only); AURC 0.135 vs 0.268. Ablation: the PO
+  match matters most (AUROC 0.833 without it), then bank details (0.900),
+  duplicates (0.919) and GSTIN (0.924).
+- **The current rules are not risk-controlled.** B0 (today's heuristic)
+  accepts 41.4 % of invoices with 6.8 % of them wrong; B2 (all
+  enterprise checks pass) accepts 59.4 % with 12.9 % wrong.
+- **RQ2:** the field-composed gate (FC) accepts nothing at any α tested;
+  no evidence yet for or against H2.
+- **Exploratory (decided after seeing the diagnosis, so not a test of
+  H1):** adding the duplicate check without the number condition (P+dup,
+  equal to setting rule `vendor.duplicate_invoice_number_fuzzy_threshold`
+  to 0) gives 16.6 % coverage at α = 2 % (risk 0.5 %, violations 10 %)
+  and 42.2 % at α = 5 % (risk 2.6 %, violations 20 %, above δ).
+- **RQ3 (at α = 10 %, added because nothing passes at ≤ 5 %):** P's AUROC
+  falls from 0.941 to 0.841 as 40 % of master data goes stale; coverage
+  is near zero throughout, so the coverage curve says little yet.
+- **Validity of the guarantee:** violation rates up to 20 % on some
+  exploratory settings exceed δ. LTT assumes calibration and test
+  documents are exchangeable; vendor-grouped splits (and one vendor with
+  350 of 3,000 invoices) break that, and test-set noise adds to it. To
+  report: per-split risk, and a document-level split as a check.
+
+What this means for the paper: Title 3 ("Measuring the value of
+enterprise context…") fits. Before writing: (1) decide whether the
+duplicate rule change is a product fix (then P+dup becomes the main
+system and needs a fresh seed to be a real test), (2) re-run with a new
+seed, (3) RS-08 external validity, (4) the guarantee under vendor shift.

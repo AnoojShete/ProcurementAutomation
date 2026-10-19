@@ -126,3 +126,18 @@ def test_order_summaries_are_staff_only():
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(id="u", email="r@x", role="requester")
     app.dependency_overrides[get_db] = lambda: AsyncMock()
     assert TestClient(app).get("/orders/summary/latest").status_code == 403
+
+
+def test_internal_service_token_default_refused_in_production():
+    # The published default would let anyone on the Docker network mint
+    # email-approval links; outside development the service must not start.
+    import os
+    import subprocess
+    import sys
+    env = {k: v for k, v in os.environ.items() if k != "INTERNAL_SERVICE_TOKEN"}
+    env["APP_ENV"] = "production"
+    r = subprocess.run([sys.executable, "-c", "import app.config"], env=env, capture_output=True, text=True)
+    assert r.returncode != 0 and "INTERNAL_SERVICE_TOKEN" in r.stderr
+    env["INTERNAL_SERVICE_TOKEN"] = "a-real-token-for-this-deployment"
+    r = subprocess.run([sys.executable, "-c", "import app.config"], env=env, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr

@@ -28,6 +28,7 @@ def _client():
     db = AsyncMock()
     res = MagicMock()
     res.scalars.return_value.first.return_value = USER
+    res.first.return_value = None  # no revoked refresh token
     db.execute.return_value = res
     app = FastAPI()
     # Mounted where the browser sees it through nginx, so the cookie's

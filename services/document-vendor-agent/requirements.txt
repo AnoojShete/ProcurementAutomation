@@ -1,14 +1,15 @@
-fastapi==0.111.0
+fastapi==0.148.0
+starlette==1.9.0
 uvicorn[standard]==0.30.1
-pydantic==2.7.4
-pydantic-settings==2.14.2
+pydantic==2.14.1
+pydantic-settings==2.16.0
 sqlalchemy[asyncio]==2.0.31
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
 aiokafka==0.10.0
 pyjwt==2.15.0
 pyyaml==6.0.1
-prometheus-fastapi-instrumentator==7.0.0
+prometheus-fastapi-instrumentator==8.1.0
 prometheus-client==0.20.0
 httpx==0.28.1
 python-dateutil==2.9.0.post0
@@ -18,8 +19,8 @@ aiofiles==24.1.0
 python-multipart==0.0.32
 minio==7.2.7
 clamd==1.0.2
-pdfplumber==0.11.4
-Pillow==10.4.0
+pdfplumber==0.11.10
+Pillow==12.3.0
 numpy>=1.24.0
 rapidfuzz==3.9.6
 reportlab==4.2.2
@@ -37,9 +38,9 @@ datasets>=2.19.0
 # (docling-models, see docker-compose.override.yml) so models are cached
 # across container rebuilds.
 # ---------------------------------------------------------------------------
-docling==2.122.0
-docling-ibm-models==3.15.0
-accelerate==1.5.1
+docling==2.140.0
+docling-ibm-models==4.0.3
+accelerate==1.15.0
 
 # ---------------------------------------------------------------------------
 # PaddleOCR: PP-OCR pipeline, strong on invoice/table layouts.

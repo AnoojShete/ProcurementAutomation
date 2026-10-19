@@ -53,7 +53,7 @@ COPY services/document-vendor-agent/app/ ./app/
 # FR-29: train the document classifier at build time. It is saved — and so
 # used — only if it beats the keyword classifier on held-out documents.
 COPY services/document-vendor-agent/ml/ ./ml/
-COPY services/document-vendor-agent/scripts/synthetic_invoice_lib.py ./scripts/
+COPY services/document-vendor-agent/scripts/synthetic_invoice_lib.py services/document-vendor-agent/scripts/export_evidence.py ./scripts/
 COPY data/synthetic-classification/ ./data/synthetic-classification/
 RUN python ml/train_classifier.py
 

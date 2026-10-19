@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # One-time download of the models into the shared hf-cache volume:
+#   - Docling's layout and table models (~300 MB) — scanned PDFs; without
+#     them Docling can't run offline and scanned PDFs come back empty. Run
+#     this again after upgrading docling: new versions use new models;
 #   - LayoutLMv3 invoice model (~500 MB) — document-vendor-agent's
 #     cross-check, skipped ("skipped_model_unavailable") until downloaded;
 #   - Legal-BERT fine-tuned on CUAD (~440 MB) — contract-risk-agent's clause
@@ -9,8 +12,19 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT_DIR"
 
-echo "Downloading LayoutLMv3 and Legal-BERT (CUAD) into the hf-cache volume..."
+echo "Downloading Docling, LayoutLMv3 and Legal-BERT (CUAD) into the hf-cache volume..."
 docker compose run --rm --no-deps -T -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 document-vendor-agent-worker python -c "
+# Docling fetches the models its version needs on the first conversion:
+# convert one image-only PDF (no text layer, so layout + OCR models load).
+import io
+from PIL import Image, ImageDraw
+from docling.datamodel.base_models import DocumentStream
+from docling.document_converter import DocumentConverter
+img = Image.new('RGB', (1240, 1754), 'white')
+ImageDraw.Draw(img).text((100, 100), 'INVOICE 001  Total 100.00', fill='black')
+buf = io.BytesIO(); img.save(buf, 'PDF'); buf.seek(0)
+DocumentConverter().convert(DocumentStream(name='warmup.pdf', stream=buf))
+print('Docling models cached.')
 from transformers import LayoutLMv3Processor, LayoutLMv3ForTokenClassification
 m = 'ngvozdenovic/invoice_extraction'
 LayoutLMv3Processor.from_pretrained(m, apply_ocr=False)

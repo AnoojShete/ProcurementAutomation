@@ -19,3 +19,6 @@ secrets/
 Agentic_AI_Proc_Soln_Rpt_Final/
 Agentic_AI_Proc_Soln_Rpt/
 Agentic_AI_Procurement_LaTeX.pdf
+# Selective-automation study: generated documents and extraction cache
+# (scripts/eval_selective.py; results are in docs/results/selective.*)
+data/procurement-world/

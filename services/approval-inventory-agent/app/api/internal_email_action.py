@@ -2,6 +2,7 @@
 
 Never exposed through the gateway. Requires X-Internal-Service-Token header.
 """
+import hmac
 import os
 import logging
 from typing import Optional
@@ -10,6 +11,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import DEFAULT_INTERNAL_SERVICE_TOKEN
 from app.database import get_db
 from app.services.email_action_token_service import mint_email_action_token
 
@@ -17,11 +19,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-DEFAULT_INTERNAL_TOKEN = "dev-internal-service-token-change-me"
-
-
 def get_internal_token() -> str:
-    return os.environ.get("INTERNAL_SERVICE_TOKEN", DEFAULT_INTERNAL_TOKEN)
+    return os.environ.get("INTERNAL_SERVICE_TOKEN", DEFAULT_INTERNAL_SERVICE_TOKEN)
 
 
 class MintTokenRequest(BaseModel):
@@ -47,7 +46,7 @@ async def mint_email_action(
     Validates approver is active, authorized, and not the requester before minting.
     """
     expected_token = get_internal_token()
-    if not x_internal_service_token or x_internal_service_token != expected_token:
+    if not x_internal_service_token or not hmac.compare_digest(x_internal_service_token, expected_token):
         logger.warning("Rejected /internal/email-actions/mint request with invalid/missing token")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

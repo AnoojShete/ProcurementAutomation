@@ -154,8 +154,10 @@ services:
     environment:
       DB: postgres12
       DB_PORT: "5432"
-      POSTGRES_USER: postgres
-      POSTGRES_PWD: postgres
+      # Same login as the postgres service, so a real POSTGRES_PASSWORD
+      # doesn't lock Temporal out.
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_SEEDS: postgres
     depends_on:
       postgres:

@@ -1,4 +1,8 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from shared.runtime_env import require_secret
 
 
 class Settings(BaseSettings):
@@ -14,3 +18,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Other services fetch business rules with this secret (shared/rules_engine);
+# outside development the published default is refused.
+DEFAULT_RULES_ENGINE_SECRET = "dev-rules-secret-change-me"
+require_secret("RULES_ENGINE_INTERNAL_SECRET", os.environ.get("RULES_ENGINE_INTERNAL_SECRET"), {DEFAULT_RULES_ENGINE_SECRET})

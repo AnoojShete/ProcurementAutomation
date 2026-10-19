@@ -112,6 +112,9 @@ Open **http://localhost:8080** and sign in as `requester@demo.example.com`
 (password `DemoPass123!`), or `approver@…`, `finance@…`, `admin@…`. Light
 and dark themes are in Account settings.
 
+Deploying beyond one machine, backups and restore:
+[docs/deployment.md](docs/deployment.md).
+
 ## Tech stack
 
 **Backend** Python · FastAPI · SQLAlchemy · Alembic &nbsp;·&nbsp;

@@ -4,7 +4,7 @@
 #   ./scripts/reset-demo.sh          # asks before deleting anything
 #   ./scripts/reset-demo.sh --yes    # no question (e.g. the night before)
 #
-# 1. backs up Postgres and MinIO to .run/backups/ (restore: see the end)
+# 1. backs up Postgres and MinIO to .run/backups/ (scripts/backup.sh; undo: scripts/restore.sh)
 # 2. deletes only the data volumes (Postgres, MinIO, Kafka); model caches,
 #    the sanctions list, ClamAV signatures, MLflow and Grafana are kept
 # 3. starts the stack, seeds the demo accounts and data
@@ -32,11 +32,7 @@ mkdir -p .run/backups
 
 echo "[1/4] backup → .run/backups/*-$stamp.*"
 if docker compose ps --status running -q postgres | grep -q .; then
-  docker compose exec -T postgres pg_dumpall -U "${POSTGRES_USER:-postgres}" | gzip > ".run/backups/postgres-$stamp.sql.gz"
-fi
-if docker volume inspect "${project}_miniodata" >/dev/null 2>&1; then
-  docker run --rm -v "${project}_miniodata:/data:ro" -v "$PWD/.run/backups:/backup" alpine:3.20 \
-    tar czf "/backup/miniodata-$stamp.tgz" -C /data .
+  ./scripts/backup.sh "$stamp"
 fi
 if [ -d inbox/processed ] || [ -d inbox/failed ]; then
   mkdir -p ".run/backups/inbox-$stamp"
@@ -59,6 +55,4 @@ echo "[4/4] demo history (the five scenarios), sanctions-listed vendor, unsigned
 
 echo
 echo "Demo data ready. Rehearse: $PY tests/e2e/demo_5min.py"
-echo "Undo: restore .run/backups/postgres-$stamp.sql.gz with"
-echo "  gunzip -c .run/backups/postgres-$stamp.sql.gz | docker compose exec -T postgres psql -U postgres"
-echo "into empty volumes, and untar miniodata-$stamp.tgz into the MinIO volume."
+echo "Undo: ./scripts/restore.sh $stamp"

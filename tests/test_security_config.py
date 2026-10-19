@@ -48,6 +48,34 @@ def test_jwt_config_refuses_to_load_with_default_secret_in_production():
     assert r.returncode == 0, r.stderr
 
 
+def test_rules_engine_secret_refused_in_production():
+    env = {k: v for k, v in os.environ.items() if k != "RULES_ENGINE_INTERNAL_SECRET"}
+    env["APP_ENV"] = "production"
+    r = subprocess.run([sys.executable, "-c", "import shared.rules_engine"], cwd=ROOT, env=env,
+                       capture_output=True, text=True)
+    assert r.returncode != 0 and "RULES_ENGINE_INTERNAL_SECRET" in r.stderr
+    env["RULES_ENGINE_INTERNAL_SECRET"] = "s3cret-for-this-deployment"
+    r = subprocess.run([sys.executable, "-c", "import shared.rules_engine"], cwd=ROOT, env=env,
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+
+
+def test_every_service_reading_rules_gets_the_rules_secret():
+    # Only auth-service used to get it: with a real secret every other
+    # service got 403 and silently ran on the code defaults.
+    doc = yaml.safe_load((ROOT / "docker-compose.override.yml").read_text())
+    missing = []
+    for svc, spec in doc["services"].items():
+        # Workers run their service's image: "${COMPOSE_PROJECT_NAME}-<service>".
+        image = (spec or {}).get("image", "")
+        source = svc if (ROOT / "services" / svc).is_dir() else image.split("}-", 1)[-1]
+        app = ROOT / "services" / source / "app"
+        if app.is_dir() and any("rules_engine" in f.read_text() for f in app.rglob("*.py")):
+            if "RULES_ENGINE_INTERNAL_SECRET" not in (spec.get("environment") or {}):
+                missing.append(svc)
+    assert missing == []
+
+
 def test_only_the_gateway_is_published_on_all_interfaces():
     # H1/H10: Temporal, Kafka, MinIO, MLflow and the services have no auth
     # of their own on those ports — reachable only from the host.
