@@ -84,6 +84,7 @@ class MatchResult:
     remaining_before: Optional[float] = None
     remaining_after: Optional[float] = None
     candidates: list = field(default_factory=list)
+    notes: list = field(default_factory=list)  # for the reviewer; never change the status
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -307,6 +308,8 @@ async def book_invoice(
     reqs = await _load_candidates(db, vendor_id, lock=not dry_run)
     balances = await _balances(db, [str(r.id) for r in reqs])
     result = evaluate(total, lines, [_candidate(r, balances.get(str(r.id), {})) for r in reqs], tolerances_from_rules(), po_ref)
+    if result.request_id:
+        result.notes = await expected_credit_notes(db, result.request_id)
     if dry_run:
         return result
 
@@ -354,6 +357,31 @@ async def book_invoice(
     return result
 
 
+async def expected_credits(db, request_id: str) -> list:
+    """SLA service credits contract-risk-agent recorded against this request
+    (feature expansion Phase 2) that the vendor hasn't applied yet. The
+    table belongs to contract-risk-agent; before its migration has run
+    there is nothing to read."""
+    try:
+        async with db.begin_nested():
+            rows = (await db.execute(text(
+                "SELECT id, period, credit_amount, currency FROM sla_credits "
+                "WHERE purchase_request_id = :r AND status = 'expected' ORDER BY period"), {"r": request_id})).all()
+    except Exception:
+        return []
+    return [{"id": str(r.id), "period": r.period, "amount": float(r.credit_amount), "currency": r.currency} for r in rows]
+
+
+async def expected_credit_notes(db, request_id: str) -> list[str]:
+    credits = await expected_credits(db, request_id)
+    if not credits:
+        return []
+    total = round(sum(c["amount"] for c in credits), 2)
+    periods = ", ".join(c["period"] for c in credits)
+    return [f"SLA service credit of {credits[0]['currency']} {total:,.2f} ({periods}) is still expected from this "
+            f"vendor; check this invoice deducts it before paying"]
+
+
 async def release_payment_holds(db, vendor_id: str) -> int:
     res = await db.execute(
         text("UPDATE invoice_matches SET payment_hold = false, hold_reason = NULL WHERE vendor_id = :v AND payment_hold"),
@@ -383,6 +411,7 @@ async def ledger_for_request(db, request_id: str) -> dict:
     ).all()
     return {
         "request_id": request_id, "status": req.status, "amount": cand.amount,
+        "expected_credits": await expected_credits(db, request_id),
         "invoiced_amount": round(cand.invoiced_amount, 2), "remaining_amount": cand.remaining_amount,
         "lines": [
             {"line_no": pl.line_no, "description": pl.description, "quantity": pl.quantity,

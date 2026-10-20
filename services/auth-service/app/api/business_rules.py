@@ -119,6 +119,10 @@ async def _validate_rule_value(db: AsyncSession, rule: BusinessRule, new_value: 
         elif rule.rule_key == "dev.force_model_fallback":
             if not isinstance(new_value, list) or not set(new_value) <= {"extraction", "clauses"}:
                 raise HTTPException(status_code=400, detail='dev.force_model_fallback must be a list of "extraction" and/or "clauses"')
+        elif rule.rule_key == "contract.obligation_reminder_days":
+            if not isinstance(new_value, list) or not new_value or not all(
+                    isinstance(x, int) and not isinstance(x, bool) and 0 < x <= 365 for x in new_value):
+                raise HTTPException(status_code=400, detail="obligation reminder days must be a list of whole days between 1 and 365")
         elif rule.rule_key == "risk.contract_renewal_milestones_days":
             if not isinstance(new_value, list) or not all(isinstance(x, int) and x > 0 for x in new_value):
                 raise HTTPException(status_code=400, detail="renewal milestones must be a list of positive integers")

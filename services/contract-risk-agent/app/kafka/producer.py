@@ -26,6 +26,7 @@ TOPIC_RISK_SCORE_UPDATED = "risk.score.updated"
 TOPIC_REMINDER_DUE = "reminder.due"
 TOPIC_VENDOR_OFFBOARDED = "vendor.offboarded"
 TOPIC_NOTIFICATION_SEND = "notification.send"
+TOPIC_CONTRACT_OBLIGATION_DUE = "contract.obligation.due"
 
 
 class KafkaEventProducer:
@@ -64,6 +65,11 @@ class KafkaEventProducer:
         )
         event = build_event(TOPIC_CONTRACT_GENERATED, self.service_name, payload)
         await self.publish(TOPIC_CONTRACT_GENERATED, event)
+
+    async def publish_obligation_due(self, payload: dict):
+        """An obligation is due, overdue, or breached (obligation_service sweep)."""
+        event = build_event(TOPIC_CONTRACT_OBLIGATION_DUE, self.service_name, payload)
+        await self.publish(TOPIC_CONTRACT_OBLIGATION_DUE, event)
 
     async def publish_contract_signed(self, contract):
         payload = build_contract_signed_payload(

@@ -35,6 +35,24 @@ QUESTIONS = {
 CUAD_CATEGORY = {"renewal_type": "Renewal Term", "notice_period_days": "Notice Period To Terminate Renewal",
                  "contract_end_date": "Expiration Date"}
 
+# Obligation types (Phase 2, obligation_extraction.py): CUAD's own "Details"
+# text for each category, copied from CUAD's test.json (spacing included —
+# the model was trained on these exact strings).
+CUAD_DETAILS = {
+    'Cap On Liability': 'Does the contract include a cap on liability upon the breach of a party’s obligation? This includes time limitation for the counterparty to bring claims or maximum amount for recovery.',
+    'Audit Rights': 'Does a party have the right to\xa0 audit the books, records, or physical locations of the counterparty to ensure compliance with the contract?',
+    'Warranty Duration': 'What is the duration of any\xa0 warranty against defects or errors in technology, products, or services\xa0 provided under the contract?',
+    'Termination For Convenience': 'Can a party terminate this\xa0 contract without cause (solely by giving a notice and allowing a waiting\xa0 period to expire)?',
+    'Minimum Commitment': 'Is there a minimum order size or minimum amount or units per-time period that one party must buy from the counterparty under the contract?',
+    'Post-Termination Services': 'Is a party subject to obligations after the termination or expiration of a contract, including any post-termination transition, payment, transfer of IP, wind-down, last-buy, or similar commitments?',
+    'Insurance': 'Is there a requirement for insurance that must be maintained by one party for the benefit of the counterparty?',
+    'License Grant': 'Does the contract contain a license granted by one party to its counterparty?',
+}
+
+
+def cuad_question(category: str) -> str:
+    return _Q.format(category, CUAD_DETAILS[category])
+
 MAX_LEN, STRIDE, MAX_ANSWER_TOKENS, TOP_N, BATCH = 384, 128, 120, 20, 16
 
 _lock = threading.Lock()

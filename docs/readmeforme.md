@@ -391,6 +391,46 @@ request page shows the budget line; e-mail approval of an over-budget request
 is refused (`approval.email_action_allowed_over_budget`).
 `python tests/e2e/budget_flow.py` checks the whole flow.
 
+### Contract obligations (feature expansion Phase 2)
+
+A signed contract is read for what it commits both sides to after
+signature: SLA uptime and service credits, licence limits (users,
+transfer, territory), price-increase cap, audit rights, warranty,
+termination for convenience, minimum commitment, exit terms, data
+protection, liability cap and insurance
+(`contract-risk-agent/app/services/obligation_extraction.py`). A background
+sweep in the contract-risk API (`obligation_service.run_obligation_sweeps`,
+every 60 s) reads newly signed contracts — rules for every type, Legal-BERT
+only for types listed in `MODEL_TYPES`, which are the ones where the model
+beat the rules on CUAD (`ml/evaluate_obligation_model.py`,
+`docs/results/obligations.md`). Each finding is stored as *to confirm*;
+nothing is tracked until finance or an admin confirms it on the contract
+page (`/app/contracts/:id`, *Obligations*), which sets its due date and
+recurrence (SLA review monthly, audit window yearly, warranty and minimum
+commitment from the signing date, price cap at the end date). The same
+sweep then:
+
+- publishes `contract.obligation.due` before each due date
+  (`contract.obligation_reminder_days`, default 30 and 7 days), on the day of
+  a monthly SLA review, and once when overdue — one per threshold, recorded
+  as an `obligation_events` row so it is never sent twice;
+- compares a confirmed licence limit linked to a licence with
+  `licenses.assigned_seats` and marks it *breached* (and back *open* once
+  within it).
+
+Recording a month's measured uptime computes the service credit
+(`credit_pct_per_step` for each `step_pct` or part of one below the commitment,
+capped; monthly fee = request amount ÷ 12). The credit is *expected*
+(`contract.sla_credit_auto_expect`) until finance marks it *applied* or
+*waived*; meanwhile every invoice matched to that request carries a note
+saying so (`invoice_ledger.expected_credit_notes`, shown on the document
+page; `GET /api/invoices/ledger/{id}` lists `expected_credits`). Licence
+reclaims never go below a confirmed minimum commitment
+(`UsageService.contract_minimum_seats`). The licence page shows
+"Contract limit: N seats · M assigned". Tables: `contract_obligations`,
+`obligation_events`, `sla_credits` (contract-risk Alembic `0008`).
+`python tests/e2e/obligation_flow.py` checks the whole flow.
+
 ### Research experiment (selective automation)
 
 The study in [RESEARCH_PAPER_PLAN.md](RESEARCH_PAPER_PLAN.md) runs on

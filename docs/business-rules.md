@@ -1,10 +1,10 @@
 # Business rules
 
-Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
+Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct; 55 after the Phase 2 obligation rules) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
 
 Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed on `business_rule.updated`); each read has a fallback used when auth-service is unreachable. Tests: `services/<service>/tests/test_rules_wiring.py::test_<rule key with _>` — each sets the rule to two values and checks the behaviour differs.
 
-**Enforced: 44** · **Not enforced: 8** (listed at the end — editing them has no effect until the feature exists).
+**Enforced: 47** · **Not enforced: 8** (listed at the end — editing them has no effect until the feature exists).
 
 | Rule | Default | What it changes | Read in | Test |
 |---|---|---|---|---|
@@ -25,7 +25,10 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `budget.warning_threshold_pct` | `0.8` | A request that takes its budget past this share is marked *warning* and publishes budget.threshold_crossed | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_warning_threshold_pct` |
 | `contract.auto_send_scope` | `"all"` | Which approved requests get their contract sent for signature automatically: "all" or "drop_folder" (only quotes dropped in the inbox folder) | contract-risk-agent: contract_service.py | `contract-risk-agent` · `test_contract_auto_send_scope` |
 | `contract.clause_extraction_fallback_threshold` | `0.4` | Confidence threshold to fallback during contract clause extraction | contract-risk-agent: clause_router.py | `contract-risk-agent` · `test_contract_clause_extraction_fallback_threshold` |
+| `contract.obligation_model_min_confidence` | `0.5` | Legal-BERT passages scoring below this are not proposed as obligations (only for types where the model beat the rules on CUAD) | contract-risk-agent: obligation_service.py | `contract-risk-agent` · `test_contract_obligation_model_min_confidence` |
+| `contract.obligation_reminder_days` | `[30, 7]` | Days before a confirmed obligation's due date when its owner is reminded (contract.obligation.due) | contract-risk-agent: obligation_service.py | `contract-risk-agent` · `test_contract_obligation_reminder_days` |
 | `contract.signature_reminder_days` | `3` | Remind the signer when a contract has waited this many days for signature | contract-risk-agent: reminder_sweep.py | `contract-risk-agent` · `test_contract_signature_reminder_days` |
+| `contract.sla_credit_auto_expect` | `true` | A service credit computed from recorded downtime is expected on the next invoice at once; off: finance accepts each one first | contract-risk-agent: obligation_service.py | `contract-risk-agent` · `test_contract_sla_credit_auto_expect` |
 | `dev.force_model_fallback` | `[]` | Development only: routers whose primary model is treated as failed — "extraction", "clauses" (FR-08 demo switch; ignored unless APP_ENV=development) | document-vendor-agent: services/extraction_router.py, contract-risk-agent: services/clause_router.py | `document-vendor-agent` · `contract-risk-agent` · `test_dev_force_model_fallback` |
 | `document.confidence_review_threshold` | `0.8` | Extraction confidence score threshold below which human review is triggered | document-vendor-agent: confidence.py | `document-vendor-agent` · `test_document_confidence_review_threshold` |
 | `document.duplicate_invoice_amount_tolerance_pct` | `0.02` | Tolerance percentage for duplicate invoice detection | document-vendor-agent: duplicate_detection.py | `document-vendor-agent` · `test_document_duplicate_invoice_amount_tolerance_pct` |

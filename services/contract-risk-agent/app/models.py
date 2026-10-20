@@ -77,6 +77,62 @@ class Contract(Base):
     reconciliation_status: Mapped[Optional[str]] = mapped_column(String(30))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Migration 0008: when the obligation sweep read this (signed) contract.
+    obligations_extracted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ContractObligation(Base):
+    """A commitment in a signed contract (migration 0008, obligation_service.py)."""
+    __tablename__ = "contract_obligations"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    contract_id: Mapped[str] = mapped_column(Uuid, ForeignKey("contracts.id"), nullable=False)
+    type: Mapped[str] = mapped_column(Text, nullable=False)
+    clause_text: Mapped[Optional[str]] = mapped_column(Text)
+    value: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(Text, default="to_confirm")
+    due_date: Mapped[Optional[date]] = mapped_column(Date)
+    recurrence: Mapped[str] = mapped_column(Text, default="none")
+    owner_email: Mapped[Optional[str]] = mapped_column(Text)
+    license_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    extracted_by: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[Optional[float]] = mapped_column(Numeric)
+    confirmed_by: Mapped[Optional[str]] = mapped_column(Text)
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ObligationEvent(Base):
+    __tablename__ = "obligation_events"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    obligation_id: Mapped[str] = mapped_column(Uuid, ForeignKey("contract_obligations.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
+    performed_by: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class SlaCredit(Base):
+    """A service credit owed after recorded downtime (migration 0008)."""
+    __tablename__ = "sla_credits"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    obligation_id: Mapped[str] = mapped_column(Uuid, ForeignKey("contract_obligations.id"), nullable=False)
+    contract_id: Mapped[str] = mapped_column(Uuid, ForeignKey("contracts.id"), nullable=False)
+    purchase_request_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    period: Mapped[str] = mapped_column(Text, nullable=False)
+    measured_uptime_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
+    credit_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
+    credit_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(Text, default="INR")
+    status: Mapped[str] = mapped_column(Text, default="expected")
+    recorded_by: Mapped[str] = mapped_column(Text, nullable=False)
+    resolved_by: Mapped[Optional[str]] = mapped_column(Text)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class RiskScore(Base):

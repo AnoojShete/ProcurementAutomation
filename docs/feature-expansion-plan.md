@@ -1,6 +1,6 @@
 # Feature expansion plan: closing the gaps with commercial suites
 
-Status (20 October 2026): **Phase 1 built and verified** (see its section); Phases 2–8 are proposals.
+Status (20 October 2026): **Phases 1 and 2 built** (see their sections); Phases 3–8 are proposals.
 Inputs: [competitive-analysis.md](competitive-analysis.md) (Coupa, Zapro, SAP
 Ariba, Ivalua, TYASuite) and Zoho's buyer's guide
 (https://www.zoho.com/procurement/academy/procurement-software.html), which
@@ -184,6 +184,44 @@ Frontend:
 ---
 
 ## Phase 2 — Contract obligation tracking
+
+> **Built 20 Oct 2026.** contract-risk-agent `app/services/obligation_extraction.py`
+> (11 types, value parsers, service-credit maths), `obligation_service.py`
+> (lifecycle, sweep), `app/api/obligations.py` (`/api/contracts/{id}/obligations`,
+> `/api/contracts/obligations/…`, `/api/contracts/sla-credits/…`), Alembic
+> `0008` (`contract_obligations`, `obligation_events`, `sla_credits`), topic
+> `contract.obligation.due`, rules seeded by auth-service `0016`; the three
+> templates now carry the clauses (SaaS: service credits, licence scope with
+> the request's seat count, price protection, audit, data protection,
+> liability and insurance; hardware: 36-month warranty; services: termination
+> for convenience, exit, liability and insurance). Frontend: the contract
+> page's *Obligations* card (`components/contracts/ObligationActions.tsx`) and
+> the licence page's "Contract limit: N seats · M assigned" line. Evaluation
+> script `ml/evaluate_obligation_model.py`; results in
+> `docs/results/obligations.{json,md}`.
+>
+> Deliberate changes from the design below:
+> 1. **A sweep, not a Temporal workflow per obligation.** One loop in the
+>    contract-risk API (every 60 s) reads newly signed contracts, sends due
+>    reminders (deduplicated by an `obligation_events` row) and compares
+>    licence seats. Hundreds of mostly idle workflows would add nothing a
+>    query over `due_date` doesn't already give, and a confirmed date can be
+>    edited without signalling a workflow.
+> 2. **Extraction after signature, in the background**, not during
+>    generation: nine more Legal-BERT questions add about a minute per
+>    contract. The contract page shows "reading…" until it is done.
+> 3. **The seat check runs in that same sweep** (contract-risk reads
+>    `licenses`), so a breach shows within a minute rather than a day.
+> 4. **The ledger warns whenever a credit is still `expected`** for the
+>    request (a note on the match, shown on the document page and listed by
+>    `GET /api/invoices/ledger/{id}`), rather than guessing from the invoice
+>    total whether it was deducted; finance marks the credit *applied*.
+>    The note never changes the match status.
+> 5. **Actions in their own component** (`ObligationActions`), not inside
+>    `ContractActions`, which is the header's signing panel; and a `Card`,
+>    since the list has actions.
+> 6. `recurrence` is `none | monthly | annual` (no type is quarterly), and
+>    there is no `owner_role` / `evidence` column yet (the owner is an e-mail).
 
 ### What it is
 Every signed contract is read for the commitments that matter after

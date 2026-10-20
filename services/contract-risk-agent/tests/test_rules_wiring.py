@@ -175,3 +175,61 @@ def test_risk_sanctions_match_threshold_pct(rule):
     assert sanctions.screen_name("Sea Breeze Shipping Lines", index) == []
     rule("risk.sanctions_match_threshold_pct", 85)
     assert sanctions.screen_name("Sea Breeze Shipping Lines", index)[0]["entity_id"] == "uk-5"
+
+
+# ── Phase 2: contract obligations ───────────────────────────────────────────
+
+def _warranty_due(today):
+    from app.services.obligation_service import reminder_days, reminder_due
+    ob = SimpleNamespace(due_date=today + timedelta(days=20), recurrence="none")
+    return reminder_due(ob, today, reminder_days())
+
+
+def test_contract_obligation_reminder_days(rule):
+    today = date(2026, 10, 20)
+    rule("contract.obligation_reminder_days", [30, 7])     # 20 days left: inside the 30-day window
+    assert _warranty_due(today)[0] == "2026-11-09:30"
+    rule("contract.obligation_reminder_days", [14, 7])     # 20 days left: nothing yet
+    assert _warranty_due(today) is None
+
+
+def _min_score_used():
+    from app.services import obligation_service as svc
+    seen = {}
+
+    def fake_extract(text, use_model, min_score):
+        seen["min_score"] = min_score
+        return []
+    db = AsyncMock()
+    db.execute.return_value = MagicMock(all=MagicMock(return_value=[]))
+    contract = SimpleNamespace(id="c-1", contract_text="x", obligations_extracted_at=None)
+    with patch.object(svc.ox, "extract_obligations", fake_extract), \
+            patch.object(svc, "write_audit_log", AsyncMock()):
+        run(svc.extract_for_contract(db, contract))
+    return seen["min_score"]
+
+
+def test_contract_obligation_model_min_confidence(rule):
+    rule("contract.obligation_model_min_confidence", 0.5)
+    assert _min_score_used() == 0.5
+    rule("contract.obligation_model_min_confidence", 3.0)
+    assert _min_score_used() == 3.0
+
+
+def _credit_status():
+    from app.services import obligation_service as svc
+    ob = SimpleNamespace(id="o-1", contract_id="c-1", type="sla_uptime", status="open", due_date=None,
+                         value={"uptime_pct": 99.9, "credit_pct_per_step": 10, "step_pct": 0.1, "credit_cap_pct": 50})
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))))
+    db.get = AsyncMock(return_value=SimpleNamespace(purchase_request_id="pr-1"))
+    with patch.object(svc, "monthly_fee", AsyncMock(return_value=(10000.0, "INR"))):
+        credit = run(svc.record_downtime(db, ob, "2026-10", 99.5, "it@example.com"))
+    return credit.status
+
+
+def test_contract_sla_credit_auto_expect(rule):
+    rule("contract.sla_credit_auto_expect", True)
+    assert _credit_status() == "expected"
+    rule("contract.sla_credit_auto_expect", False)
+    assert _credit_status() == "proposed"

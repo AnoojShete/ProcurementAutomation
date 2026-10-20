@@ -314,3 +314,18 @@ async def test_no_budget_policy_accepts_only_known_policies(value, ok):
         with pytest.raises(HTTPException) as exc:
             await _validate_rule_value(AsyncMock(), rule, value)
         assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,ok", [([30, 7], True), ([1], True), ([], False), ([0], False), ([400], False),
+                                      (["30"], False), (30, False)])
+async def test_obligation_reminder_days_must_be_whole_days(value, ok):
+    """Phase 2 obligations: the sweep ignores anything that isn't a whole day."""
+    rule = BusinessRule(rule_key="contract.obligation_reminder_days", value_type="json", min_value=None,
+                        max_value=None, current_value=[30, 7])
+    if ok:
+        await _validate_rule_value(AsyncMock(), rule, value)
+    else:
+        with pytest.raises(HTTPException) as exc:
+            await _validate_rule_value(AsyncMock(), rule, value)
+        assert exc.value.status_code == 400

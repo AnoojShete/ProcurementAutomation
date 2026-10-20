@@ -134,6 +134,11 @@ async def generate_contract_for_request(
 
     contract_id = str(uuid.uuid4())
     generated_at = datetime.now(timezone.utc)
+    # Licence scope for the SaaS template: the users bought on the request,
+    # with a commitment to half of them for the first 12 months (Phase 2
+    # obligations read both back once the contract is signed).
+    licensed_users = sum(int(i.get("quantity") or 0) for i in (pr.items or []) if isinstance(i, dict)) or 1
+    minimum_users = max(1, licensed_users // 2)
 
     contract_text = render_contract_text(
         template_name,
@@ -148,6 +153,8 @@ async def generate_contract_for_request(
             "currency": pr.currency,
             "contract_end_date": contract_end_date.isoformat(),
             "notice_period_days": notice_period_days,
+            "licensed_users": licensed_users,
+            "minimum_users": minimum_users,
         },
     )
 

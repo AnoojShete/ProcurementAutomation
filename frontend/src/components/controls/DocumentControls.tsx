@@ -85,6 +85,7 @@ export function DocumentControls({ extracted, documentId }: { extracted: Json; d
         <Row key="match" icon={BookOpenCheck} tone="ok" title={match.status === "matched" ? "Matched — request fully invoiced" : "Matched — partial invoice"}>
           Booked against {reqLink}.{" "}
           {match.remaining_after != null && match.status === "partial" && <>Still to invoice: {formatCurrency(match.remaining_after)}.</>}
+          {(match.notes ?? []).map((n: string) => <p key={n} className="mt-1 text-warning-700">{n}</p>)}
         </Row>,
       );
     } else if (match.status === "variance") {

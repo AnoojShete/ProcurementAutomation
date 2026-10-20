@@ -13,7 +13,7 @@ from app.database import async_session_factory, init_db, get_db
 from shared.eventing import kafka_sender, run_relay
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
-from app.api import health, contracts, vendors, webhooks, ops
+from app.api import health, contracts, vendors, webhooks, ops, obligations
 from app.services.docusign_client import run_status_poller
 from app.services.reminder_sweep import run_reminder_sweeps
 from app.models import AuditLog
@@ -52,6 +52,9 @@ async def lifespan(app: FastAPI):
     # FR-14: refresh a downloaded sanctions list daily (never downloads first).
     from app.services.sanctions import run_daily_refresh
     sanctions_task = asyncio.create_task(run_daily_refresh())
+    # Phase 2: read signed contracts' obligations; reminders and licence limits.
+    from app.services.obligation_service import run_obligation_sweeps
+    obligation_task = asyncio.create_task(run_obligation_sweeps(async_session_factory, app.state.kafka_producer))
     # FR-13: load the Legal-BERT clause model now (~6 s) rather than on the
     # first contract; without a downloaded model this just logs a warning.
     from app.services import clause_model
@@ -59,7 +62,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task, sanctions_task):
+    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task, sanctions_task, obligation_task):
         task.cancel()
         try:
             await task
@@ -98,6 +101,10 @@ app.include_router(
     prefix="/contracts", tags=["Audit"], dependencies=[Depends(get_current_user)],
 )
 app.include_router(ops.router, prefix="/contracts/ops", tags=["Operations"])
+# Phase 2 obligations, also before contracts.router (same reason as above).
+app.include_router(
+    obligations.router, prefix="/contracts", tags=["Contract Obligations"], dependencies=[Depends(get_current_user)]
+)
 app.include_router(
     contracts.router, prefix="/contracts", tags=["Contracts"], dependencies=[Depends(get_current_user)]
 )

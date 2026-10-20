@@ -452,7 +452,7 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
     envelope["invoice_match"] = {
         "status": status, "purchase_request_id": result.get("request_id"), "issues": result.get("issues", []),
         "remaining_before": result.get("remaining_before"), "remaining_after": result.get("remaining_after"),
-        "allocations": result.get("allocations", []),
+        "allocations": result.get("allocations", []), "notes": result.get("notes", []),
     }
     if status in ("matched", "partial"):
         po_id = result["request_id"]
@@ -467,7 +467,8 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
                 invoice_total=invoice_total, po_total=result.get("remaining_before") or invoice_total,
             )
         logger.info(f"[invoice_matching_agent] {status}: {po_num} ({po_id}), remaining {result.get('remaining_after')}")
-        record_agent_result(envelope, "invoice_matching_agent", validation_status="valid")
+        record_agent_result(envelope, "invoice_matching_agent", validation_status="valid",
+                            warnings=result.get("notes", []))
     elif status == "ambiguous":
         envelope["unmatched_invoice"] = False
         envelope["needs_review_forced"] = True

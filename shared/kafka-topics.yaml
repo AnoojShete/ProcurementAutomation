@@ -17,3 +17,4 @@ topics:
   - business_rule.updated
   - order.summary.generated
   - budget.threshold_crossed
+  - contract.obligation.due

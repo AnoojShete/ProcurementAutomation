@@ -21,7 +21,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import cast, select, func
+from sqlalchemy import cast, select, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from app.models import License, LicenseUsage, PurchaseRequest, ApprovalHistory, AuditLog
 from shared.eventing import staged
@@ -261,6 +261,22 @@ class UsageService:
 
 
     @staticmethod
+    async def contract_minimum_seats(db: AsyncSession, license_id) -> Optional[int]:
+        """The highest confirmed minimum commitment (contract-risk-agent's
+        contract_obligations) linked to this licence that hasn't run out
+        yet, or None. Before that table exists there is none."""
+        try:
+            async with db.begin_nested():
+                row = (await db.execute(text(
+                    "SELECT max((value->>'seats')::int) FROM contract_obligations "
+                    "WHERE license_id = :l AND type = 'minimum_commitment' AND status IN ('open', 'breached') "
+                    "AND (due_date IS NULL OR due_date >= CURRENT_DATE) AND value ? 'seats'"),
+                    {"l": str(license_id)})).first()
+        except Exception:
+            return None
+        return int(row[0]) if row and row[0] else None
+
+    @staticmethod
     async def check_and_trigger_reclaims(db: AsyncSession, producer: KafkaEventProducer):
         """Scan all active licenses and auto-create reclaim requests for anomalous ones.
 
@@ -322,6 +338,15 @@ class UsageService:
                     continue
 
                 unused_seats = lic.total_seats - lic.assigned_seats
+                # Phase 2: seats the contract commits us to paying for can't
+                # be reclaimed — giving them back saves nothing.
+                floor = await UsageService.contract_minimum_seats(db, lic.id)
+                if floor:
+                    unused_seats = min(unused_seats, lic.total_seats - floor)
+                    if unused_seats <= 0:
+                        logger.info(f"License {lic.app_name} ({lic.id}) is at its contract minimum of "
+                                    f"{floor} seats; no reclaim")
+                        continue
                 savings = float(lic.cost_per_seat or 0) * unused_seats
 
                 reclaim_request = PurchaseRequest(
@@ -340,6 +365,7 @@ class UsageService:
                         "license_id": str(lic.id),
                         "app_name": lic.app_name,
                         "unused_seats": unused_seats,
+                        "contract_minimum_seats": floor,
                         "utilisation_score": utilisation_score,
                         "anomaly_score": anomaly_score,
                         "top_factors": usage_data["top_factors"],

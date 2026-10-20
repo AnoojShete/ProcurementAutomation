@@ -613,6 +613,57 @@ export interface ApprovalDelegation {
   revoked_at: string | null;
 }
 
+// --- contract obligations (Phase 2) ---
+export type ObligationType =
+  | "sla_uptime" | "license_limit" | "price_cap" | "audit_rights" | "warranty" | "termination_convenience"
+  | "minimum_commitment" | "post_termination" | "data_protection" | "liability_cap" | "insurance";
+export type ObligationStatus = "to_confirm" | "open" | "met" | "breached" | "waived";
+export interface ContractObligation {
+  id: string;
+  contract_id: string;
+  type: ObligationType;
+  label: string;
+  clause_text: string | null;
+  value: Record<string, number | string | boolean>;
+  status: ObligationStatus;
+  due_date: string | null;
+  recurrence: "none" | "monthly" | "annual";
+  owner_email: string | null;
+  license_id: string | null;
+  extracted_by: "legal-bert-cuad" | "regex" | "manual";
+  confidence: number | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  events: { kind: string; details: Record<string, unknown>; performed_by: string | null; created_at: string | null }[];
+}
+export interface SlaCredit {
+  id: string;
+  obligation_id: string;
+  period: string;
+  measured_uptime_pct: number;
+  credit_pct: number;
+  credit_amount: number;
+  currency: string;
+  status: "proposed" | "expected" | "applied" | "waived";
+  recorded_by: string;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  note: string | null;
+  created_at: string | null;
+}
+export interface ContractObligations {
+  obligations: ContractObligation[];
+  credits: SlaCredit[];
+  extracted_at: string | null;
+  reading: boolean;
+}
+export interface ObligationConfirm {
+  value?: Record<string, number | string | boolean>;
+  owner_email?: string;
+  license_id?: string;
+  due_date?: string;
+}
+
 // --- invoice ledger ---
 export type InvoiceMatchStatus = "matched" | "partial" | "variance" | "ambiguous" | "no_match";
 export interface InvoiceMatchResult {
@@ -624,6 +675,7 @@ export interface InvoiceMatchResult {
   remaining_before: number | null;
   remaining_after: number | null;
   candidates: { request_id: string; status: string; remaining: number; issues: string[] }[];
+  notes?: string[];
 }
 export interface InvoiceMatchRow {
   document_id: string;

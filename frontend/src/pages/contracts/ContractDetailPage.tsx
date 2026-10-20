@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { usePeople } from "@/hooks/usePeople";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Clock } from "lucide-react";
@@ -9,6 +10,9 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ContractStatusBadge } from "@/components/ui/Badge";
 import { ContractActions, isProviderLive } from "@/components/contracts/ContractActions";
 import { VendorRiskPanel } from "@/components/contracts/VendorRiskPanel";
+import { ObligationActions } from "@/components/contracts/ObligationActions";
+import { licensesApi } from "@/api/licenses";
+import { useAuth } from "@/hooks/useAuth";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DocketHeader, RefCopy } from "@/components/ui/DocketHeader";
@@ -25,6 +29,18 @@ export function ContractDetailPage() {
   const { data: vendors } = useApi(() => vendorsApi.list(200), []);
   const vendor = vendors?.find((v) => v.id === contract?.vendor_id);
   const action = params.get("action");
+  const { user } = useAuth();
+  const signed = contract?.status === "signed";
+  const { data: obligations, reload: reloadObligations } = useApi(
+    () => (signed ? contractsApi.obligations(id!) : Promise.resolve({ data: null })), [id, signed]);
+  const staff = ["approver", "finance", "admin"].includes(user?.role ?? "");
+  const { data: inventory } = useApi(() => (signed && staff ? licensesApi.list() : Promise.resolve({ data: null })), [signed, staff]);
+  // While the sweep is reading a freshly signed contract, look again shortly.
+  useEffect(() => {
+    if (!obligations?.reading) return;
+    const t = setTimeout(reloadObligations, 10000);
+    return () => clearTimeout(t);
+  }, [obligations, reloadObligations]);
 
   // Same dates the renewal workflow uses: counted back from the notice deadline.
   const renewalMilestones = contract?.renewal_reminders ?? [];
@@ -174,6 +190,11 @@ export function ContractDetailPage() {
           </CardBody>
         </Card>
       </div>
+
+      {signed && obligations && (
+        <ObligationActions contractId={contract.id} data={obligations} licenses={inventory?.licenses ?? []}
+          onChanged={reloadObligations} />
+      )}
 
       {renewalMilestones.length > 0 && (
         <Card>

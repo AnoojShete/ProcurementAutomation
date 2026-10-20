@@ -17,6 +17,7 @@ import { usePageHeader } from "@/hooks/usePageTitle";
 import { useAuth } from "@/hooks/useAuth";
 import { licensesApi } from "@/api/licenses";
 import { requestsApi } from "@/api/requests";
+import { contractsApi } from "@/api/contracts";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -24,6 +25,7 @@ import { UsageTrendChart } from "@/components/charts/UsageTrendChart";
 import { ApprovalActions } from "@/components/approvals/ApprovalActions";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type {
+  ContractObligation,
   LicenseItem,
   UsageHistoryEntry,
   ReclaimHistoryEntry,
@@ -75,6 +77,12 @@ export function LicenseDetailPage() {
   // the approval agent's panel — the same one as on the request page — so
   // the approval inbox and the Licenses tab both land here with the action.
   const [openRequests, setOpenRequests] = useState<PurchaseRequest[]>([]);
+  // Phase 2: confirmed contract limits on this licence (staff only; others see none).
+  const [limits, setLimits] = useState<ContractObligation[]>([]);
+  useEffect(() => {
+    if (!id) return;
+    contractsApi.obligationsForLicense(id).then((r) => setLimits(r.data)).catch(() => setLimits([]));
+  }, [id]);
   const loadOpenRequests = useCallback(() => {
     if (!id) return;
     requestsApi
@@ -223,6 +231,28 @@ export function LicenseDetailPage() {
           )}
         </div>
       </div>
+
+      {limits.length > 0 && (
+        <ul className="flex flex-col gap-1 text-13 text-ink-2">
+          {limits.map((ob) => {
+            const seats = Number(ob.value.seats ?? 0);
+            const assigned = license.assigned_seats ?? 0;
+            const over = ob.type === "license_limit" && assigned > seats;
+            return (
+              <li key={ob.id} className="flex flex-wrap items-center gap-2">
+                <span>
+                  {ob.type === "license_limit" ? "Contract limit" : "Contract minimum"}: {seats} seats · {assigned} assigned
+                  {ob.type === "minimum_commitment" && ob.due_date && <> · until {new Date(ob.due_date).toLocaleDateString()}</>}
+                </span>
+                {over && <Badge tone="danger">over the limit</Badge>}
+                <Link to={`/app/contracts/${ob.contract_id}`} className="text-brand-700 hover:underline">
+                  CT-{ob.contract_id.slice(0, 8)}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {openRequests.map((req) => (
         <Card key={req.id}>
