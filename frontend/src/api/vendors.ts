@@ -5,10 +5,20 @@ import type {
   VendorPaymentChange,
   VendorRisk,
   VendorSummary,
+  ScorecardExplanation,
+  RemediationPlan,
+  WhatIfResult,
+  RiskHistoryEntry,
+  VendorDispute,
+  VendorEvidence,
+  RulesetResponse,
+  DryRunReport,
+  MonitoringReport,
 } from "@/types/api";
 
 export interface VendorProfileInput {
   name: string;
+  country?: string;
   contact_email?: string;
   contact_phone?: string;
   address?: string;
@@ -19,6 +29,22 @@ export interface VendorProfileInput {
   payment_beneficiary_name?: string;
   confirm?: string[];
   no_gstin_reason?: string;
+}
+
+export interface VendorClearance {
+  cleared: boolean;
+  purpose: string;
+  rating_status: "not_rated" | "provisional" | "assessed";
+  final_band: "Low" | "Medium" | "High" | "Unrated";
+  points_band: "Low" | "Medium" | "High";
+  risk_score: number | null;
+  blocked_by: string[];
+  overrides_active: string[];
+  required_signals_missing: string[];
+  post_score_decision: "approved" | "approved_with_conditions" | "risk_accepted" | "rejected" | null;
+  decision_expires_at: string | null;
+  conditions: Array<{ id: string; text: string; due_date?: string; status: string; overdue: boolean }>;
+  reasons: string[];
 }
 
 export interface ProfileIssue {
@@ -114,4 +140,39 @@ export const vendorsApi = {
       approve,
       notes,
     }),
+  explanation: (vendorId: string) => api.get<ScorecardExplanation>(`/vendors/${vendorId}/risk/explanation`),
+  clearance: (vendorId: string, purpose = "purchase", spendAmount?: number, contractId?: string) =>
+    api.get<VendorClearance>(
+      `/vendors/${vendorId}/clearance?purpose=${purpose}${spendAmount !== undefined ? `&spend_amount=${spendAmount}` : ""}${contractId ? `&contract_id=${contractId}` : ""}`
+    ),
+  recordDecision: (vendorId: string, body: { decision: string; justification: string; conditions?: any[]; expires_in_days?: number }) =>
+    api.post(`/vendors/${vendorId}/decisions`, body),
+  remediationPlan: (vendorId: string, audience: "vendor" | "buyer" = "buyer") =>
+    api.get<RemediationPlan>(`/vendors/${vendorId}/risk/remediation-plan?audience=${audience}`),
+  whatIf: (vendorId: string, simulate_resolved_rules: string[]) =>
+    api.post<WhatIfResult>(`/vendors/${vendorId}/risk/what-if`, { simulate_resolved_rules }),
+  history: (vendorId: string) => api.get<RiskHistoryEntry[]>(`/vendors/${vendorId}/risk/history`),
+  disputes: (vendorId: string) => api.get<VendorDispute[]>(`/vendors/${vendorId}/risk/disputes`),
+  raiseDispute: (vendorId: string, body: { rule_result_id: string; reason: string; evidence_id?: string }) =>
+    api.post<VendorDispute>(`/vendors/${vendorId}/risk/disputes`, body),
+  replay: (vendorId: string, scoreId?: string) =>
+    api.post<{ match: boolean; replayed_score: any; replayed_rule_results: any[] }>(
+      `/vendors/${vendorId}/risk/replay${scoreId ? `?score_id=${scoreId}` : ""}`
+    ),
+  evidence: (vendorId: string) => api.get<VendorEvidence[]>(`/vendors/${vendorId}/evidence`),
+  uploadEvidence: (vendorId: string, formData: FormData) =>
+    api.post<VendorEvidence>(`/vendors/${vendorId}/evidence`, formData),
+};
+
+export const rulesetsApi = {
+  active: () => api.get<RulesetResponse>("/admin/risk-rulesets/active"),
+  draft: () => api.get<RulesetResponse>("/admin/risk-rulesets/draft"),
+  saveDraft: (definition: any) => api.post<RulesetResponse>("/admin/risk-rulesets/draft", { definition }),
+  validate: (definition: any) => api.post<{ valid: boolean; errors: string[] }>("/admin/risk-rulesets/validate", { definition }),
+  dryRun: (definition: any, sample_size = 100) =>
+    api.post<DryRunReport>("/admin/risk-rulesets/dry-run", { definition, sample_size }),
+  activate: (definition: any, change_justification: string) =>
+    api.post<RulesetResponse>("/admin/risk-rulesets/activate", { definition, change_justification }),
+  history: () => api.get<RulesetResponse[]>("/admin/risk-rulesets/history"),
+  monitoring: (lookback_days = 30) => api.get<MonitoringReport>(`/admin/risk-rulesets/monitoring?lookback_days=${lookback_days}`),
 };

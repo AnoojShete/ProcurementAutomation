@@ -133,7 +133,17 @@ export function VendorDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader title="Vendor Risk" />
+          <CardHeader
+            title="Vendor Risk"
+            actions={
+              <Link
+                to={`/app/vendors/${id}/risk`}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-800"
+              >
+                Full Deterministic Scorecard →
+              </Link>
+            }
+          />
           <CardBody>
             {!risk ? (
               <p className="py-6 text-center text-sm text-slate-500">This vendor hasn't been risk-scored yet.</p>

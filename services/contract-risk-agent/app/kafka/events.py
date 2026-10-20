@@ -8,15 +8,16 @@ from typing import Optional, List, Dict
 
 from shared.logging.context import CorrelationContext
 
-def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None) -> dict:
+def build_event(event_type: str, source_service: str, payload: dict, correlation_id: Optional[str] = None, schema_version: Optional[int] = None) -> dict:
     corr_id = correlation_id or CorrelationContext.get() or str(uuid.uuid4())
+    version = schema_version if schema_version is not None else (2 if event_type == "risk.score.updated" else 1)
     return {
         "event_id": str(uuid.uuid4()),
         "correlation_id": corr_id,
         "event_type": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_service": source_service,
-        "schema_version": 1,
+        "schema_version": version,
         "payload": payload,
     }
 
@@ -69,16 +70,63 @@ def build_contract_renewal_due_payload(
 
 
 def build_risk_score_updated_payload(
-    vendor_id, risk_band, risk_score, top_factors: List[Dict], model_version, scored_at
+    vendor_id,
+    risk_band,
+    risk_score,
+    top_factors: Optional[List[Dict]] = None,
+    model_version: Optional[str] = None,
+    scored_at: Optional[datetime] = None,
+    total_points: Optional[int] = None,
+    points_band: Optional[str] = None,
+    final_band: Optional[str] = None,
+    override_rule_ids: Optional[List[str]] = None,
+    unassessed_potential_points: Optional[int] = None,
+    worst_case_band: Optional[str] = None,
+    ruleset_version: Optional[int] = None,
+    is_provisional: bool = False,
+    effective_tier: Optional[str] = None,
+    previous_band: Optional[str] = None,
+    band_changed: bool = False,
+    trigger_type: Optional[str] = None,
+    explanation_url: Optional[str] = None,
+    rating_status: Optional[str] = None,
+    applicable_max_points: Optional[int] = 100,
+    due_diligence_potential_points: Optional[int] = 0,
+    history_potential_points: Optional[int] = 0,
+    points_is_lower_bound: bool = False,
+    blocked_by: Optional[List[str]] = None,
+    remediation_path: Optional[List[Dict]] = None,
 ) -> dict:
-    return {
+    payload = {
         "vendor_id": str(vendor_id),
-        "risk_band": risk_band,
-        "risk_score": float(risk_score),
-        "top_factors": top_factors,
-        "model_version": model_version,
+        "risk_band": final_band or risk_band,
+        "risk_score": float(risk_score) if risk_score is not None else None,
+        "top_factors": top_factors or [],
+        "model_version": model_version or f"ruleset_v{ruleset_version or 1}",
         "scored_at": _iso(scored_at),
+        # Prompt 9B & 9C additive fields
+        "total_points": total_points if total_points is not None else (int(round((risk_score or 0) * 100)) if risk_score is not None else None),
+        "points_band": points_band or risk_band,
+        "final_band": final_band or risk_band,
+        "override_rule_ids": override_rule_ids or [],
+        "unassessed_potential_points": unassessed_potential_points or 0,
+        "worst_case_band": worst_case_band or points_band or risk_band,
+        "ruleset_version": ruleset_version or 1,
+        "is_provisional": is_provisional,
+        "effective_tier": effective_tier or "standard",
+        "previous_band": previous_band,
+        "band_changed": band_changed,
+        "trigger_type": trigger_type or "manual",
+        "explanation_url": explanation_url or f"/app/vendors/{vendor_id}/risk",
+        "rating_status": rating_status or ("provisional" if is_provisional else "assessed"),
+        "applicable_max_points": applicable_max_points or 100,
+        "due_diligence_potential_points": due_diligence_potential_points or 0,
+        "history_potential_points": history_potential_points or 0,
+        "points_is_lower_bound": points_is_lower_bound,
+        "blocked_by": blocked_by or [],
+        "remediation_path": remediation_path or [],
     }
+    return payload
 
 
 def build_vendor_offboarded_payload(

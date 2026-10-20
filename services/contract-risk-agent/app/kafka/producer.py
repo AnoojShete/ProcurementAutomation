@@ -93,7 +93,7 @@ class KafkaEventProducer:
         await self.publish(TOPIC_CONTRACT_RENEWAL_DUE, event)
 
     async def publish_risk_score_updated(
-        self, vendor_id, risk_band, risk_score, top_factors, model_version, scored_at
+        self, vendor_id, risk_band, risk_score, top_factors=None, model_version=None, scored_at=None, **kwargs
     ):
         payload = build_risk_score_updated_payload(
             vendor_id=vendor_id,
@@ -102,6 +102,7 @@ class KafkaEventProducer:
             top_factors=top_factors,
             model_version=model_version,
             scored_at=scored_at,
+            **kwargs,
         )
         event = build_event(TOPIC_RISK_SCORE_UPDATED, self.service_name, payload)
         await self.publish(TOPIC_RISK_SCORE_UPDATED, event)

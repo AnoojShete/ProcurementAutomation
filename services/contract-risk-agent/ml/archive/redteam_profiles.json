@@ -1,0 +1,29 @@
+{
+  "about": "Red-team vendor profiles for the risk model (FR-04). Expected bands were written from the documented labelling logic (generate_vendor_dataset._synthesize_label) before running the model. null = not on file. gstin_status feeds the hard override. Check against the Agent doc's red-team list.",
+  "profiles": [
+    {"name": "Established, certified, reliable", "expected": "Low",
+     "features": {"vendor_tenure_months": 96, "on_time_delivery_rate": 0.97, "financial_stability_score": 0.92, "breach_disclosure_count": 0, "security_cert_flag": 1, "geo_risk_flag": 0}},
+    {"name": "Solid mid-size supplier", "expected": "Low",
+     "features": {"vendor_tenure_months": 48, "on_time_delivery_rate": 0.9, "financial_stability_score": 0.8, "breach_disclosure_count": 0, "security_cert_flag": 1, "geo_risk_flag": 0}},
+    {"name": "Good record, no certification", "expected": "Low",
+     "features": {"vendor_tenure_months": 60, "on_time_delivery_rate": 0.93, "financial_stability_score": 0.85, "breach_disclosure_count": 0, "security_cert_flag": 0, "geo_risk_flag": 0}},
+    {"name": "Late deliveries, weak finances", "expected": "High",
+     "features": {"vendor_tenure_months": 12, "on_time_delivery_rate": 0.4, "financial_stability_score": 0.35, "breach_disclosure_count": 1, "security_cert_flag": 0, "geo_risk_flag": 0}},
+    {"name": "Repeated breaches, flagged geography", "expected": "High",
+     "features": {"vendor_tenure_months": 24, "on_time_delivery_rate": 0.6, "financial_stability_score": 0.5, "breach_disclosure_count": 5, "security_cert_flag": 0, "geo_risk_flag": 1}},
+    {"name": "Everything bad", "expected": "High",
+     "features": {"vendor_tenure_months": 3, "on_time_delivery_rate": 0.3, "financial_stability_score": 0.25, "breach_disclosure_count": 4, "security_cert_flag": 0, "geo_risk_flag": 1}},
+    {"name": "New vendor, decent numbers", "expected": "Medium",
+     "features": {"vendor_tenure_months": 2, "on_time_delivery_rate": 0.75, "financial_stability_score": 0.6, "breach_disclosure_count": 0, "security_cert_flag": 0, "geo_risk_flag": 0}},
+    {"name": "Reliable but one breach and flagged geography", "expected": "Medium",
+     "features": {"vendor_tenure_months": 36, "on_time_delivery_rate": 0.85, "financial_stability_score": 0.7, "breach_disclosure_count": 1, "security_cert_flag": 0, "geo_risk_flag": 1}},
+    {"name": "Perfect record but GSTIN cancelled (override)", "expected": "High", "gstin_status": "cancelled",
+     "features": {"vendor_tenure_months": 96, "on_time_delivery_rate": 0.97, "financial_stability_score": 0.92, "breach_disclosure_count": 0, "security_cert_flag": 1, "geo_risk_flag": 0}},
+    {"name": "Nothing on file", "expected_not": "High",
+     "features": {"vendor_tenure_months": null, "on_time_delivery_rate": null, "financial_stability_score": null, "breach_disclosure_count": null, "security_cert_flag": null, "geo_risk_flag": null}},
+    {"name": "Good partial record (delivery and finances unknown)", "expected": "Low",
+     "features": {"vendor_tenure_months": 84, "on_time_delivery_rate": null, "financial_stability_score": null, "breach_disclosure_count": 0, "security_cert_flag": 1, "geo_risk_flag": 0}},
+    {"name": "Bad delivery known, rest unknown", "expected_not": "Low",
+     "features": {"vendor_tenure_months": null, "on_time_delivery_rate": 0.35, "financial_stability_score": null, "breach_disclosure_count": null, "security_cert_flag": null, "geo_risk_flag": null}}
+  ]
+}

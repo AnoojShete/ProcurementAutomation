@@ -25,6 +25,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { ErrorState, InlineInfo } from "@/components/ui/ErrorState";
 import { formatDateTime } from "@/lib/format";
 import { PersonName } from "@/components/people/PersonName";
+import { RiskRulesetGovernance } from "@/components/admin/RiskRulesetGovernance";
 
 const CATEGORY_TABS = [
   { key: "approval", label: "Approval" },
@@ -32,6 +33,7 @@ const CATEGORY_TABS = [
   { key: "vendor_verification", label: "Vendor Verification" },
   { key: "license_usage", label: "License Usage" },
   { key: "risk_compliance", label: "Risk & Compliance" },
+  { key: "risk_scorecard", label: "Risk Scorecard Ruleset" },
   { key: "history", label: "Change History" },
 ];
 
@@ -283,6 +285,8 @@ export function BusinessRulesPage() {
             </div>
           ) : error ? (
             <ErrorState message={error} onRetry={fetchRules} />
+          ) : activeTab === "risk_scorecard" ? (
+            <RiskRulesetGovernance />
           ) : activeTab === "history" ? (
             /* History Feed Tab */
             <div className="flex flex-col gap-4">

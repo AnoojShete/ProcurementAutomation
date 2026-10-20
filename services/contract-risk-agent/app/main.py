@@ -13,7 +13,7 @@ from app.database import async_session_factory, init_db, get_db
 from shared.eventing import kafka_sender, run_relay
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
-from app.api import health, contracts, vendors, webhooks, ops
+from app.api import health, contracts, vendors, webhooks, ops, rulesets
 from app.services.docusign_client import run_status_poller
 from app.services.reminder_sweep import run_reminder_sweeps
 from app.models import AuditLog
@@ -103,6 +103,9 @@ app.include_router(
 )
 app.include_router(
     vendors.router, prefix="/vendors", tags=["Vendor Risk"], dependencies=[Depends(get_current_user)]
+)
+app.include_router(
+    rulesets.router, prefix="/admin/risk-rulesets", tags=["Ruleset Governance"], dependencies=[Depends(get_current_user)]
 )
 # Not JWT-gated: the e-sign provider has no platform login. Trust comes
 # from the HMAC signature verified inside the handler instead.

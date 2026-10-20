@@ -19,6 +19,7 @@ const DocumentsListPage = lazy(() => import("@/pages/documents/DocumentsListPage
 const DocumentDetailPage = lazy(() => import("@/pages/documents/DocumentDetailPage").then((m) => ({ default: m.DocumentDetailPage })));
 const VendorsListPage = lazy(() => import("@/pages/vendors/VendorsListPage").then((m) => ({ default: m.VendorsListPage })));
 const VendorDetailPage = lazy(() => import("@/pages/vendors/VendorDetailPage").then((m) => ({ default: m.VendorDetailPage })));
+const VendorRiskScorecardPage = lazy(() => import("@/pages/vendors/VendorRiskScorecardPage").then((m) => ({ default: m.VendorRiskScorecardPage })));
 const ApprovalInboxPage = lazy(() => import("@/pages/approvals/ApprovalInboxPage").then((m) => ({ default: m.ApprovalInboxPage })));
 const InventoryPage = lazy(() => import("@/pages/inventory/InventoryPage").then((m) => ({ default: m.InventoryPage })));
 const LicensesListPage = lazy(() => import("@/pages/licenses/LicensesListPage").then((m) => ({ default: m.LicensesListPage })));
@@ -81,6 +82,7 @@ const router = createBrowserRouter([
       { path: "documents/:id", element: withSuspense(<DocumentDetailPage />) },
       { path: "vendors", element: withSuspense(<VendorsListPage />) },
       { path: "vendors/:id", element: withSuspense(<VendorDetailPage />) },
+      { path: "vendors/:id/risk", element: withSuspense(<VendorRiskScorecardPage />) },
       {
         path: "approvals",
         element: withSuspense(

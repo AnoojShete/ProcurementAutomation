@@ -288,6 +288,11 @@ async def apply_received(session, req: PurchaseRequest, received_by: str) -> str
         performed_by=received_by, created_at=now,
         details={"contract_id": str(contract.id) if contract else None, "status": req.status, "event": "received"},
     ))
+    session.add(AuditLog(
+        id=str(_uuid.uuid4()), entity_type="purchase_request", entity_id=req.id, action="goods_received",
+        performed_by=received_by, created_at=now,
+        details={"contract_id": str(contract.id) if contract else None, "status": req.status, "event": "goods_received"},
+    ))
     outcome.append("fulfilment_applied")
     result = "+".join(outcome)
     logger.info(f"request {req.id} marked received by {received_by}: {result}")

@@ -323,13 +323,221 @@ export interface VendorRisk {
   vendor_id: string;
   risk_band: RiskBand;
   risk_score: number;
-  top_factors: RiskFactor[];
-  model_version: string | null;
+  top_factors?: RiskFactor[];
+  model_version?: string | null;
   scored_at: string | null;
-  /** How many of the model's signals were on file (null for older scores). */
-  signals_used?: number | null;
-  signals_total?: number | null;
-  overrides?: RiskOverrideCheck[];
+  total_points?: number;
+  points_band?: string;
+  final_band?: string;
+  worst_case_points?: number;
+  worst_case_band?: string;
+  unassessed_potential_points?: number;
+  is_provisional?: boolean;
+  provisional_reasons?: string[];
+  override_rule_ids?: string[];
+  headline?: string;
+  ruleset_version?: number;
+  trigger_type?: string;
+  score_id?: string;
+  explanation?: Record<string, unknown>;
+  snapshot_sha256?: string;
+}
+
+export interface ScorecardRuleResult {
+  rule_id: string;
+  signal_key: string;
+  signal_label?: string;
+  group_key: string;
+  status: "assessed" | "not_assessed" | "not_applicable" | "review_pending";
+  points: number;
+  potential_points: number;
+  override_band: string | null;
+  observed_fields: Record<string, any>;
+  facts: Array<{ label: string; value: string }>;
+  reason_text: string;
+  rationale: string;
+  remediable: boolean;
+  ages_out_on: string | null;
+}
+
+export interface ScorecardExplanation {
+  score_id: string;
+  vendor_id: string;
+  ruleset_version: number;
+  assessed_at: string;
+  total_points: number;
+  points_band: string;
+  final_band: string;
+  worst_case_points: number;
+  worst_case_band: string;
+  unassessed_potential_points: number;
+  is_provisional: boolean;
+  provisional_reasons: string[];
+  override_rule_ids: string[];
+  headline: string;
+  thought_process: string[];
+  score_breakdown: ScorecardRuleResult[];
+  unassessed_signals: Array<{
+    signal_key: string;
+    signal_label?: string;
+    potential_points: number;
+    provider?: string;
+    reason_not_assessed?: string;
+  }>;
+  override_details: Array<{
+    rule_id: string;
+    signal_key: string;
+    override_band: string;
+    rationale: string;
+  }>;
+  snapshot_sha256: string;
+}
+
+export interface RemediationStep {
+  rule_id: string;
+  signal_key: string;
+  points: number;
+  who: "vendor" | "buyer";
+  step: string;
+  evidence: string;
+  submit_via: string;
+  shareable_with_vendor: boolean;
+}
+
+export interface RemediationPlan {
+  total_points: number;
+  recoverable_points: number;
+  projected_points: number;
+  projected_band: string;
+  actions: RemediationStep[];
+}
+
+export interface WhatIfResult {
+  original_points: number;
+  original_band: string;
+  simulated_points: number;
+  simulated_band: string;
+  simulated_rules: string[];
+  score_difference: number;
+}
+
+export interface RiskHistoryEntry {
+  id: string;
+  assessed_at: string;
+  total_points: number;
+  points_band: string;
+  final_band: string;
+  is_provisional: boolean;
+  trigger_type: string;
+  ruleset_version: number;
+  headline: string;
+}
+
+export interface VendorDispute {
+  id: string;
+  score_id: string;
+  rule_result_id: string;
+  raised_by: string;
+  raised_at: string;
+  reason: string;
+  evidence_id: string | null;
+  status: "open" | "upheld" | "rejected";
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  resolution_note: string | null;
+}
+
+export interface VendorEvidence {
+  id: string;
+  vendor_id: string;
+  document_type: string;
+  file_name: string;
+  mime_type: string;
+  valid_from: string;
+  valid_until: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+  status: "valid" | "expired" | "rejected";
+}
+
+export interface RulesetResponse {
+  id: string;
+  version: number;
+  status: "draft" | "active" | "retired";
+  definition: any;
+  definition_hash: string;
+  created_by: string;
+  created_at: string;
+  activated_by: string | null;
+  activated_at: string | null;
+  change_justification: string | null;
+  dry_run_report: any;
+}
+
+export interface DryRunReport {
+  sample_size: number;
+  duration_ms: number;
+  avg_duration_ms: number;
+  migration_matrix: Record<string, number>;
+  score_diff_distribution: Record<string, number>;
+  top_movers: Array<{
+    vendor_id: string;
+    active_points: number;
+    draft_points: number;
+    diff: number;
+    active_band: string;
+    draft_band: string;
+  }>;
+  overrides_active: Record<string, number>;
+  overrides_draft: Record<string, number>;
+}
+
+export interface MonitoringReport {
+  report_generated_at: string;
+  lookback_days: number;
+  active_ruleset_version: number;
+  total_assessments: number;
+  rating_distribution: {
+    low: number;
+    low_pct: number;
+    medium: number;
+    medium_pct: number;
+    high: number;
+    high_pct: number;
+    provisional: number;
+    provisional_pct: number;
+  };
+  rule_frequencies: Array<{
+    rule_id: string;
+    signal_key: string;
+    description: string;
+    times_fired: number;
+    fire_pct: number;
+    is_dead: boolean;
+    is_overly_sensitive: boolean;
+  }>;
+  override_frequencies: Record<string, number>;
+  missing_signal_rates: Array<{
+    signal_key: string;
+    not_assessed_count: number;
+    missing_rate_pct: number;
+    exceeds_threshold: boolean;
+  }>;
+  dispute_stats: {
+    raised_count: number;
+    upheld_count: number;
+    rejected_count: number;
+    open_count: number;
+    top_disputed_signals: Record<string, number>;
+  };
+  calibration_candidates: Array<{
+    vendor_id: string;
+    incident_date: string;
+    actual_incident_occurred: boolean;
+    score_at_incident: number;
+    band_at_incident: string;
+    notes?: string;
+  }>;
 }
 
 export interface DriftCheckResult {

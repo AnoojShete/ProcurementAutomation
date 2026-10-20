@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 
 const FIELDS: { key: keyof VendorProfileInput; label: string; placeholder?: string; wide?: boolean }[] = [
   { key: "name", label: "Legal name *", placeholder: "Acme Cloud Pvt Ltd", wide: true },
+  { key: "country", label: "Country (ISO alpha-2) *", placeholder: "e.g. IN, US, GB, DE" },
   { key: "contact_email", label: "Contact email", placeholder: "accounts@vendor.com" },
   { key: "contact_phone", label: "Contact phone", placeholder: "+91 98765 43210" },
   { key: "address", label: "Address", wide: true },

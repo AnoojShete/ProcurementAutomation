@@ -87,6 +87,72 @@ dead-letter queue instead of losing them.
 | **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
 | **Tested** | Unit suites per service plus end-to-end runs through the gateway (invoice lifecycle **71/71**, document pipeline **52/52**) |
 
+## Vendor Risk & Clearance Architecture (Prompt 9C)
+
+The platform evaluates vendor risk using a 100% deterministic, audit-logged ruleset engine paired with a purpose-aware clearance gateway.
+
+```mermaid
+flowchart TD
+    subgraph DataCollection["Robust Data Collection"]
+        P0["Phase 0: Local DB & Country Checks"]
+        P1["Phase 1: Format & Check-Digit Validation"]
+        P2["Phase 2: External APIs via Circuit Breaker"]
+        P0 --> P1 --> P2
+    end
+
+    subgraph ScorecardEngine["Deterministic Scorecard Engine"]
+        Ruleset["Ruleset V2: 100 Integer Points"]
+        Evaluator["Pure Rules Evaluator"]
+        Ruleset --> Evaluator
+    end
+
+    subgraph ClearanceGateway["Clearance Gateway (Fail-Closed)"]
+        Clearance["GET /vendors/{id}/clearance"]
+        PettyCheck{"Petty Exception?<br/>≤ ₹50,000 & Low Tier"}
+        DecisionCheck{"Admin / Human<br/>Decision?"}
+    end
+
+    DataCollection --> Evaluator
+    Evaluator --> Clearance
+    Clearance --> PettyCheck
+    Clearance --> DecisionCheck
+    PettyCheck -->|Yes| Cleared["Cleared = True"]
+    DecisionCheck -->|Approve / Accept Risk| Cleared
+```
+
+### Key Architectural Principles
+
+1. **100-Point Deterministic Allocation**:
+   - Total points equal 100: Identity (39), Performance (35), Cyber (17), Company standing (6), Reputation (3).
+   - Rating bands: **Low** (0–24), **Medium** (25–49), **High** (50–100).
+   - Outcome points are strictly integer values; overrides lock the rating band to High.
+
+2. **Rating Status Contract & No False Lows**:
+   - `not_rated`: 0% assessed due diligence share (e.g. brand new vendor where collection has not run). Score is `None`, band is `Unrated`.
+   - `provisional`: Incomplete checks (< 100% assessed share or an unsatisfied required check for the effective tier). **A vendor with missing checks must NEVER look Low**: if total points fall in 0–24, `final_band` is forced to `Unrated`. If points fall in Medium or High, that band is reported with `points_is_lower_bound = True`.
+   - `assessed`: 100% assessed due diligence share AND all tier-required signals satisfied (`assessed` or `not_applicable`).
+
+3. **Purpose-Aware Clearance (`GET /vendors/{id}/clearance`)**:
+   - Downstream services (contracts, purchase approvals, payment disbursement) **never check `risk_band == 'Low'` directly**. They always query `/clearance`.
+   - **Activation Deadlock Prevention**: For `purpose=activation`, the gateway permits `vendor.status in ('onboarding', 'active')` so a vendor can be cleared prior to flipping status to active (while still failing closed if due diligence checks are provisional). For `purpose in ('purchase', 'contract')`, `vendor.status == 'active'` is strictly required.
+   - **Fail-Closed**: Unscored vendors or unreachable endpoints always return `cleared=false`.
+
+4. **Petty Purchase Exception**:
+   - For routine low-value purchases (spend amount ≤ ₹50,000) with low-tier vendors whose checks are still provisional, clearance is granted under `cleared_under_petty_exception` as long as no hard overrides (sanctions, cancelled GSTIN, invalid bank routing) are active.
+
+5. **Foreign Vendors & GST Limitations**:
+   - `vendor.country` (ISO 3166-1 alpha-2) is required at onboarding with no default.
+   - Foreign vendors trigger rule `R-GST-04` (`not_applicable`, 0 pts, 0 potential) and `R-BNK-04` (foreign bank SWIFT/IBAN `not_applicable`).
+   - *Accepted limitation*: Foreign vendors cannot earn GST or Indian IFSC points, so their attainable maximum point ceiling is lower. This is an accepted operational boundary that will be calibrated against foreign registries in future iterations.
+
+6. **External Collector Robustness & Circuit Breaker**:
+   - External providers (ClearTax, OpenCorporates, SecurityTrails, HaveIBeenPwned, NewsAPI) are protected by a sliding-window circuit breaker: 3 failures within 5 minutes transitions to `OPEN` for 15 minutes, followed by a `HALF-OPEN` probe.
+   - Fast-fail phased execution: non-remediable blocks immediately short-circuit Phase 2 external calls with reason `skipped_nonremediable_override`.
+
+7. **"Models Produce Observations, Never Points"**:
+   - Machine learning models (Legal-BERT, PaddleOCR, LayoutLMv3, NER) produce structured observation values (e.g. classification labels, confidence scores, extracted entities), never points or risk scores.
+   - The risk evaluator contains zero model inference or external network code, enabling pure deterministic replay and auditability.
+
 ## Try it
 
 **Prerequisites:** Docker with Compose v2 (Docker Desktop on macOS/Windows,
