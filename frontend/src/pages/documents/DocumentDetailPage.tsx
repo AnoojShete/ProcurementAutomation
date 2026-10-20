@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Copy, Download, FileWarning } from "lucide-react";
 import { DocumentAmount } from "@/components/documents/DocumentAmount";
+import { TaxCheckSection } from "@/components/documents/TaxCheckSection";
 import { DocumentControls } from "@/components/controls/DocumentControls";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
@@ -257,6 +258,8 @@ export function DocumentDetailPage() {
           </CardBody>
         </Card>
       </div>
+
+      {doc.tax_check && <TaxCheckSection tax={doc.tax_check} />}
 
       {/* AI processing panel */}
       <Card>

@@ -346,3 +346,32 @@ def test_invoice_match_against_received(rule):
     assert run(_received(db, ["r1"])) == {"r1": {0: 30.0}}
     rule("invoice.match_against_received", False)
     assert run(_received(db, ["r1"])) == {}
+
+
+# ── Phase 4: TDS and MSME (app/services/tds_service.py) ─────────────────────
+
+def test_tds_category_sections(rule):
+    from app.services.tds_service import section_for_category
+    rule("tds.category_sections", {"hardware": "194Q", "software": "194J(b)", "saas": "194J(a)", "services": "194J(a)"})
+    assert section_for_category("saas") == "194J(a)"
+    rule("tds.category_sections", {"hardware": "194Q", "software": "194J(b)", "saas": "194C", "services": "194J(a)"})
+    assert section_for_category("saas") == "194C"
+
+
+def test_msme_payment_days(rule):
+    from datetime import date
+    from app.services.tds_service import msme_due
+    rule("msme.payment_days", 45)
+    assert msme_due(date(2026, 9, 1), date(2026, 9, 1))["due_date"] == "2026-10-16"
+    rule("msme.payment_days", 15)
+    assert msme_due(date(2026, 9, 1), date(2026, 9, 1))["due_date"] == "2026-09-16"
+
+
+def test_msme_warning_days(rule):
+    from datetime import date
+    from app.services.tds_service import msme_due
+    rule("msme.payment_days", 45)
+    rule("msme.warning_days", 7)
+    assert msme_due(date(2026, 9, 1), date(2026, 10, 6))["status"] == "ok"        # 10 days left
+    rule("msme.warning_days", 14)
+    assert msme_due(date(2026, 9, 1), date(2026, 10, 6))["status"] == "due_soon"

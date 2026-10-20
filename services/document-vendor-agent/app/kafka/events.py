@@ -96,3 +96,17 @@ def build_invoice_matched_payload(
         "po_total": float(po_total) if po_total is not None else 0.0,
         "matched_at": _iso(matched_at or datetime.now(timezone.utc)),
     }
+
+
+def build_invoice_tax_flagged_payload(document_id, vendor_id, invoice_number, supply_type, issues, flagged_at=None) -> dict:
+    """invoice.tax_flagged (feature expansion Phase 4): the GST check found
+    a problem, so the invoice goes to review. Carries the reasons, not the
+    whole tax check."""
+    return {
+        "document_id": str(document_id),
+        "vendor_id": str(vendor_id) if vendor_id else None,
+        "invoice_number": invoice_number,
+        "supply_type": supply_type,
+        "issues": list(issues),
+        "flagged_at": _iso(flagged_at or datetime.now(timezone.utc)),
+    }

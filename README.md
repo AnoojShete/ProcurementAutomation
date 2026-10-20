@@ -63,8 +63,8 @@ flowchart TB
 
 | Agent | In one line |
 |---|---|
-| **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, onboards and matches vendors |
-| **Approval & Inventory** | Routes requests by spend and budget, enforces who may approve what, runs the IT catalog and requests for quotation, tracks licences, stock and partial deliveries, suggests reorders, matches invoices to orders and to what was received |
+| **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, checks each invoice's GST and signed e-invoice QR, reconciles GSTR-2B, onboards and matches vendors |
+| **Approval & Inventory** | Routes requests by spend and budget, enforces who may approve what, runs the IT catalog and requests for quotation, tracks licences, stock and partial deliveries, suggests reorders, matches invoices to orders and to what was received, works out TDS and MSME payment deadlines |
 | **Contract & Risk** | Writes contracts and reads their clauses with Legal-BERT, collects e-signatures, reminds before notice deadlines, tracks what signed contracts commit to (SLA credits, seat limits, warranties), screens vendors against sanctions lists, keeps a vendor scorecard, scores vendor risk from delivery and compliance history with an evaluated ML model and shows it before signing (High risk must be acknowledged) |
 | **Notification** | Turns events into emails and an in-app feed; the bell counts only unread, important ones |
 | **Auth** | Accounts, roles, and the business rules admins can change live |
@@ -84,6 +84,7 @@ dead-letter queue instead of losing them.
 | **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; vendors are screened against 25,000 sanctioned companies; invoices are held until bank details are verified |
 | **Separation of duties** | Nobody — not even an admin — approves their own request |
 | **Spend control** | Budgets per department and quarter checked before approval; RFQs with sealed quotes compared on price, lead time, warranty, support, risk and delivery record |
+| **Indian tax** | Every invoice's GST split, rate and arithmetic checked, its signed e-invoice QR verified offline, imported SaaS put under reverse charge, GSTR-2B reconciled; TDS kept with each booked invoice; MSME 45-day deadlines (rates to be confirmed by a CA) |
 | **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
 | **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
 | **Tested** | Unit suites per service plus end-to-end runs through the gateway (invoice lifecycle **71/71**, document pipeline **52/52**) |

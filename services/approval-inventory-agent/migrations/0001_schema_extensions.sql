@@ -455,3 +455,63 @@ BEGIN
       'fulfilled', 'partially_invoiced', 'invoice_received', 'rejected', 'cancelled', 'split'));
   END IF;
 END $$;
+
+-- Feature expansion Phase 4 (docs/feature-expansion-plan.md): TDS worked out
+-- when an invoice is booked, and MSME payment deadlines. New table and
+-- nullable columns only.
+--
+-- TDS sections, seeded with the rates and thresholds current in October 2026
+-- (section codes as commonly known from the Income-tax Act, 1961). Finance
+-- edits them on the GST and TDS page; a chartered accountant must confirm
+-- them before use.
+CREATE TABLE IF NOT EXISTS tds_sections (
+  section VARCHAR(12) PRIMARY KEY,
+  description TEXT NOT NULL,
+  rate_pct NUMERIC(5, 2) NOT NULL,              -- vendor with a PAN
+  rate_no_pan_pct NUMERIC(5, 2) NOT NULL,       -- vendor without one (higher rate)
+  threshold_single_inr NUMERIC(14, 2),          -- TDS when one invoice is above this...
+  threshold_annual_inr NUMERIC(14, 2),          -- ...or the year's total with the vendor is
+  above_threshold_only BOOLEAN NOT NULL DEFAULT false,  -- only on the part above the annual threshold
+  active BOOLEAN NOT NULL DEFAULT true,
+  updated_by VARCHAR(255),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_tds_sections_values') THEN
+    ALTER TABLE tds_sections ADD CONSTRAINT ck_tds_sections_values CHECK (
+      rate_pct BETWEEN 0 AND 40 AND rate_no_pan_pct BETWEEN 0 AND 40
+      AND (threshold_single_inr IS NULL OR threshold_single_inr >= 0)
+      AND (threshold_annual_inr IS NULL OR threshold_annual_inr >= 0));
+  END IF;
+END $$;
+INSERT INTO tds_sections (section, description, rate_pct, rate_no_pan_pct, threshold_single_inr, threshold_annual_inr, above_threshold_only) VALUES
+  ('194C', 'Work contracts, e.g. installation or cabling by a company or firm', 2, 20, 30000, 100000, false),
+  ('194J(a)', 'Fees for technical services, e.g. IT support, implementation, SaaS', 2, 20, NULL, 50000, false),
+  ('194J(b)', 'Fees for professional services and royalty, e.g. software licences', 10, 20, NULL, 50000, false),
+  ('194Q', 'Purchase of goods, e.g. hardware (buyer turnover above 10 crore)', 0.1, 5, NULL, 5000000, true)
+ON CONFLICT (section) DO NOTHING;
+
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS invoice_date DATE;
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS taxable_value NUMERIC(14, 2);
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(14, 2);
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS tds_section VARCHAR(12);
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS tds_rate_pct NUMERIC(5, 2);
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS tds_base NUMERIC(14, 2);
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS tds_amount NUMERIC(14, 2);
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS net_payable NUMERIC(14, 2);
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS tds_notes JSONB;
+-- Paid outside the platform (money moves only at the bank): recorded so the
+-- MSME deadline list clears.
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+ALTER TABLE invoice_matches ADD COLUMN IF NOT EXISTS paid_by VARCHAR(255);
+
+-- Vendor tax profile (document-vendor-agent's migration 0012 adds the same
+-- columns; whichever service starts first creates them).
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS pan VARCHAR(10);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS tds_section VARCHAR(12);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ldc_rate_pct NUMERIC(5, 2);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ldc_valid_until DATE;
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS msme_udyam_number VARCHAR(19);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS msme_category VARCHAR(10);
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS annual_turnover_inr NUMERIC(16, 2);

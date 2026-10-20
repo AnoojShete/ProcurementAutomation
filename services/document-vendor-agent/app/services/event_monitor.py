@@ -101,6 +101,10 @@ def describe(event_type: str, p: dict) -> str:
                     f"deadline {p.get('deadline')}")
         case "rfq.awarded":
             return f"{p.get('reference')} awarded to vendor {_short(p.get('vendor_id'))}: {p.get('total_inr')} INR"
+        case "invoice.tax_flagged":
+            issues = p.get("issues") or []
+            return (f"Invoice {p.get('invoice_number') or _short(p.get('document_id'))} GST check flagged"
+                    f" ({len(issues)} issue{'s' if len(issues) != 1 else ''}): {issues[0] if issues else ''}")
         case "goods.received":
             return (f"Request {_short(p.get('request_id'))}: delivery recorded"
                     f" ({'complete' if p.get('complete') else 'partial'})")

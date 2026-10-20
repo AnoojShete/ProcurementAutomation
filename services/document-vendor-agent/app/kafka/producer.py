@@ -14,6 +14,7 @@ from app.kafka.events import (
     build_vendor_matched_payload,
     build_vendor_payment_details_flagged_payload,
     build_invoice_matched_payload,
+    build_invoice_tax_flagged_payload,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ TOPIC_VENDOR_MATCHED = "vendor.matched"
 TOPIC_VENDOR_PAYMENT_DETAILS_FLAGGED = "vendor.payment_details_flagged"
 TOPIC_INVOICE_MATCHED = "invoice.matched"
 TOPIC_REMINDER_DUE = "reminder.due"
+TOPIC_INVOICE_TAX_FLAGGED = "invoice.tax_flagged"
 
 
 class KafkaEventProducer:
@@ -117,3 +119,12 @@ class KafkaEventProducer:
         )
         event = build_event(TOPIC_REMINDER_DUE, self.service_name, payload)
         await self.publish(TOPIC_REMINDER_DUE, event)
+
+    async def publish_invoice_tax_flagged(self, document_id, vendor_id, invoice_number, supply_type, issues):
+        """invoice.tax_flagged (Phase 4): the GST check found a problem."""
+        payload = build_invoice_tax_flagged_payload(
+            document_id=document_id, vendor_id=vendor_id, invoice_number=invoice_number,
+            supply_type=supply_type, issues=issues,
+        )
+        event = build_event(TOPIC_INVOICE_TAX_FLAGGED, self.service_name, payload)
+        await self.publish(TOPIC_INVOICE_TAX_FLAGGED, event, key=str(document_id))

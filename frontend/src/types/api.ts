@@ -306,6 +306,8 @@ export interface DocumentRecord {
   /** Amount in INR and the exchange rate used, fixed when the document was
    * processed. Null until then. */
   fx?: DocumentFx | null;
+  /** GST check of an invoice (Phase 4); null for other documents. */
+  tax_check?: TaxCheck | null;
   /** upload | folder | email; the sender's address for email. */
   source?: string | null;
   source_sender?: string | null;
@@ -1058,6 +1060,15 @@ export interface RequestLedger {
     payment_hold: boolean;
     hold_reason: string | null;
     created_at: string;
+    /** Phase 4: GST and TDS kept with the booked invoice. */
+    taxable_value?: number | null;
+    gst_amount?: number | null;
+    tds_section?: string | null;
+    tds_rate_pct?: number | null;
+    tds_amount?: number | null;
+    net_payable?: number | null;
+    tds_notes?: string[];
+    paid_at?: string | null;
   }[];
 }
 
@@ -1086,4 +1097,183 @@ export interface LookalikeScenario {
   lookalike_name: string;
   invoice_number: string;
   bank_account_last4: string;
+}
+
+// --- GST and TDS (feature expansion Phase 4) ---
+export type TaxStatus = "ok" | "flagged" | "incomplete" | "reverse_charge" | "import_goods";
+
+export interface TaxCheck {
+  status: TaxStatus;
+  supply_type: "intra_state" | "inter_state" | "import" | "unknown";
+  supplier_gstin: string | null;
+  buyer_gstin: string | null;
+  place_of_supply: string | null;
+  taxable_value: number | null;
+  cgst: number | null;
+  sgst: number | null;
+  igst: number | null;
+  gst_total: number | null;
+  hsn_codes: { code: string; line_total: number | null }[];
+  irn: string | null;
+  expected_rate_pct: number | null;
+  effective_rate_pct: number | null;
+  reverse_charge: boolean;
+  gst_payable_inr: number | null;
+  itc_eligible: boolean;
+  checks: { check: string; ok: boolean; detail: string }[];
+  issues: string[];
+  notes: string[];
+  einvoice: { present: boolean; verified?: boolean | null; mismatches?: string[]; error?: string | null };
+}
+
+export interface GstRate {
+  code: string;
+  description: string;
+  category: "hardware" | "software" | "saas" | "services";
+  rate_pct: number;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface GstInvoice {
+  document_id: string;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  vendor_id: string | null;
+  vendor_name: string | null;
+  currency: string | null;
+  total: number | null;
+  total_inr: number | null;
+  status: TaxStatus | null;
+  supply_type: string | null;
+  supplier_gstin: string | null;
+  taxable_value: number | null;
+  gst_total: number | null;
+  reverse_charge: boolean;
+  gst_payable_inr: number | null;
+  itc_eligible: boolean;
+  einvoice_verified: boolean | null;
+  issues: string[];
+}
+
+export interface Gstr2bSummary {
+  matched: number;
+  value_mismatch: number;
+  missing_in_2b: number;
+  not_in_books: number;
+  entries_in_2b: number;
+  itc_at_risk_inr: number;
+}
+
+export interface GstSummary {
+  month: string;
+  period: string;
+  invoices: number;
+  by_status: Record<TaxStatus, number>;
+  input_tax: { cgst: number; sgst: number; igst: number };
+  itc_eligible_inr: number;
+  reverse_charge_payable_inr: number;
+  buyer_gstin: string | null;
+  last_2b: (Gstr2bSummary & { id: string; uploaded_at: string }) | null;
+}
+
+export interface Gstr2bRow {
+  result: "matched" | "value_mismatch" | "missing_in_2b" | "not_in_books";
+  supplier_gstin: string | null;
+  supplier: string | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  taxable_value_2b?: number;
+  tax_2b?: number;
+  taxable_value_books?: number | null;
+  tax_books?: number | null;
+  document_id: string | null;
+  detail: string;
+}
+
+export interface Gstr2bUpload {
+  id: string;
+  period: string;
+  buyer_gstin: string | null;
+  filename?: string | null;
+  uploaded_by?: string;
+  uploaded_at?: string;
+  summary: Gstr2bSummary;
+  rows?: Gstr2bRow[];
+}
+
+export interface TdsSection {
+  section: string;
+  description: string;
+  rate_pct: number;
+  rate_no_pan_pct: number;
+  threshold_single_inr: number | null;
+  threshold_annual_inr: number | null;
+  above_threshold_only: boolean;
+  active: boolean;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface VendorTaxProfile {
+  vendor_id: string;
+  vendor_name: string;
+  gstin: string | null;
+  country: string | null;
+  pan: string | null;
+  pan_from_gstin: string | null;
+  tds_section: string | null;
+  ldc_rate_pct: number | null;
+  ldc_valid_until: string | null;
+  msme_udyam_number: string | null;
+  msme_category: "micro" | "small" | "medium" | null;
+  msme_tracked: boolean;
+  annual_turnover_inr: number | null;
+}
+
+export type VendorTaxInput = Omit<VendorTaxProfile, "vendor_id" | "vendor_name" | "gstin" | "country" | "pan_from_gstin" | "msme_tracked">;
+
+export interface TdsRegisterEntry {
+  document_id: string;
+  invoice_number: string | null;
+  invoice_date: string;
+  quarter: string;
+  vendor_id: string | null;
+  vendor_name: string | null;
+  pan: string | null;
+  request_id: string | null;
+  amount: number | null;
+  taxable_value: number | null;
+  tds_section: string;
+  tds_rate_pct: number | null;
+  tds_base: number | null;
+  tds_amount: number | null;
+  net_payable: number | null;
+  notes: string[];
+  paid_at: string | null;
+}
+
+export interface TdsRegister {
+  fy: string;
+  invoices: TdsRegisterEntry[];
+  totals: { quarter: string; section: string; invoices: number; base: number; tds: number }[];
+  tds_total: number;
+}
+
+export interface MsmeDeadline {
+  document_id: string;
+  invoice_number: string | null;
+  vendor_id: string;
+  vendor_name: string;
+  msme_category: "micro" | "small";
+  udyam_number: string | null;
+  request_id: string | null;
+  amount: number | null;
+  net_payable: number | null;
+  paid_at: string | null;
+  paid_by: string | null;
+  acceptance_date: string;
+  due_date: string;
+  days_left: number;
+  status: "ok" | "due_soon" | "overdue" | "paid";
 }

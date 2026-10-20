@@ -336,8 +336,32 @@ async def expansion(s, admin):
                  scroll_to="h2:text-is('Scorecard')")
 
 
+async def gst(s, admin):
+    """Feature expansion Phase 4: the GST check of an invoice, the GST and TDS
+    page, GSTR-2B reconciliation, MSME deadlines and the vendor tax profile.
+    Uses the invoices tests/e2e/gst_flow.py leaves behind (run it first)."""
+    invoices = requests.get(f"{API}/gst/invoices", headers=H(admin), timeout=30).json()["data"]
+    flagged = next((i for i in invoices if any("expected CGST + SGST" in x for x in i["issues"])), None)
+    verified = next((i for i in invoices if i["status"] == "ok" and i["einvoice_verified"]), None)
+    if not flagged or not verified:
+        raise RuntimeError("no GST test invoices this month (run tests/e2e/gst_flow.py first)")
+    await s.shot("gst", "01-tax-check-flagged.png", "finance", f"/app/documents/{flagged['document_id']}",
+                 "h2:text-is('GST check')", scroll_to="h2:text-is('GST check')")
+    await s.shot("gst", "02-tax-check-einvoice.png", "finance", f"/app/documents/{verified['document_id']}",
+                 "h2:text-is('GST check')", scroll_to="h2:text-is('GST check')")
+    p = await s.shot("gst", "03-gst-page.png", "finance", "/app/gst", "text=Invoices this month")
+    await p.locator("text=Earlier uploads").locator("button").first.click()
+    await s.shot("gst", "04-gstr2b.png", "finance", wait="text=Input tax credit at risk",
+                 scroll_to="h2:text-is('GSTR-2B reconciliation')")
+    await p.get_by_role("tab", name="TDS and MSME").click()
+    await s.shot("gst", "05-tds-msme.png", "finance", wait="h2:text-is('MSME payment deadlines')")
+    if verified.get("vendor_id"):
+        await s.shot("gst", "06-vendor-tax-profile.png", "finance", f"/app/vendors/{verified['vendor_id']}",
+                     "text=Tax profile", scroll_to="text=Tax profile")
+
+
 MODULES = {f.__name__: f for f in (intake, fallback, clauses, sanctions, licences, rules, reliability, onboarding,
-                                    approval, contract, inventory, expansion)}
+                                    approval, contract, inventory, expansion, gst)}
 
 
 async def main(names):

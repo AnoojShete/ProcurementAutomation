@@ -104,6 +104,12 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         envelope = await pipeline.currency_agent(envelope)
         stage_durations_ms["currency_agent"] = _elapsed_ms(t0)
 
+        # GST check (Phase 4): before invoice matching, which passes the
+        # taxable value on so the ledger can work out TDS.
+        t0 = time.perf_counter()
+        envelope = await pipeline.tax_agent(db, pipeline_producer, envelope, data)
+        stage_durations_ms["tax_agent"] = _elapsed_ms(t0)
+
         t0 = time.perf_counter()
         envelope = await pipeline.invoice_matching_agent(db, pipeline_producer, envelope)
         stage_durations_ms["invoice_matching_agent"] = _elapsed_ms(t0)
@@ -135,6 +141,7 @@ async def process_document(db: AsyncSession, kafka_producer, document_id: str) -
         doc.fx_rate = fx_info.get("rate")
         doc.fx_rate_date = _safe_date(fx_info.get("rate_date"))
         doc.fx_source = fx_info.get("source")
+        doc.tax_check = envelope.get("tax_check")
         
         extracted_data = dict(fields)
         extracted_data["crosscheck"] = envelope.get("crosscheck_result")
@@ -247,6 +254,7 @@ async def rematch_invoice(db: AsyncSession, kafka_producer, document_id: str) ->
         "raw_text": doc.raw_text or "", "extracted_fields": extracted,
         "fx": {"rate": float(doc.fx_rate or 1), "total_inr": float(doc.total_inr) if doc.total_inr is not None else None},
         "payment_hold": extracted.get("payment_hold"), "payment_hold_reason": extracted.get("payment_hold_reason"),
+        "tax_check": getattr(doc, "tax_check", None),
         "_agent_trail": [],
     }
     envelope = await pipeline.invoice_matching_agent(db, staged(kafka_producer, db), envelope)

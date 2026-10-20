@@ -275,6 +275,9 @@ services:
       APP_CLAMAV_HOST: clamav
       APP_CLAMAV_PORT: "3310"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
+      # The e-invoice portal's public key (PEM) for QR checks; unset in
+      # development = the demo key in shared/einvoice/ (Phase 4).
+      EINVOICE_PUBLIC_KEY: ${EINVOICE_PUBLIC_KEY:-}
       HF_HOME: /app/.cache/huggingface
       # Models are pre-downloaded (scripts/download-models.sh); never call
       # huggingface.co while processing documents.
@@ -332,6 +335,9 @@ services:
       APP_MINIO_BUCKET: documents
       APP_MINIO_SECURE: "false"
       APP_GSTINCHECK_API_KEY: ${GSTINCHECK_API_KEY:-}
+      # The e-invoice portal's public key (PEM) for QR checks; unset in
+      # development = the demo key in shared/einvoice/ (Phase 4).
+      EINVOICE_PUBLIC_KEY: ${EINVOICE_PUBLIC_KEY:-}
       HF_HOME: /app/.cache/huggingface
       # Models are pre-downloaded (scripts/download-models.sh); never call
       # huggingface.co while processing documents.

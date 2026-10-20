@@ -378,8 +378,8 @@ const S = {
   lifecycle: "ok", ruleEngine: "ok", notify: "ok", platform: "ok",
   dropAuto: "ok", currency: "ok", match3: "ok", fraud: "ok", tracing: "ok",
   eventLog: "ok", emailApprove: "ok", sod: "ok", licenceMl: "ok", assistant: "ok", clauseModel: "ok", sanctions: "ok",
-  // Feature expansion (docs/feature-expansion-plan.md), Phases 1–3
-  budgets: "ok", obligations: "ok", catalog: "ok", rfq: "ok", receipts: "ok", scorecard: "ok",
+  // Feature expansion (docs/feature-expansion-plan.md), Phases 1–4
+  budgets: "ok", obligations: "ok", catalog: "ok", rfq: "ok", receipts: "ok", scorecard: "ok", gst: "ok", tds: "ok",
 };
 // ───────────────────────────────────────────────────────────────────────
 
@@ -427,7 +427,7 @@ document.getElementById("chart").innerHTML = `
     ${card("tags", "Classify", [["classifyCore", "PO · invoice · quote"], ["classifyMore", "Non-PO · others"]])}
     ${tile("table", "Extract", "extract", "Headers, line items, totals")}
     ${tile("check", "Validate", "validate", "Totals add up · GSTIN · duplicates")}
-    ${card("layers", "Enrich", [["enrich", "Vendor match"], ["currency", "Multi-currency: rate captured once, value never drifts", X]])}
+    ${card("layers", "Enrich", [["enrich", "Vendor match"], ["currency", "Multi-currency: rate captured once, value never drifts", X], ["gst", "GST check: split, rate by HSN/SAC, signed e-invoice QR, reverse charge; GSTR-2B reconciled", X]])}
   </div>
   <div class="bar">${icon("bolt")}Parallel workers · automatic retries · dead-letter queue ${mark(S.workers)}</div></section>
   ${down()}
@@ -440,7 +440,7 @@ document.getElementById("chart").innerHTML = `
   <section class="sec agent"><h2>${icon("bolt")}Procurement agents</h2><div class="grid" style="--n:5">
     ${card("building", "Vendor intelligence", [["vendorMatch", "Match & de-duplicate"], ["onboarding", "Onboarding & profile checks"], ["bankGuard", "Bank changes need a 2nd person"], ["fraud", "Fraud guard: look-alike vendors, first-seen bank details", X]])}
     ${card("approve", "Approval", [["rules", "Rules by spend tier"], ["routing", "Routing & escalation"], ["reminders", "Reminders before the deadline"], ["sod", "Separation of duties: nobody approves their own request", X], ["emailApprove", "Approve from email: single-use signed links", X], ["budgets", "Budget check before approval: over budget adds a finance step", X], ["catalog", "IT catalog: agreed prices, optional pre-approval, seat add-ons", X], ["rfq", "RFQs: sealed quotes, weighted comparison, rounds, award", X]])}
-    ${card("boxes", "Inventory", [["reserve", "Availability & reservation"], ["backorder", "Backorders"], ["reorder", "Reorder suggestions"], ["licenceMl", "Licence usage ML: anomalies → reclaim requests", X], ["match3", "3-way invoice match: line level, partial invoices, payment hold", X], ["receipts", "Partial deliveries with asset tags; invoices checked against what arrived", X]])}
+    ${card("boxes", "Inventory", [["reserve", "Availability & reservation"], ["backorder", "Backorders"], ["reorder", "Reorder suggestions"], ["licenceMl", "Licence usage ML: anomalies → reclaim requests", X], ["match3", "3-way invoice match: line level, partial invoices, payment hold", X], ["receipts", "Partial deliveries with asset tags; invoices checked against what arrived", X], ["tds", "TDS kept with each booked invoice (net payable); MSME 45-day deadlines", X]])}
     ${card("pen", "Contract", [["templates", "Templates & versions"], ["esign", "E-signature, sent automatically"], ["renewals", "Renewals from notice deadline"], ["clauseModel", "Legal-BERT clause extraction (CUAD), rules as fallback", X], ["obligations", "Obligations after signing: SLA credits, seat limits, reminders", X]])}
     ${card("alert", "Risk analysis", [["riskModel", "Deterministic 100-point scorecard + hard overrides (sanctions, GSTIN, bank)"], ["riskBeforeSign", "Clearance gate before signing: not cleared needs an acknowledgement"], ["riskHistory", "Delivery history, evidence, disputes, decisions; every score replayable"], ["sanctions", "Sanctions screening: consolidated lists, fuzzy match", X], ["scorecard", "Vendor scorecard: on-time, invoice accuracy, RFQ replies, SLA breaches", X]])}
   </div>
@@ -452,7 +452,7 @@ document.getElementById("chart").innerHTML = `
     <span class="step">${icon("receipt")}Invoice matched</span>${mark(S.lifecycle)}
   </div>
   <div class="bar">${icon("sliders")}Business rules — edited live, applied by every agent ${mark(S.ruleEngine)}</div></section>
-  ${down("approval · contract · risk · reminder · budget · obligation · RFQ · delivery events")}
+  ${down("approval · contract · risk · reminder · budget · obligation · RFQ · delivery · GST events")}
   <section class="sec notify"><h2>${icon("bell")}Notifications</h2><div class="grid" style="--n:3">
     ${tile("mail", "Email", "notify", "A template per event")}
     ${tile("bell", "Event-driven alerts", "notify", "Approvals, signatures, risk, renewals; in-app bell counts unread")}

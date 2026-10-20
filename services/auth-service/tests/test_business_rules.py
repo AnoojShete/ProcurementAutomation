@@ -360,3 +360,32 @@ async def test_risk_alert_recipients_is_one_address_or_empty(value, ok):
         with pytest.raises(HTTPException) as exc:
             await _validate_rule_value(AsyncMock(), rule, value)
         assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,ok", [("29AAACA1234B1ZE", True), ("29aaaca1234b1ze", False), ("29AAACA1234B1Z", False),
+                                      ("", False), (29, False)])
+async def test_buyer_gstin_must_look_like_a_gstin(value, ok):
+    """Phase 4: every invoice's GST check compares against it."""
+    rule = BusinessRule(rule_key="gst.buyer_gstin", value_type="json", min_value=None, max_value=None,
+                        current_value="29AAACA1234B1ZE")
+    if ok:
+        await _validate_rule_value(AsyncMock(), rule, value)
+    else:
+        with pytest.raises(HTTPException) as exc:
+            await _validate_rule_value(AsyncMock(), rule, value)
+        assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,ok", [({"hardware": "194Q", "saas": "194J(a)"}, True), ({}, True),
+                                      ({"furniture": "194C"}, False), ({"saas": 194}, False), (["194Q"], False)])
+async def test_tds_category_sections_are_codes_per_known_category(value, ok):
+    rule = BusinessRule(rule_key="tds.category_sections", value_type="json", min_value=None, max_value=None,
+                        current_value={})
+    if ok:
+        await _validate_rule_value(AsyncMock(), rule, value)
+    else:
+        with pytest.raises(HTTPException) as exc:
+            await _validate_rule_value(AsyncMock(), rule, value)
+        assert exc.value.status_code == 400

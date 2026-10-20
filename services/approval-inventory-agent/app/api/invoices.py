@@ -31,6 +31,12 @@ class MatchBody(BaseModel):
     hold_reason: Optional[str] = None
     # PO number printed on the invoice, e.g. "PO-9E085E38", if any.
     po_reference: Optional[str] = None
+    # From the GST check (Phase 4): the amount before GST and the GST, in
+    # INR; TDS is worked out on the former.
+    taxable_value: Optional[float] = Field(default=None, ge=0)
+    gst_amount: Optional[float] = Field(default=None, ge=0)
+    invoice_date: Optional[str] = None
+    foreign_supplier: bool = False
 
 
 @router.post("/match", dependencies=[Depends(require_role("service", "finance", "admin"))])
@@ -47,7 +53,8 @@ async def match_invoice(body: MatchBody, dry_run: bool = False, db: AsyncSession
         db, document_id=body.document_id, vendor_id=body.vendor_id, invoice_number=body.invoice_number,
         total=body.total, lines=[ledger.InvoiceLine(l.description, l.quantity, l.unit_price) for l in body.lines],
         payment_hold=body.payment_hold, hold_reason=body.hold_reason, dry_run=dry_run, booked_by=user.email,
-        po_ref=body.po_reference,
+        po_ref=body.po_reference, taxable_value=body.taxable_value, gst_amount=body.gst_amount,
+        invoice_date=body.invoice_date, foreign_supplier=body.foreign_supplier,
     )
     if not dry_run:
         await db.commit()

@@ -363,6 +363,66 @@ async def currency_agent(envelope: dict) -> dict:
     return envelope
 
 
+async def load_gst_rates(db: AsyncSession) -> dict:
+    from sqlalchemy import text as _sql
+    rows = (await db.execute(_sql("SELECT code, description, category, rate_pct FROM gst_rates"))).all()
+    return {r.code: {"rate_pct": float(r.rate_pct), "category": r.category, "description": r.description} for r in rows}
+
+
+async def tax_agent(db: AsyncSession, kafka_producer, envelope: dict, data: bytes) -> dict:
+    """GST check of an invoice (feature expansion Phase 4, tax_check.py):
+    reads the GST details and the signed e-invoice QR, and checks the
+    split, rate, arithmetic and GSTINs. A problem forces review and
+    publishes invoice.tax_flagged; the confidence score is left alone, so
+    the review-gate study (RS-11) stays comparable."""
+    if envelope.get("document_type") != "invoice":
+        envelope["tax_check"] = None
+        record_agent_result(envelope, "tax_agent", next_action="skipped_non_invoice")
+        return envelope
+    from sqlalchemy import text as _sql
+    from app.services import einvoice, tax_check
+    from app.services.tax_extraction import extract_tax_fields
+
+    fields = envelope.get("extracted_fields", {})
+    tax = extract_tax_fields(envelope.get("raw_text") or "", fields.get("line_items"))
+    token = await asyncio.to_thread(einvoice.find_qr_token, data, envelope.get("file_type") or "pdf") if data else None
+    vendor = None
+    if envelope.get("vendor_id"):
+        vendor = (await db.execute(_sql("SELECT gstin, country, annual_turnover_inr FROM vendors WHERE id = :v"),
+                                   {"v": envelope["vendor_id"]})).first()
+    fx_info = envelope.get("fx") or {}
+    tolerance = float(get_rule("gst.tax_tolerance_inr", fallback=1.0))
+    invoice_number = fields.get("invoice_number") or fields.get("document_number")
+    ctx = tax_check.TaxContext(
+        currency=fields.get("currency") or "INR", total=fields.get("total"), total_inr=fx_info.get("total_inr"),
+        invoice_number=invoice_number, line_items=fields.get("line_items") or [],
+        vendor_gstin=vendor.gstin if vendor else None, vendor_country=vendor.country if vendor else None,
+        vendor_turnover_inr=float(vendor.annual_turnover_inr) if vendor and vendor.annual_turnover_inr is not None else None,
+        buyer_gstin=(get_rule("gst.buyer_gstin", fallback="") or None), tolerance=tolerance,
+        require_breakdown=bool(get_rule("gst.require_breakdown", fallback=False)),
+        einvoice_turnover_inr=float(get_rule("gst.einvoice_required_turnover_inr", fallback=50_000_000)),
+        rates=await load_gst_rates(db),
+    )
+    qr = einvoice.verify(token, supplier_gstin=tax.supplier_gstin, buyer_gstin=tax.buyer_gstin,
+                         invoice_number=invoice_number, total=fields.get("total"), irn=tax.irn,
+                         tolerance=tolerance) if token else None
+    result = tax_check.check(tax, ctx, qr)
+    envelope["tax_check"] = result
+    flagged = result["status"] == "flagged"
+    if flagged:
+        envelope["needs_review_forced"] = True
+        if kafka_producer is not None:
+            await kafka_producer.publish_invoice_tax_flagged(
+                document_id=envelope["document_id"], vendor_id=envelope.get("vendor_id"),
+                invoice_number=invoice_number, supply_type=result["supply_type"], issues=result["issues"],
+            )
+    logger.info(f"[tax_agent] document_id={envelope['document_id']} status={result['status']} "
+                f"supply={result['supply_type']} qr={'yes' if token else 'no'} issues={len(result['issues'])}")
+    record_agent_result(envelope, "tax_agent", validation_status="needs_review" if flagged else "valid",
+                        warnings=result["issues"])
+    return envelope
+
+
 async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dict) -> dict:
     """Three-way match through approval-inventory-agent's invoice ledger
     (POST /invoices/match): line quantities and unit prices against what is
@@ -418,6 +478,14 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
         "hold_reason": envelope.get("payment_hold_reason"),
         "po_reference": find_po_reference(envelope.get("raw_text") or ""),
     }
+    # GST check (tax_agent): the ledger works out TDS on the amount before
+    # GST, in INR, and needs the invoice date for the financial year.
+    tax = envelope.get("tax_check") or {}
+    if tax.get("taxable_value") is not None and tax.get("status") not in ("reverse_charge", "import_goods"):
+        body["taxable_value"] = round(float(tax["taxable_value"]) * rate, 2)
+        body["gst_amount"] = round(float(tax.get("gst_total") or 0) * rate, 2)
+    body["foreign_supplier"] = tax.get("supply_type") == "import"
+    body["invoice_date"] = fields.get("invoice_date") or fields.get("document_date")
     result = None
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:

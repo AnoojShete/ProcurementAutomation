@@ -61,6 +61,12 @@ export function InvoiceLedgerCard({ requestId, currency = "INR" }: { requestId: 
                   {inv.invoice_number ?? inv.document_id.slice(0, 8)}
                 </Link>
                 <span className="flex items-center gap-2">
+                  {inv.tds_amount != null && inv.tds_amount > 0 && (
+                    <span className="hidden text-xs text-ink-3 sm:inline" title={(inv.tds_notes ?? []).join(" ")}>
+                      TDS {inv.tds_section} {formatCurrency(inv.tds_amount, currency)} · pay {formatCurrency(inv.net_payable ?? null, currency)}
+                    </span>
+                  )}
+                  {inv.paid_at && <Badge tone="success">Paid</Badge>}
                   {inv.payment_hold && <Badge tone="warning">Payment hold</Badge>}
                   <StatusDot tone={MATCH_TONE[inv.status]}>{inv.status.replace("_", " ")}</StatusDot>
                   <span className="tabular text-slate-600">{inv.amount != null ? formatCurrency(inv.amount, currency) : "—"}</span>

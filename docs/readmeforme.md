@@ -483,6 +483,75 @@ without variance), RFQ response rate, SLA breach months and risk band;
 recomputed on each vendor page view and nightly.
 `python tests/e2e/sourcing_flow.py` checks all four.
 
+### GST and TDS (feature expansion Phase 4)
+
+All rates, thresholds and section codes are seeded with the values current in
+October 2026 and **must be confirmed by the finance team or a chartered
+accountant** before real use.
+
+**GST check of every invoice** (document agent, stage `tax_agent` between
+`currency_agent` and invoice matching; `tax_extraction.py` reads, `tax_check.py`
+decides). It reads the supplier and buyer GSTIN, place of supply, taxable
+value, CGST / SGST / UTGST / IGST, HSN/SAC per line and the IRN, then checks:
+supplier GSTIN valid (format and check digit) and the vendor master's;
+addressed to our GSTIN (`gst.buyer_gstin`); CGST + SGST when supplier and
+place of supply are in one state, IGST otherwise; the rate expected for the
+HSN/SAC codes (table `gst_rates`, longest prefix wins, editable on the GST
+page); taxable value + GST = total (`gst.tax_tolerance_inr`). A supplier with
+no GSTIN outside India: services are **reverse charge** (we pay 18 % IGST,
+shown as GST payable), goods pay IGST at customs. Result in
+`documents.tax_check`. A failed check forces review and publishes
+`invoice.tax_flagged`; it **never changes the confidence score**
+(`field_extraction.py` is untouched, so the review-gate study stays
+comparable). No GST breakdown at all is *incomplete* (only noted) unless
+`gst.require_breakdown` is on.
+
+**E-invoice QR** (`einvoice.py`): the QR is found on the first two pages
+(OpenCV's WeChat detector), its IRP signature (RS256 JWT) verified offline,
+and seller GSTIN, buyer GSTIN, number, total and IRN compared with the
+printed invoice. Key: `EINVOICE_PUBLIC_KEY` (PEM text) or `EINVOICE_PUBLIC_KEY_FILE` (the IRP's published key)
+in production; in development the demo key `shared/einvoice/demo-irp-public-key.pem`,
+whose private half `data/einvoice-demo/demo-irp-signing-key.pem` signs test
+invoices (`scripts/gst_invoice_lib.py`). Production never trusts the demo
+key. A missing QR is flagged only for a vendor whose turnover (tax profile)
+is above `gst.einvoice_required_turnover_inr`.
+
+**GSTR-2B** (`gstr2b.py`, `POST /api/gst/2b`, finance/admin): upload the 2B
+JSON from the GST portal; entries are matched on supplier GSTIN + invoice
+number (fuzzy, `vendor.duplicate_invoice_number_fuzzy_threshold`) and
+compared on taxable value and tax: matched, value mismatch, *missing in 2B*
+(our invoice of that month; ITC at risk), *not in our books*. A file for
+another GSTIN is refused. Kept in `gstr2b_uploads`.
+
+**TDS at booking** (approval agent `tds_service.py`, in
+`invoice_ledger.book_invoice`): when an invoice is matched to its request, the
+section is the vendor's (tax profile) or the category's
+(`tds.category_sections`: hardware 194Q, software 194J(b), SaaS and services
+194J(a)); the base is the amount before GST in INR (sent by the document
+agent); nothing is deducted until one invoice or the year's total with the
+vendor passes the section's threshold (194Q: only the part above ₹50 lakh);
+the rate is the lower-deduction certificate's while valid, else the
+section's, or the no-PAN rate. Kept on `invoice_matches` (`tds_*`,
+`net_payable`) and shown in the request's invoice ledger and the TDS
+register (`GET /api/tds/register`, totals per quarter and section).
+Suppliers outside India are left to a CA (noted). Sections: table
+`tds_sections`, editable.
+
+**Vendor tax profile** (`/api/tds/vendors/{id}`, vendor page): PAN (must match
+the GSTIN's PAN), TDS section, lower-deduction certificate rate and expiry,
+Udyam number and MSME category, yearly turnover. Finance/admin edit,
+approvers read; changes are audited.
+
+**MSME deadlines** (`GET /api/tds/msme`): booked invoices of micro and small
+enterprises are due `msme.payment_days` (45) after acceptance (later of
+booking and last delivery), *due soon* `msme.warning_days` before.
+Nothing is paid from the platform: *Paid at the bank*
+(`POST /api/tds/invoices/{document_id}/paid`) records it and clears the list.
+
+Page: `/app/gst` (approver, finance, admin): month figures, invoices with
+their check, 2B reconciliation, MSME deadlines, TDS register, rate tables.
+`python tests/e2e/gst_flow.py` checks every acceptance point (44 checks).
+
 ### Research experiment (selective automation)
 
 The study in [RESEARCH_PAPER_PLAN.md](RESEARCH_PAPER_PLAN.md) runs on

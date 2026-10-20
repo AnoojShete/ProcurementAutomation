@@ -61,7 +61,12 @@ server or real e-signature accounts.
 8. **Start**: `./run.sh`, then check `docker compose ps` (all healthy) and
    sign in as the first admin. Create accounts through sign-up and give
    roles on the Users page.
-9. **Backups**: schedule `./scripts/backup.sh` (for example nightly with
+9. **GST**: set `EINVOICE_PUBLIC_KEY` (the Invoice Registration Portal's
+   published public key, PEM) so e-invoice QRs are verified; the demo key in
+   `shared/einvoice/` is refused in production. Set our GSTIN (rule
+   `gst.buyer_gstin`) and have a chartered accountant confirm the GST rates,
+   TDS sections and MSME rules (GST and TDS page, Business Rules › Tax).
+10. **Backups**: schedule `./scripts/backup.sh` (for example nightly with
    cron) and copy `.run/backups/` to another machine.
 
 ## 3. What holds the data

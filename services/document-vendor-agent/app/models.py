@@ -131,6 +131,8 @@ class Document(Base):
     # Added by migration 0009: upload | folder | email, and the email sender.
     source: Mapped[Optional[str]] = mapped_column(Text)
     source_sender: Mapped[Optional[str]] = mapped_column(Text)
+    # Added by migration 0012: the GST check (app/services/tax_check.py).
+    tax_check: Mapped[Optional[dict]] = mapped_column(JSON)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

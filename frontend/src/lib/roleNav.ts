@@ -20,6 +20,7 @@ import {
   Wallet as WA,
   ShoppingCart as SCART,
   Scale as SCALE,
+  Receipt as RC,
 } from "lucide-react";
 import type { Role } from "@/types/api";
 
@@ -70,6 +71,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Requests", to: "/app/requests", icon: FT },
     { label: "Budgets", to: "/app/budgets", icon: WA },
+    { label: "GST and TDS", to: "/app/gst", icon: RC },
     { label: "Sourcing", to: "/app/sourcing", icon: SCALE },
     { label: "IT Catalog", to: "/app/catalog", icon: SCART },
     { label: "Documents", to: "/app/documents", icon: FI },
@@ -82,6 +84,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Budgets", to: "/app/budgets", icon: WA },
+    { label: "GST and TDS", to: "/app/gst", icon: RC },
     { label: "Sourcing", to: "/app/sourcing", icon: SCALE },
     { label: "IT Catalog", to: "/app/catalog", icon: SCART },
     { label: "Spend Analysis", to: "/app/spend", icon: AC },
@@ -99,6 +102,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Approvals", to: "/app/approvals", icon: IN },
     { label: "Budgets", to: "/app/budgets", icon: WA },
+    { label: "GST and TDS", to: "/app/gst", icon: RC },
     { label: "Sourcing", to: "/app/sourcing", icon: SCALE },
     { label: "IT Catalog", to: "/app/catalog", icon: SCART },
     { label: "Inventory", to: "/app/inventory", icon: BO },

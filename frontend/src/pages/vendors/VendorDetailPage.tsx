@@ -21,6 +21,7 @@ import { Modal } from "@/components/ui/Modal";
 import { RiskGauge } from "@/components/vendors/RiskGauge";
 import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
 import { SanctionsScreening } from "@/components/vendors/SanctionsScreening";
+import { VendorTaxProfileCard } from "@/components/approvals/TdsActions";
 import { formatPercent, formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { ApiError } from "@/api/client";
 
@@ -239,6 +240,7 @@ export function VendorDetailPage() {
             )}
           </CardBody>
         </Card>
+        {user?.role !== "requester" && <VendorTaxProfileCard vendorId={vendor.id} />}
         {canSeePayments && (
           <Card>
             <CardHeader title="Payment Detail Changes" subtitle="Dual control — verifier must differ from submitter" />

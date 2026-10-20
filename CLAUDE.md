@@ -61,6 +61,7 @@ python tests/e2e/budget_flow.py           # budgets: within/warning/over, financ
 python tests/e2e/obligation_flow.py       # contract obligations: read after signing, confirm, SLA credit, seat breach
 python tests/e2e/sourcing_flow.py         # catalog, RFQ (sealed, quote linking, award), partial receipts, scorecard
 python tests/e2e/risk_flow.py             # risk scorecard, clearance, decisions, evidence + signing/budget/RFQ integration
+python tests/e2e/gst_flow.py              # GST check, e-invoice QR, reverse charge, TDS at booking, MSME, GSTR-2B (needs pyjwt)
 python tests/e2e/chatbot_eval.py          # assistant (RAG): grounded answers, citations, access limits → docs/results/chatbot-eval.md
 python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
@@ -181,6 +182,13 @@ in `docs/readmeforme.md` (Research experiment).
   minute; `rag_service.retrieve` applies access per chunk. No function tools.
   Rebuild the index now: `docker compose exec chatbot-agent python
   scripts/backfill_embeddings.py`.
+- **GST check (Phase 4)** runs as pipeline stage `tax_agent`; it may force
+  review but must never change the confidence score or `field_extraction.py`
+  (the review-gate study depends on both). E-invoice QRs verify against
+  `shared/einvoice/demo-irp-public-key.pem` only in development (its private
+  half in `data/einvoice-demo/` signs test invoices via
+  `scripts/gst_invoice_lib.py`); production needs `EINVOICE_PUBLIC_KEY`.
+  GST/TDS rates are seeded values a chartered accountant must confirm.
 - Snapshot data (the demo SSO log) is scored and counted as of its latest
   event, never "today" — otherwise every licence drifts to "abandoned".
 

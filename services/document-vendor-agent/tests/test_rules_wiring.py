@@ -228,3 +228,62 @@ def test_dev_force_model_fallback(rule, monkeypatch):
     assert forced.route_name == "layoutlmv3_fallback"
     monkeypatch.setenv("APP_ENV", "production")
     assert _route(0.95)[0].fallback_triggered is False
+
+
+# ── Phase 4: GST check (app/services/pipeline.tax_agent) ────────────────────
+
+def _gst_stage(lines, vendor=None):
+    from app.services import pipeline
+    from app.services.field_extraction import extract_fields
+    text = "\n".join(lines)
+    d = extract_fields(text, "invoice")[0].to_dict("invoice")
+    env = {"document_id": "d", "document_type": "invoice", "raw_text": text, "extracted_fields": d, "vendor_id": "v",
+           "file_type": "pdf", "fx": {"total_inr": d["total"]}, "_agent_trail": []}
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=MagicMock(first=MagicMock(return_value=vendor)))
+    rates = {"8471": {"rate_pct": 18.0, "category": "hardware"}}
+    with patch.object(pipeline, "load_gst_rates", AsyncMock(return_value=rates)):
+        return run(pipeline.tax_agent(db, None, env, b""))["tax_check"]
+
+
+def _gst_lines(**kw):
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
+    from gst_invoice_lib import gst_invoice
+    items = [{"name": "Latitude 5540 Laptop", "hsn": "8471", "quantity": 2, "unit_price": 80000.0}]
+    return gst_invoice({"name": "Kaveri Infotech", "gstin": "29AABCD5678E1ZG"}, "29AAACA1234B1ZE", "INV-1",
+                       date(2026, 10, 15), items, **kw)[0]
+
+
+def test_gst_buyer_gstin(rule):
+    rule("gst.buyer_gstin", "29AAACA1234B1ZE")
+    assert _gst_stage(_gst_lines())["status"] == "ok"
+    rule("gst.buyer_gstin", "29AABCD5678E2ZF")
+    assert _gst_stage(_gst_lines())["status"] == "flagged"
+
+
+def test_gst_tax_tolerance_inr(rule):
+    rule("gst.buyer_gstin", "29AAACA1234B1ZE")
+    lines = [ln.replace("Total: 188,800.00", "Total: 188,803.00") for ln in _gst_lines()]
+    rule("gst.tax_tolerance_inr", 1.0)
+    assert _gst_stage(lines)["status"] == "flagged"
+    rule("gst.tax_tolerance_inr", 5.0)
+    assert _gst_stage(lines)["status"] == "ok"
+
+
+def test_gst_require_breakdown(rule):
+    lines = ["Vendor Co", "Invoice Number: INV-2", "Subtotal: 1,000.00", "Tax (18%): 180.00", "Total: 1,180.00"]
+    rule("gst.require_breakdown", False)
+    assert _gst_stage(lines)["status"] == "incomplete"
+    rule("gst.require_breakdown", True)
+    assert _gst_stage(lines)["status"] == "flagged"
+
+
+def test_gst_einvoice_required_turnover_inr(rule):
+    rule("gst.buyer_gstin", "29AAACA1234B1ZE")
+    vendor = SimpleNamespace(gstin=None, country="IN", annual_turnover_inr=80_000_000)
+    rule("gst.einvoice_required_turnover_inr", 50_000_000)
+    assert _gst_stage(_gst_lines(), vendor)["status"] == "flagged"
+    rule("gst.einvoice_required_turnover_inr", 100_000_000)
+    assert _gst_stage(_gst_lines(), vendor)["status"] == "ok"

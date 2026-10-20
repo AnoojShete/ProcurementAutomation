@@ -1,6 +1,6 @@
 # Feature expansion plan: closing the gaps with commercial suites
 
-Status (20 October 2026): **Phases 1, 2 and 3 built** (see their sections); Phases 4–8 are proposals.
+Status (21 October 2026): **Phases 1, 2, 3 and 4 built** (see their sections); Phases 5–8 are proposals.
 Inputs: [competitive-analysis.md](competitive-analysis.md) (Coupa, Zapro, SAP
 Ariba, Ivalua, TYASuite) and Zoho's buyer's guide
 (https://www.zoho.com/procurement/academy/procurement-software.html), which
@@ -457,6 +457,56 @@ platform-history risk signals).
 ---
 
 ## Phase 4 — Indian GST and TDS compliance
+
+> **Built 21 Oct 2026.** document-vendor-agent: `tax_extraction.py` (GSTINs,
+> place of supply, CGST/SGST/UTGST/IGST, HSN/SAC, IRN), `einvoice.py` (finds
+> the QR on the page, verifies the IRP signature offline, compares the signed
+> values), `tax_check.py` (the checks), pipeline stage `tax_agent` between
+> `currency_agent` and `invoice_matching_agent`, `gstr2b.py` + `api/gst.py`
+> (`/api/gst`: rates, invoices, monthly summary, 2B upload); migration
+> `0012_gst.sql` (`documents.tax_check`, `gst_rates`, `gstr2b_uploads`, vendor
+> tax columns); topic `invoice.tax_flagged`. approval-inventory-agent:
+> `tds_service.py` + `api/tds.py` (`/api/tds`: sections, vendor tax profile,
+> TDS register, MSME deadlines, recording a payment); TDS worked out in
+> `invoice_ledger.book_invoice`; table `tds_sections`, TDS and payment columns
+> on `invoice_matches`. Seven rules seeded by auth-service `0019`. Frontend:
+> `/app/gst` (GST, TDS and MSME, rates), the document page's *GST check*, the
+> vendor page's *Tax profile*, TDS and net payable in the request's invoice
+> ledger. Verified by `tests/e2e/gst_flow.py` (44 checks: every acceptance
+> point below).
+>
+> Deliberate changes from the design below:
+> 1. **Tax reading is a separate module, not part of `field_extraction.py`.**
+>    Those fields feed the confidence score and the review-gate study (RS-11);
+>    keeping them byte-for-byte unchanged keeps the study comparable. The tax
+>    check never changes the confidence score; a flag only forces review.
+> 2. **GSTR-2B reconciliation lives in document-vendor-agent**, next to the
+>    tax data it compares and the duplicate check's fuzzy invoice-number
+>    threshold it reuses (`vendor.duplicate_invoice_number_fuzzy_threshold`).
+>    The plan had put it in approval-inventory-agent.
+> 3. **TDS is kept per invoice** (`invoice_matches`), not per allocation line:
+>    the deduction is on the invoice, and the register, the request's ledger
+>    and payment runs (Phase 8) all read it per invoice.
+> 4. **An invoice without a GST breakdown is "incomplete", not flagged**, unless
+>    `gst.require_breakdown` is on: the existing demo invoices print only
+>    "Tax (18%)", and flagging them would send every one to review.
+> 5. **The e-invoice rule needs the vendor's turnover**, which finance enters on
+>    the vendor's tax profile; for a vendor without it a missing QR is not
+>    flagged. In development the QR is checked against a demo IRP key
+>    (`shared/einvoice/`, private half in `data/einvoice-demo/` for test
+>    invoices); production uses `EINVOICE_PUBLIC_KEY` and never trusts the
+>    demo key.
+> 6. **MSME acceptance date** is the later of booking the invoice and the last
+>    goods receipt; medium enterprises are recorded but not tracked (s. 43B(h)
+>    covers micro and small only). Paying stays outside the platform: finance
+>    records "paid at the bank" so the deadline list clears.
+> 7. **Section codes** are the familiar Income-tax Act, 1961 numbers (194C,
+>    194J(a), 194J(b), 194Q). The Income-tax Act, 2025 renumbers TDS
+>    provisions; the codes are labels finance can rename, and every rate and
+>    threshold still needs a chartered accountant's confirmation.
+> 8. Not built: TDS on payments to non-residents (s. 195; noted on the
+>    invoice), GSTR-2B for credit/debit notes and amendments, and an e-mail for
+>    `invoice.tax_flagged` (e-mail work outside Phases 1–3 is Anooj's).
 
 **Owners:** document-vendor-agent (tax extraction and validation at read
 time), approval-inventory-agent (TDS at booking, 2B reconciliation, MSME due

@@ -21,3 +21,4 @@ topics:
   - rfq.awarded
   - goods.received
   - contract.obligation.due
+  - invoice.tax_flagged

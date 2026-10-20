@@ -33,6 +33,7 @@ const CATEGORY_TABS = [
   { key: "vendor_verification", label: "Vendor Verification" },
   { key: "license_usage", label: "License Usage" },
   { key: "risk_compliance", label: "Risk & Compliance" },
+  { key: "tax", label: "Tax (GST, TDS)" },
   { key: "risk_scorecard", label: "Risk Scorecard Ruleset" },
   { key: "history", label: "Change History" },
 ];

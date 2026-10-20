@@ -2,3 +2,5 @@ requests
 reportlab
 pillow
 pytest
+pyjwt
+cryptography

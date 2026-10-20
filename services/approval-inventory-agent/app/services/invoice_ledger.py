@@ -33,6 +33,8 @@ from typing import Optional
 
 from sqlalchemy import select, text
 
+from app.services import tds_service
+
 LINE_SIMILARITY_MIN = 0.55
 MATCHABLE_STATUSES = ("approved", "ordered", "partially_received", "fulfilled", "partially_invoiced")
 
@@ -88,6 +90,7 @@ class MatchResult:
     remaining_after: Optional[float] = None
     candidates: list = field(default_factory=list)
     notes: list = field(default_factory=list)  # for the reviewer; never change the status
+    tds: Optional[dict] = None  # Phase 4: tds_service.TdsResult of a booked invoice
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -104,6 +107,10 @@ def _similarity(a: str, b: str) -> float:
     if a in b or b in a:
         return 1.0
     return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def _f(value) -> Optional[float]:
+    return float(value) if value is not None else None
 
 
 def po_lines_from_items(items: Optional[list]) -> list[POLine]:
@@ -326,6 +333,8 @@ async def book_invoice(
     db, *, document_id: str, vendor_id: str, invoice_number: Optional[str], total: float,
     lines: list[InvoiceLine], payment_hold: bool = False, hold_reason: Optional[str] = None,
     dry_run: bool = False, booked_by: str = "document-vendor-agent", po_ref: Optional[str] = None,
+    taxable_value: Optional[float] = None, gst_amount: Optional[float] = None, invoice_date=None,
+    foreign_supplier: bool = False,
 ) -> MatchResult:
     """Evaluates the invoice and, unless dry_run, books a match: records the
     allocations and moves the request to partially_invoiced /
@@ -350,6 +359,13 @@ async def book_invoice(
                       tolerances_from_rules(), po_ref)
     if result.request_id:
         result.notes = await expected_credit_notes(db, result.request_id)
+    invoice_day = tds_service.parse_date(invoice_date)
+    if result.status in ("matched", "partial"):
+        # TDS to deduct before paying (Phase 4), kept with the invoice.
+        req = next(r for r in reqs if str(r.id) == result.request_id)
+        result.tds = (await tds_service.tds_for_invoice(
+            db, vendor_id=vendor_id, document_id=document_id, request_type=req.request_type, total=total,
+            taxable_value=taxable_value, invoice_date=invoice_day, foreign=foreign_supplier)).to_dict()
     if dry_run:
         return result
 
@@ -375,16 +391,24 @@ async def book_invoice(
     await db.execute(
         text(
             "INSERT INTO invoice_matches (document_id, vendor_id, purchase_request_id, invoice_number, status, "
-            "amount, payment_hold, hold_reason, result, created_at) VALUES (:doc, :vendor, :req, :num, :status, "
-            ":amount, :hold, :reason, CAST(:result AS JSONB), :now) "
+            "amount, payment_hold, hold_reason, result, created_at, invoice_date, taxable_value, gst_amount, "
+            "tds_section, tds_rate_pct, tds_base, tds_amount, net_payable, tds_notes) VALUES (:doc, :vendor, :req, "
+            ":num, :status, :amount, :hold, :reason, CAST(:result AS JSONB), :now, :inv_date, :taxable, :gst, "
+            ":tds_section, :tds_rate, :tds_base, :tds_amount, :net, CAST(:tds_notes AS JSONB)) "
             "ON CONFLICT (document_id) DO UPDATE SET purchase_request_id = EXCLUDED.purchase_request_id, "
             "status = EXCLUDED.status, amount = EXCLUDED.amount, payment_hold = EXCLUDED.payment_hold, "
-            "hold_reason = EXCLUDED.hold_reason, result = EXCLUDED.result, created_at = EXCLUDED.created_at"
+            "hold_reason = EXCLUDED.hold_reason, result = EXCLUDED.result, created_at = EXCLUDED.created_at, "
+            "invoice_date = EXCLUDED.invoice_date, taxable_value = EXCLUDED.taxable_value, "
+            "gst_amount = EXCLUDED.gst_amount, tds_section = EXCLUDED.tds_section, "
+            "tds_rate_pct = EXCLUDED.tds_rate_pct, tds_base = EXCLUDED.tds_base, tds_amount = EXCLUDED.tds_amount, "
+            "net_payable = EXCLUDED.net_payable, tds_notes = EXCLUDED.tds_notes"
         ),
         {
             "doc": document_id, "vendor": vendor_id, "req": result.request_id, "num": invoice_number,
             "status": result.status, "amount": total, "hold": payment_hold, "reason": hold_reason,
             "result": json.dumps(result.to_dict(), default=str), "now": now,
+            "inv_date": invoice_day, "taxable": taxable_value, "gst": gst_amount,
+            **_tds_columns(result.tds),
         },
     )
     if result.request_id:
@@ -395,6 +419,16 @@ async def book_invoice(
                      "issues": result.issues, "payment_hold": payment_hold},
         ))
     return result
+
+
+def _tds_columns(tds: Optional[dict]) -> dict:
+    tds = tds or {}
+    # A section with no deduction (below the threshold) still counts towards
+    # the year's total, so its base is kept.
+    return {"tds_section": tds.get("section"), "tds_rate": tds.get("rate_pct"),
+            "tds_base": tds.get("base") if tds.get("section") else None,
+            "tds_amount": tds.get("amount"), "net": tds.get("net_payable"),
+            "tds_notes": json.dumps(tds.get("notes") or []) if tds else None}
 
 
 async def expected_credits(db, request_id: str) -> list:
@@ -445,7 +479,8 @@ async def ledger_for_request(db, request_id: str) -> dict:
     cand = _candidate(req, balance, received)
     invoices = (
         await db.execute(
-            text("SELECT document_id, invoice_number, status, amount, payment_hold, hold_reason, created_at "
+            text("SELECT document_id, invoice_number, status, amount, payment_hold, hold_reason, created_at, "
+                 "taxable_value, gst_amount, tds_section, tds_rate_pct, tds_amount, net_payable, tds_notes, paid_at "
                  "FROM invoice_matches WHERE purchase_request_id = :r ORDER BY created_at"),
             {"r": request_id},
         )
@@ -463,7 +498,10 @@ async def ledger_for_request(db, request_id: str) -> dict:
         "invoices": [
             {"document_id": str(i.document_id), "invoice_number": i.invoice_number, "status": i.status,
              "amount": float(i.amount) if i.amount is not None else None, "payment_hold": i.payment_hold,
-             "hold_reason": i.hold_reason, "created_at": i.created_at.isoformat()}
+             "hold_reason": i.hold_reason, "created_at": i.created_at.isoformat(),
+             "taxable_value": _f(i.taxable_value), "gst_amount": _f(i.gst_amount), "tds_section": i.tds_section,
+             "tds_rate_pct": _f(i.tds_rate_pct), "tds_amount": _f(i.tds_amount), "net_payable": _f(i.net_payable),
+             "tds_notes": i.tds_notes or [], "paid_at": i.paid_at.isoformat() if i.paid_at else None}
             for i in invoices
         ],
     }

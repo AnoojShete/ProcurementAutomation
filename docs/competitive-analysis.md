@@ -6,6 +6,13 @@ the vendor's own pages where they could be fetched (20 October 2026). Vendor
 pages are marketing material; accuracy and adoption figures quoted by vendors
 are their claims, not verified.
 
+> **Since this snapshot (21 Oct 2026):** the gaps it found were closed by the
+> feature expansion ([feature-expansion-plan.md](feature-expansion-plan.md)):
+> budget control (Phase 1), contract obligations (Phase 2), IT catalog, RFQs
+> and partial receipts (Phase 3), and Indian GST and TDS: GST check with the
+> signed e-invoice QR, reverse charge, GSTR-2B reconciliation, TDS at booking,
+> MSME deadlines (Phase 4). The tables below are kept as they were found.
+
 ## 1. Choosing the five competitors
 
 Each product was scored on the eight capability areas our platform covers:

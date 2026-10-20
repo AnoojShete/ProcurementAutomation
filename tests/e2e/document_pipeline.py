@@ -262,8 +262,9 @@ def main():
                 check(f"{name}: vendor and total read correctly",
                       row["vendor_name_raw"] == VENDOR["name"] and abs(float(row["total"] or 0) - happy_total) < 0.01,
                       f"{row['vendor_name_raw']!r} {row['total']}")
-            check(f"{name}: all 10 pipeline stages recorded",
-                  sql(f"select count(*) from pipeline_checkpoints where document_id='{doc_id}'") == "10")
+            # 11 stages since the GST check (tax_agent, Phase 4).
+            check(f"{name}: all 11 pipeline stages recorded",
+                  sql(f"select count(*) from pipeline_checkpoints where document_id='{doc_id}'") == "11")
             check(f"{name}: events published (ingested, classified, vendor.matched)",
                   set(outbox(doc_id).split(",")) >= {"document.ingested", "document.classified", "vendor.matched"}
                   and "UNSENT" not in outbox(doc_id), outbox(doc_id))

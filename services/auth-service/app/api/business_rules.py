@@ -130,6 +130,16 @@ async def _validate_rule_value(db: AsyncSession, rule: BusinessRule, new_value: 
                     or abs(sum(new_value.values()) - 1) > 0.001:
                 raise HTTPException(status_code=400, detail="RFQ weights are numbers for " + ", ".join(sorted(known))
                                     + " that add up to 1")
+        elif rule.rule_key == "gst.buyer_gstin":
+            import re as _re
+            if not isinstance(new_value, str) or not _re.fullmatch(r"[0-3][0-9][A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]", new_value):
+                raise HTTPException(status_code=400, detail="our GSTIN is 15 characters, e.g. 29AAACA1234B1ZE (capital letters)")
+        elif rule.rule_key == "tds.category_sections":
+            known = {"hardware", "software", "saas", "services"}
+            if not isinstance(new_value, dict) or not set(new_value) <= known or not all(
+                    isinstance(v, str) and 2 <= len(v) <= 12 for v in new_value.values()):
+                raise HTTPException(status_code=400, detail="TDS sections are a section code (e.g. 194J(a)) for each of "
+                                    + ", ".join(sorted(known)))
         elif rule.rule_key == "contract.obligation_reminder_days":
             if not isinstance(new_value, list) or not new_value or not all(
                     isinstance(x, int) and not isinstance(x, bool) and 0 < x <= 365 for x in new_value):

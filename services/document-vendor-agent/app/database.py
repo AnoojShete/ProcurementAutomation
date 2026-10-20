@@ -34,6 +34,7 @@ MIGRATIONS = (
     "0009_email_intake.sql",
     "0010_vendor_profile.sql",
     "0011_vendor_ifsc_status.sql",
+    "0012_gst.sql",
 )
 
 
