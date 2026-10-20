@@ -36,7 +36,7 @@ async def send_message(
 
     try:
         # Pass the full user object to securely impersonate them!
-        reply = await query_llm_with_tools(history, user)
+        reply = await query_llm_with_tools(history, user, db)
     except Exception as e:
         print(f"LLM Call failed: {e}")
         reply = "Sorry, I am having trouble connecting to my AI brain."

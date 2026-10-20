@@ -73,7 +73,6 @@ async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessio
                 }
             }
         },
-        # --- NEW RAG TOOL ---
         {
             "type": "function",
             "function": {
@@ -92,40 +91,53 @@ async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessio
 
     messages = [{"role": m.role, "content": m.content} for m in history]
     
-    # Updated System Prompt to encourage step-by-step reasoning
     messages.insert(0, {
         "role": "system", 
         "content": (
             f"You are the Procurement Assistant AI. The current user is '{user.email}' with role '{user.role}'.\n"
-            "Guidelines:\n"
-            "- If a vendor name is mentioned without an ID, call search_vendors first to get the vendor_id.\n"
-            "- If the user asks about contract clauses, policies, or past document text, use the 'search_documents' tool.\n"
-            "- Think step-by-step. You can use multiple tools sequentially if needed to answer a complex question.\n"
-            "- Always format results clearly with markdown bullet points."
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. You must use tools to answer questions.\n"
+            "2. NEVER plan multiple steps at once. Call exactly ONE tool, wait for the result, and then call the next tool.\n"
+            "3. NEVER invent or guess IDs. If you need a vendor_id, call 'search_vendors' first and wait for the response.\n"
+            "4. NEVER write out JSON or numbered lists in your conversational response. Use the native tool calling API.\n"
         )
     })
 
     async with httpx.AsyncClient(timeout=180.0) as client:
-        max_iterations = 5 # Prevents infinite loops
+        max_iterations = 5 
         
         for iteration in range(max_iterations):
             payload = {"model": settings.llm_model_name, "messages": messages, "stream": False, "tools": tools}
             
             response = await client.post(url, json=payload)
             response.raise_for_status()
-            data = response.json()
-            message = data.get("message", {})
+            message = response.json().get("message", {})
+            content = message.get("content", "")
 
-            # BREAK CONDITION: If the LLM didn't call a tool, it's done thinking.
+            # --- LLM WRANGLER ---
+            if ("tool_calls" not in message or not message["tool_calls"]) and '{"name":' in content:
+                import re
+                matches = re.findall(r'\{"name":\s*"[^"]+",\s*"parameters":\s*\{.*?\}\}', content, re.DOTALL)
+                if matches:
+                    message["tool_calls"] = []
+                    try:
+                        clean_json = matches[0].replace('\n', '').replace('\r', '')
+                        func_data = json.loads(clean_json)
+                        message["tool_calls"].append({"function": func_data})
+                    except Exception:
+                        pass
+                    message["content"] = ""
+            # --------------------
+
             if "tool_calls" not in message or not message["tool_calls"]:
-                return message.get("content", "I could not generate a response.")
+                return content
             
-            messages.append(message) # Append the tool call request
+            messages.append(message) 
             
-            # Execute all requested tools
             for tool in message["tool_calls"]:
                 name = tool["function"]["name"]
-                args = tool["function"].get("arguments", {})
+                
+                args = tool["function"].get("arguments", tool["function"].get("parameters", {}))
                 
                 try:
                     if name == "get_procurement_summary":
@@ -141,14 +153,13 @@ async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessio
                     elif name == "get_vendor_risk":
                         result = await context_service.fetch_vendor_risk(user, args.get("vendor_id", ""))
                     elif name == "search_documents":
-                        # CALLING THE RAG SERVICE
-                        result = await rag_service.search_knowledge_base(args.get("query", ""), db)
+                        # CRITICAL FIX: Pass the user object into the RAG service to enforce authorization
+                        result = await rag_service.search_knowledge_base(args.get("query", ""), db, user)
                     else:
                         result = json.dumps({"error": f"Unknown tool: {name}"})
                 except Exception as e:
                     result = json.dumps({"error": str(e)})
                 
-                # Append tool result so the LLM can read it in the next loop
                 messages.append({"role": "tool", "content": str(result)})
         
         return "I reached my maximum thinking steps."
