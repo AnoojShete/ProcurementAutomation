@@ -40,9 +40,12 @@ inside quotes / `$$` blocks); keep them idempotent (`IF NOT EXISTS`,
 data before adding a constraint, and ask the user before anything
 destructive.
 
-Team boundaries the user set: **don't build the email automation or the
-chatbot — Anooj owns those.** notification-agent still sends to Mailpit on
-purpose (its recipients are placeholder role addresses).
+Team boundaries the user set: **don't build the chatbot — Anooj owns it.**
+Email notifications were his too, but on 21 Oct the user asked for the
+feature-expansion emails (budget, obligation, RFQ, delivery) to be built
+here; ask before taking on other email-automation work. notification-agent
+still sends to Mailpit on purpose (recipients without a known person are
+placeholder role or vendor addresses).
 
 ## Commands
 

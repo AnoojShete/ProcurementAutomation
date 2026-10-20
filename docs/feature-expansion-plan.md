@@ -25,7 +25,7 @@ already built**:
 | Built-in e-sign only; risk shown before signing | Untouched; obligations are read from the signed contract |
 | Review gate stays heuristic until the research supports switching (RS-11) | No feature changes `confidence.py`; agents read its output only |
 | Currency stored in original + INR | Budgets, RFQ comparison and payments use `total_inr` |
-| Email automation and the chatbot are **Anooj's** | New notifications are new event types; their templates and any assistant tools are listed as hand-offs to Anooj, not built here |
+| Email automation and the chatbot are **Anooj's** | New notifications are new event types. The e-mails for Phases 1–3 were built here on 21 Oct at the user's request; assistant tools remain hand-offs to Anooj |
 | Decision-support system; **payment execution and ERP integration are out of scope** (report §3.2) | Phases 6 and 8 are designed so that money still moves only at the bank and the ERP stays the book of record. **Both need a scope decision before they start** |
 | One home page per item; each agent's actions in one component; Ledger design system | Each feature names the page it lives on and the component that owns its actions |
 
@@ -157,7 +157,7 @@ Flow:
    amount from committed to consumed; any overrun is recorded, not hidden.
 4. **Rejected / cancelled / split**: release.
 5. Crossing `warning_threshold_pct` publishes `budget.threshold_crossed`
-   (budget owner + finance are notified; template is a hand-off to Anooj).
+   (budget owner, else finance, is notified: `budget_threshold_crossed`, built 21 Oct).
 
 APIs (finance/admin write, everyone with access to a request reads its
 budget line): `GET/POST/PATCH /budgets`, `GET /budgets/{id}/ledger`,
@@ -406,7 +406,7 @@ quote already becomes a purchase request.
   for reference.
 - **Award** fills the purchase request's vendor, items and amount from the
   winning quote and starts the normal approval workflow (budget check
-  included). Losing vendors are notified (template hand-off to Anooj).
+  included). Invited, winning and losing vendors are e-mailed (`rfq_invitation`, `rfq_awarded`, `rfq_not_selected`, built 21 Oct).
 - Rule `sourcing.rfq_required_above_inr` (default `200000`): requests above
   it without an RFQ or a catalog/contract price get a *sourcing* flag on the
   request page (advisory, not blocking).

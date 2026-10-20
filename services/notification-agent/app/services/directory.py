@@ -70,3 +70,52 @@ async def resolve_recipient(db: AsyncSession, candidate: Optional[str]) -> str:
     address/id could be resolved; normalize whatever we do have into a
     deliverable email address."""
     return as_email(candidate) if candidate else default_recipient()
+
+
+# ── Feature expansion events (budgets, obligations, RFQs, deliveries) ───────
+# Raw read-only lookups against other services' tables; each falls back to
+# None when the table or row isn't there.
+from sqlalchemy import text as _text
+
+FINANCE_MAILBOX = "finance_head@users.procurement.local"
+
+
+async def _scalar(db: AsyncSession, sql: str, params: dict):
+    try:
+        async with db.begin_nested():
+            return (await db.execute(_text(sql), params)).scalar()
+    except Exception as e:
+        logger.warning(f"directory lookup failed ({sql[:40]}…): {e}")
+        return None
+
+
+async def budget_owner(db: AsyncSession, budget_id: Optional[str]) -> Optional[str]:
+    if not budget_id:
+        return None
+    return await _scalar(db, "SELECT owner_email FROM budgets WHERE id = CAST(:b AS uuid)", {"b": budget_id})
+
+
+def vendor_placeholder(vendor_id: str) -> str:
+    """Vendors without a contact e-mail get a deliverable placeholder (Mailpit
+    in development), so the invitation is still visible and logged."""
+    return f"vendor-{str(vendor_id)[:8]}@vendors.procurement.local"
+
+
+async def vendor_contact(db: AsyncSession, vendor_id: Optional[str]) -> Optional[str]:
+    if not vendor_id:
+        return None
+    email = await _scalar(db, "SELECT contact_email FROM vendors WHERE id = CAST(:v AS uuid)", {"v": vendor_id})
+    return email or vendor_placeholder(vendor_id)
+
+
+async def vendor_name(db: AsyncSession, vendor_id: Optional[str]) -> Optional[str]:
+    if not vendor_id:
+        return None
+    return await _scalar(db, "SELECT name FROM vendors WHERE id = CAST(:v AS uuid)", {"v": vendor_id})
+
+
+async def rfq_items(db: AsyncSession, rfq_id: Optional[str]) -> list:
+    if not rfq_id:
+        return []
+    items = await _scalar(db, "SELECT items FROM rfq_events WHERE id = CAST(:r AS uuid)", {"r": rfq_id})
+    return items if isinstance(items, list) else []

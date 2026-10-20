@@ -118,6 +118,41 @@ SAMPLE_PAYLOADS = {
         "priority": "digest",
         "related_entity_id": "v-1",
     },
+    # Feature expansion (Phases 1-3), payloads as in shared/schemas/events.md.
+    "budget.threshold_crossed": {
+        "budget_id": "b-1", "fiscal_year": "2026-27", "period": "Q3", "department": "Engineering",
+        "category": "hardware", "status": "over", "budget_amount_inr": 100000, "used_inr": 112000,
+        "left_inr": -12000, "request_id": "pr-1", "requested_by": "alice@acme.test", "request_amount_inr": 40000,
+    },
+    "contract.obligation.due": {
+        "obligation_id": "o-1", "contract_id": "11111111-aaaa-bbbb-cccc-000000000000", "vendor_id": "v-1",
+        "type": "warranty", "label": "Warranty duration", "kind": "due", "due_date": "2029-03-15",
+        "days_left": 30, "owner_email": "it-owner@acme.test", "detail": "due in 30 days",
+    },
+    "rfq.issued": {
+        "rfq_id": "r-1", "reference": "RFQ-3F9A2C", "title": "Laptop refresh", "round": 1,
+        "deadline": "2026-10-25T17:00:00+00:00", "sealed": True, "vendor_ids": ["v-1", "v-2"],
+        "created_by": "finance@acme.test",
+    },
+    "rfq.awarded": {
+        "rfq_id": "r-1", "reference": "RFQ-3F9A2C", "vendor_id": "v-1", "total_inr": 2287500,
+        "request_id": "pr-2", "losing_vendor_ids": ["v-2", "v-3"], "awarded_by": "finance@acme.test",
+    },
+    "goods.received": {
+        "request_id": "22222222-aaaa-bbbb-cccc-000000000000", "receipt_id": "g-1", "vendor_id": "v-1",
+        "lines": [{"line_no": 0, "quantity": 30, "asset_tags": ["LT-0101", "LT-0102"]}], "complete": False,
+        "status": "partially_received", "received_by": "alice@acme.test", "received_at": "2026-10-20T10:00:00+00:00",
+    },
+}
+
+# Context the handlers add before rendering (links, looked-up names, items).
+HANDLER_EXTRAS = {
+    "budget.threshold_crossed": {"portal_url": "http://localhost:8080/app/budgets/b-1"},
+    "contract.obligation.due": {"portal_url": "http://localhost:8080/app/contracts/c"},
+    "rfq.issued": {"items": [{"name": "Developer laptop", "quantity": 25}], "vendor_name": "Acme IT Supplies Inc",
+                   "deadline_text": "25 Oct 2026, 17:00 UTC"},
+    "rfq.awarded": {"vendor_name": "Acme IT Supplies Inc"},
+    "goods.received": {"portal_url": "http://localhost:8080/app/requests/r", "received_at_text": "20 Oct 2026, 10:00 UTC"},
 }
 
 # Template each event type's handler renders, per app/kafka/consumer.py.
@@ -132,6 +167,11 @@ EXPECTED_TEMPLATE = {
     "risk.score.updated": "risk_score_updated",
     "vendor.offboarded": "vendor_offboarded",
     "vendor.payment_details_flagged": "vendor_payment_details_flagged",
+    "budget.threshold_crossed": "budget_threshold_crossed",
+    "contract.obligation.due": "contract_obligation_due",
+    "rfq.issued": "rfq_invitation",
+    "rfq.awarded": "rfq_awarded",
+    "goods.received": "goods_received",
     # notification.send doesn't map to one fixed template — its own
     # template_name field picks it (see test below).
 }
@@ -140,7 +180,7 @@ EXPECTED_TEMPLATE = {
 class TestConsumedTopicsCoverage:
     def test_all_documented_topics_are_consumed(self):
         """shared/schemas/events.md names notification-agent as a consumer
-        on exactly these 11 topics (cross-checked row by row against the
+        on exactly these 16 topics (cross-checked row by row against the
         'Consumed by' column) — including document.classified and
         vendor.offboarded, which the task brief's own topic list omitted."""
         expected = {
@@ -148,6 +188,7 @@ class TestConsumedTopicsCoverage:
             "approval.decided", "contract.generated", "contract.signed",
             "contract.renewal.due", "risk.score.updated", "vendor.offboarded",
             "vendor.payment_details_flagged", "notification.send",
+            "budget.threshold_crossed", "contract.obligation.due", "rfq.issued", "rfq.awarded", "goods.received",
         }
         assert set(CONSUME_TOPICS) == expected
         assert set(_HANDLERS.keys()) == expected
@@ -164,7 +205,7 @@ class TestHandlerFieldExtractionPerTopic:
 
     def test_extraction_succeeds_for_every_fixed_template_topic(self):
         for event_type, template_name in EXPECTED_TEMPLATE.items():
-            payload = SAMPLE_PAYLOADS[event_type]
+            payload = {**SAMPLE_PAYLOADS[event_type], **HANDLER_EXTRAS.get(event_type, {})}
             subject, body = render_template(template_name, payload)
             assert subject.strip(), f"{event_type}: empty subject"
             assert body.strip(), f"{event_type}: empty body"

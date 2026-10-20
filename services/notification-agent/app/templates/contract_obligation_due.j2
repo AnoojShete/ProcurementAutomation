@@ -1,0 +1,17 @@
+Subject: {% if kind == "breach" %}Breach: {% elif kind == "overdue" %}Overdue: {% endif %}{{ label }} — contract {{ contract_id[:8] }}
+---
+Hello,
+
+{% if kind == "breach" %}A contract obligation has been breached.
+{% elif kind == "overdue" %}A contract obligation is overdue.
+{% else %}A contract obligation is coming due.
+{% endif +%}
+  Obligation:   {{ label }}
+  Contract:     {{ contract_id }}
+  Due date:     {{ due_date or "—" }}{% if days_left is not none %} ({{ days_left }} days){% endif +%}
+  Detail:       {{ detail }}
+
+Record what happened (met, downtime, breach, waived) on the contract page:
+{{ portal_url }}
+
+— IT Procurement Platform

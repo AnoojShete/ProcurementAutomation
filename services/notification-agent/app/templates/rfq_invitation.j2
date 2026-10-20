@@ -1,0 +1,19 @@
+Subject: Request for quotation {{ reference }}{% if round > 1 %} (round {{ round }}){% endif %}: {{ title }}
+---
+Hello{% if vendor_name %} {{ vendor_name }}{% endif %},
+
+You are invited to quote for the items below. Please reply to this address with your quotation and quote the reference {{ reference }} on it, so it is matched automatically.
+
+  Reference:  {{ reference }}
+  Title:      {{ title }}
+  Quotes by:  {{ deadline_text or deadline }}
+{% if sealed %}  Sealed:     amounts stay confidential until the deadline
+{% endif +%}
+Items:
+{% for item in items %}  - {{ item.name }} × {{ item.quantity }}{% if item.get("spec") %} ({{ item.get("spec") }}){% endif %}
+{% else %}  (see the attached specification)
+{% endfor %}
+
+Quotes are compared on price, lead time, warranty, support and delivery record.
+
+— IT Procurement, Acme Corp

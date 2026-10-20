@@ -1,0 +1,16 @@
+Subject: {{ "All goods received" if complete else "Delivery recorded" }} for request {{ request_id[:8] }}
+---
+Hello,
+
+{{ "The last delivery for this request has been recorded; everything has arrived." if complete else "A partial delivery has been recorded; the rest is still to come." }}
+
+  Request:      {{ request_id }}
+  Received by:  {{ received_by }} at {{ received_at_text or received_at }}
+  Lines:
+{% for line in lines %}    - line {{ line.line_no + 1 }}: {{ line.quantity }} received{% if line.asset_tags %} (asset tags: {{ line.asset_tags | join(", ") }}){% endif %}
+{% endfor %}
+
+Invoices for this request are checked against what has arrived.
+{{ portal_url }}
+
+— IT Procurement Platform

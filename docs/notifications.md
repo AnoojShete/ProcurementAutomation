@@ -21,13 +21,17 @@ reflect test traffic, not real usage.
 | Contract generated | `contract.generated` (contract-risk) | Requester | `contract_generated` | urgent | ✔ | 203 sent | ✘ |
 | Contract waiting for a signature | — (`contract.generated` goes to the requester only) | The signer | — | — | ✘ (gap 4) | — | — |
 | Contract signed → ordered | `contract.signed` (contract-risk) | Requester | `contract_signed` | urgent | ✔ | 87 sent | ✘ |
-| Goods received | — (no event; `apply_received` only writes the audit log) | Requester, finance | — | — | ✘ (gap 5) | — | — |
+| Goods received | `goods.received` (approval-inventory, Phase 3) | Requester | `goods_received` | digest | ✔ (21 Oct) | 17 queued | ✔ request link |
 | Invoice matched / held | `invoice.matched` (approval-inventory) | Finance (on a hold or mismatch) | — | — | ✘ not consumed (gap 3) | — | — |
 | Renewal / notice deadline | `contract.renewal.due` (contract-risk) | Contract owner | `contract_renewal_due` | urgent at the configured alert levels, else digest | ✔ | 1 sent | ✘ |
 | Something waiting too long | `reminder.due` (all three agents, FR-03) | `recipient_role` in the payload | — | — | ✘ **not consumed** although `events.md` lists notification-agent (gap 2) | — | payload has `link` |
 | Vendor risk changed | `risk.score.updated` (contract-risk) | Risk / procurement team | `risk_score_updated` | urgent if High, else digest | ✔ | 2 sent + 132 queued | ✘ |
 | Vendor offboarded | `vendor.offboarded` (contract-risk) | Procurement, contract owners | `vendor_offboarded` | urgent | ✔ | 3 sent | ✘ |
 | Licence usage / reclaim | `license.usage.updated`; reclaim warnings via `notification.send` (approval-inventory) | Licence owner, admin | `license_usage_updated`, `generic_fallback` | digest; `notification.send` uses its `priority` | ✔ | 336 queued; 48 sent + 109 queued | ✘ |
+| Budget near / over its limit | `budget.threshold_crossed` (approval-inventory, Phase 1) | Budget owner, else finance mailbox | `budget_threshold_crossed` | urgent when over, digest at the warning threshold | ✔ (21 Oct) | 10 sent + 5 queued | ✔ budget link |
+| Contract obligation due / overdue / breached | `contract.obligation.due` (contract-risk, Phase 2) | Obligation owner, else the requester | `contract_obligation_due` | urgent for breach, overdue or ≤ 7 days; else digest | ✔ (21 Oct) | 5 sent | ✔ contract link |
+| RFQ issued | `rfq.issued` (approval-inventory, Phase 3) | Each invited vendor (contact e-mail, else a placeholder vendor address) | `rfq_invitation` | urgent | ✔ (21 Oct) | 26 sent | quotes the RFQ reference for automatic matching |
+| RFQ awarded | `rfq.awarded` (approval-inventory, Phase 3) | Winner; thank-you to the other vendors | `rfq_awarded`, `rfq_not_selected` | urgent | ✔ (21 Oct) | 4 + 8 sent | — |
 | Daily digest | digest flush loop | Each recipient with queued items | `digest_summary` | — | ✔ | 145 sent | ✘ |
 | Order status summary | `order.summary.generated` (approval-inventory, hourly) | Procurement (optional) | — | — | ✘ not consumed (fine: shown in the app / assistant) | — | — |
 | Internal only | `document.ingested`, `vendor.matched`, `business_rule.updated` | nobody | — | — | n/a | — | — |
@@ -36,7 +40,7 @@ Delivery: `email_service.py` sends through `shared/mailer.py` since 11 Oct —
 Mailpit with `EMAIL_MODE=dev`, any SMTP provider with `EMAIL_MODE=smtp`.
 Failures are retried and dead-lettered since FR-31.
 
-## Gaps — for Anooj (notification-agent / email automation is his)
+## Gaps (the five feature-expansion events were added on 21 Oct; gap 5 is closed by `goods.received`)
 
 1. **Approval emails reach a placeholder, not the approver.**
    `approval.requested` carries role names in `approval_chain`

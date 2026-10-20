@@ -211,7 +211,8 @@ versions are pinned in the compose files (the same test fails on a new
 
 Only **auth-service** uses the email settings. notification-agent still
 sends every notification to Mailpit (its recipients are placeholder role
-addresses; its email work belongs to Anooj).
+addresses; its email work belongs to Anooj, except the feature-expansion e-mails — budget threshold,
+obligation due/breach, RFQ invitation/award/thank-you, goods received — built on 21 Oct).
 
 ### Real email with Gmail
 

@@ -10,6 +10,9 @@ vendor.offboarded — so all 10 are handled here:
   approval.decided, contract.generated, contract.signed,
   contract.renewal.due, risk.score.updated, vendor.offboarded,
   notification.send
+
+plus the feature-expansion events (budget.threshold_crossed,
+contract.obligation.due, rfq.issued, rfq.awarded, goods.received).
 """
 import json
 import asyncio
@@ -67,6 +70,12 @@ CONSUME_TOPICS = [
     "risk.score.updated",               # published by contract-risk-agent
     "vendor.offboarded",                # published by contract-risk-agent
     "notification.send",                # generic fallback, published by any service
+    # Feature expansion (Phases 1-3)
+    "budget.threshold_crossed",         # published by approval-inventory-agent
+    "contract.obligation.due",          # published by contract-risk-agent
+    "rfq.issued",                       # published by approval-inventory-agent
+    "rfq.awarded",                      # published by approval-inventory-agent
+    "goods.received",                   # published by approval-inventory-agent
 ]
 
 
@@ -337,7 +346,90 @@ async def _handle_notification_send(db, payload: dict):
     )
 
 
+def _when(iso) -> str | None:
+    """'2026-10-25T17:00:00+00:00' -> '25 Oct 2026, 17:00 UTC' for e-mail text."""
+    from datetime import datetime, timezone
+    try:
+        return datetime.fromisoformat(str(iso)).astimezone(timezone.utc).strftime("%d %b %Y, %H:%M UTC")
+    except (TypeError, ValueError):
+        return None
+
+
+def _portal(path: str) -> str:
+    return f"{os.environ.get('PUBLIC_BASE_URL', 'http://localhost:8080').rstrip('/')}{path}"
+
+
+async def _handle_budget_threshold_crossed(db, payload: dict):
+    """To the budget's owner, or the finance mailbox when it has none."""
+    owner = await directory.budget_owner(db, payload.get("budget_id"))
+    recipient = await directory.resolve_recipient(db, owner or directory.FINANCE_MAILBOX)
+    await dispatcher.notify(
+        db, event_type="budget.threshold_crossed", template_name="budget_threshold_crossed",
+        context={**payload, "portal_url": _portal(f"/app/budgets/{payload.get('budget_id')}")},
+        recipient=recipient, related_entity_id=payload.get("budget_id"),
+    )
+
+
+async def _handle_contract_obligation_due(db, payload: dict):
+    """To the obligation's owner; else the requester of the contract's
+    purchase request; else the default ops mailbox."""
+    owner = payload.get("owner_email") or await directory.requester_for_contract_id(db, payload.get("contract_id"))
+    recipient = await directory.resolve_recipient(db, owner)
+    context = {"due_date": None, "days_left": None, "detail": "", **payload,
+               "portal_url": _portal(f"/app/contracts/{payload.get('contract_id')}")}
+    await dispatcher.notify(
+        db, event_type="contract.obligation.due", template_name="contract_obligation_due",
+        context=context, recipient=recipient, related_entity_id=payload.get("obligation_id"),
+    )
+
+
+async def _handle_rfq_issued(db, payload: dict):
+    """One invitation per invited vendor, to its contact e-mail (or a
+    placeholder vendor address when it has none)."""
+    items = await directory.rfq_items(db, payload.get("rfq_id"))
+    for vendor_id in payload.get("vendor_ids") or []:
+        recipient = await directory.vendor_contact(db, vendor_id)
+        await dispatcher.notify(
+            db, event_type="rfq.issued", template_name="rfq_invitation",
+            context={**payload, "items": items, "vendor_name": await directory.vendor_name(db, vendor_id),
+                     "deadline_text": _when(payload.get("deadline"))},
+            recipient=recipient, related_entity_id=payload.get("rfq_id"),
+        )
+
+
+async def _handle_rfq_awarded(db, payload: dict):
+    """The award to the winner and a thank-you to everyone else invited."""
+    winner = payload.get("vendor_id")
+    await dispatcher.notify(
+        db, event_type="rfq.awarded", template_name="rfq_awarded",
+        context={**payload, "vendor_name": await directory.vendor_name(db, winner)},
+        recipient=await directory.vendor_contact(db, winner), related_entity_id=payload.get("rfq_id"),
+    )
+    for vendor_id in payload.get("losing_vendor_ids") or []:
+        await dispatcher.notify(
+            db, event_type="rfq.awarded", template_name="rfq_not_selected",
+            context={**payload, "vendor_name": await directory.vendor_name(db, vendor_id)},
+            recipient=await directory.vendor_contact(db, vendor_id), related_entity_id=payload.get("rfq_id"),
+        )
+
+
+async def _handle_goods_received(db, payload: dict):
+    requester = await directory.requester_for_request_id(db, payload.get("request_id"))
+    recipient = await directory.resolve_recipient(db, requester)
+    await dispatcher.notify(
+        db, event_type="goods.received", template_name="goods_received",
+        context={**payload, "portal_url": _portal(f"/app/requests/{payload.get('request_id')}"),
+                 "received_at_text": _when(payload.get("received_at"))},
+        recipient=recipient, related_entity_id=payload.get("request_id"),
+    )
+
+
 _HANDLERS = {
+    "budget.threshold_crossed": _handle_budget_threshold_crossed,
+    "contract.obligation.due": _handle_contract_obligation_due,
+    "rfq.issued": _handle_rfq_issued,
+    "rfq.awarded": _handle_rfq_awarded,
+    "goods.received": _handle_goods_received,
     "document.classified": _handle_document_classified,
     "vendor.payment_details_flagged": _handle_vendor_payment_details_flagged,
     "license.usage.updated": _handle_license_usage_updated,

@@ -15,6 +15,8 @@ DIGEST = "digest"
 
 # Event types that are always time-sensitive enough to send immediately.
 _ALWAYS_URGENT = {
+    "rfq.issued",       # a vendor invitation with a deadline
+    "rfq.awarded",      # award / thank-you notes to vendors
     "approval.requested",
     "approval.decided",
     "contract.generated",
@@ -25,6 +27,7 @@ _ALWAYS_URGENT = {
 
 # Event types that are inherently routine/informational and safe to batch.
 _ALWAYS_DIGEST = {
+    "goods.received",   # the requester recorded it; a note for the record
     "license.usage.updated",
     "document.classified",
 }
@@ -54,6 +57,16 @@ def decide_priority(event_type: str, payload: Optional[dict] = None) -> str:
     if event_type == "contract.renewal.due":
         alert_level = str(payload.get("alert_level", ""))
         return URGENT if alert_level in urgent_renewal_alert_levels() else DIGEST
+
+    if event_type == "budget.threshold_crossed":
+        # Over budget needs a decision now; nearing the limit is routine.
+        return URGENT if payload.get("status") == "over" else DIGEST
+
+    if event_type == "contract.obligation.due":
+        if payload.get("kind") in ("breach", "overdue"):
+            return URGENT
+        days = payload.get("days_left")
+        return URGENT if isinstance(days, (int, float)) and days <= 7 else DIGEST
 
     if event_type in _ALWAYS_URGENT:
         return URGENT

@@ -1,0 +1,9 @@
+Subject: {{ reference }} awarded to you{% if vendor_name %}, {{ vendor_name }}{% endif +%}
+---
+Hello{% if vendor_name %} {{ vendor_name }}{% endif %},
+
+Thank you for your quotation. We are pleased to award {{ reference }} to you for INR {{ "{:,.0f}".format(total_inr) }}.
+
+A purchase order and contract follow once the internal approval is complete.
+
+— IT Procurement, Acme Corp

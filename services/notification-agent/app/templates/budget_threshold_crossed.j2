@@ -1,0 +1,18 @@
+Subject: Budget {{ department }} {{ category }} {{ period }} {{ fiscal_year }} is {{ "over" if status == "over" else "near its limit" }}
+---
+Hello,
+
+A new purchase request has taken a budget {{ "over its amount" if status == "over" else "past its warning threshold" }}.
+
+  Budget:          {{ department }} · {{ category }} · {{ period }} {{ fiscal_year }}
+  Budget amount:   INR {{ "{:,.0f}".format(budget_amount_inr) }}
+  Used now:        INR {{ "{:,.0f}".format(used_inr) }} (including this request)
+  Left:            INR {{ "{:,.0f}".format(left_inr) }}
+  Request:         {{ request_id }} by {{ requested_by }} for INR {{ "{:,.0f}".format(request_amount_inr) }}
+
+{% if status == "over" %}The request has an extra finance approval step (or was refused, if the rules block over-budget requests).
+{% else %}No action is needed yet; this is an early warning.
+{% endif +%}
+Budget: {{ portal_url }}
+
+— IT Procurement Platform
