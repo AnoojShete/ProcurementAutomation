@@ -13,7 +13,7 @@ cd "$ROOT_DIR"
 
 PROJECT_NAME=$(basename "$ROOT_DIR" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
 
-ALL_SERVICES=(contract-risk-agent approval-inventory-agent document-vendor-agent notification-agent auth-service)
+ALL_SERVICES=(contract-risk-agent approval-inventory-agent document-vendor-agent notification-agent auth-service chatbot-agent)
 
 run_one() {
   local svc="$1"

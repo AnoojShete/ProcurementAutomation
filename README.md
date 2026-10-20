@@ -160,7 +160,7 @@ flowchart TD
 Docker Engine + compose plugin on Linux; on Windows run inside WSL2), with
 about **8 GB of memory** given to Docker and ~20 GB of disk (images ~15 GB, plus models and build cache);
 internet for the first build. Optional: Python 3 for the end-to-end test
-scripts, Ollama for the assistant. Node isn't needed (the frontend builds
+scripts, Ollama for the assistant (retrieval-augmented: it answers from the platform's own contracts, documents and records, with citations). Node isn't needed (the frontend builds
 in a container).
 
 ```bash

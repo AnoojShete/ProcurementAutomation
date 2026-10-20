@@ -17,6 +17,7 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 COPY shared/ ./shared/
 COPY services/chatbot-agent/migrations/ ./migrations/
 COPY services/chatbot-agent/app/ ./app/
+COPY services/chatbot-agent/scripts/ ./scripts/
 COPY services/chatbot-agent/docker-entrypoint.sh .
 
 RUN chmod +x docker-entrypoint.sh

@@ -72,10 +72,17 @@ Shared contracts:
   optional model downloads (LayoutLMv3 ~500 MB, Legal-BERT ~440 MB) and
   the sanctions list (~78 MB).
 - **Ollama** on the host for the assistant (chatbot):
-  `brew install ollama && brew services start ollama && ollama pull llama3.2:3b`
-  (~2 GB; the smallest model with tool calling that works here —
-  `llama3.1`, 4.9 GB, chains tools better; set `LLM_MODEL_NAME` in `.env`).
-  Without it the rest of the platform works; the assistant can't answer.
+  `brew install ollama && brew services start ollama && ollama pull llama3.2:3b && ollama pull nomic-embed-text`
+  (~2.3 GB). The assistant is retrieval-augmented: it searches an index of
+  contract clauses, document text, business rules and current records
+  (requests, vendors, licences, budgets, totals) and answers only from what
+  it finds, citing the source (`CT-…`, `DOC-…`, `PR-…`, a rule key). The
+  index is built on start-up and kept current every minute; each chunk
+  carries who may see it (staff; the owner of a request, contract or
+  document; or everyone for rules and vendors), and bank details are masked
+  before indexing. Evaluation: `python tests/e2e/chatbot_eval.py` →
+  `docs/results/chatbot-eval.md`. Without Ollama the rest of the platform
+  works; the assistant can't answer.
 - **Python 3 + pip** on the host only for the end-to-end test scripts.
 - Node is **not** needed: `run.sh` builds the frontend in a container.
 - **Windows**: WSL2 with Docker Desktop's WSL integration; run `./run.sh`

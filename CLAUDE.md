@@ -61,6 +61,7 @@ python tests/e2e/budget_flow.py           # budgets: within/warning/over, financ
 python tests/e2e/obligation_flow.py       # contract obligations: read after signing, confirm, SLA credit, seat breach
 python tests/e2e/sourcing_flow.py         # catalog, RFQ (sealed, quote linking, award), partial receipts, scorecard
 python tests/e2e/risk_flow.py             # risk scorecard, clearance, decisions, evidence + signing/budget/RFQ integration
+python tests/e2e/chatbot_eval.py          # assistant (RAG): grounded answers, citations, access limits → docs/results/chatbot-eval.md
 python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service
@@ -170,8 +171,16 @@ in `docs/readmeforme.md` (Research experiment).
   run `./scripts/download-models.sh` once, or the LayoutLMv3 cross-check is
   skipped and clause extraction uses the regex rules.
 - The chatbot (Anooj's) needs Ollama on the host (`brew install ollama &&
-  brew services start ollama && ollama pull llama3.2:3b`); containers reach
-  it at `host.docker.internal:11434`. The model must support tool calling.
+  brew services start ollama && ollama pull llama3.2:3b && ollama pull
+  nomic-embed-text`); containers reach it at `host.docker.internal:11434`.
+  It is retrieval-augmented (RAG): `app/services/indexer.py` embeds contract
+  clauses, document text, business rules and current records into
+  `document_embeddings` (pgvector, so Postgres runs the
+  `pgvector/pgvector:…-pg16-trixie` image — same glibc as before; don't
+  switch to a bookworm tag, collations break) and keeps it current every
+  minute; `rag_service.retrieve` applies access per chunk. No function tools.
+  Rebuild the index now: `docker compose exec chatbot-agent python
+  scripts/backfill_embeddings.py`.
 - Snapshot data (the demo SSO log) is scored and counted as of its latest
   event, never "today" — otherwise every licence drifts to "abandoned".
 

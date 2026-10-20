@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +12,7 @@ from app.services.llm_client import query_llm_with_tools
 from shared.auth.middleware import get_current_user, CurrentUser
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/", response_model=ChatResponse)
 async def send_message(
@@ -35,10 +37,10 @@ async def send_message(
     history = list(history_res.scalars().all())[-10:]
 
     try:
-        # Pass the full user object to securely impersonate them!
-        reply = await query_llm_with_tools(history, user)
+        # The user object scopes both retrieval and tool calls to what this user may see.
+        reply = await query_llm_with_tools(history, user, db)
     except Exception as e:
-        print(f"LLM Call failed: {e}")
+        logger.error(f"Assistant reply failed: {type(e).__name__}: {e}", exc_info=True)
         reply = "Sorry, I am having trouble connecting to my AI brain."
 
     assistant_msg = ChatMessage(id=str(uuid.uuid4()), session_id=session_id, role="assistant", content=reply, created_at=datetime.now(timezone.utc))

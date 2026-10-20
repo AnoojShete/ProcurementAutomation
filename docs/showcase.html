@@ -277,8 +277,8 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
     <h2 class="t"><svg class="i"><use href="#check"/></svg>Evidence to quote</h2>
     <div class="tblwrap"><table class="tbl">
       <tr><th>Claim</th><th>Evidence (21 Oct 2026)</th></tr>
-      <tr><td>Tested per service</td><td>1,040 unit tests pass across the five services (document 334, approval 249, contract-risk 299, auth 100, notification 58)</td></tr>
-      <tr><td>Works end to end through the gateway</td><td><code>make e2e</code> 17/17 · invoice lifecycle through all agents 71/71 · budgets 30/30 · contract obligations 47/47 · sourcing 69/69 · risk 49/49 · demo scenarios 18/18 · document pipeline 48/52 (one timeout fixture now reads in time)</td></tr>
+      <tr><td>Tested per service</td><td>1,078 unit tests pass across the six services (document 334, approval 249, contract-risk 299, auth 100, notification 81, chatbot 15)</td></tr>
+      <tr><td>Works end to end through the gateway</td><td><code>make e2e</code> 17/17 · invoice lifecycle through all agents 71/71 · budgets 30/30 · contract obligations 47/47 · sourcing 69/69 · risk 49/49 · assistant 16/16 · demo scenarios 18/18 · document pipeline 48/52 (one timeout fixture now reads in time)</td></tr>
       <tr><td>Document reading measured</td><td>PDFs 100 % of fields; images 49 % (with preprocessing) — <code>docs/results/extraction.md</code></td></tr>
       <tr><td>Risk scoring auditable</td><td>Deterministic 100-point scorecard; any stored score replays to the same SHA-256 snapshot; <code>tests/e2e/risk_flow.py</code> 49/49 (merge review: <code>docs/risk-merge-review.md</code>). The earlier random forest (ROC-AUC 0.715) is archived</td></tr>
       <tr><td>Research measured</td><td>3,000 synthetic invoices: company records lift AUROC 0.74 → 0.94; today's rule accepts 41 % with 6.8 % wrong; no gate can be certified yet at ≤ 5 % — <code>docs/results/selective.md</code></td></tr>

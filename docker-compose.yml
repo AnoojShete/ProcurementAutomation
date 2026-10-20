@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16
+    # Postgres 16 + pgvector (chatbot RAG search). Debian trixie, the same glibc
+    # as the earlier postgres:16 image, so existing collations stay valid.
+    image: pgvector/pgvector:0.8.1-pg16-trixie
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}

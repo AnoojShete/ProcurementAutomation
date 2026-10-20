@@ -37,7 +37,7 @@ async def send_message(
     history = history_res.scalars().all()[-10:] # last 10 messages
 
     # Call LLM with Tool Calling!
-    reply = await query_llm_with_tools(history, user.id)
+    reply = await query_llm_with_tools(history, user, db)
 
     # Save Assistant message
     assistant_msg = ChatMessage(id=str(uuid.uuid4()), session_id=session_id, role="assistant", content=reply, created_at=datetime.now(timezone.utc))

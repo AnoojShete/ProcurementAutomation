@@ -377,7 +377,7 @@ const S = {
   riskModel: "ok", riskBeforeSign: "ok", riskHistory: "ok",
   lifecycle: "ok", ruleEngine: "ok", notify: "ok", platform: "ok",
   dropAuto: "ok", currency: "ok", match3: "ok", fraud: "ok", tracing: "ok",
-  eventLog: "ok", emailApprove: "ok", sod: "ok", licenceMl: "ok", assistant: "part", clauseModel: "ok", sanctions: "ok",
+  eventLog: "ok", emailApprove: "ok", sod: "ok", licenceMl: "ok", assistant: "ok", clauseModel: "ok", sanctions: "ok",
   // Feature expansion (docs/feature-expansion-plan.md), Phases 1–3
   budgets: "ok", obligations: "ok", catalog: "ok", rfq: "ok", receipts: "ok", scorecard: "ok",
 };
@@ -469,7 +469,7 @@ document.getElementById("chart").innerHTML = `
     ${card("activity", "Monitoring", [["platform", "Metrics · logs"], ["tracing", "Request tracing: one id across every service's logs", X]])}
   </div>
   <div class="grid" style="--n:1;margin-top:8px">
-    ${tile("chat", "Assistant", "assistant", "Ask about requests and orders in plain language (local LLM via Ollama)", X)}
+    ${tile("chat", "Assistant", "assistant", "Answers from the platform's own records (RAG over contracts, documents, rules, requests, vendors), cited, within each user's access; local LLM via Ollama", X)}
   </div></section>`;
 
 

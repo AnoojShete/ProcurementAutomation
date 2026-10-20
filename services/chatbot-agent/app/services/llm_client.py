@@ -1,126 +1,78 @@
+"""The procurement assistant's answer: retrieval-augmented generation.
+
+For every question:
+  1. retrieve  rag_service.retrieve() finds the passages closest to the
+               question in the index (contract clauses, invoice/quote text,
+               business rules, and current records: requests, vendors,
+               licences, budgets, totals), limited to what this user may see
+  2. generate  the local model (Ollama) answers from those passages only,
+               citing them, and says so when they don't contain the answer
+
+There are no function tools: the earlier version let the model choose API
+calls, which a small local model often got wrong (wrong arguments, tool
+calls printed as text). The records it used to fetch are now in the index,
+refreshed every minute (indexer.py), and access control is applied when
+retrieving, not left to the model.
+"""
 import httpx
-import json
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
+from app.services import rag_service
 from shared.auth.middleware import CurrentUser
-from app.services import context_service
 
-async def query_llm_with_tools(history: list, user: CurrentUser) -> str:
-    url = f"{settings.llm_api_base_url}/api/chat"
-    
-    # Simplified schemas: Removed empty parameters and required arrays
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "get_procurement_summary",
-                "description": "Fetches high-level executive procurement metrics including pending approvals, count of orders, and open order value."
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "list_my_requests",
-                "description": "Lists the latest purchase requests. Requesters see their own; staff see company-wide requests."
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "search_purchase_requests",
-                "description": "Searches purchase requests by status (e.g. 'pending', 'approved', 'rejected') or minimum dollar amount.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "status": {"type": "string", "description": "Filter by status: pending, approved, or rejected"},
-                        "amount_min": {"type": "number", "description": "Minimum request amount"}
-                    }
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_license_anomaly_summary",
-                "description": "Returns counts of SaaS licenses by anomaly status and potential annual savings."
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "search_vendors",
-                "description": "Searches for vendors by company name to find their vendor ID and status.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "Vendor name or part of name"}
-                    },
-                    "required": ["query"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_vendor_risk",
-                "description": "Fetches the risk score, risk band (low, medium, high), and top risk factors for a specific vendor ID.",
-                "parameters": {
-                    "type": "object", 
-                    "properties": {
-                        "vendor_id": {"type": "string", "description": "The exact UUID of the vendor"}
-                    }, 
-                    "required": ["vendor_id"]
-                }
-            }
-        }
-    ]
+HISTORY_TURNS = 6            # earlier turns kept for follow-up questions
 
-    messages = [{"role": m.role, "content": m.content} for m in history]
-    messages.insert(0, {
-        "role": "system", 
-        "content": (
-            f"You are the Procurement Assistant AI. The current user is '{user.email}' with role '{user.role}'.\n"
-            "Guidelines:\n"
-            "- If a vendor name is mentioned without an ID, call search_vendors first to get the vendor_id.\n"
-            "- If an API returns HTTP 403 Forbidden, politely explain that the user's role does not permit viewing that data.\n"
-            "- Always format results clearly with markdown bullet points and dollar values where appropriate."
-        )
-    })
+SYSTEM_PROMPT = (
+    "You are the procurement assistant of an IT procurement platform. The user is {email} (role: {role}).\n"
+    "You answer questions about contracts and their clauses, uploaded invoices/quotes/POs, purchase requests and "
+    "their status, vendors and their risk, licences, budgets and the platform's business rules.\n"
+    "Rules:\n"
+    "1. Use only the numbered PASSAGES given with the question. They come from the platform's records and are "
+    "current to the minute. Never use outside knowledge about contracts, vendors, prices or policies.\n"
+    "2. Read the passage that answers the question carefully and quote its key sentence in quotation marks, "
+    "then answer in one or two sentences. Copy numbers exactly as written.\n"
+    "3. Cite the passage reference in square brackets, e.g. [CT-1a2b3c4d] or [approval.spend_tiers].\n"
+    "4. Each passage is about the contract, vendor or record named at its start. If the question names a vendor, "
+    "contract or item that no passage mentions, say there is no record of it; don't answer from other passages.\n"
+    "5. If the passages don't contain the answer, say you couldn't find it in the platform's records. Never guess.\n"
+    "6. Never reveal bank account numbers or IFSC codes.\n"
+    "7. For questions unrelated to procurement on this platform (or greetings), reply briefly in plain text: say "
+    "what you can help with. Don't output JSON."
+)
 
-    payload = {"model": settings.llm_model_name, "messages": messages, "stream": False, "tools": tools}
 
+def search_query(history: list) -> str:
+    """What to retrieve for: the latest question, plus the one before it when
+    the latest is a short follow-up ("and for hardware?") that means little
+    on its own."""
+    asked = [m.content for m in history if m.role == "user"]
+    if not asked:
+        return ""
+    if len(asked) > 1 and len(asked[-1].split()) <= 8:
+        return f"{asked[-2]} {asked[-1]}"
+    return asked[-1]
+
+
+def build_messages(history: list, user: CurrentUser, hits: list) -> list[dict]:
+    turns = [{"role": m.role, "content": m.content} for m in history if m.role in ("user", "assistant")]
+    turns = turns[-(HISTORY_TURNS * 2 + 1):]
+    question = turns.pop() if turns and turns[-1]["role"] == "user" else {"role": "user", "content": ""}
+    passages = rag_service.as_context(hits)
+    return ([{"role": "system", "content": SYSTEM_PROMPT.format(email=user.email, role=user.role)}]
+            + turns
+            + [{"role": "user", "content": f"PASSAGES:\n{passages}\n\nQUESTION: {question['content']}"}])
+
+
+async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSession) -> str:
+    """Kept under its old name so the chat endpoint's call doesn't change."""
+    try:
+        hits = await rag_service.retrieve(db, user, search_query(history))
+    except Exception:                    # index or embedding model unavailable: answer without passages
+        hits = []
     async with httpx.AsyncClient(timeout=180.0) as client:
-        response = await client.post(url, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        message = data.get("message", {})
-
-        if "tool_calls" in message and message["tool_calls"]:
-            messages.append(message)
-            
-            for tool in message["tool_calls"]:
-                name = tool["function"]["name"]
-                args = tool["function"].get("arguments", {})
-                
-                if name == "get_procurement_summary":
-                    result = await context_service.fetch_procurement_summary(user)
-                elif name == "list_my_requests":
-                    result = await context_service.fetch_my_requests(user)
-                elif name == "search_purchase_requests":
-                    result = await context_service.search_purchase_requests(user, status=args.get("status"), amount_min=args.get("amount_min"))
-                elif name == "get_license_anomaly_summary":
-                    result = await context_service.fetch_license_anomaly_summary(user)
-                elif name == "search_vendors":
-                    result = await context_service.search_vendors(user, query=args.get("query", ""))
-                elif name == "get_vendor_risk":
-                    result = await context_service.fetch_vendor_risk(user, args.get("vendor_id", ""))
-                else:
-                    result = json.dumps({"error": f"Unknown tool: {name}"})
-                
-                messages.append({"role": "tool", "content": result})
-            
-            payload["messages"] = messages
-            final_response = await client.post(url, json=payload)
-            final_data = final_response.json()
-            return final_data.get("message", {}).get("content", "Error generating response.")
-        
-        return message.get("content", "I could not generate a response.")
+        r = await client.post(f"{settings.llm_api_base_url}/api/chat", json={
+            "model": settings.llm_model_name, "messages": build_messages(history, user, hits), "stream": False,
+            "options": {"temperature": 0}})
+        r.raise_for_status()
+        return r.json().get("message", {}).get("content") or "I could not generate a response."
