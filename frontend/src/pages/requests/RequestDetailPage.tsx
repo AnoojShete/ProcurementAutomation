@@ -273,7 +273,7 @@ export function RequestDetailPage() {
 
         <div className="flex min-w-0 flex-col gap-6 xl:col-span-4">
           <ProcurementAssessment request={request} vendorRisk={vendorRisk} vendorRiskLoading={vendorRiskLoading} />
-          {["approved", "ordered", "fulfilled", "partially_invoiced", "invoice_received"].includes(request.status ?? "") && (
+          {["approved", "ordered", "partially_received", "fulfilled", "partially_invoiced", "invoice_received"].includes(request.status ?? "") && (
             <InvoiceLedgerCard requestId={request.id} currency={request.currency ?? "INR"} />
           )}
 

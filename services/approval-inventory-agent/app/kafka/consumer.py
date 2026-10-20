@@ -264,7 +264,7 @@ async def apply_received(session, req: PurchaseRequest, received_by: str) -> str
     ).first() is not None
     if received_before:
         raise NotReceivable("this request was already marked as received")
-    if req.status != "ordered" and not already_past(req.status, "fulfilled"):
+    if req.status not in ("ordered", "partially_received") and not already_past(req.status, "fulfilled"):
         raise NotReceivable(
             f"request is '{req.status}': it can be marked received once its contract is signed (status 'ordered')"
         )
@@ -274,11 +274,13 @@ async def apply_received(session, req: PurchaseRequest, received_by: str) -> str
     ).scalar_one_or_none()
     now = datetime.now(timezone.utc)
     outcome = []
-    if req.status == "ordered":
+    if req.status in ("ordered", "partially_received"):
         req.status = "fulfilled"
         req.updated_at = now
         outcome.append("fulfilled")
-    if req.request_type in ("license", "saas"):
+    # Phase 3 catalog seat add-ons: the seats bought are added to the licence.
+    added = await _apply_seat_addons(session, req)
+    if req.request_type in ("license", "saas") and not added:
         if not await _activate_license_for_request(session, req, contract):
             logger.warning(f"No license found to activate for {req.request_type} request {req.id}")
     elif req.request_type == "hardware":
@@ -292,6 +294,26 @@ async def apply_received(session, req: PurchaseRequest, received_by: str) -> str
     result = "+".join(outcome)
     logger.info(f"request {req.id} marked received by {received_by}: {result}")
     return result
+
+
+async def _apply_seat_addons(session, req: PurchaseRequest) -> list:
+    """Lines bought from the catalog as seats on an existing licence
+    (`seat_addon`) increase its total_seats, so the licence model and the
+    reclaim logic see them at once. Runs inside apply_received's
+    once-only fulfilment."""
+    added = []
+    for item in req.items or []:
+        if not item.get("seat_addon") or not item.get("license_id"):
+            continue
+        lic = (await session.execute(select(License).where(License.id == item["license_id"]))).scalar_one_or_none()
+        if lic is None:
+            continue
+        qty = int(item.get("quantity") or 0)
+        lic.total_seats = (lic.total_seats or 0) + qty
+        lic.status = "active"
+        added.append((lic.id, qty))
+        logger.info(f"Seat add-on: {lic.app_name} ({lic.id}) +{qty} seats -> {lic.total_seats} (request {req.id})")
+    return added
 
 
 async def _activate_license_for_request(session, req: PurchaseRequest, contract) -> bool:

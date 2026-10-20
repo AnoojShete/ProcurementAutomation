@@ -21,7 +21,7 @@ export function ApprovalChainVisual({ request }: { request: PurchaseRequest }) {
         const approverIndex = i - 1;
         let state: "completed" | "current" | "pending" | "failed" = "pending";
         if (isRequester) state = "completed";
-        else if (isFinal) state = ["approved", "ordered", "fulfilled"].includes(request.status ?? "") ? "completed" : rejected ? "failed" : "pending";
+        else if (isFinal) state = ["approved", "ordered", "partially_received", "fulfilled"].includes(request.status ?? "") ? "completed" : rejected ? "failed" : "pending";
         else if (rejected && approverIndex <= request.current_approver_index) state = "failed";
         else if (approverIndex < request.current_approver_index) state = "completed";
         else if (approverIndex === request.current_approver_index && request.status === "pending_approval") state = "current";

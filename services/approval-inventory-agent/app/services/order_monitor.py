@@ -195,7 +195,7 @@ async def _load_orders(db) -> list[OrderRow]:
                      ORDER BY c.generated_at DESC NULLS LAST LIMIT 1) AS contract_status
             FROM purchase_requests pr
             LEFT JOIN vendors v ON v.id = pr.vendor_id
-            WHERE pr.status IN ('pending_approval', 'approved', 'ordered', 'fulfilled', 'partially_invoiced', 'backordered')
+            WHERE pr.status IN ('pending_approval', 'approved', 'ordered', 'partially_received', 'fulfilled', 'partially_invoiced', 'backordered')
                OR COALESCE(pr.is_backordered, false)
                OR COALESCE(pr.updated_at, pr.created_at) >= now() - interval '7 days'
         """))
@@ -261,7 +261,7 @@ async def reconcile(performed_by: str = "order-monitor") -> list[dict]:
                 SELECT pr.id FROM purchase_requests pr
                 JOIN (SELECT purchase_request_id, sum(amount) AS invoiced FROM invoice_allocations
                       GROUP BY purchase_request_id) a ON a.purchase_request_id = pr.id
-                WHERE pr.status IN ('approved', 'ordered', 'fulfilled', 'partially_invoiced')
+                WHERE pr.status IN ('approved', 'ordered', 'partially_received', 'fulfilled', 'partially_invoiced')
                   AND a.invoiced >= pr.amount * 0.99
             """))
         ).all()

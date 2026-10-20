@@ -55,6 +55,9 @@ async def lifespan(app: FastAPI):
     # Phase 2: read signed contracts' obligations; reminders and licence limits.
     from app.services.obligation_service import run_obligation_sweeps
     obligation_task = asyncio.create_task(run_obligation_sweeps(async_session_factory, app.state.kafka_producer))
+    # Phase 3c: vendor scorecards, refreshed nightly (and on each vendor page view).
+    from app.services.scorecard import run_nightly
+    scorecard_task = asyncio.create_task(run_nightly(async_session_factory))
     # FR-13: load the Legal-BERT clause model now (~6 s) rather than on the
     # first contract; without a downloaded model this just logs a warning.
     from app.services import clause_model
@@ -62,7 +65,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task, sanctions_task, obligation_task):
+    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task, sanctions_task, obligation_task, scorecard_task):
         task.cancel()
         try:
             await task

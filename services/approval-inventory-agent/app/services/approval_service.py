@@ -92,7 +92,8 @@ class ApprovalService:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_request(self, data: CreatePurchaseRequest, document_id: str | None = None) -> PurchaseRequest:
+    async def create_request(self, data: CreatePurchaseRequest, document_id: str | None = None,
+                             rfq_id: str | None = None) -> PurchaseRequest:
         """Create a new purchase request with proper tier routing.
         
         Flow:
@@ -104,6 +105,18 @@ class ApprovalService:
         6. If auto-approved (tier=auto), immediately approve
         7. Otherwise, start Temporal approval workflow
         """
+        # 0. Catalog lines (Phase 3): agreed price, vendor and type come from
+        # the catalog, not from the client.
+        from app.services import catalog_service
+        catalog = None
+        if data.request_type not in ("reclaim", "reinstate"):
+            catalog = await catalog_service.resolve_items(self.db, data.items)
+        if catalog is not None:
+            if data.vendor_id and catalog.vendor_id and str(data.vendor_id) != str(catalog.vendor_id):
+                raise catalog_service.CatalogError("catalog_vendor", "the catalog items come from a different vendor")
+            data.items, data.amount, data.request_type = catalog.items, catalog.amount, catalog.request_type
+            data.vendor_id = catalog.vendor_id or data.vendor_id
+
         # 1. Determine spend tier
         if data.request_type == "reinstate":
             tier_name = "manager"
@@ -187,6 +200,20 @@ class ApprovalService:
             raise
         if budget_check is not None:
             budget_check.routing = routing
+        # Phase 3: a pre-approved catalog price replaces the manager step.
+        if catalog_service.preapproved(catalog):
+            approval_chain = catalog_service.drop_manager_step(approval_chain)
+            routing = [*routing, "catalog_preapproved"]
+            if budget_check is not None:
+                budget_check.routing = routing
+            if not approval_chain:
+                tier_name = "catalog"
+        sourcing_flags = list(catalog.flags) if catalog else []
+        from app.services.sourcing_service import rfq_flag
+        flag = rfq_flag(data.amount, spends_money=budget_service.category_for(data.request_type) is not None,
+                        all_catalog=bool(catalog and catalog.all_catalog), from_rfq=rfq_id is not None)
+        if flag:
+            sourcing_flags.append(flag)
 
         # 4. Insert into DB. Nothing in stock at all: the request itself waits
         # for stock — no split into an empty ₹0 "immediate" request that
@@ -213,6 +240,8 @@ class ApprovalService:
             budget_status=budget_check.status if budget_check else None,
             budget_check=(budget_check.to_dict() if budget_check
                           else ({"routing": routing} if routing else None)),
+            sourcing_flags=sourcing_flags or None,
+            rfq_id=rfq_id,
             comments=(f"Backordered: no stock; {data.comments}" if data.comments else "Backordered: no stock")
             if nothing_in_stock else data.comments,
             status="backordered" if nothing_in_stock else "pending_approval",
@@ -263,7 +292,7 @@ class ApprovalService:
         # 6. If auto-approved, immediately approve and publish decided event.
         # Keyed on the chain, not the tier: a small request that the budget
         # or vendor-risk rules gave a finance step is not auto-approved.
-        if tier_name == "auto" and not approval_chain:
+        if tier_name in ("auto", "catalog") and not approval_chain:
             req.status = "approved"
             now = datetime.now(timezone.utc)
 
@@ -275,7 +304,8 @@ class ApprovalService:
                 decided_by="system",
                 decision_level="auto",
                 escalated=False,
-                comments="Auto-approved: amount within auto-approval threshold",
+                comments=("Auto-approved: pre-approved catalog price" if tier_name == "catalog"
+                          else "Auto-approved: amount within auto-approval threshold"),
                 decided_at=now,
             )
             self.db.add(history)
@@ -287,7 +317,7 @@ class ApprovalService:
                 entity_id=req.id,
                 action="auto_approved",
                 performed_by="system",
-                details={"tier": "auto", "amount": float(data.amount)},
+                details={"tier": tier_name, "amount": float(data.amount)},
             )
             self.db.add(audit)
             outbox = staged(self.producer, self.db)

@@ -32,7 +32,7 @@ export function LedgerPanel() {
   const open = useMemo(
     () =>
       (requests ?? []).filter(
-        (r) => r.vendor_id && ["approved", "ordered", "fulfilled", "partially_invoiced"].includes(r.status ?? "") && (r.items?.length ?? 0) > 0,
+        (r) => r.vendor_id && ["approved", "ordered", "partially_received", "fulfilled", "partially_invoiced"].includes(r.status ?? "") && (r.items?.length ?? 0) > 0,
       ),
     [requests],
   );

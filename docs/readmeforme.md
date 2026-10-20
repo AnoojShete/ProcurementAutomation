@@ -431,6 +431,49 @@ reclaims never go below a confirmed minimum commitment
 `obligation_events`, `sla_credits` (contract-risk Alembic `0008`).
 `python tests/e2e/obligation_flow.py` checks the whole flow.
 
+### Sourcing (feature expansion Phase 3)
+
+**IT catalog** (`/app/catalog`, approval agent `catalog_service.py`): approved
+items with an agreed price, vendor, lead time, warranty and an optional
+`valid_until`. A request line `{"catalog_item_id", "quantity"}` takes its
+price, vendor and request type from the catalog whatever the client sent; a
+switched-off or expired item is refused (`422 catalog_unavailable`), and
+items from two vendors go in separate requests. Hardware items with a stock
+SKU reserve stock as usual. A *seat add-on* (item linked to a licence) adds
+its seats to `licenses.total_seats` when the request is received, and is
+flagged if it would exceed the contract's confirmed seat limit (Phase 2).
+`catalog.preapproved_max_inr` (default 0 = off) drops the manager step for
+catalog-only requests up to that amount; finance steps stay.
+
+**RFQs** (`/app/sourcing`, `sourcing_service.py`): finance or admin invites
+two or more vendors with a deadline. Quotes come in by hand or from the
+document pipeline: a quote whose text carries the RFQ reference
+(`RFQ-3F9A2C`) from an invited vendor is linked within 30 s
+(`sweep_quotes`). While an RFQ is sealed and open, the API returns who has
+quoted but no amounts, to every role. It closes at the deadline (or earlier
+once everyone quoted); then each quote is scored 0–1 per criterion among the
+round's quotes and weighted by `sourcing.default_criteria` (price, lead
+time, warranty, support rating, vendor risk band, on-time rate from the
+scorecard; unknown = 0.5). A shortlist can go to another round; *award*
+creates the purchase request (budget check and approval as usual,
+`rfq_id` set). A request above `sourcing.rfq_required_above_inr` with no RFQ
+or catalog price gets an advisory note on its page. Events `rfq.issued`,
+`rfq.awarded`.
+
+**Partial receipts** (`receipt_service.py`, `POST /api/requests/{id}/receipts`):
+deliveries per line with asset tags; the first partial one moves the request
+to `partially_received`, the one that completes it to `fulfilled` (licence
+activation, stock release and seat add-ons happen then, once). *Mark as
+received* records whatever is still outstanding. Once a request has
+receipts, an invoice line for more than has been received is a variance
+(`invoice.match_against_received`). Event `goods.received`.
+
+**Vendor scorecard** (contract-risk `scorecard.py`, `GET /api/vendors/{id}/scorecard`,
+table `vendor_scorecards`): on-time delivery rate, invoice accuracy (matched
+without variance), RFQ response rate, SLA breach months and risk band;
+recomputed on each vendor page view and nightly.
+`python tests/e2e/sourcing_flow.py` checks all four.
+
 ### Research experiment (selective automation)
 
 The study in [RESEARCH_PAPER_PLAN.md](RESEARCH_PAPER_PLAN.md) runs on

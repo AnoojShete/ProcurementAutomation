@@ -27,7 +27,8 @@ export function deriveLifecycle(
   const rejected = status === "rejected";
   // Past fulfilment: received, or invoiced after receipt.
   const fulfilled = ["fulfilled", "partially_invoiced", "invoice_received"].includes(status);
-  const ordered = status === "ordered";
+  const partlyReceived = status === "partially_received";
+  const ordered = status === "ordered" || partlyReceived;
   const approved = status === "approved" || ordered || fulfilled;
   const hasChain = (request.approval_chain?.length ?? 0) > 0;
 
@@ -130,7 +131,7 @@ export function deriveLifecycle(
     key: "fulfillment",
     label: "Fulfillment",
     state: rejected ? "blocked" : fulfilled ? "completed" : ordered ? "current" : "pending",
-    detail: ordered ? "Waiting on delivery" : undefined,
+    detail: partlyReceived ? "Partly received; the rest is on its way" : ordered ? "Waiting on delivery" : undefined,
   });
 
   return stages;
@@ -146,6 +147,8 @@ export function requestStatusLabel(status: string | null | undefined): string {
       return "Rejected";
     case "ordered":
       return "Ordered";
+    case "partially_received":
+      return "Partly received";
     case "fulfilled":
       return "Fulfilled";
     default:

@@ -29,7 +29,7 @@ export function FinanceDashboard() {
   const monthlySpend = useMemo(() => {
     const now = new Date();
     return (requests ?? [])
-      .filter((r) => ["approved", "ordered", "fulfilled"].includes(r.status ?? "") && r.created_at)
+      .filter((r) => ["approved", "ordered", "partially_received", "fulfilled"].includes(r.status ?? "") && r.created_at)
       .filter((r) => {
         const d = new Date(r.created_at!);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -40,7 +40,7 @@ export function FinanceDashboard() {
   const spendByCategory = useMemo(() => {
     const map = new Map<string, number>();
     (requests ?? [])
-      .filter((r) => ["approved", "ordered", "fulfilled"].includes(r.status ?? ""))
+      .filter((r) => ["approved", "ordered", "partially_received", "fulfilled"].includes(r.status ?? ""))
       .forEach((r) => {
         const key = r.request_type ?? "other";
         map.set(titleCase(key), (map.get(titleCase(key)) ?? 0) + (r.amount ?? 0));

@@ -44,7 +44,7 @@ export function ApproverDashboard() {
       return new Date(i.sla_deadline).getTime() < now;
     }).length;
     const approvedThisMonth = (allRequests ?? []).filter((r) => {
-      if (!["approved", "ordered", "fulfilled"].includes(r.status ?? "")) return false;
+      if (!["approved", "ordered", "partially_received", "fulfilled"].includes(r.status ?? "")) return false;
       const decidedByMe = r.approval_history?.some((h) => h.decided_by === user?.email && h.decision === "approved");
       if (!decidedByMe) return false;
       const d = r.updated_at ? new Date(r.updated_at) : null;

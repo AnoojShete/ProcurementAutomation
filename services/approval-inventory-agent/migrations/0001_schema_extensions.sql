@@ -335,3 +335,123 @@ BEGIN
       CHECK (budget_status IS NULL OR budget_status IN ('within', 'warning', 'over', 'no_budget'));
   END IF;
 END $$;
+
+-- Feature expansion Phase 3 (docs/feature-expansion-plan.md): IT catalog,
+-- RFQ events, partial goods receipts. New tables, nullable columns, and one
+-- widened status check (adds 'partially_received'; no existing row changes).
+CREATE TABLE IF NOT EXISTS catalog_items (
+  id UUID PRIMARY KEY,
+  sku VARCHAR(64) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  category VARCHAR(20) NOT NULL,            -- hardware | software | saas | services
+  vendor_id UUID REFERENCES vendors(id),
+  contract_id UUID,                         -- where the price comes from (contract-risk's contracts)
+  unit_price NUMERIC(12, 2) NOT NULL,
+  currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+  spec JSONB NOT NULL DEFAULT '{}'::jsonb,
+  inventory_sku VARCHAR(100),               -- stock first: reserved from inventory when available
+  license_id UUID REFERENCES licenses(id),  -- SaaS seat add-on: receiving it adds seats
+  lead_time_days INTEGER,
+  warranty_months INTEGER,
+  active BOOLEAN NOT NULL DEFAULT true,
+  valid_until DATE,
+  created_by VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_catalog_items_sku ON catalog_items (lower(sku));
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_catalog_items_values') THEN
+    ALTER TABLE catalog_items ADD CONSTRAINT ck_catalog_items_values CHECK (
+      unit_price >= 0 AND unit_price <> 'NaN'::numeric
+      AND category IN ('hardware', 'software', 'saas', 'services')
+      AND (lead_time_days IS NULL OR lead_time_days >= 0)
+      AND (warranty_months IS NULL OR warranty_months >= 0));
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS rfq_events (
+  id UUID PRIMARY KEY,
+  reference VARCHAR(10) NOT NULL UNIQUE,    -- RFQ-XXXXXX, quoted by vendors on their quotes
+  title VARCHAR(255) NOT NULL,
+  department VARCHAR(255) NOT NULL,
+  request_type VARCHAR(20) NOT NULL,
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  criteria JSONB NOT NULL,                  -- weights per criterion, summing to 1
+  sealed BOOLEAN NOT NULL DEFAULT true,
+  round INTEGER NOT NULL DEFAULT 1,
+  deadline TIMESTAMPTZ NOT NULL,
+  status VARCHAR(12) NOT NULL DEFAULT 'open',
+  created_by VARCHAR(255) NOT NULL,
+  awarded_vendor_id UUID,
+  awarded_response_id UUID,
+  awarded_request_id UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS rfq_invitations (
+  rfq_id UUID NOT NULL REFERENCES rfq_events(id),
+  vendor_id UUID NOT NULL REFERENCES vendors(id),
+  round INTEGER NOT NULL DEFAULT 1,
+  invited_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  responded_at TIMESTAMPTZ,
+  declined_reason TEXT,
+  PRIMARY KEY (rfq_id, vendor_id, round)
+);
+CREATE TABLE IF NOT EXISTS rfq_responses (
+  id UUID PRIMARY KEY,
+  rfq_id UUID NOT NULL REFERENCES rfq_events(id),
+  vendor_id UUID NOT NULL REFERENCES vendors(id),
+  round INTEGER NOT NULL,
+  quote_id UUID,                            -- document-vendor-agent's vendor_quotes, when it came as a quote
+  total_inr NUMERIC(14, 2) NOT NULL,
+  lead_time_days INTEGER,
+  warranty_months INTEGER,
+  support_rating INTEGER,                   -- 1..5, the buyer's reading of the support terms
+  support_terms TEXT,
+  line_items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  source VARCHAR(10) NOT NULL DEFAULT 'manual',
+  submitted_by VARCHAR(255),
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (rfq_id, vendor_id, round)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rfq_responses_quote ON rfq_responses (quote_id) WHERE quote_id IS NOT NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rfq_events_status') THEN
+    ALTER TABLE rfq_events ADD CONSTRAINT ck_rfq_events_status
+      CHECK (status IN ('open', 'closed', 'awarded', 'cancelled'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rfq_responses_values') THEN
+    ALTER TABLE rfq_responses ADD CONSTRAINT ck_rfq_responses_values CHECK (
+      total_inr >= 0 AND total_inr <> 'NaN'::numeric
+      AND (support_rating IS NULL OR support_rating BETWEEN 1 AND 5)
+      AND source IN ('manual', 'quote'));
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS goods_receipts (
+  id UUID PRIMARY KEY,
+  request_id UUID NOT NULL REFERENCES purchase_requests(id),
+  lines JSONB NOT NULL,                     -- [{"line_no", "quantity", "asset_tags": [...]}]
+  received_by VARCHAR(255) NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  notes TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_goods_receipts_request ON goods_receipts (request_id);
+
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS sourcing_flags JSONB;
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS rfq_id UUID REFERENCES rfq_events(id);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_requests_status')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_requests_status'
+                     AND pg_get_constraintdef(oid) LIKE '%partially_received%') THEN
+    ALTER TABLE purchase_requests DROP CONSTRAINT ck_purchase_requests_status;
+    ALTER TABLE purchase_requests ADD CONSTRAINT ck_purchase_requests_status CHECK (status IN (
+      'pending_approval', 'pending_grace_period', 'backordered', 'approved', 'ordered', 'partially_received',
+      'fulfilled', 'partially_invoiced', 'invoice_received', 'rejected', 'cancelled', 'split'));
+  END IF;
+END $$;

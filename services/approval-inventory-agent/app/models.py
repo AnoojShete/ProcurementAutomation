@@ -129,6 +129,10 @@ class PurchaseRequest(Base):
     budget_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("budgets.id"))
     budget_status: Mapped[Optional[str]] = mapped_column(String(12))
     budget_check: Mapped[Optional[dict]] = mapped_column(JSON)
+    # Phase 3: advisory notes for the request page (e.g. "above the RFQ
+    # threshold with no RFQ or catalog price"), and the RFQ it was awarded from.
+    sourcing_flags: Mapped[Optional[list]] = mapped_column(JSON)
+    rfq_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("rfq_events.id"))
 
     @property
     def is_over_budget(self) -> bool:
@@ -255,6 +259,95 @@ class Inventory(Base):
     reorder_quantity: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class CatalogItem(Base):
+    """Phase 3: an approved IT item with its agreed price (catalog_service.py)."""
+    __tablename__ = "catalog_items"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid.uuid4()))
+    sku: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[str] = mapped_column(String(20), nullable=False)
+    vendor_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendors.id"))
+    contract_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="INR")
+    spec: Mapped[dict] = mapped_column(JSON, default=dict)
+    inventory_sku: Mapped[Optional[str]] = mapped_column(String(100))
+    license_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("licenses.id"))
+    lead_time_days: Mapped[Optional[int]] = mapped_column(Integer)
+    warranty_months: Mapped[Optional[int]] = mapped_column(Integer)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    valid_until: Mapped[Optional[date]] = mapped_column(Date)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class RfqEvent(Base):
+    """Phase 3: a request for quotation (sourcing_service.py)."""
+    __tablename__ = "rfq_events"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid.uuid4()))
+    reference: Mapped[str] = mapped_column(String(10), nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    department: Mapped[str] = mapped_column(String(255), nullable=False)
+    request_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    items: Mapped[list] = mapped_column(JSON, default=list)
+    criteria: Mapped[dict] = mapped_column(JSON, nullable=False)
+    sealed: Mapped[bool] = mapped_column(Boolean, default=True)
+    round: Mapped[int] = mapped_column(Integer, default=1)
+    deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(12), default="open")
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    awarded_vendor_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    awarded_response_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    awarded_request_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class RfqInvitation(Base):
+    __tablename__ = "rfq_invitations"
+
+    rfq_id: Mapped[str] = mapped_column(Uuid, ForeignKey("rfq_events.id"), primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"), primary_key=True)
+    round: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    invited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    responded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    declined_reason: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class RfqResponse(Base):
+    __tablename__ = "rfq_responses"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid.uuid4()))
+    rfq_id: Mapped[str] = mapped_column(Uuid, ForeignKey("rfq_events.id"), nullable=False)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"), nullable=False)
+    round: Mapped[int] = mapped_column(Integer, nullable=False)
+    quote_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    total_inr: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    lead_time_days: Mapped[Optional[int]] = mapped_column(Integer)
+    warranty_months: Mapped[Optional[int]] = mapped_column(Integer)
+    support_rating: Mapped[Optional[int]] = mapped_column(Integer)
+    support_terms: Mapped[Optional[str]] = mapped_column(Text)
+    line_items: Mapped[list] = mapped_column(JSON, default=list)
+    source: Mapped[str] = mapped_column(String(10), default="manual")
+    submitted_by: Mapped[Optional[str]] = mapped_column(String(255))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class GoodsReceipt(Base):
+    """Phase 3: one delivery against a request (receipt_service.py)."""
+    __tablename__ = "goods_receipts"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid.uuid4()))
+    request_id: Mapped[str] = mapped_column(Uuid, ForeignKey("purchase_requests.id"), nullable=False)
+    lines: Mapped[list] = mapped_column(JSON, nullable=False)
+    received_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
 
 
 class AuditLog(Base):

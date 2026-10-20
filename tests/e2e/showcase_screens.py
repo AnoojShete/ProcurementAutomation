@@ -243,8 +243,101 @@ async def inventory(s, admin):
                  scroll_to="text=Reorder Suggestions")
 
 
+def _partly_received(admin) -> str:
+    """A request with 30 of 50 laptops received (made if there is none)."""
+    import hashlib, hmac, json
+    from datetime import datetime, timezone
+    reqs = requests.get(f"{API}/requests/?limit=200", headers=H(admin), timeout=30).json()["data"]
+    found = next((r for r in reqs if r.get("status") == "partially_received"), None)
+    if found:
+        return found["id"]
+    req_t, appr, fin = token("requester"), token("approver"), token("finance")
+    pr = requests.post(f"{API}/requests/", headers=H(req_t), timeout=30, json={
+        "request_type": "hardware", "requested_by": "x", "department": "Engineering", "amount": 4250000, "currency": "INR",
+        "vendor_id": VENDOR, "items": [{"name": "Dell Latitude 5540, 16 GB", "quantity": 50, "unit_price": 85000}]}).json()["data"]
+    for tok in (appr, fin, admin):
+        if requests.get(f"{API}/requests/{pr['id']}", headers=H(admin), timeout=30).json()["data"]["status"] != "pending_approval":
+            break
+        requests.post(f"{API}/requests/{pr['id']}/approve", headers=H(tok), json={"comments": "showcase"}, timeout=30)
+        time.sleep(3)
+    contract = None
+    for _ in range(30):
+        contract = next((c for c in requests.get(f"{API}/contracts/?limit=100", headers=H(admin), timeout=30).json()["data"]
+                         if c["purchase_request_id"] == pr["id"] and c["status"] == "pending_signature"), None)
+        if contract:
+            break
+        time.sleep(2)
+    if contract is None:
+        raise RuntimeError("no contract went out for the showcase request")
+    secret = os.environ.get("ESIGN_WEBHOOK_SECRET", "dev-esign-secret-change-me")
+    body = {"provider_event_id": f"evt-showcase-{pr['id'][:8]}", "contract_id": contract["id"], "signed_by": "vendor@acme.example",
+            "signed_at": datetime.now(timezone.utc).isoformat()}
+    body["signature"] = hmac.new(secret.encode(), json.dumps(body, sort_keys=True, separators=(",", ":")).encode(), hashlib.sha256).hexdigest()
+    requests.post(f"{API}/webhooks/esign", json=body, timeout=30)
+    time.sleep(4)
+    r = requests.post(f"{API}/requests/{pr['id']}/receipts", headers=H(req_t), timeout=30, json={
+        "lines": [{"line_no": 0, "quantity": 30, "asset_tags": ["LT-0101", "LT-0102", "LT-0103"]}], "notes": "first delivery"})
+    r.raise_for_status()
+    return pr["id"]
+
+
+SHOWCASE_RFQ = "Developer laptop refresh, Q3"
+# Real-looking demo vendors only, never the e2e suites' test vendors.
+SHOWCASE_VENDORS = ["Acme IT Supplies Inc", "Dell Technologies India Pvt Ltd", "HP India Sales Pvt Ltd", "Freshworks Inc",
+                    "Lenovo India Pvt Ltd"]
+
+
+def _showcase_rfq() -> str:
+    """A closed RFQ between demo vendors, ready to award (made once)."""
+    from datetime import datetime, timedelta, timezone
+    fin = token("finance")
+    existing = next((r for r in requests.get(f"{API}/rfqs/", headers=H(fin), timeout=30).json()["data"]
+                     if r["title"] == SHOWCASE_RFQ and r["status"] in ("closed", "awarded")), None)
+    if existing:
+        return existing["id"]
+    names = {v["name"]: v["id"] for v in requests.get(f"{API}/vendors/?limit=500", headers=H(fin), timeout=30).json()["data"]}
+    vendors = [names[n] for n in SHOWCASE_VENDORS if n in names][:3]
+    if len(vendors) < 2:
+        raise RuntimeError(f"need two of {SHOWCASE_VENDORS} for the RFQ shot (run ./scripts/reset-demo.sh)")
+    r = requests.post(f"{API}/rfqs/", headers=H(fin), timeout=30, json={
+        "title": SHOWCASE_RFQ, "department": "Engineering", "request_type": "hardware", "sealed": True,
+        "items": [{"name": "Developer laptop, 32 GB, 3-year on-site warranty", "quantity": 25}],
+        "vendor_ids": vendors, "deadline": (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()})
+    r.raise_for_status()
+    rid = r.json()["data"]["id"]
+    terms = [(2287500, 7, 36, 4), (2190000, 21, 12, 3), (2340000, 5, 36, 5)]
+    for vid, (total, lead, warranty, support) in zip(vendors, terms):
+        requests.post(f"{API}/rfqs/{rid}/responses", headers=H(fin), timeout=30, json={
+            "vendor_id": vid, "total_inr": total, "lead_time_days": lead, "warranty_months": warranty,
+            "support_rating": support}).raise_for_status()
+    requests.post(f"{API}/rfqs/{rid}/close", headers=H(fin), timeout=30).raise_for_status()
+    return rid
+
+
+async def expansion(s, admin):
+    """Feature expansion Phases 1-3: budgets, obligations, catalog, RFQ,
+    partial receipts, vendor scorecard."""
+    await s.shot("expansion", "01-budgets.png", "finance", "/app/budgets", "text=Budgeted")
+    contracts = requests.get(f"{API}/contracts/?limit=200", headers=H(admin), timeout=30).json()["data"]
+    with_obligations = next((c for c in contracts if c.get("status") == "signed" and c.get("template_used") == "saas_subscription"
+                             and requests.get(f"{API}/contracts/{c['id']}/obligations", headers=H(admin), timeout=30)
+                             .json()["data"]["obligations"]), None)
+    if with_obligations is None:
+        raise RuntimeError("no signed SaaS contract with obligations (run tests/e2e/obligation_flow.py first)")
+    await s.shot("expansion", "02-obligations.png", "finance", f"/app/contracts/{with_obligations['id']}",
+                 "text=SLA uptime and service credits", scroll_to="h3:text-is('Obligations')")
+    await s.shot("expansion", "03-catalog.png", "requester", "/app/catalog", "text=Dell Latitude 5540")
+    rfq_id = _showcase_rfq()
+    await s.shot("expansion", "04-rfq-comparison.png", "finance", f"/app/sourcing/{rfq_id}", "text=Comparison")
+    rid = _partly_received(admin)
+    await s.shot("expansion", "05-partial-receipt.png", "requester", f"/app/requests/{rid}", "text=Record delivery",
+                 scroll_to="text=Partly received: the rest")
+    await s.shot("expansion", "06-scorecard.png", "finance", f"/app/vendors/{VENDOR}", "text=On-time deliveries",
+                 scroll_to="h2:text-is('Scorecard')")
+
+
 MODULES = {f.__name__: f for f in (intake, fallback, clauses, sanctions, licences, rules, reliability, onboarding,
-                                    approval, contract, inventory)}
+                                    approval, contract, inventory, expansion)}
 
 
 async def main(names):

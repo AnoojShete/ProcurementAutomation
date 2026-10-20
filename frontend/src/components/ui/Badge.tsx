@@ -75,6 +75,7 @@ const REQUEST_STATUS_TONE: Record<string, Tone> = {
   pending_approval: "warning",
   approved: "success",
   ordered: "brand",
+  partially_received: "received",
   rejected: "danger",
   fulfilled: "received",
   partially_invoiced: "brand",

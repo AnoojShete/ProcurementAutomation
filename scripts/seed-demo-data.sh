@@ -48,6 +48,20 @@ INSERT INTO inventory (id, sku, name, category, total_quantity, available_quanti
   ('44444444-0000-0000-0000-000000000003', 'MON-DELL-U2723',   'Dell UltraSharp 27 U2723', 'monitor',  30, 25, 0, 42000.00, 'INR', 'Pune HQ'),
   ('44444444-0000-0000-0000-000000000004', 'DOCK-DELL-WD19',   'Dell WD19S Dock',         'accessory', 25,  0, 0, 18500.00, 'INR', 'Mumbai Office')
 ON CONFLICT (id) DO NOTHING;
+
+-- IT catalog (feature expansion Phase 3a): standard hardware reserved from
+-- stock first, and seat add-ons on two of the licences above. The last item's
+-- agreed price has expired, so requesters don't see it.
+INSERT INTO catalog_items (id, sku, name, category, vendor_id, unit_price, spec, inventory_sku, license_id,
+                           lead_time_days, warranty_months, valid_until, created_by) VALUES
+  ('55555555-0000-0000-0000-000000000001', 'CAT-LAP-DELL-5540', 'Dell Latitude 5540, 16 GB, 3-year on-site warranty', 'hardware', '$DEMO_VENDOR_ID', 82000, '{"RAM": "16 GB", "Storage": "512 GB SSD"}', 'LAPTOP-DELL-5540', NULL, 5, 36, '2027-03-31', 'seed'),
+  ('55555555-0000-0000-0000-000000000002', 'CAT-LAP-MBP-14',    'MacBook Pro 14 (M3), 18 GB, developer build',        'hardware', '$DEMO_VENDOR_ID', 165000, '{"RAM": "18 GB", "Storage": "1 TB SSD"}', 'LAPTOP-MBP-14', NULL, 7, 12, '2027-03-31', 'seed'),
+  ('55555555-0000-0000-0000-000000000003', 'CAT-MON-U2723',     'Dell UltraSharp 27 U2723 monitor',                   'hardware', '$DEMO_VENDOR_ID', 40500, '{"Size": "27 in", "Resolution": "2560 x 1440"}', 'MON-DELL-U2723', NULL, 3, 36, '2027-03-31', 'seed'),
+  ('55555555-0000-0000-0000-000000000004', 'CAT-DOCK-WD19',     'Dell WD19S dock',                                    'hardware', '$DEMO_VENDOR_ID', 17500, '{}', 'DOCK-DELL-WD19', NULL, 10, 36, '2027-03-31', 'seed'),
+  ('55555555-0000-0000-0000-000000000005', 'CAT-SEAT-SLACK',    'Slack Enterprise seat (annual)',                     'saas',     '$DEMO_VENDOR_ID', 1250, '{}', NULL, '33333333-0000-0000-0000-000000000002', 1, NULL, '2027-03-31', 'seed'),
+  ('55555555-0000-0000-0000-000000000006', 'CAT-SEAT-M365',     'Microsoft 365 E3 seat (annual)',                     'software', '$DEMO_VENDOR_ID', 2100, '{}', NULL, '33333333-0000-0000-0000-000000000001', 1, NULL, '2027-03-31', 'seed'),
+  ('55555555-0000-0000-0000-000000000007', 'CAT-LAP-TP-E14',    'Lenovo ThinkPad E14 (last year''s price)',           'hardware', '$DEMO_VENDOR_ID', 61000, '{}', NULL, NULL, 7, 12, '2026-03-31', 'seed')
+ON CONFLICT (id) DO NOTHING;
 SQL
 
 # The usage scanner ingests SSO logs and scores licenses on startup (then
@@ -61,6 +75,7 @@ echo "  vendor_id:  $DEMO_VENDOR_ID  (Acme IT Supplies Inc)"
 echo "  request_id: $DEMO_REQUEST_ID (approved, INR 4500, Engineering)"
 echo "  licenses:   5 SaaS licenses (Licenses page — anomaly scores appear within ~1 min)"
 echo "  inventory:  4 hardware SKUs (one out of stock, to show backorder split)"
+echo "  catalog:    6 orderable IT catalog items (2 seat add-ons) + 1 with an expired price"
 echo
 echo "Try in the frontend (Contracts & Vendor Risk tab):"
 echo "  - Generate a contract from purchase request $DEMO_REQUEST_ID"

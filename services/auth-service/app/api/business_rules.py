@@ -119,6 +119,13 @@ async def _validate_rule_value(db: AsyncSession, rule: BusinessRule, new_value: 
         elif rule.rule_key == "dev.force_model_fallback":
             if not isinstance(new_value, list) or not set(new_value) <= {"extraction", "clauses"}:
                 raise HTTPException(status_code=400, detail='dev.force_model_fallback must be a list of "extraction" and/or "clauses"')
+        elif rule.rule_key == "sourcing.default_criteria":
+            known = {"price", "lead_time", "warranty", "support", "vendor_risk", "delivery_record"}
+            if not isinstance(new_value, dict) or not new_value or not set(new_value) <= known or not all(
+                    isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 for v in new_value.values()) \
+                    or abs(sum(new_value.values()) - 1) > 0.001:
+                raise HTTPException(status_code=400, detail="RFQ weights are numbers for " + ", ".join(sorted(known))
+                                    + " that add up to 1")
         elif rule.rule_key == "contract.obligation_reminder_days":
             if not isinstance(new_value, list) or not new_value or not all(
                     isinstance(x, int) and not isinstance(x, bool) and 0 < x <= 365 for x in new_value):

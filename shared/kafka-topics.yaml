@@ -17,4 +17,7 @@ topics:
   - business_rule.updated
   - order.summary.generated
   - budget.threshold_crossed
+  - rfq.issued
+  - rfq.awarded
+  - goods.received
   - contract.obligation.due

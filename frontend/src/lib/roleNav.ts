@@ -18,6 +18,8 @@ import {
   Radio as RA,
   Settings2 as SE,
   Wallet as WA,
+  ShoppingCart as SCART,
+  Scale as SCALE,
 } from "lucide-react";
 import type { Role } from "@/types/api";
 
@@ -57,6 +59,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     dashboard("/app"),
     { label: "My Requests", to: "/app/requests", icon: FT },
     { label: "New Request", to: "/app/requests/new", icon: FP },
+    { label: "IT Catalog", to: "/app/catalog", icon: SCART },
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Notifications", to: "/app/notifications", icon: BE },
@@ -67,6 +70,8 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Requests", to: "/app/requests", icon: FT },
     { label: "Budgets", to: "/app/budgets", icon: WA },
+    { label: "Sourcing", to: "/app/sourcing", icon: SCALE },
+    { label: "IT Catalog", to: "/app/catalog", icon: SCART },
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Notifications", to: "/app/notifications", icon: BE },
@@ -77,6 +82,8 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Budgets", to: "/app/budgets", icon: WA },
+    { label: "Sourcing", to: "/app/sourcing", icon: SCALE },
+    { label: "IT Catalog", to: "/app/catalog", icon: SCART },
     { label: "Spend Analysis", to: "/app/spend", icon: AC },
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Contracts", to: "/app/contracts", icon: SC },
@@ -92,6 +99,8 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Approvals", to: "/app/approvals", icon: IN },
     { label: "Budgets", to: "/app/budgets", icon: WA },
+    { label: "Sourcing", to: "/app/sourcing", icon: SCALE },
+    { label: "IT Catalog", to: "/app/catalog", icon: SCART },
     { label: "Inventory", to: "/app/inventory", icon: BO },
     { label: "Contracts", to: "/app/contracts", icon: SC },
     { label: "Risk", to: "/app/risk", icon: SH },

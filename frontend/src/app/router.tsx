@@ -31,6 +31,9 @@ const NotificationsPage = lazy(() => import("@/pages/notifications/Notifications
 const SpendAnalysisPage = lazy(() => import("@/pages/finance/SpendAnalysisPage").then((m) => ({ default: m.SpendAnalysisPage })));
 const BudgetsPage = lazy(() => import("@/pages/finance/BudgetsPage").then((m) => ({ default: m.BudgetsPage })));
 const BudgetDetailPage = lazy(() => import("@/pages/finance/BudgetDetailPage").then((m) => ({ default: m.BudgetDetailPage })));
+const CatalogPage = lazy(() => import("@/pages/sourcing/CatalogPage").then((m) => ({ default: m.CatalogPage })));
+const RfqListPage = lazy(() => import("@/pages/sourcing/RfqListPage").then((m) => ({ default: m.RfqListPage })));
+const RfqDetailPage = lazy(() => import("@/pages/sourcing/RfqDetailPage").then((m) => ({ default: m.RfqDetailPage })));
 const AuditActivityPage = lazy(() => import("@/pages/admin/AuditActivityPage").then((m) => ({ default: m.AuditActivityPage })));
 const ControlPanelPage = lazy(() => import("@/pages/admin/ControlPanelPage").then((m) => ({ default: m.ControlPanelPage })));
 const SystemHealthPage = lazy(() => import("@/pages/admin/SystemHealthPage").then((m) => ({ default: m.SystemHealthPage })));
@@ -179,6 +182,26 @@ const router = createBrowserRouter([
         element: withSuspense(
           <RoleGuard allow={["approver", "finance", "admin"]}>
             <BudgetDetailPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "catalog",
+        element: withSuspense(<CatalogPage />),
+      },
+      {
+        path: "sourcing",
+        element: withSuspense(
+          <RoleGuard allow={["approver", "finance", "admin"]}>
+            <RfqListPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "sourcing/:id",
+        element: withSuspense(
+          <RoleGuard allow={["approver", "finance", "admin"]}>
+            <RfqDetailPage />
           </RoleGuard>,
         ),
       },

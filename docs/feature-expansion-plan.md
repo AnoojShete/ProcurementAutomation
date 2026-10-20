@@ -1,6 +1,6 @@
 # Feature expansion plan: closing the gaps with commercial suites
 
-Status (20 October 2026): **Phases 1 and 2 built** (see their sections); Phases 3–8 are proposals.
+Status (20 October 2026): **Phases 1, 2 and 3 built** (see their sections); Phases 4–8 are proposals.
 Inputs: [competitive-analysis.md](competitive-analysis.md) (Coupa, Zapro, SAP
 Ariba, Ivalua, TYASuite) and Zoho's buyer's guide
 (https://www.zoho.com/procurement/academy/procurement-software.html), which
@@ -301,6 +301,42 @@ actions *confirm, record downtime, mark met, waive* in
 ---
 
 ## Phase 3 — Sourcing: IT catalog, RFQ events, scorecards, partial receipts
+
+> **Built 20 Oct 2026.** approval-inventory-agent: `catalog_service.py` +
+> `api/catalog.py` (`/api/catalog`), `sourcing_service.py` + `api/rfqs.py`
+> (`/api/rfqs`), `receipt_service.py` (`/api/requests/{id}/receipts`), the
+> received-quantity check in `invoice_ledger.py`; tables `catalog_items`,
+> `rfq_events`, `rfq_invitations`, `rfq_responses`, `goods_receipts`, columns
+> `purchase_requests.sourcing_flags` / `rfq_id`, status `partially_received`.
+> contract-risk-agent: `scorecard.py`, `GET /api/vendors/{id}/scorecard`,
+> Alembic `0009` (`vendor_scorecards`). Rules seeded by auth-service `0017`;
+> topics `rfq.issued`, `rfq.awarded`, `goods.received`. Frontend:
+> `/app/catalog`, `/app/sourcing`, `/app/sourcing/:id`, the request page's
+> delivery panel and *Sourcing* line, the vendor page's scorecard. Demo
+> catalog in `seed-demo-data.sh`. Verified by `tests/e2e/sourcing_flow.py`.
+>
+> Deliberate changes from the design below:
+> 1. **Quotes are linked by a sweep, not in the document pipeline.** Every
+>    30 s the approval agent links `vendor_quotes` rows that quote an open
+>    RFQ's reference and come from an invited vendor (`sweep_quotes`). This
+>    keeps document-vendor-agent unchanged and avoids reading a quote
+>    before the pipeline has committed it. A buyer can also enter a quote.
+> 2. **`invoice.match_against_received` applies only once a request has a
+>    goods receipt.** Invoices often arrive before the goods (the invoice
+>    lifecycle test does exactly that); applying the rule to every request
+>    would turn all of them into variances. With receipts, an invoice line
+>    above the received quantity is a variance — the true three-way match.
+> 3. **Catalog categories are hardware, software and SaaS.** There is no
+>    services request type yet, so fixed-price IT services are left out.
+>    Price drift is handled by `valid_until` and switching an item off; a
+>    contract price change does not yet update the catalog by itself.
+> 4. **A catalog seat add-on beyond the contract's seat limit (Phase 2) is
+>    flagged on the request, not refused**, since buying more seats may be
+>    the reason for amending the contract.
+> 5. **The scorecard is computed on demand** (each vendor page view) and
+>    for all vendors once a day, rather than only nightly.
+> 6. **An RFQ needs at least two vendors** (three is suggested in the UI);
+>    the request page shows the RFQ flag as a note (advisory) as designed.
 
 ### 3a. IT catalog
 

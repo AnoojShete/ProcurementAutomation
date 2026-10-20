@@ -23,7 +23,26 @@ const ROUTING_LABELS: Record<BudgetRoutingReason, string> = {
   over_budget: "over budget",
   no_budget: "no budget set",
   high_risk_vendor: "high-risk vendor",
+  catalog_preapproved: "pre-approved catalog price",
 };
+
+/** Phase 3: where the price came from (catalog, RFQ) and any sourcing notes. */
+function SourcingLine({ request }: { request: PurchaseRequest }) {
+  const fromCatalog = (request.items ?? []).some((i) => (i as Record<string, unknown>).catalog_item_id);
+  const flags = request.sourcing_flags ?? [];
+  return (
+    <span className="flex flex-col gap-1">
+      {request.rfq_id ? (
+        <span>Awarded from an RFQ · <Link to={`/app/sourcing/${request.rfq_id}`} className="underline-offset-2 hover:underline">see the comparison</Link></span>
+      ) : fromCatalog ? (
+        <span>Catalog price{(request.items ?? []).every((i) => (i as Record<string, unknown>).catalog_item_id) ? "" : " (with free-text lines)"}</span>
+      ) : (
+        <span className="text-ink-3">Price entered on the request</span>
+      )}
+      {flags.map((f) => <span key={f.code} className="text-13 text-warning-700">{f.message}</span>)}
+    </span>
+  );
+}
 
 const CATEGORY_LABELS: Record<string, string> = { hardware: "hardware", software: "software", saas: "SaaS", services: "IT services" };
 
@@ -68,7 +87,8 @@ export function ProcurementAssessment({
   const chain = request.approval_chain ?? [];
   const { user } = useAuth();
   const { data: budgetLine } = useApi(() => budgetsApi.forRequest(request.id), [request.id]);
-  const added = (request.budget_check?.routing ?? []).map((r) => ROUTING_LABELS[r] ?? r);
+  const routing = request.budget_check?.routing ?? [];
+  const added = routing.filter((r) => r !== "catalog_preapproved").map((r) => ROUTING_LABELS[r] ?? r);
 
   return (
     <div className="rounded-md border border-surface-border bg-sheet">
@@ -96,11 +116,15 @@ export function ProcurementAssessment({
           <span>{titleCase(request.request_type)}</span>
         </AssessmentRow>
         <AssessmentRow label="Policy routing">
-          {chain.length ? `${chain.map(titleCase).join(" → ")}` : "Auto-approved (below threshold)"}
+          {chain.length ? `${chain.map(titleCase).join(" → ")}` : request.spend_tier === "catalog" ? "Auto-approved (pre-approved catalog price)" : "Auto-approved (below threshold)"}
           {added.length > 0 && <span className="block text-caption text-ink-3">Finance step added: {added.join(", ")}</span>}
+          {routing.includes("catalog_preapproved") && chain.length > 0 && <span className="block text-caption text-ink-3">Manager step skipped: pre-approved catalog price</span>}
         </AssessmentRow>
         <AssessmentRow label="Duplicate detection">
           <Unavailable reason="Duplicate checks run on uploaded documents, not purchase requests directly" />
+        </AssessmentRow>
+        <AssessmentRow label="Sourcing">
+          <SourcingLine request={request} />
         </AssessmentRow>
         <AssessmentRow label="Budget">
           <BudgetLine line={budgetLine} canOpen={["approver", "finance", "admin"].includes(user?.role ?? "")} />

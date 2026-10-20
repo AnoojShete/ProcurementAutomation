@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Building2, CheckCircle2, Info, Lock, Search, Sparkles, UploadCloud } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Building2, CheckCircle2, Info, Lock, Search, ShoppingCart, Sparkles, UploadCloud } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useAuth } from "@/hooks/useAuth";
 import { useApi } from "@/hooks/useApi";
@@ -232,6 +232,10 @@ function StepDetails({
           <UploadCloud className="size-4 shrink-0" aria-hidden="true" />
           Have an invoice, quote, or PO?
         </button>
+        <Link to="/app/catalog" className="inline-flex items-center gap-2 self-start text-sm font-medium text-accent hover:underline">
+          <ShoppingCart className="size-4 shrink-0" aria-hidden="true" />
+          Standard laptop, monitor or more seats? Order from the IT catalog at the agreed price
+        </Link>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Category">

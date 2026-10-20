@@ -34,7 +34,7 @@ from typing import Optional
 from sqlalchemy import select, text
 
 LINE_SIMILARITY_MIN = 0.55
-MATCHABLE_STATUSES = ("approved", "ordered", "fulfilled", "partially_invoiced")
+MATCHABLE_STATUSES = ("approved", "ordered", "partially_received", "fulfilled", "partially_invoiced")
 
 
 @dataclass
@@ -54,6 +54,9 @@ class Candidate:
     invoiced_amount: float = 0.0
     invoiced_qty: dict = field(default_factory=dict)  # line_no -> qty already invoiced
     created_at: Optional[str] = None
+    # line_no -> qty received (goods receipts, Phase 3); None = receiving
+    # hasn't started or rule invoice.match_against_received is off.
+    received_qty: Optional[dict] = None
 
     @property
     def remaining_amount(self) -> float:
@@ -123,6 +126,9 @@ def _evaluate_candidate(cand: Candidate, total: float, lines: list[InvoiceLine],
     allocations: list[dict] = []
     recognised = 0
     remaining_qty = {pl.line_no: pl.quantity - float(cand.invoiced_qty.get(pl.line_no, 0)) for pl in cand.lines}
+    received_left = None if cand.received_qty is None else {
+        pl.line_no: float(cand.received_qty.get(pl.line_no, 0)) - float(cand.invoiced_qty.get(pl.line_no, 0))
+        for pl in cand.lines}
 
     if lines and cand.lines:
         for inv in lines:
@@ -140,6 +146,15 @@ def _evaluate_candidate(cand: Candidate, total: float, lines: list[InvoiceLine],
                 issues.append(
                     f"'{best.description}': unit price {inv.unit_price:,.2f} is above the agreed {best.unit_price:,.2f}"
                 )
+            if received_left is not None:
+                # Three-way match: never pay for more than has arrived.
+                got = received_left[best.line_no]
+                if inv.quantity > got + 1e-6 and inv.quantity <= left + 1e-6:
+                    issues.append(
+                        f"'{best.description}': invoiced qty {inv.quantity:g} but only {max(got, 0):g} received "
+                        f"and not yet invoiced"
+                    )
+                received_left[best.line_no] = got - inv.quantity
             remaining_qty[best.line_no] = left - inv.quantity
             allocations.append({
                 "line_no": best.line_no, "description": best.description,
@@ -276,11 +291,34 @@ async def _balances(db, request_ids: list[str]) -> dict:
     return out
 
 
-def _candidate(req, balance: dict) -> Candidate:
+async def _received(db, request_ids: list[str]) -> dict:
+    """request_id -> {line_no: qty received} for requests with goods
+    receipts (Phase 3), when rule invoice.match_against_received is on."""
+    from shared.rules_engine import get_rule
+    if not request_ids or not bool(get_rule("invoice.match_against_received", fallback=True)):
+        return {}
+    rows = (
+        await db.execute(
+            text(
+                "SELECT g.request_id, (l->>'line_no')::int AS line_no, sum((l->>'quantity')::numeric) AS qty "
+                "FROM goods_receipts g, jsonb_array_elements(g.lines::jsonb) l "
+                "WHERE g.request_id = ANY(CAST(:ids AS uuid[])) GROUP BY g.request_id, line_no"
+            ),
+            {"ids": request_ids},
+        )
+    ).all()
+    out: dict = {}
+    for r in rows:
+        out.setdefault(str(r.request_id), {})[r.line_no] = float(r.qty or 0)
+    return out
+
+
+def _candidate(req, balance: dict, received: Optional[dict] = None) -> Candidate:
     return Candidate(
         request_id=str(req.id), status=req.status, amount=float(req.amount or 0),
         lines=po_lines_from_items(req.items), invoiced_amount=balance.get("amount", 0.0),
         invoiced_qty=balance.get("qty", {}), created_at=req.created_at.isoformat() if req.created_at else None,
+        received_qty=received,
     )
 
 
@@ -307,7 +345,9 @@ async def book_invoice(
 
     reqs = await _load_candidates(db, vendor_id, lock=not dry_run)
     balances = await _balances(db, [str(r.id) for r in reqs])
-    result = evaluate(total, lines, [_candidate(r, balances.get(str(r.id), {})) for r in reqs], tolerances_from_rules(), po_ref)
+    received = await _received(db, [str(r.id) for r in reqs])
+    result = evaluate(total, lines, [_candidate(r, balances.get(str(r.id), {}), received.get(str(r.id))) for r in reqs],
+                      tolerances_from_rules(), po_ref)
     if result.request_id:
         result.notes = await expected_credit_notes(db, result.request_id)
     if dry_run:
@@ -401,7 +441,8 @@ async def ledger_for_request(db, request_id: str) -> dict:
     if req is None:
         return {}
     balance = (await _balances(db, [request_id])).get(request_id, {"amount": 0.0, "qty": {}})
-    cand = _candidate(req, balance)
+    received = (await _received(db, [request_id])).get(request_id)
+    cand = _candidate(req, balance, received)
     invoices = (
         await db.execute(
             text("SELECT document_id, invoice_number, status, amount, payment_hold, hold_reason, created_at "
@@ -415,7 +456,8 @@ async def ledger_for_request(db, request_id: str) -> dict:
         "invoiced_amount": round(cand.invoiced_amount, 2), "remaining_amount": cand.remaining_amount,
         "lines": [
             {"line_no": pl.line_no, "description": pl.description, "quantity": pl.quantity,
-             "unit_price": pl.unit_price, "invoiced_quantity": float(cand.invoiced_qty.get(pl.line_no, 0))}
+             "unit_price": pl.unit_price, "invoiced_quantity": float(cand.invoiced_qty.get(pl.line_no, 0)),
+             "received_quantity": float(received.get(pl.line_no, 0)) if received is not None else None}
             for pl in cand.lines
         ],
         "invoices": [

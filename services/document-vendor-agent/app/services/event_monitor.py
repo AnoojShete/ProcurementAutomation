@@ -96,6 +96,14 @@ def describe(event_type: str, p: dict) -> str:
         case "budget.threshold_crossed":
             return (f"Budget {p.get('department')} {p.get('category')} {p.get('period')} {p.get('fiscal_year')} "
                     f"{p.get('status')}: {p.get('left_inr')} INR left after request {_short(p.get('request_id'))}")
+        case "rfq.issued":
+            return (f"{p.get('reference')} round {p.get('round')} issued to {len(p.get('vendor_ids') or [])} vendors, "
+                    f"deadline {p.get('deadline')}")
+        case "rfq.awarded":
+            return f"{p.get('reference')} awarded to vendor {_short(p.get('vendor_id'))}: {p.get('total_inr')} INR"
+        case "goods.received":
+            return (f"Request {_short(p.get('request_id'))}: delivery recorded"
+                    f" ({'complete' if p.get('complete') else 'partial'})")
     return event_type
 
 

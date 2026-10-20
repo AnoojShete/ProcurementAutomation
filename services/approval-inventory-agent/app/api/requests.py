@@ -3,6 +3,7 @@ import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas import (
@@ -66,10 +67,11 @@ async def create_request(
         if cached is not None:
             return cached
     from app.services.budget_service import BudgetBlocked
+    from app.services.catalog_service import CatalogError
     try:
         req = await approval_svc.create_request(data, document_id=data.document_id)
         result = DataResponse(data=PurchaseRequestResponse.model_validate(req))
-    except BudgetBlocked as e:
+    except (BudgetBlocked, CatalogError) as e:
         return _error(e.code, e.message, 422)
     except ValueError as e:
         return _error("VALIDATION_ERROR", str(e), 400)
@@ -200,17 +202,78 @@ async def receive_request(
 ):
     """The goods/licences arrived: ordered -> fulfilled, and licences are
     activated / stock released. The requester (it's their order) or staff."""
-    from app.kafka.consumer import NotReceivable, apply_received
+    from app.kafka.consumer import NotReceivable
+    from app.services.receipt_service import ReceiptError, receive_all
     req = await approval_svc.get_request_with_history(request_id)
     if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
         return _error("NOT_FOUND", f"Request {request_id} not found", 404)
     try:
-        await apply_received(approval_svc.db, req, user.email)
+        await receive_all(approval_svc.db, req, user.email, approval_svc.producer)
         await approval_svc.db.commit()
-    except NotReceivable as e:
+    except (NotReceivable, ReceiptError) as e:
+        await approval_svc.db.rollback()
         return _error("NOT_RECEIVABLE", str(e), 409)
     req = await approval_svc.get_request_with_history(request_id)
     return DataResponse(data=PurchaseRequestResponse.model_validate(req))
+
+
+class ReceiptLine(BaseModel):
+    line_no: int = Field(ge=0)
+    quantity: int = Field(ge=0)
+    asset_tags: list[str] = Field(default_factory=list, max_length=500)
+
+
+class ReceiptIn(BaseModel):
+    lines: list[ReceiptLine] = Field(min_length=1, max_length=200)
+    notes: Optional[str] = Field(default=None, max_length=1000)
+
+
+def _receipt_dict(r) -> dict:
+    return {"id": r.id, "lines": r.lines, "received_by": r.received_by,
+            "received_at": r.received_at.isoformat() if r.received_at else None, "notes": r.notes}
+
+
+@router.get("/{request_id}/receipts", response_model=DataResponse)
+async def list_receipts(request_id: str, approval_svc: ApprovalService = Depends(get_approval_service),
+                        user: CurrentUser = Depends(get_current_user)):
+    """Deliveries so far and what is still to come, per line (Phase 3)."""
+    from app.services import receipt_service
+    if (bad := _malformed_id(request_id)) is not None:
+        return bad
+    req = await approval_svc.get_request_with_history(request_id)
+    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+        return _error("NOT_FOUND", f"Request {request_id} not found", 404)
+    receipts = await receipt_service.receipts_for(approval_svc.db, request_id)
+    received = receipt_service.total_received(receipts)
+    from app.services.invoice_ledger import po_lines_from_items
+    return DataResponse(data={
+        "receipts": [_receipt_dict(r) for r in receipts],
+        "lines": [{"line_no": pl.line_no, "description": pl.description, "ordered": pl.quantity,
+                   "received": received.get(pl.line_no, 0)} for pl in po_lines_from_items(req.items)],
+    })
+
+
+@router.post("/{request_id}/receipts", response_model=DataResponse, status_code=201)
+async def record_receipt(request_id: str, data: ReceiptIn, approval_svc: ApprovalService = Depends(get_approval_service),
+                         user: CurrentUser = Depends(get_current_user)):
+    """One delivery: quantities per line, asset tags for hardware. The
+    requester (it's their order) or staff."""
+    from app.services.receipt_service import ReceiptError, record_receipt as record
+    if (bad := _malformed_id(request_id)) is not None:
+        return bad
+    req = await approval_svc.get_request_with_history(request_id)
+    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+        return _error("NOT_FOUND", f"Request {request_id} not found", 404)
+    try:
+        receipt, outcome = await record(approval_svc.db, req, [l.model_dump() for l in data.lines], user.email,
+                                        approval_svc.producer, data.notes)
+        await approval_svc.db.commit()
+    except ReceiptError as e:
+        await approval_svc.db.rollback()
+        return _error("NOT_RECEIVABLE", str(e), 409)
+    req = await approval_svc.get_request_with_history(request_id)
+    return DataResponse(data={"receipt": _receipt_dict(receipt), "outcome": outcome,
+                              "request": PurchaseRequestResponse.model_validate(req).model_dump(mode="json")})
 
 
 @router.post("/{request_id}/reject", response_model=DataResponse)

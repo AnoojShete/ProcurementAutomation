@@ -253,7 +253,7 @@ async def _run_document(kafka_producer, payload: dict, correlation_id: str | Non
 
 
 # Request statuses an invoice can be booked against (invoice_ledger.MATCHABLE_STATUSES).
-_BOOKABLE = ("approved", "ordered", "fulfilled", "partially_invoiced")
+_BOOKABLE = ("approved", "ordered", "partially_received", "fulfilled", "partially_invoiced")
 
 
 class RequestNotApprovedYet(Exception):

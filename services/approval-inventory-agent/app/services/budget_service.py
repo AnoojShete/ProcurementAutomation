@@ -39,7 +39,7 @@ from shared.rules_engine import get_rule
 CATEGORIES = ("hardware", "software", "saas", "services")
 # Reclaims and reinstatements move seats around; they don't spend money.
 CATEGORY_BY_REQUEST_TYPE = {"hardware": "hardware", "license": "software", "saas": "saas"}
-USED_STATUSES = ("approved", "ordered", "fulfilled", "partially_invoiced", "invoice_received")
+USED_STATUSES = ("approved", "ordered", "partially_received", "fulfilled", "partially_invoiced", "invoice_received")
 PENDING_STATUSES = ("pending_approval", "backordered")
 FINANCE_LEVEL = "finance_head"
 

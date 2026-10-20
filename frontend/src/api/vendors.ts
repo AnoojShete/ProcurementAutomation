@@ -4,6 +4,7 @@ import type {
   OffboardResult,
   VendorPaymentChange,
   VendorRisk,
+  VendorScorecard,
   VendorSummary,
 } from "@/types/api";
 
@@ -94,6 +95,8 @@ export const vendorsApi = {
     api.post<{ id: string; name: string; payment_details_pending_verification: boolean }>("/vendors/onboard", profile),
   list: (limit = 200) => api.get<VendorSummary[]>(`/vendors/?limit=${limit}`),
   risk: (vendorId: string) => api.get<VendorRisk>(`/vendors/${vendorId}/risk`),
+  /** Phase 3c: on-time, invoice accuracy, RFQ response rate, SLA breaches. */
+  scorecard: (vendorId: string) => api.get<VendorScorecard>(`/vendors/${vendorId}/scorecard`),
   recomputeRisk: (vendorId: string) => api.post<VendorRisk>(`/vendors/${vendorId}/risk/recompute`),
   logOutcome: (vendorId: string, actual_incident_occurred: boolean, logged_by: string, notes?: string) =>
     api.post(`/vendors/${vendorId}/log-outcome`, { actual_incident_occurred, logged_by, notes }),

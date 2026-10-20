@@ -44,7 +44,7 @@ export interface AccessTokenResponse {
 
 // --- approval-inventory-agent ---
 export type RequestType = "hardware" | "license" | "saas" | "reclaim";
-export type SpendTier = "auto" | "manager" | "manager+finance";
+export type SpendTier = "auto" | "manager" | "manager+finance" | "catalog";
 export type RequestStatus =
   | "pending_approval"
   | "approved"
@@ -86,11 +86,14 @@ export interface PurchaseRequest {
   budget_id?: string | null;
   budget_status?: BudgetStatus | null;
   budget_check?: BudgetCheck | null;
+  /** Phase 3: advisory sourcing notes (RFQ recommended, over contract seats). */
+  sourcing_flags?: { code: string; message: string }[] | null;
+  rfq_id?: string | null;
 }
 
 export type BudgetCategory = "hardware" | "software" | "saas" | "services";
 export type BudgetStatus = "within" | "warning" | "over" | "no_budget";
-export type BudgetRoutingReason = "over_budget" | "no_budget" | "high_risk_vendor";
+export type BudgetRoutingReason = "over_budget" | "no_budget" | "high_risk_vendor" | "catalog_preapproved";
 
 export interface BudgetCheck {
   status?: BudgetStatus;
@@ -611,6 +614,140 @@ export interface ApprovalDelegation {
   created_by: string | null;
   active: boolean;
   revoked_at: string | null;
+}
+
+// --- sourcing (Phase 3) ---
+export type CatalogCategory = "hardware" | "software" | "saas";
+export interface CatalogItem {
+  id: string;
+  sku: string;
+  name: string;
+  category: CatalogCategory;
+  request_type: RequestType;
+  vendor_id: string | null;
+  vendor_name: string | null;
+  contract_id: string | null;
+  unit_price: number;
+  currency: string;
+  spec: Record<string, string>;
+  inventory_sku: string | null;
+  license_id: string | null;
+  lead_time_days: number | null;
+  warranty_months: number | null;
+  active: boolean;
+  valid_until: string | null;
+  available: boolean;
+  seat_addon: boolean;
+}
+export interface CatalogItemInput {
+  sku: string;
+  name: string;
+  category: CatalogCategory;
+  vendor_id: string;
+  unit_price: number;
+  spec?: Record<string, string>;
+  inventory_sku?: string | null;
+  license_id?: string | null;
+  lead_time_days?: number | null;
+  warranty_months?: number | null;
+  valid_until?: string | null;
+}
+export type RfqStatus = "open" | "closed" | "awarded" | "cancelled";
+export type RfqCriterion = "price" | "lead_time" | "warranty" | "support" | "vendor_risk" | "delivery_record";
+export interface RfqSummary {
+  id: string;
+  reference: string;
+  title: string;
+  department: string;
+  request_type: RequestType;
+  items: { name: string; quantity: number; spec?: string | null }[];
+  criteria: Partial<Record<RfqCriterion, number>>;
+  sealed: boolean;
+  round: number;
+  deadline: string;
+  status: RfqStatus;
+  created_by: string;
+  awarded_vendor_id: string | null;
+  awarded_response_id: string | null;
+  awarded_request_id: string | null;
+  created_at: string | null;
+  invited?: number;
+  responded?: number;
+}
+export interface RfqResponse {
+  id?: string;
+  vendor_id: string;
+  vendor_name: string | null;
+  round: number;
+  submitted_at: string | null;
+  total_inr?: number;
+  lead_time_days?: number | null;
+  warranty_months?: number | null;
+  support_rating?: number | null;
+  support_terms?: string | null;
+  source?: "manual" | "quote";
+  quote_id?: string | null;
+}
+export interface RankedResponse extends RfqResponse {
+  id: string;
+  total_inr: number;
+  scores: Record<RfqCriterion, number>;
+  total_score: number;
+  rank: number;
+}
+export interface RfqDetail extends RfqSummary {
+  sealed_now: boolean;
+  invitations: { vendor_id: string; vendor_name: string | null; round: number; invited_at: string | null; responded_at: string | null }[];
+  responses: RfqResponse[];
+  comparison: {
+    round: number;
+    weights: Partial<Record<RfqCriterion, number>>;
+    vendor_info: Record<string, { risk_band: string | null; on_time_rate: number | null }>;
+    ranked: RankedResponse[];
+  } | null;
+}
+export interface RfqInput {
+  title: string;
+  department: string;
+  request_type: "hardware" | "license" | "saas";
+  items: { name: string; quantity: number; spec?: string }[];
+  vendor_ids: string[];
+  deadline: string;
+  sealed: boolean;
+  criteria?: Partial<Record<RfqCriterion, number>>;
+}
+export interface RfqResponseInput {
+  vendor_id: string;
+  total_inr: number;
+  lead_time_days?: number | null;
+  warranty_months?: number | null;
+  support_rating?: number | null;
+  support_terms?: string | null;
+}
+export interface GoodsReceipt {
+  id: string;
+  lines: { line_no: number; quantity: number; asset_tags: string[] }[];
+  received_by: string;
+  received_at: string | null;
+  notes: string | null;
+}
+export interface RequestReceipts {
+  receipts: GoodsReceipt[];
+  lines: { line_no: number; description: string; ordered: number; received: number }[];
+}
+export interface VendorScorecard {
+  vendor_id: string;
+  on_time_rate: number | null;
+  deliveries: number;
+  deliveries_on_time: number;
+  expected_delivery_days: number;
+  invoice_accuracy: number | null;
+  invoices: number;
+  rfq_response_rate: number | null;
+  rfq_invitations: number;
+  sla_breaches: number;
+  risk_band: string | null;
+  computed_at: string;
 }
 
 // --- contract obligations (Phase 2) ---

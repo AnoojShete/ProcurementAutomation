@@ -8,7 +8,7 @@ import { vendorsApi } from "@/api/vendors";
 import { requestsApi } from "@/api/requests";
 import { contractsApi } from "@/api/contracts";
 import { documentsApi } from "@/api/documents";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Card, CardBody, CardHeader, Section } from "@/components/ui/Card";
 import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { DocketHeader, RefCopy } from "@/components/ui/DocketHeader";
 import { Badge, RiskBadge } from "@/components/ui/Badge";
@@ -22,7 +22,7 @@ import { RiskGauge } from "@/components/vendors/RiskGauge";
 import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
 import { RiskSignalsCard } from "@/components/vendors/RiskSignalsCard";
 import { SanctionsScreening } from "@/components/vendors/SanctionsScreening";
-import { formatCurrency, formatDateTime, titleCase } from "@/lib/format";
+import { formatPercent, formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { ApiError } from "@/api/client";
 
 export function VendorDetailPage() {
@@ -33,6 +33,8 @@ export function VendorDetailPage() {
   usePageHeader(vendor?.name ?? "Vendor", "Vendors");
 
   const { data: risk, reload: reloadRisk } = useApi(() => vendorsApi.risk(id!), [id]);
+  // Phase 3c: how the vendor has actually performed.
+  const { data: card, loading: cardLoading } = useApi(() => vendorsApi.scorecard(id!), [id]);
   // Payment-detail changes are finance/admin only on the backend; anyone
   // else would get a 403 and see "no changes" instead of "not for you".
   const canSeePayments = user?.role === "finance" || user?.role === "admin";
@@ -49,7 +51,7 @@ export function VendorDetailPage() {
   const vendorContracts = useMemo(() => (allContracts ?? []).filter((c) => c.vendor_id === id), [allContracts, id]);
   const vendorDocuments = useMemo(() => (allDocuments ?? []).filter((d) => d.vendor_id === id), [allDocuments, id]);
   const totalSpend = useMemo(
-    () => vendorRequests.filter((r) => ["approved", "ordered", "fulfilled"].includes(r.status ?? "")).reduce((s, r) => s + (r.amount ?? 0), 0),
+    () => vendorRequests.filter((r) => ["approved", "ordered", "partially_received", "fulfilled"].includes(r.status ?? "")).reduce((s, r) => s + (r.amount ?? 0), 0),
     [vendorRequests],
   );
   const openRequests = vendorRequests.filter((r) => r.status === "pending_approval").length;
@@ -130,6 +132,21 @@ export function VendorDetailPage() {
         <MetricCard label="Open requests" value={openRequests} icon={FileText} tone="warning" to={`/app/requests?scope=all&vendor=${id}&status=pending_approval`} />
         <MetricCard label="Contracts" value={vendorContracts.length} icon={ScrollText} to={`/app/contracts?vendor=${id}`} />
       </LedgerStrip>
+
+      <Section title="Scorecard" subtitle="From this platform's own records; recomputed when you open the page and nightly. RFQ scoring uses the on-time rate.">
+        <LedgerStrip cols={4} loading={cardLoading && !card} label="Vendor scorecard">
+          <MetricCard label="On-time deliveries" value={card?.on_time_rate != null ? formatPercent(card.on_time_rate) : "—"}
+            hint={card ? (card.deliveries ? `${card.deliveries_on_time} of ${card.deliveries} within ${card.expected_delivery_days} days` : "no deliveries yet") : undefined}
+            tone={card?.on_time_rate != null && card.on_time_rate < 0.8 ? "warning" : "neutral"} />
+          <MetricCard label="Invoice accuracy" value={card?.invoice_accuracy != null ? formatPercent(card.invoice_accuracy) : "—"}
+            hint={card ? (card.invoices ? `${card.invoices} invoices matched or checked` : "no invoices yet") : undefined}
+            tone={card?.invoice_accuracy != null && card.invoice_accuracy < 0.9 ? "warning" : "neutral"} />
+          <MetricCard label="RFQ response rate" value={card?.rfq_response_rate != null ? formatPercent(card.rfq_response_rate) : "—"}
+            hint={card ? (card.rfq_invitations ? `${card.rfq_invitations} invitations` : "not invited yet") : undefined} />
+          <MetricCard label="SLA breaches" value={card?.sla_breaches ?? "—"} tone={card?.sla_breaches ? "danger" : "neutral"}
+            hint="months with a service credit" />
+        </LedgerStrip>
+      </Section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

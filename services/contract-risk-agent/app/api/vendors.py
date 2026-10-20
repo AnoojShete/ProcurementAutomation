@@ -54,6 +54,22 @@ async def list_vendors(limit: int = Query(100, ge=1, le=1000), db: AsyncSession 
     return DataResponse(data=rows, meta={"count": len(rows)})
 
 
+@router.get("/{vendor_id}/scorecard", response_model=DataResponse)
+async def get_vendor_scorecard(vendor_id: str, db: AsyncSession = Depends(get_db)):
+    """Phase 3c: on-time deliveries, invoice accuracy, RFQ response rate,
+    SLA breaches and risk band, recomputed now (and stored for RFQ scoring)."""
+    from app.services import scorecard
+    try:
+        uuid.UUID(vendor_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    if await db.get(Vendor, vendor_id) is None:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    card = await scorecard.refresh(db, vendor_id)
+    await db.commit()
+    return DataResponse(data=card)
+
+
 @router.get("/{vendor_id}/risk", response_model=DataResponse)
 async def get_vendor_risk(vendor_id: str, db: AsyncSession = Depends(get_db)):
     vendor = await db.get(Vendor, vendor_id)

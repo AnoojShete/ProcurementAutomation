@@ -292,3 +292,57 @@ def test_approval_high_risk_vendor_requires_finance(rule):
     rule("approval.high_risk_vendor_requires_finance", True)
     assert route(["dept_manager"], within, "High", True) == (["dept_manager", "finance_head"], ["high_risk_vendor"])
     assert route(["dept_manager"], within, "Medium", True) == (["dept_manager"], [])
+
+
+# ── Phase 3: catalog, RFQs, goods receipts ──────────────────────────────────
+
+def _resolution(amount, all_catalog=True):
+    from app.services.catalog_service import CatalogResolution
+    return CatalogResolution(items=[], vendor_id="v1", request_type="hardware", amount=amount, all_catalog=all_catalog)
+
+
+def test_catalog_preapproved_max_inr(rule):
+    from app.services.catalog_service import preapproved
+    rule("catalog.preapproved_max_inr", 0)            # off
+    assert preapproved(_resolution(30000)) is False
+    rule("catalog.preapproved_max_inr", 50000)
+    assert preapproved(_resolution(30000)) is True
+    assert preapproved(_resolution(60000)) is False
+    assert preapproved(_resolution(30000, all_catalog=False)) is False   # a free-text line needs the manager
+
+
+def test_sourcing_rfq_required_above_inr(rule):
+    from app.services.sourcing_service import rfq_flag
+    kw = dict(spends_money=True, all_catalog=False, from_rfq=False)
+    rule("sourcing.rfq_required_above_inr", 200000)
+    assert rfq_flag(250000, **kw)["code"] == "rfq_recommended"
+    assert rfq_flag(150000, **kw) is None
+    assert rfq_flag(250000, **{**kw, "from_rfq": True}) is None
+    rule("sourcing.rfq_required_above_inr", 300000)
+    assert rfq_flag(250000, **kw) is None
+    rule("sourcing.rfq_required_above_inr", 0)        # off
+    assert rfq_flag(10_000_000, **kw) is None
+
+
+def test_sourcing_default_criteria(rule):
+    from app.services.sourcing_service import score
+    quotes = [{"id": "a", "vendor_id": "va", "total_inr": 100000, "lead_time_days": 30},
+              {"id": "b", "vendor_id": "vb", "total_inr": 110000, "lead_time_days": 5}]
+    from app.services.sourcing_service import default_criteria
+    rule("sourcing.default_criteria", {"price": 1})
+    assert score(quotes, default_criteria(), {})[0]["id"] == "a"          # cheapest wins on price alone
+    rule("sourcing.default_criteria", {"price": 0.3, "lead_time": 0.7})
+    assert score(quotes, default_criteria(), {})[0]["id"] == "b"          # fastest wins when speed weighs more
+    rule("sourcing.default_criteria", {"price": 0.9})                     # doesn't add up to 1: defaults
+    assert default_criteria()["price"] == 0.45
+
+
+def test_invoice_match_against_received(rule):
+    from app.services.invoice_ledger import _received
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=MagicMock(all=MagicMock(return_value=[
+        SimpleNamespace(request_id="r1", line_no=0, qty=30)])))
+    rule("invoice.match_against_received", True)
+    assert run(_received(db, ["r1"])) == {"r1": {0: 30.0}}
+    rule("invoice.match_against_received", False)
+    assert run(_received(db, ["r1"])) == {}

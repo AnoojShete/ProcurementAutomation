@@ -329,3 +329,20 @@ async def test_obligation_reminder_days_must_be_whole_days(value, ok):
         with pytest.raises(HTTPException) as exc:
             await _validate_rule_value(AsyncMock(), rule, value)
         assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,ok", [
+    ({"price": 0.45, "lead_time": 0.15, "warranty": 0.1, "support": 0.1, "vendor_risk": 0.1, "delivery_record": 0.1}, True),
+    ({"price": 1}, True), ({"price": 0.5, "lead_time": 0.4}, False), ({"price": 0.5, "colour": 0.5}, False),
+    ({"price": 1.5, "lead_time": -0.5}, False), ({}, False), ([1], False), ({"price": True}, False)])
+async def test_sourcing_criteria_must_be_known_weights_summing_to_one(value, ok):
+    """Phase 3 RFQs: scoring would silently fall back to defaults otherwise."""
+    rule = BusinessRule(rule_key="sourcing.default_criteria", value_type="json", min_value=None,
+                        max_value=None, current_value={"price": 1})
+    if ok:
+        await _validate_rule_value(AsyncMock(), rule, value)
+    else:
+        with pytest.raises(HTTPException) as exc:
+            await _validate_rule_value(AsyncMock(), rule, value)
+        assert exc.value.status_code == 400

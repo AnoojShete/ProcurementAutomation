@@ -56,6 +56,7 @@ python tests/e2e/auth_flows.py            # accounts + Mailpit (needs EMAIL_MODE
 python tests/e2e/invoice_lifecycle.py     # one invoice through all five agents
 python tests/e2e/budget_flow.py           # budgets: within/warning/over, finance step, concurrency, rules
 python tests/e2e/obligation_flow.py       # contract obligations: read after signing, confirm, SLA credit, seat breach
+python tests/e2e/sourcing_flow.py         # catalog, RFQ (sealed, quote linking, award), partial receipts, scorecard
 python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service

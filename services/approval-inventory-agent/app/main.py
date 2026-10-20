@@ -17,7 +17,7 @@ from app.database import init_db, get_db, async_session_factory
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
 from app.usage_scanner import run_usage_scanner
-from app.api import health, requests, inventory, inbox, licenses, orders, authority, invoices, ops, email_action, internal_email_action, budgets
+from app.api import health, requests, inventory, inbox, licenses, orders, authority, invoices, ops, email_action, internal_email_action, budgets, catalog, rfqs
 from app.services.order_monitor import run_order_monitor
 from app.schemas import ErrorResponse, ErrorDetail
 
@@ -102,11 +102,14 @@ async def lifespan(app: FastAPI):
     order_monitor_task = asyncio.create_task(
         run_order_monitor(app.state.kafka_producer, app.state.redis)
     )
+    # Phase 3: quotes that quote an RFQ reference become RFQ responses.
+    from app.services.sourcing_service import run_quote_sweep
+    rfq_quote_task = asyncio.create_task(run_quote_sweep(async_session_factory))
 
     yield
 
     # Shutdown — cancel background tasks gracefully
-    for task in (consumer_task, scanner_task, gauge_task, order_monitor_task, relay_task):
+    for task in (consumer_task, scanner_task, gauge_task, order_monitor_task, relay_task, rfq_quote_task):
         task.cancel()
         try:
             await task
@@ -194,6 +197,8 @@ app.include_router(
 )
 app.include_router(ops.router, prefix="/ops", tags=["Operations"])
 app.include_router(budgets.router, prefix="/budgets", tags=["Budgets"], dependencies=[Depends(get_current_user)])
+app.include_router(catalog.router, prefix="/catalog", tags=["IT Catalog"], dependencies=[Depends(get_current_user)])
+app.include_router(rfqs.router, prefix="/rfqs", tags=["RFQs"], dependencies=[Depends(get_current_user)])
 app.include_router(
     inbox.router, prefix="/inbox", tags=["Approver Inbox"],
     dependencies=[Depends(require_role("approver", "finance", "admin"))],

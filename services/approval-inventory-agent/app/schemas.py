@@ -97,6 +97,9 @@ class PurchaseRequestResponse(BaseModel):
     budget_id: Optional[str] = None
     budget_status: Optional[str] = None
     budget_check: Optional[dict] = None
+    # Phase 3: advisory sourcing notes and the RFQ it was awarded from.
+    sourcing_flags: Optional[list[dict]] = None
+    rfq_id: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class InventoryItemResponse(BaseModel):

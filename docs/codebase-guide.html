@@ -202,6 +202,10 @@ This guide did not re-run the full test suites; see <a href="#testing">Testing</
 <tr><td>Vendor risk model, sanctions, drift</td><td>Partial (team marks the risk model partial)</td><td>contract-risk-agent</td></tr>
 <tr><td>Notifications</td><td>Complete (email to Mailpit in dev)</td><td>notification-agent</td></tr>
 <tr><td>Accounts, sessions, business rules</td><td>Complete</td><td>auth-service</td></tr>
+<tr><td>Budget control before approval (feature expansion Phase 1)</td><td>Complete</td><td>approval-inventory-agent <code>budget_service.py</code></td></tr>
+<tr><td>Contract obligations after signature (Phase 2)</td><td>Complete; model use per obligation type pending the CUAD comparison</td><td>contract-risk-agent <code>obligation_service.py</code></td></tr>
+<tr><td>IT catalog, RFQs, partial goods receipts (Phase 3)</td><td>Complete</td><td>approval-inventory-agent <code>catalog_service.py</code>, <code>sourcing_service.py</code>, <code>receipt_service.py</code></td></tr>
+<tr><td>Vendor scorecard (Phase 3)</td><td>Complete</td><td>contract-risk-agent <code>scorecard.py</code></td></tr>
 <tr><td>Assistant (chatbot)</td><td>Partial; owned by Anooj</td><td>chatbot-agent</td></tr>
 <tr><td>CI</td><td>Partial — builds images only</td><td>.github/workflows</td></tr>
 <tr><td>Kubernetes, shared deployment</td><td>Not built / blocked on decisions and secrets</td><td>—</td></tr>
@@ -820,9 +824,15 @@ Most ids are <code>UUID</code>; the ORM maps them as strings (<code>PG_UUID(as_u
 <tr><td>approver_assignments / approval_delegations</td><td>approval-inventory</td><td>level, user_email, max_amount / delegator, delegate, valid_from, valid_until</td><td>limit ≥ 0; valid_until &gt; valid_from</td></tr>
 <tr><td>invoice_matches / invoice_allocations</td><td>approval-inventory</td><td>document_id, purchase_request_id, status, amount, payment_hold / per-line quantity &amp; amount</td><td>status CHECK; FKs to documents, purchase_requests, vendors</td></tr>
 <tr><td>inventory, licenses, license_usage, license_reclaim_history</td><td>approval-inventory (licenses from init)</td><td>sku, total/available/reserved quantity, reorder_point/quantity; seats, anomaly_score, top_factors, reclaim_cooldown_until</td><td>sku unique</td></tr>
+<tr><td>budgets</td><td>approval-inventory (Phase 1)</td><td>fiscal_year, period, department, category, amount_inr, owner_email; requests point at one (budget_id, budget_status, budget_check)</td><td>unique (fiscal_year, period, lower(department), category); usage is computed, not stored</td></tr>
+<tr><td>catalog_items</td><td>approval-inventory (Phase 3)</td><td>sku, name, category, vendor_id, unit_price, inventory_sku, license_id (seat add-on), lead_time_days, warranty_months, active, valid_until</td><td>unique lower(sku); never deleted, switched off</td></tr>
+<tr><td>rfq_events, rfq_invitations, rfq_responses</td><td>approval-inventory (Phase 3)</td><td>reference (RFQ-XXXXXX), items, criteria weights, sealed, round, deadline, status / vendor, round, responded_at / total_inr, lead time, warranty, support rating, quote_id</td><td>one response per (rfq, vendor, round); status CHECK</td></tr>
+<tr><td>goods_receipts</td><td>approval-inventory (Phase 3)</td><td>request_id, lines (line_no, quantity, asset_tags), received_by, received_at</td><td>adds status <code>partially_received</code> to the request CHECK</td></tr>
 <tr><td>email_action_tokens</td><td>approval-inventory</td><td>token_hash, request_id, step_index, expires_at, used_*, revoked_*</td><td>token_hash unique; FK cascade</td></tr>
 <tr><td>contracts</td><td>init + contract-risk</td><td>purchase_request_id, vendor_id, template, version, status (draft / pending_signature / signed…), contract_text, renewal_type, notice_period_days, contract_end_date, signed_at, signed_by, esign_provider_ref</td><td></td></tr>
 <tr><td>risk_scores, vendor_risk_features, risk_score_outcomes, vendor_sanctions_screenings</td><td>contract-risk</td><td>score, band, details/overrides, model_version; features; outcomes; screening status/matches/justification</td><td></td></tr>
+<tr><td>contract_obligations, obligation_events, sla_credits</td><td>contract-risk (Phase 2, Alembic 0008)</td><td>type, clause_text, value (JSONB), status (to_confirm/open/met/breached/waived), due_date, recurrence, owner_email, license_id / kind, details / period, measured uptime, credit, status</td><td>credits unique (obligation, period); <code>contracts.obligations_extracted_at</code></td></tr>
+<tr><td>vendor_scorecards</td><td>contract-risk (Phase 3, Alembic 0009)</td><td>on_time_rate, invoice_accuracy, rfq_response_rate, sla_breaches, risk_band, computed_at</td><td>one row per vendor</td></tr>
 <tr><td>processed_webhook_events</td><td>init + contract-risk</td><td>provider_event_id, contract_id</td><td>unique provider_event_id (replay protection)</td></tr>
 <tr><td>auth_users, auth_tokens, auth_login_attempts</td><td>auth</td><td>email, display_name, theme, hashed_password, role, is_active, email_verified_at, token_version; token_hash, purpose, expires_at, used_at; failed_count, locked_until</td><td>role CHECK; theme CHECK (light/dark/system); lower-case unique email; token_hash unique</td></tr>
 <tr><td>business_rules, business_rule_history</td><td>auth</td><td>rule_key, category, value_type, current/default value (JSONB), min/max; old/new, changed_by, justification</td><td>rule_key unique</td></tr>
@@ -877,7 +887,11 @@ Most ids are <code>UUID</code>; the ORM maps them as strings (<code>PG_UUID(as_u
 <tr><td>GET /requests/ · /requests/{id}</td><td>requester: own; staff: all</td><td>includes approval_history</td></tr>
 <tr><td>GET /requests/search</td><td>service, approver, finance, admin</td><td>vendor_id, amount_min/max, status</td></tr>
 <tr><td>POST /requests/{id}/approve · /reject</td><td>approver, finance, admin</td><td>{comments?}; 403 with authority code; 400 not pending</td></tr>
-<tr><td>POST /requests/{id}/receive · /decline-reclaim</td><td>owner or staff · requester/admin</td><td>409 NOT_RECEIVABLE</td></tr>
+<tr><td>POST /requests/{id}/receive · /decline-reclaim</td><td>owner or staff · requester/admin</td><td>409 NOT_RECEIVABLE; receive records whatever is still outstanding</td></tr>
+<tr><td>GET · POST /requests/{id}/receipts</td><td>owner or staff</td><td>{lines: [{line_no, quantity, asset_tags}], notes?}; 409 more than ordered / not ordered yet</td></tr>
+<tr><td>GET /budgets/ · /budgets/period · /budgets/{id} · POST /budgets/ · /budgets/import · PATCH/DELETE /budgets/{id} · GET /requests/{id}/budget</td><td>staff read; finance/admin write; owner or staff for a request's line</td><td>409 duplicate scope / in use</td></tr>
+<tr><td>GET /catalog/ · /catalog/{id} · POST /catalog/ · PATCH /catalog/{id}</td><td>user read; finance/admin write</td><td>request lines <code>{catalog_item_id, quantity}</code> take price, vendor and type from the catalog; 422 catalog_unavailable</td></tr>
+<tr><td>GET /rfqs/ · /rfqs/criteria · /rfqs/{id} · POST /rfqs/ · /{id}/responses · /extend · /close · /rounds · /award · /cancel</td><td>approver/finance/admin read; finance/admin act</td><td>sealed and open: no amounts for anyone; award creates the request</td></tr>
 <tr><td>GET /inbox/{approver_role}</td><td>approver, finance, admin</td><td>pending items for a chain role (e.g. dept_manager)</td></tr>
 <tr><td>GET /inventory/ · PATCH /inventory/{id}/reorder-settings</td><td>user · finance/admin</td><td></td></tr>
 <tr><td>GET /licenses/anomaly-summary · /{id}/usage-history · /{id}/reclaim-history · /{id}/usage-anomaly · POST /{id}/mark-reviewed</td><td>user · approver/finance/admin for mark-reviewed</td><td>also under /inventory/licenses/</td></tr>
@@ -900,6 +914,8 @@ Most ids are <code>UUID</code>; the ORM maps them as strings (<code>PG_UUID(as_u
 <tr><td>GET/PATCH /vendors/{id}/risk-signals · POST /vendors/{id}/log-outcome · GET /vendors/risk-model/drift-check</td><td>finance/admin for writes</td><td></td></tr>
 <tr><td>GET /vendors/sanctions-list · /vendors/{id}/sanctions · POST /screen-sanctions · /clear-sanctions-flag</td><td>finance/admin for writes</td><td>409 sanctions_list_missing / no_open_match</td></tr>
 <tr><td>POST /vendors/{id}/offboard</td><td>admin</td><td>vendor.offboarded</td></tr>
+<tr><td>GET /vendors/{id}/scorecard</td><td>user</td><td>recomputed and stored on each call (Phase 3)</td></tr>
+<tr><td>GET /contracts/{id}/obligations · POST /contracts/{id}/obligations · /obligations/extract · PATCH /contracts/obligations/{id}/confirm · POST /obligations/{id}/actions · /downtime · /contracts/sla-credits/{id} · GET /contracts/obligations/by-license/{id}</td><td>contract readers; finance/admin confirm, add, settle; approver/finance/admin record</td><td>Phase 2; 422 obligation_rejected</td></tr>
 <tr><td>POST /webhooks/esign · /documenso · /docusign</td><td>no JWT; HMAC / secret</td><td>401 bad signature; replay = no-op</td></tr></table></details>
 
 <details><summary><b>notification-agent</b> and <b>chatbot-agent</b></summary>
@@ -923,7 +939,11 @@ Most ids are <code>UUID</code>; the ORM maps them as strings (<code>PG_UUID(as_u
 <tr><td>notification.send</td><td>approval, contract-risk → notification</td><td>generic template-based email</td></tr>
 <tr><td>reminder.due</td><td>approval, contract-risk, document-vendor → (no consumer yet)</td><td>someone has waited too long</td></tr>
 <tr><td>business_rule.updated</td><td>auth → document-vendor, approval, contract-risk</td><td>invalidate rule cache</td></tr>
-<tr><td>order.summary.generated</td><td>approval → (planned: assistant)</td><td>hourly open-order summary</td></tr></table>
+<tr><td>order.summary.generated</td><td>approval → (planned: assistant)</td><td>hourly open-order summary</td></tr>
+<tr><td>budget.threshold_crossed</td><td>approval → (planned: notification)</td><td>a request took its budget into warning or over</td></tr>
+<tr><td>contract.obligation.due</td><td>contract-risk → (planned: notification)</td><td>obligation due soon, overdue, or a seat limit breached</td></tr>
+<tr><td>rfq.issued / rfq.awarded</td><td>approval → (planned: notification)</td><td>invitations went out / a quote won</td></tr>
+<tr><td>goods.received</td><td>approval → event log</td><td>a delivery was recorded (partial or complete)</td></tr></table>
 
 <h3 id="storage">Files, background jobs and external integrations</h3>
 <ul>

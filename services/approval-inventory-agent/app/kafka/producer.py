@@ -27,6 +27,9 @@ TOPIC_NOTIFICATION_SEND = "notification.send"
 TOPIC_ORDER_SUMMARY_GENERATED = "order.summary.generated"
 TOPIC_REMINDER_DUE = "reminder.due"
 TOPIC_BUDGET_THRESHOLD_CROSSED = "budget.threshold_crossed"
+TOPIC_RFQ_ISSUED = "rfq.issued"
+TOPIC_RFQ_AWARDED = "rfq.awarded"
+TOPIC_GOODS_RECEIVED = "goods.received"
 
 
 class KafkaEventProducer:
@@ -84,6 +87,32 @@ class KafkaEventProducer:
         event = build_event(TOPIC_BUDGET_THRESHOLD_CROSSED, self.service_name,
                             build_budget_threshold_crossed_payload(request, check))
         await self.publish(TOPIC_BUDGET_THRESHOLD_CROSSED, event)
+
+    async def publish_rfq_issued(self, rfq, vendor_ids: list):
+        """Phase 3: an RFQ (or a new round of it) went out to these vendors."""
+        event = build_event(TOPIC_RFQ_ISSUED, self.service_name, {
+            "rfq_id": str(rfq.id), "reference": rfq.reference, "title": rfq.title, "round": rfq.round,
+            "deadline": rfq.deadline.isoformat(), "sealed": rfq.sealed, "vendor_ids": [str(v) for v in vendor_ids],
+            "created_by": rfq.created_by})
+        await self.publish(TOPIC_RFQ_ISSUED, event)
+
+    async def publish_rfq_awarded(self, rfq, response, request_id: str, losing_vendor_ids: list):
+        """Phase 3: an RFQ was awarded; a purchase request now carries the winning quote."""
+        event = build_event(TOPIC_RFQ_AWARDED, self.service_name, {
+            "rfq_id": str(rfq.id), "reference": rfq.reference, "vendor_id": str(response.vendor_id),
+            "total_inr": float(response.total_inr), "request_id": str(request_id),
+            "losing_vendor_ids": [str(v) for v in losing_vendor_ids], "awarded_by": rfq.created_by})
+        await self.publish(TOPIC_RFQ_AWARDED, event)
+
+    async def publish_goods_received(self, request, receipt, complete: bool):
+        """Phase 3: a delivery was recorded against a request."""
+        event = build_event(TOPIC_GOODS_RECEIVED, self.service_name, {
+            "request_id": str(request.id), "receipt_id": str(receipt.id), "vendor_id": str(request.vendor_id) if request.vendor_id else None,
+            "lines": [{"line_no": l["line_no"], "quantity": l["quantity"], "asset_tags": l.get("asset_tags", [])}
+                      for l in receipt.lines],
+            "complete": complete, "status": request.status, "received_by": receipt.received_by,
+            "received_at": receipt.received_at.isoformat()})
+        await self.publish(TOPIC_GOODS_RECEIVED, event)
 
     async def publish_approval_decided(
         self, request_id, decision, decided_by, decision_level,
