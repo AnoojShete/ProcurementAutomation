@@ -1,0 +1,335 @@
+{
+  "generated_at": "2026-10-20T05:54:17.069609+00:00",
+  "model": "alex-apostolo/legal-bert-base-cuad",
+  "model_available": true,
+  "cuad": {
+    "rules": {
+      "license_limit": {
+        "tp": 13,
+        "fp": 1,
+        "fn": 37,
+        "precision": 0.929,
+        "recall": 0.26,
+        "f1": 0.406,
+        "contracts_with_clause": 50
+      },
+      "audit_rights": {
+        "tp": 10,
+        "fp": 3,
+        "fn": 28,
+        "precision": 0.769,
+        "recall": 0.263,
+        "f1": 0.392,
+        "contracts_with_clause": 38
+      },
+      "warranty": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 7,
+        "precision": 1.0,
+        "recall": 0.3,
+        "f1": 0.462,
+        "contracts_with_clause": 10
+      },
+      "termination_convenience": {
+        "tp": 7,
+        "fp": 20,
+        "fn": 22,
+        "precision": 0.259,
+        "recall": 0.241,
+        "f1": 0.25,
+        "contracts_with_clause": 29
+      },
+      "minimum_commitment": {
+        "tp": 1,
+        "fp": 3,
+        "fn": 31,
+        "precision": 0.25,
+        "recall": 0.031,
+        "f1": 0.056,
+        "contracts_with_clause": 32
+      },
+      "post_termination": {
+        "tp": 1,
+        "fp": 8,
+        "fn": 28,
+        "precision": 0.111,
+        "recall": 0.034,
+        "f1": 0.053,
+        "contracts_with_clause": 29
+      },
+      "liability_cap": {
+        "tp": 11,
+        "fp": 5,
+        "fn": 33,
+        "precision": 0.688,
+        "recall": 0.25,
+        "f1": 0.367,
+        "contracts_with_clause": 44
+      },
+      "insurance": {
+        "tp": 24,
+        "fp": 6,
+        "fn": 8,
+        "precision": 0.8,
+        "recall": 0.75,
+        "f1": 0.774,
+        "contracts_with_clause": 32
+      }
+    },
+    "model": {
+      "license_limit": {
+        "tp": 14,
+        "fp": 0,
+        "fn": 36,
+        "precision": 1.0,
+        "recall": 0.28,
+        "f1": 0.438,
+        "contracts_with_clause": 50
+      },
+      "audit_rights": {
+        "tp": 12,
+        "fp": 2,
+        "fn": 26,
+        "precision": 0.857,
+        "recall": 0.316,
+        "f1": 0.462,
+        "contracts_with_clause": 38
+      },
+      "warranty": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 8,
+        "precision": 1.0,
+        "recall": 0.2,
+        "f1": 0.333,
+        "contracts_with_clause": 10
+      },
+      "termination_convenience": {
+        "tp": 19,
+        "fp": 3,
+        "fn": 10,
+        "precision": 0.864,
+        "recall": 0.655,
+        "f1": 0.745,
+        "contracts_with_clause": 29
+      },
+      "minimum_commitment": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 30,
+        "precision": 1.0,
+        "recall": 0.062,
+        "f1": 0.118,
+        "contracts_with_clause": 32
+      },
+      "post_termination": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 28,
+        "precision": 1.0,
+        "recall": 0.034,
+        "f1": 0.067,
+        "contracts_with_clause": 29
+      },
+      "liability_cap": {
+        "tp": 24,
+        "fp": 0,
+        "fn": 20,
+        "precision": 1.0,
+        "recall": 0.545,
+        "f1": 0.706,
+        "contracts_with_clause": 44
+      },
+      "insurance": {
+        "tp": 16,
+        "fp": 0,
+        "fn": 16,
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.667,
+        "contracts_with_clause": 32
+      }
+    }
+  },
+  "contracts": 102,
+  "median_seconds": 52.0,
+  "templates": {
+    "rules": {
+      "accuracy": {
+        "sla_uptime": 1.0,
+        "license_limit": 1.0,
+        "price_cap": 1.0,
+        "audit_rights": 1.0,
+        "minimum_commitment": 1.0,
+        "post_termination": 1.0,
+        "data_protection": 1.0,
+        "liability_cap": 1.0,
+        "insurance": 1.0,
+        "warranty": 1.0,
+        "termination_convenience": 1.0
+      },
+      "examples_wrong": []
+    },
+    "model": {
+      "accuracy": {
+        "license_limit": 1.0,
+        "audit_rights": 0.0,
+        "minimum_commitment": 0.0,
+        "post_termination": 0.0,
+        "liability_cap": 0.0,
+        "insurance": 1.0,
+        "warranty": 1.0,
+        "termination_convenience": 1.0
+      },
+      "examples_wrong": [
+        {
+          "template": "saas_subscription",
+          "type": "audit_rights",
+          "expected": {
+            "days": 30,
+            "frequency": "annual"
+          },
+          "got": null
+        },
+        {
+          "template": "saas_subscription",
+          "type": "minimum_commitment",
+          "expected": {
+            "seats": 6,
+            "months": 12
+          },
+          "got": null
+        },
+        {
+          "template": "saas_subscription",
+          "type": "post_termination",
+          "expected": {
+            "days": 30
+          },
+          "got": null
+        },
+        {
+          "template": "saas_subscription",
+          "type": "liability_cap",
+          "expected": {
+            "fees_months": 12
+          },
+          "got": null
+        },
+        {
+          "template": "saas_subscription",
+          "type": "audit_rights",
+          "expected": {
+            "days": 30,
+            "frequency": "annual"
+          },
+          "got": null
+        },
+        {
+          "template": "saas_subscription",
+          "type": "minimum_commitment",
+          "expected": {
+            "seats": 20,
+            "months": 12
+          },
+          "got": null
+        },
+        {
+          "template": "saas_subscription",
+          "type": "post_termination",
+          "expected": {
+            "days": 30
+          },
+          "got": null
+        },
+        {
+          "template": "saas_subscription",
+          "type": "liability_cap",
+          "expected": {
+            "fees_months": 12
+          },
+          "got": null
+        }
+      ]
+    }
+  },
+  "fr13_templates": {
+    "rules": {
+      "accuracy": {
+        "renewal_type": 1.0,
+        "notice_period_days": 1.0,
+        "contract_end_date": 1.0
+      },
+      "examples_wrong": []
+    },
+    "model": {
+      "accuracy": {
+        "renewal_type": 1.0,
+        "notice_period_days": 1.0,
+        "contract_end_date": 1.0
+      },
+      "examples_wrong": []
+    }
+  },
+  "decision": {
+    "license_limit": {
+      "model_beats_rules": true,
+      "model_template_accuracy": 1.0,
+      "primary": "model"
+    },
+    "audit_rights": {
+      "model_beats_rules": true,
+      "model_template_accuracy": 0.0,
+      "primary": "rules"
+    },
+    "warranty": {
+      "model_beats_rules": false,
+      "model_template_accuracy": 1.0,
+      "primary": "rules"
+    },
+    "termination_convenience": {
+      "model_beats_rules": true,
+      "model_template_accuracy": 1.0,
+      "primary": "model"
+    },
+    "minimum_commitment": {
+      "model_beats_rules": true,
+      "model_template_accuracy": 0.0,
+      "primary": "rules"
+    },
+    "post_termination": {
+      "model_beats_rules": true,
+      "model_template_accuracy": 0.0,
+      "primary": "rules"
+    },
+    "liability_cap": {
+      "model_beats_rules": true,
+      "model_template_accuracy": 0.0,
+      "primary": "rules"
+    },
+    "insurance": {
+      "model_beats_rules": false,
+      "model_template_accuracy": 1.0,
+      "primary": "rules"
+    },
+    "sla_uptime": {
+      "model_beats_rules": null,
+      "model_template_accuracy": null,
+      "primary": "rules",
+      "note": "Not a CUAD category: rules only."
+    },
+    "price_cap": {
+      "model_beats_rules": null,
+      "model_template_accuracy": null,
+      "primary": "rules",
+      "note": "CUAD's test split has no Price Restrictions examples, so it can't be evaluated: rules only."
+    },
+    "data_protection": {
+      "model_beats_rules": null,
+      "model_template_accuracy": null,
+      "primary": "rules",
+      "note": "CUAD has no data-protection category: rules only."
+    }
+  }
+}

@@ -260,6 +260,7 @@ async def list_pending_payment_changes(db: AsyncSession = Depends(get_db)):
 
 class VendorOnboardBody(BaseModel):
     name: str
+    country: Optional[str] = None
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     address: Optional[str] = None

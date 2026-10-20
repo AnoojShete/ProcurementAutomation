@@ -89,8 +89,57 @@ export function StatusBadge({ status }: { status: string | null | undefined }) {
 
 const RISK_TONE: Record<string, Tone> = { Low: "success", Medium: "warning", High: "danger" };
 
-export function RiskBadge({ band }: { band: string | null | undefined }) {
-  if (!band) return <Badge tone="neutral">Not scored</Badge>;
+export function RiskBadge({
+  band,
+  pointsBand,
+  ratingStatus,
+  pointsIsLowerBound,
+  className,
+}: {
+  band: string | null | undefined;
+  pointsBand?: string | null;
+  ratingStatus?: string | null;
+  pointsIsLowerBound?: boolean;
+  className?: string;
+}) {
+  if (!band || band === "Unrated" || ratingStatus === "not_rated") {
+    return (
+      <span
+        className={cn(
+          "inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-sm px-1.5 text-caption font-medium bg-slate-100 text-slate-700 border border-dashed border-slate-400 dark:bg-slate-800 dark:text-slate-300",
+          className
+        )}
+      >
+        <span className="size-[7px] shrink-0 rounded-full border-[1.5px] border-current" aria-hidden="true" />
+        Unrated
+      </span>
+    );
+  }
+
+  // Never render green if checks are provisional or points is a lower bound
+  if (ratingStatus === "provisional" || pointsIsLowerBound) {
+    return (
+      <span
+        className={cn(
+          "inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-sm px-1.5 text-caption font-medium bg-amber-50 text-amber-800 border border-dashed border-amber-300",
+          className
+        )}
+      >
+        <span className="size-[7px] shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+        {band} (Provisional)
+      </span>
+    );
+  }
+
+  if (pointsBand && band && pointsBand !== band) {
+    return (
+      <div className={cn("inline-flex items-center gap-1", className)}>
+        <StatusDot tone={RISK_TONE[band] ?? "neutral"}>{band} (Override)</StatusDot>
+        <span className="text-caption text-ink-3">pts: {pointsBand}</span>
+      </div>
+    );
+  }
+
   return <StatusDot tone={RISK_TONE[band] ?? "neutral"}>{band} risk</StatusDot>;
 }
 

@@ -208,13 +208,20 @@ def s1_contract(c):
 
 
 def s1_sign(c):
+    # Deterministic scorecard: a vendor whose checks can't all be run here
+    # (no external registries in the demo) is provisional, so signing asks
+    # for an acknowledgement; a fully assessed Low/Medium vendor signs directly.
     r = sign(c, c["s1_contract"], acknowledge=False)
+    acknowledged = r.status_code == 409 and "risk_acknowledgement_required" in r.text
+    if acknowledged:
+        r = sign(c, c["s1_contract"], acknowledge=True)
     expect(r.status_code == 200, f"{r.status_code} {r.text[:200]}")
     pr = poll(lambda: request_of(c, c["s1_pr"]), lambda d: d["status"] == "ordered", timeout=30)
     expect(pr["status"] == "ordered", pr["status"])
     cert = c.api_get("finance", f"/contracts/{c['s1_contract']}/signature-certificate").json()["data"]
     expect(cert, "no certificate")
-    return "signed (Medium risk: no acknowledgement needed) · request ordered · certificate issued"
+    return ("signed after acknowledging the vendor's incomplete risk checks" if acknowledged
+            else "signed (vendor cleared: no acknowledgement needed)") + " · request ordered · certificate issued"
 
 
 def s1_receive(c):
@@ -238,7 +245,7 @@ s1.steps = [
          s1_contract, ("finance", lambda c: f"/app/contracts/{c['s1_contract']}", "text=Vendor risk")),
     Step("As <b>finance</b>: open the contract → Sign now → type a name, tick consent → Sign.",
          "Contract & Risk → Approval & Inventory", "contract.signed",
-         "Contract <b>Signed</b> with a signature certificate; the request moves to <b>Ordered</b>. (Vendor is Medium risk, so no acknowledgement is asked.)",
+         "Contract <b>Signed</b> with a signature certificate; the request moves to <b>Ordered</b>. (The vendor's risk checks are incomplete in the demo, so the signer ticks the risk acknowledgement; a fully assessed Low/Medium vendor signs without it.)",
          s1_sign, ("finance", lambda c: f"/app/contracts/{c['s1_contract']}")),
     Step("As <b>requester</b>: open the request → Mark as received.",
          "Approval & Inventory", "—",
@@ -410,7 +417,7 @@ def s4_checks(c):
 def s4_onboard(c):
     c["s4_vendor_name"] = f"{brand(c['rng'])} {brand(c['rng'])} LLC"
     r = c.api_post("finance", "/vendors/onboard", json={
-        "name": c["s4_vendor_name"], "contact_email": "billing@northwind.example", "category": "Software",
+        "name": c["s4_vendor_name"], "country": "US", "contact_email": "billing@northwind.example", "category": "Software",
         "bank_account_number": "50100" + c["run_digits"], "routing_code": "HDFC0001234",
         "payment_beneficiary_name": c["s4_vendor_name"],
         "confirm": ["no_gstin"], "no_gstin_reason": "Foreign vendor (US), not registered for GST in India"})
@@ -420,15 +427,17 @@ def s4_onboard(c):
 
 
 def s4_signals(c):
-    r = requests.patch(f"{GW}/vendors/{c['s4_vendor']}/risk-signals", headers=H(c.tok("finance")), timeout=60, json={
-        "security_cert_flag": False, "geo_risk_flag": True, "breach_disclosure_count": 3, "financial_stability_score": 0.15})
-    expect(r.status_code == 200, f"{r.status_code} {r.text[:200]}")
-    risk = r.json()["data"]["risk"]
-    expect(risk.get("risk_band") == "High", f"band {risk.get('risk_band')} ({risk.get('risk_score')})")
+    # Deterministic risk scorecard: recompute, then read the summary.
+    r = c.api_post("finance", f"/vendors/{c['s4_vendor']}/risk/recompute", json={})
+    expect(r.status_code in (200, 202), f"{r.status_code} {r.text[:200]}")
+    risk = poll(lambda: c.api_get("finance", f"/vendors/{c['s4_vendor']}/risk"), lambda x: x.status_code == 200, timeout=60).json()["data"]
+    clearance = c.api_get("finance", f"/vendors/{c['s4_vendor']}/clearance?purpose=contract&spend_amount=4200").json()["data"]
+    expect(clearance.get("cleared") is False, f"a new foreign vendor with checks missing was cleared: {clearance}")
     scr = c.api_get("finance", f"/vendors/{c['s4_vendor']}/sanctions").json()["data"]
     screened = (scr.get("latest") or {}).get("status")
     expect(not scr["list"].get("available") or screened in ("clear", "potential_match", "cleared"), f"not screened: {scr}")
-    return f"re-scored High ({risk['risk_score']:.2f})" + (f" · sanctions screening: {screened}" if screened else " · no sanctions list downloaded")
+    return (f"scored {risk.get('total_points')} points · {risk.get('final_band')} · {risk.get('rating_status')} · not cleared"
+            + (f" · sanctions screening: {screened}" if screened else " · no sanctions list downloaded"))
 
 
 def s4_request(c):
@@ -444,8 +453,7 @@ def s4_request(c):
     expect(ct, "no contract sent")
     c["s4_contract"] = ct["id"]
     risk = c.api_get("finance", f"/contracts/{ct['id']}").json()["data"].get("vendor_risk") or {}
-    expect(risk.get("acknowledgement_required") is True and risk.get("risk_band") == "High",
-           f"risk panel doesn't ask for acknowledgement: {risk}")
+    expect(risk.get("acknowledgement_required") is True, f"risk panel doesn't ask for acknowledgement: {risk}")
     return f"approved → contract {ct['id'][:8]} pending signature · risk panel: “{risk.get('acknowledgement_reason')}”"
 
 
@@ -456,8 +464,8 @@ def s4_sign(c):
     expect(r.status_code == 200, f"{r.status_code} {r.text[:200]}")
     cert = c.api_get("finance", f"/contracts/{c['s4_contract']}/signature-certificate").json()["data"]
     at = cert.get("vendor_risk_at_signing") or {}
-    expect(at.get("acknowledged") is True and at.get("risk_band") == "High", f"certificate: {at}")
-    return "without acknowledgement → refused (409); with it → signed; certificate records High + acknowledged"
+    expect(at.get("acknowledged") is True, f"certificate: {at}")
+    return f"without acknowledgement → refused (409); with it → signed; certificate records {at.get('risk_band')} + acknowledged"
 
 
 s4.steps = [
@@ -469,17 +477,17 @@ s4.steps = [
          "Document & Vendor", "vendor.payment_details_flagged",
          "The vendor exists; its bank details are <b>pending verification</b> by a second person (scenario 5).",
          s4_onboard, ("finance", lambda c: f"/app/vendors/{c['s4_vendor']}")),
-    Step("Still as <b>finance</b>, on the vendor page → Risk Signals: tick <i>High-risk geography</i>, breach disclosures 3, financial stability 0.15 → Save and re-score.",
+    Step("Still as <b>finance</b>, on the vendor page → Full risk scorecard → Recompute Rating.",
          "Contract & Risk", "risk.score.updated",
-         "Vendor Risk becomes <b>High</b>, with the reasons; the vendor has also been screened against the sanctions list (Sanctions Screening: <i>Clear</i>).",
-         s4_signals, ("finance", lambda c: f"/app/vendors/{c['s4_vendor']}", "text=Vendor Risk")),
+         "The deterministic scorecard lists each check with its points and source; a new foreign vendor with most checks not yet assessed is <b>provisional</b> and <b>not cleared</b>. It has also been screened against the sanctions list (<i>Clear</i>).",
+         s4_signals, ("finance", lambda c: f"/app/vendors/{c['s4_vendor']}/risk", "text=Recompute Rating")),
     Step("As <b>requester</b>: a ₹4,200 SaaS request for that vendor; as <b>approver</b>: approve it.",
          "Approval & Inventory → Contract & Risk", "approval.requested, approval.decided, contract.generated",
-         "A contract, <b>Pending signature</b>, whose Vendor risk panel shows <b>High</b> and says signing needs an acknowledgement.",
+         "A contract, <b>Pending signature</b>, whose Vendor risk panel shows the vendor isn't cleared and says signing needs an acknowledgement.",
          s4_request, ("finance", lambda c: f"/app/contracts/{c['s4_contract']}", "text=Vendor risk")),
     Step("As <b>finance</b>: Sign now — first without ticking the risk acknowledgement, then with it.",
          "Contract & Risk", "contract.signed",
-         "Sign stays <b>disabled</b> until the High risk is acknowledged; the signature certificate records the band and the acknowledgement.",
+         "Sign stays <b>disabled</b> until the risk is acknowledged; the signature certificate records the band and the acknowledgement.",
          s4_sign, ("finance", lambda c: f"/app/contracts/{c['s4_contract']}")),
 ]
 

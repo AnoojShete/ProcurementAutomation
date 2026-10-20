@@ -231,15 +231,18 @@ def main():
         r = requests.post(f"{GW}/requests/{pr_id}/receive", headers=H(app_t))
         check("marking received twice -> 409", r.status_code == 409, f"{r.status_code} {r.text[:100]}")
     r = requests.post(f"{GW}/vendors/{vendor_id}/risk/recompute", headers=H(fin_t))
-    check("finance recomputes vendor risk -> 200", r.status_code == 200, r.text[:150])
+    check("finance recomputes vendor risk -> 202", r.status_code in (200, 202), r.text[:150])
     risk = requests.get(f"{GW}/vendors/{vendor_id}/risk", headers=H(adm_t)).json().get("data") or {}
-    check("risk band + signal coverage reported", risk.get("risk_band") in ("Low", "Medium", "High")
-          and risk.get("signals_total") == 6 and risk.get("signals_used") is not None, risk)
-    # FR-04: factors explain known signals only; none are invented for a
-    # vendor with nothing on file (it used to show factors from defaults).
-    check("factors only from signals on file", bool(risk.get("top_factors")) == bool(risk.get("signals_used")), risk)
-    check("hard checks reported (gstin, sanctions, ifsc)",
-          {c["check"] for c in risk.get("overrides", [])} == {"gstin", "sanctions", "ifsc"}, risk.get("overrides"))
+    # Deterministic scorecard (merged from updated_risk): a band, integer
+    # points and a rating status; a vendor with checks missing never looks Low.
+    check("risk band, points and rating status reported",
+          risk.get("final_band") in ("Low", "Medium", "High", "Unrated") and isinstance(risk.get("total_points"), int)
+          and risk.get("rating_status") in ("assessed", "provisional", "not_rated"), risk)
+    check("no false Low: an incompletely checked vendor isn't Low",
+          risk.get("rating_status") == "assessed" or risk.get("final_band") != "Low", risk)
+    exp = requests.get(f"{GW}/vendors/{vendor_id}/risk/explanation", headers=H(adm_t)).json().get("data") or {}
+    keys = {sig["signal_key"] for sig in exp.get("signals", [])}
+    check("hard checks are part of the scorecard (gst, sanctions, bank)", {"gst", "sanctions", "bank"} <= keys, sorted(keys))
     spend = requests.get(f"{GW}/vendors/{vendor_id}/spend-summary", headers=H(adm_t))
     check("vendor spend-summary -> 200", spend.status_code == 200, spend.text[:120])
 

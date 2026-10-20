@@ -60,7 +60,7 @@ def get_rule(key: str, fallback: Any = None) -> Any:
 
     key_valid = key in _cache and now <= _rule_expiries.get(key, 0)
 
-    if not key_valid and (now > _cache_expiry or key not in _cache):
+    if not key_valid and now > _cache_expiry:
         rules = fetch_all_rules()
         if rules:
             _cache.update(rules)

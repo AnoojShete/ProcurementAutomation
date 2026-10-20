@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { INFRA_LINKS, PLATFORM_SERVICES } from "@/lib/constants";
+import { ScorecardMonitoringCard } from "@/components/risk/ScorecardMonitoringCard";
 
 interface Quota {
   api_name: string;
@@ -94,6 +95,8 @@ export function SystemHealthPage() {
           <SsoUsageModelMonitor />
         </CardBody>
       </Card>
+
+      <ScorecardMonitoringCard />
 
 
       <Card>

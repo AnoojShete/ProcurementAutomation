@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
@@ -9,19 +9,15 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { RiskBadge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { ErrorState, InlineError } from "@/components/ui/ErrorState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { ScorecardMonitoringCard } from "@/components/risk/ScorecardMonitoringCard";
 import type { VendorSummary } from "@/types/api";
-import { ApiError } from "@/api/client";
 
 export function RiskDashboardPage() {
   usePageHeader("Risk Management");
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data: vendors, loading, error, reload } = useApi(() => vendorsApi.list(200), []);
-  const [driftResult, setDriftResult] = useState<Record<string, unknown> | null>(null);
-  const [driftLoading, setDriftLoading] = useState(false);
-  const [driftError, setDriftError] = useState<string | null>(null);
 
   const scored = useMemo(() => (vendors ?? []).filter((v) => v.risk_band), [vendors]);
   const distribution = useMemo(() => {
@@ -32,19 +28,6 @@ export function RiskDashboardPage() {
     return bands;
   }, [scored]);
   const total = scored.length || 1;
-
-  const runDriftCheck = async () => {
-    setDriftLoading(true);
-    setDriftError(null);
-    try {
-      const res = await vendorsApi.driftCheck();
-      setDriftResult(res.data);
-    } catch (e) {
-      setDriftError(e instanceof ApiError ? e.message : "Unable to run drift check.");
-    } finally {
-      setDriftLoading(false);
-    }
-  };
 
   const columns: Column<VendorSummary>[] = [
     { key: "name", header: "Vendor", render: (v) => <span className="font-medium text-slate-800">{v.name}</span> },
@@ -101,20 +84,7 @@ export function RiskDashboardPage() {
         </CardBody>
       </Card>
 
-      {user?.role === "admin" && (
-        <Card>
-          <CardHeader title="Model Drift Monitoring" subtitle="Population Stability Index against the training distribution" />
-          <CardBody className="flex flex-col gap-3">
-            <Button variant="secondary" loading={driftLoading} onClick={runDriftCheck}>
-              Run Drift Check
-            </Button>
-            {driftError && <InlineError message={driftError} />}
-            {driftResult && (
-              <pre className="overflow-x-auto rounded-lg bg-surface-subtle p-3 text-xs text-slate-700">{JSON.stringify(driftResult, null, 2)}</pre>
-            )}
-          </CardBody>
-        </Card>
-      )}
+      <ScorecardMonitoringCard />
     </div>
   );
 }

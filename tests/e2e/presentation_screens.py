@@ -35,7 +35,7 @@ SHOTS = {   # file: (role, path, what to wait for)
     "01-documents.png": ("finance", "/app/documents", "text=Documents"),
     "02-document-detail.png": ("finance", f"/app/documents/{sample_id('document-vendor-agent.json', 'output', 'id')}", "text=Extracted"),
     "03-vendor-risk.png": ("finance", "/app/vendors/11111111-1111-1111-1111-111111111111", "text=Vendor Risk"),
-    "04-vendor-risk-signals.png": ("finance", "/app/vendors/11111111-1111-1111-1111-111111111111", "text=Risk Signals"),
+    "04-vendor-risk-signals.png": ("finance", "/app/vendors/11111111-1111-1111-1111-111111111111/risk", "text=Recompute Rating"),
     "05-approval-queue.png": ("approver", "/app/approvals", "main"),
     "06-request-lifecycle.png": ("admin", f"/app/requests/{sample_id('approval-inventory-agent.json', 'output', 'id')}", "main"),
     "07-inventory-reorder.png": ("admin", "/app/inventory", "text=Reorder Suggestions"),
@@ -73,9 +73,6 @@ async def main():
             except Exception:
                 print(f"warning: {name} — '{wait_for}' not found, taking the screenshot anyway")
             await page.wait_for_timeout(1500)
-            if "risk-signals" in name:
-                await page.locator("text=Risk Signals").first.evaluate("e => e.scrollIntoView({block: 'start'})")
-                await page.wait_for_timeout(400)
             await page.screenshot(path=os.path.join(OUT, name))
             print("saved", os.path.join("docs/results/screens", name))
         await browser.close()

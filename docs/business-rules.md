@@ -1,10 +1,10 @@
 # Business rules
 
-Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct; 55 after the Phase 2 obligation rules; 59 after the Phase 3 sourcing rules) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
+Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct; 55 after the Phase 2 obligation rules; 59 after the Phase 3 sourcing rules; 63 after merging the deterministic risk scorecard) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
 
 Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed on `business_rule.updated`); each read has a fallback used when auth-service is unreachable. Tests: `services/<service>/tests/test_rules_wiring.py::test_<rule key with _>` — each sets the rule to two values and checks the behaviour differs.
 
-**Enforced: 51** · **Not enforced: 8** (listed at the end — editing them has no effect until the feature exists).
+**Enforced: 55** · **Not enforced: 8** (listed at the end — editing them has no effect until the feature exists).
 
 | Rule | Default | What it changes | Read in | Test |
 |---|---|---|---|---|
@@ -46,9 +46,13 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `license.anomaly_watch_threshold` | `0.5` | Threshold score for placing a license on watch status | approval-inventory-agent: config.py | `approval-inventory-agent` · `test_license_anomaly_watch_threshold` |
 | `license.reclaim_cooldown_days` | `45` | Days to wait before attempting reclamation again after decline | approval-inventory-agent: approval_service.py | `approval-inventory-agent` · `test_license_reclaim_cooldown_days` |
 | `monitor.event_log_retention_days` | `14` | How long the Control Panel keeps Kafka events (summaries only) | document-vendor-agent: event_monitor.py | `document-vendor-agent` · `test_monitor_event_log_retention_days` |
+| `risk.alert_recipients` | `"procurement-risk-team@company.com"` | Who is e-mailed when a vendor turns High risk or a new hard override fires (empty = nobody) | contract-risk-agent: risk_service.py | `contract-risk-agent` · `test_risk_alert_recipients` |
 | `risk.contract_renewal_milestones_days` | `[60, 30, 15]` | Days before renewal to trigger notification alerts | contract-risk-agent: api/contracts.py, contract-risk-agent: workflows/activities.py | `contract-risk-agent` · `test_risk_contract_renewal_milestones_days` |
+| `risk.min_relationship_days` | `90` | Days on file (without a delivered order) before a vendor's incident history counts as assessed | contract-risk-agent: collectors/performance_collectors.py | `contract-risk-agent` · `test_risk_min_relationship_days` |
+| `risk.petty_threshold` | `50000` | A provisional low-tier vendor is still cleared for a purchase or contract up to this amount (no hard override) | contract-risk-agent: api/vendors.py (clearance) | `contract-risk-agent` · `test_risk_petty_threshold` |
 | `risk.psi_moderate_threshold` | `0.1` | Population Stability Index threshold for moderate risk drift | contract-risk-agent: drift_service.py | `contract-risk-agent` · `test_risk_psi_moderate_threshold` |
 | `risk.psi_significant_threshold` | `0.2` | Population Stability Index threshold for significant risk drift | contract-risk-agent: drift_service.py | `contract-risk-agent` · `test_risk_psi_significant_threshold` |
+| `risk.raw_retention_months` | `24` | How long raw responses from the risk signal collectors are kept | contract-risk-agent: collectors/base.py | `contract-risk-agent` · `test_risk_raw_retention_months` |
 | `risk.sanctions_match_threshold_pct` | `90.0` | Match score (0–100) at which a vendor name counts as a potential sanctions match (hard override until finance clears it; FR-14) | contract-risk-agent: services/sanctions.py | `contract-risk-agent` · `test_risk_sanctions_match_threshold_pct` |
 | `sourcing.default_criteria` | `{"price": 0.45, "lead_time": 0.15, …}` | Weights for comparing RFQ quotes (price, lead time, warranty, support, vendor risk, delivery record; add up to 1); each new RFQ starts with them | approval-inventory-agent: sourcing_service.py | `approval-inventory-agent` · `test_sourcing_default_criteria` |
 | `sourcing.rfq_required_above_inr` | `200000` | A request above this with no RFQ or catalog price gets an advisory *sourcing* note on its page (0 = off) | approval-inventory-agent: sourcing_service.py | `approval-inventory-agent` · `test_sourcing_rfq_required_above_inr` |

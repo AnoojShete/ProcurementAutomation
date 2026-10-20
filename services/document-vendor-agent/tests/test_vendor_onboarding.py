@@ -14,7 +14,7 @@ GOOD_GSTIN = "27AAPFU0939F1ZV"   # valid format + check digit
 
 
 def _profile(**kw):
-    base = dict(name="Acme Cloud Pvt Ltd", contact_email="ops@acme.example", contact_phone="+91 98765 43210",
+    base = dict(name="Acme Cloud Pvt Ltd", country="IN", contact_email="ops@acme.example", contact_phone="+91 98765 43210",
                 gstin=GOOD_GSTIN, bank_account_number="000123456789", routing_code="HDFC0001234")
     return VendorProfile(**{**base, **kw})
 

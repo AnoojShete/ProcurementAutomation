@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from contextlib import asynccontextmanager  # noqa: E402
 
-from app.services import scorecard  # noqa: E402
+from app.services import performance_scorecard as scorecard  # noqa: E402
 
 
 def run(coro):

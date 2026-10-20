@@ -104,8 +104,11 @@ class TestReceived:
         assert await consumer.apply_received(session, req, "alice@acme.test") == "fulfilled+fulfilment_applied"
         assert req.status == "fulfilled"
         activate.assert_awaited_once()
-        marker = session.add.call_args.args[0]
-        assert marker.action == consumer.FULFILMENT_MARKER and marker.performed_by == "alice@acme.test"
+        added = [c.args[0] for c in session.add.call_args_list]
+        marker = next(x for x in added if getattr(x, "action", None) == consumer.FULFILMENT_MARKER)
+        assert marker.performed_by == "alice@acme.test"
+        # Also recorded as goods_received (read by the risk rescore after deliveries).
+        assert any(getattr(x, "action", None) == "goods_received" for x in added)
 
     @pytest.mark.asyncio
     async def test_invoice_before_delivery_keeps_status_but_still_fulfils(self, monkeypatch):

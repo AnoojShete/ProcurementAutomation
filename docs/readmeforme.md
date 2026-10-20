@@ -402,8 +402,9 @@ protection, liability cap and insurance
 sweep in the contract-risk API (`obligation_service.run_obligation_sweeps`,
 every 60 s) reads newly signed contracts — rules for every type, Legal-BERT
 only for types listed in `MODEL_TYPES`, which are the ones where the model
-beat the rules on CUAD (`ml/evaluate_obligation_model.py`,
-`docs/results/obligations.md`). Each finding is stored as *to confirm*;
+beat the rules on CUAD and read every template value — licence limits and
+termination for convenience (`ml/evaluate_obligation_model.py`,
+`docs/results/obligations.md`); when the model abstains, the rules fill in. Each finding is stored as *to confirm*;
 nothing is tracked until finance or an admin confirms it on the contract
 page (`/app/contracts/:id`, *Obligations*), which sets its due date and
 recurrence (SLA review monthly, audit window yearly, warranty and minimum
@@ -672,16 +673,24 @@ from the vendor page); a name at or above `risk.sanctions_match_threshold_pct`
 (90) is a potential match and a hard override (High) until finance clears
 it with a reason (`POST /vendors/{id}/clear-sanctions-flag`, audit-logged).
 
-**Risk signals.** Before every score the model's inputs are refreshed
-from platform history: tenure (since the vendor's first record) and
-on-time delivery (contract signed → goods received within
-`vendor.expected_delivery_days`, default 14). A sweep re-scores vendors
-after a delivery. Finance records the compliance signals (security
-certification, breach disclosures, high-risk geography, financial
-stability) on the vendor page — audit-logged, re-scores at once
-(`app/services/risk_signals.py`, `PATCH /vendors/{id}/risk-signals`).
-The drift check compares each vendor's latest score with ≥ 3 signals on
-file against the training distribution.
+**Vendor risk scoring** is the deterministic vendor risk scorecard (merged 21 Oct from `updated_risk`): a 100-point ruleset —
+identity and compliance 39, operational performance 35, cyber 17, company standing 6, reputation 3 —
+over observations gathered by collectors (local records first, then format checks, then external
+sources behind a circuit breaker). Bands: Low 0–24, Medium 25–49, High 50+. Hard overrides
+(a sanctions match, a cancelled GSTIN, an invalid bank route) force High. A vendor whose checks are
+incomplete is `provisional` and is never shown as Low (its band becomes `Unrated` instead);
+`not_rated` means nothing could be assessed. Every score stores its snapshot and SHA-256, so it can
+be replayed exactly (`GET /vendors/{id}/risk/{score_id}/replay`). `GET /vendors/{id}/clearance?purpose=`
+answers whether a vendor may be used for activation, a purchase or a contract, taking post-score
+decisions (approve, approve with conditions, accept risk — admin only, reject) and vendor status into
+account. Evidence, disputes, a remediation plan and what-if simulation are on the vendor's scorecard
+page (`/app/vendors/{id}/risk`); admins manage rulesets (draft, validate, dry-run, activate) under
+Business Rules, and a weekly monitoring report replaces the PSI drift card. The earlier random forest
+is archived in `ml/archive/` with its evaluation (`docs/risk-model.md`). Known gaps are listed in
+`docs/risk-merge-review.md` (for example, contract signing does not yet use the clearance gate's
+decisions).
+A sweep re-scores vendors after a delivery. `tests/e2e/risk_flow.py` checks the module and
+everything that reads it (signing, budget routing, RFQ scoring, notifications, onboarding).
 
 The DocuSign client is kept but unused (built-in e-sign only since
 Oct 15). To try it anyway: the DocuSign block in `.env.example`,
@@ -740,11 +749,11 @@ wrapped with the retry / dead-letter handler (TODO.md).
   itself is trusted.
   Renewal reminders via a Temporal workflow, counted back from the notice
   deadline (end date − notice period); the contract page shows the next one.
-- **Vendor risk**: hard overrides first (cancelled/suspended GSTIN → High),
-  then a RandomForest trained at image build on 2,000 seeded synthetic
-  vendors; missing signals are left out, and the vendor page shows "based
-  on N of 6 signals". Evaluation in `docs/risk-model.md` (ROC-AUC 0.715,
-  red-team 12/12). Weekly PSI drift flag (never retrains itself).
+- **Vendor risk**: a deterministic 100-point scorecard with hard overrides
+  (sanctions, cancelled GSTIN, bank route → High), rating statuses
+  (assessed / provisional / not rated — never a false Low), a clearance gate,
+  decisions, evidence, disputes and exact replay. The random forest it
+  replaced (ROC-AUC 0.715, `docs/risk-model.md`) is archived.
 - **Vendor vetting**: GSTIN format + checksum (+ optional live lookup with
   quota auto-cutoff), IFSC via Razorpay's free API, spend-based tiers.
 - **Business rules**: 28 tunable rules edited live on an admin page with

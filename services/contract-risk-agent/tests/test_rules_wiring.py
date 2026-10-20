@@ -233,3 +233,80 @@ def test_contract_sla_credit_auto_expect(rule):
     assert _credit_status() == "expected"
     rule("contract.sla_credit_auto_expect", False)
     assert _credit_status() == "proposed"
+
+
+# ── Deterministic risk scorecard (merged from updated_risk) ─────────────────
+
+def _clearance(spend):
+    from app.api import vendors as api
+    vendor = SimpleNamespace(id="v1", vendor_tier="low", status="active")
+    score = SimpleNamespace(rating_status="provisional", is_provisional=True, final_band="Low", band="Low", points_band="Low",
+                            blocked_by=[], override_rule_ids=[], provisional_reasons=["incidents"], score=None)
+    db = AsyncMock()
+    db.get = AsyncMock(return_value=vendor)
+    db.execute = AsyncMock(return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))))
+    with patch.object(api.risk_service, "latest_risk_score", AsyncMock(return_value=score)):
+        return run(api.get_vendor_clearance("v1", purpose="purchase", spend_amount=spend, contract_id=None,
+                                            currency="INR", db=db)).data
+
+
+def test_risk_petty_threshold(rule):
+    rule("risk.petty_threshold", 50000)
+    out = _clearance(40000)
+    assert out["cleared"] is True and "cleared_under_petty_exception" in out["reasons"]
+    rule("risk.petty_threshold", 30000)
+    out = _clearance(40000)
+    assert out["cleared"] is False and "rating_provisional" in out["reasons"]
+
+
+def _alert(rule_value, rule):
+    from app.services import risk_service
+    rule("risk.alert_recipients", rule_value)
+    producer = MagicMock(publish_notification=AsyncMock())
+    sent = run(risk_service.send_high_risk_alert(producer, SimpleNamespace(name="Acme"), "v1", "High", 60, "High", []))
+    return sent, producer.publish_notification
+
+
+def test_risk_alert_recipients(rule):
+    sent, publish = _alert("risk-team@acme.test", rule)
+    assert sent and publish.await_args.kwargs["recipient"] == "risk-team@acme.test"
+    sent, publish = _alert("", rule)
+    assert not sent and publish.await_count == 0
+
+
+def _incident_history(now, days_on_file):
+    from app.services.collectors import performance_collectors as pc
+    captured = {}
+
+    async def raw(**kw):
+        captured["body"] = kw["body"]
+        return SimpleNamespace(id="r1")
+    vendor = SimpleNamespace(id="v1", created_at=now - timedelta(days=days_on_file))
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=0), all=MagicMock(return_value=[])))
+    with patch.object(pc, "record_raw_response", raw), patch.object(pc, "record_observation", AsyncMock(return_value=SimpleNamespace(id="o1"))):
+        run(pc.collect_incidents(db, vendor, now))
+    return captured["body"]["history_available"]
+
+
+def test_risk_min_relationship_days(rule):
+    now = datetime(2026, 10, 21, tzinfo=timezone.utc)
+    rule("risk.min_relationship_days", 90)     # 100 days on file, no delivered order yet
+    assert _incident_history(now, 100) is True
+    rule("risk.min_relationship_days", 120)
+    assert _incident_history(now, 100) is False
+
+
+def _retention(rule_value, rule):
+    from app.services.collectors import base
+    rule("risk.raw_retention_months", rule_value)
+    db = MagicMock(add=MagicMock(), flush=AsyncMock())
+    row = run(base.record_raw_response(db=db, vendor_id="v1", signal_key="sanctions", provider="x", request_method="GET",
+                                       body={"ok": True}, fetched_at=datetime(2026, 1, 15, tzinfo=timezone.utc)))
+    return row.retention_until
+
+
+def test_risk_raw_retention_months(rule):
+    # months are approximated as 30.5 days (collectors/base.compute_retention_date)
+    assert _retention(24, rule) == date(2028, 1, 17)
+    assert _retention(6, rule) == date(2026, 7, 17)

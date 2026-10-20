@@ -1,91 +1,38 @@
+"""Deterministic rule-based vendor risk scorecard service (Prompt 9B).
+Replaces ML model scoring with 100% deterministic integer points (0-100).
+"""
+import copy
 import logging
-import os
-import sys
 import uuid
-from types import SimpleNamespace
 from datetime import datetime, timezone
-from functools import lru_cache
-
-import joblib
+from typing import Any, Dict, List, Optional
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.config import load_risk_config
-from app.models import RiskScore, VendorRiskFeatures
 from app.metrics import risk_assessment_total
+from app.models import (
+    RiskRuleset,
+    RiskScore,
+    RiskScoreRuleResult,
+    Vendor,
+    VendorSignalObservation,
+)
+from app.services.collectors.collector_manager import collect_all_signals
+from app.services.scorecard.default_ruleset import (
+    canonical_json_hash,
+    get_default_ruleset,
+)
+from app.services.scorecard.engine import evaluate_risk
+from shared.rules_engine import get_rule
 
 logger = logging.getLogger(__name__)
 
-ML_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "ml")
-ARTIFACT_DIR = os.path.join(ML_DIR, "artifacts")
-MODEL_PATH = os.path.join(ARTIFACT_DIR, "model.joblib")
-VERSION_PATH = os.path.join(ARTIFACT_DIR, "model_version.txt")
 
-# Hard overrides: a vendor that fails one of these is High whatever the
-# model says (checked before the model, reported as the first factor).
-# "not_checked" when the signal isn't on file — sanctions screening is
-# FR-14, and IFSC results aren't stored yet.
 GSTIN_FAILED = ("cancelled", "suspended")
 GSTIN_NOT_CHECKED = (None, "", "unverified", "offline", "simulated")
 
 
-class ModelNotTrainedError(Exception):
-    pass
-
-
-@lru_cache
-def _load_model():
-    if not os.path.exists(MODEL_PATH):
-        sys.path.insert(0, ML_DIR)
-        from train_risk_model import train  # local import: only needed the first time
-
-        train()
-    bundle = joblib.load(MODEL_PATH)
-    with open(VERSION_PATH) as f:
-        version = f.read().strip()
-    return bundle["model"], bundle["features"], version
-
-
-def _band_for_score(score: float) -> str:
-    cfg = load_risk_config().get("bands", {"low_max": 0.33, "medium_max": 0.66})
-    if score <= cfg.get("low_max", 0.33):
-        return "Low"
-    if score <= cfg.get("medium_max", 0.66):
-        return "Medium"
-    return "High"
-
-
-async def _load_features(db: AsyncSession, vendor_id: str) -> dict:
-    """The model's inputs for a vendor; None where nothing is on file. A
-    missing value is left out (the model was trained with gaps), never
-    filled with a default that would read as risk."""
-    row = await db.get(VendorRiskFeatures, vendor_id)
-    if row is None:
-        return {name: None for name in FEATURE_NAMES}
-
-    def num(v, cast=float):
-        return cast(v) if v is not None else None
-
-    return {
-        "vendor_tenure_months": num(row.vendor_tenure_months, int),
-        "on_time_delivery_rate": num(row.on_time_delivery_rate),
-        "financial_stability_score": num(row.financial_stability_score),
-        "breach_disclosure_count": num(row.breach_disclosure_count, int),
-        # Booleans default to false in the table, so "not set" can't be told
-        # apart from "no": they count as known.
-        "security_cert_flag": int(bool(row.security_cert_flag)),
-        "geo_risk_flag": int(bool(row.geo_risk_flag)),
-    }
-
-
-FEATURE_NAMES = [
-    "vendor_tenure_months", "on_time_delivery_rate", "financial_stability_score",
-    "breach_disclosure_count", "security_cert_flag", "geo_risk_flag",
-]
-
-
-def hard_override_checks(gstin_status: str | None, sanctions_match: bool | None = None,
-                         ifsc_status: str | None = None) -> list[dict]:
+def hard_override_checks(gstin_status: Optional[str] = None, sanctions_match: Optional[bool] = None,
+                         ifsc_status: Optional[str] = None, *args, **kwargs) -> list[dict]:
     """Each check: triggered (vendor is High), clear, or not_checked."""
     status = (gstin_status or "").lower() or None
     checks = [{
@@ -104,118 +51,343 @@ def hard_override_checks(gstin_status: str | None, sanctions_match: bool | None 
     return checks
 
 
+def _band_for_score(score: float) -> str:
+    from app.config import load_risk_config
+    cfg = load_risk_config().get("bands", {"low_max": 0.33, "medium_max": 0.65})
+    med_max = min(cfg.get("medium_max", 0.65), 0.65)
+    if score <= cfg.get("low_max", 0.33):
+        return "Low"
+    if score <= med_max:
+        return "Medium"
+    return "High"
+
+
+def _top_factors(model, features: dict, feature_order: list[str], top_n: int = 3) -> list[dict]:
+    importances = model.feature_importances_
+    contributions = []
+    for name, importance in zip(feature_order, importances):
+        value = features.get(name)
+        if value is None:
+            continue
+        if name in ("security_cert_flag",):
+            deviation = -(value - 0.5) * 2
+        elif name in ("geo_risk_flag", "breach_disclosure_count"):
+            deviation = value if isinstance(value, (int, float)) and value <= 1 else min(value / 3.0, 1.0)
+        elif name == "vendor_tenure_months":
+            deviation = -(min(value, 60) / 60.0 - 0.5) * 2
+        else:
+            deviation = (0.5 - value) * 2
+        contributions.append({"feature": name, "contribution": round(float(importance * abs(deviation)), 4)})
+    contributions.sort(key=lambda c: c["contribution"], reverse=True)
+    return contributions[:top_n]
+
+
 def assess(model, feature_order: list[str], features: dict, override_checks: list[dict]) -> dict:
-    """Score, band and factors for one vendor. Overrides beat the model: the
-    model's score is kept (for drift monitoring) but the band is High and
-    the override is the first factor."""
+    """Legacy ML assess compatibility helper."""
     import numpy as np
     X = [[np.nan if features.get(name) is None else features[name] for name in feature_order]]
     score = float(model.predict_proba(X)[0][1])
     band = _band_for_score(score)
     factors = _top_factors(model, features, feature_order)
-    triggered = [c for c in override_checks if c["status"] == "triggered"]
+    triggered = [c for c in override_checks if c.get("status") == "triggered"]
     if triggered:
         band = "High"
-        factors = [{"feature": f"override:{c['check']}", "contribution": 1.0, "override": True, "reason": c["reason"]}
+        factors = [{"feature": f"override:{c['check']}", "contribution": 1.0, "override": True, "reason": c.get("reason")}
                    for c in triggered] + factors
     used = sum(1 for name in feature_order if features.get(name) is not None)
     return {"score": score, "band": band, "top_factors": factors,
             "signals_used": used, "signals_total": len(feature_order)}
 
 
-def _top_factors(model, features: dict, feature_order: list[str], top_n: int = 3) -> list[dict]:
-    """feature_importances_ gives global importance; scaled by how far this
-    vendor's value sits from a neutral midpoint so the factors reported are
-    specific to this vendor, not just a static ranking repeated for every
-    vendor."""
-    importances = model.feature_importances_
-    contributions = []
-    for name, importance in zip(feature_order, importances):
-        value = features.get(name)
-        if value is None:
-            continue  # not on file: not a factor either way
-        if name in ("security_cert_flag",):
-            deviation = -(value - 0.5) * 2  # having the cert LOWERS risk
-        elif name in ("geo_risk_flag", "breach_disclosure_count"):
-            deviation = value if isinstance(value, (int, float)) and value <= 1 else min(value / 3.0, 1.0)
-        elif name == "vendor_tenure_months":
-            deviation = -(min(value, 60) / 60.0 - 0.5) * 2
-        else:
-            deviation = (0.5 - value) * 2  # lower rate/score => higher risk contribution
-        contributions.append({"feature": name, "contribution": round(float(importance * abs(deviation)), 4)})
-    contributions.sort(key=lambda c: c["contribution"], reverse=True)
-    return contributions[:top_n]
+async def get_active_ruleset(db: AsyncSession) -> RiskRuleset:
+    """Retrieves the active ruleset version, or seeds default ruleset v1 if none exists."""
+    result = await db.execute(
+        select(RiskRuleset).where(RiskRuleset.status == "active").order_by(RiskRuleset.version.desc()).limit(1)
+    )
+    ruleset = result.scalars().first()
+    if ruleset is None:
+        default_def = get_default_ruleset()
+        d_hash = canonical_json_hash(default_def)
+        ruleset = RiskRuleset(
+            id=str(uuid.uuid4()),
+            version=1,
+            status="active",
+            definition=default_def,
+            definition_hash=d_hash,
+            created_by="system",
+            created_at=datetime.now(timezone.utc),
+            activated_by="system",
+            activated_at=datetime.now(timezone.utc),
+            change_justification="Initial seed of default ruleset v1 (Prompt 9B)",
+        )
+        db.add(ruleset)
+        await db.flush()
+        logger.info("Seeded default ruleset v1 as active")
+    return ruleset
 
 
-async def score_vendor(db: AsyncSession, kafka_producer, vendor_id: str) -> RiskScore:
-    from app.services.risk_signals import refresh_platform_signals
-    model, feature_order, version = _load_model()
-    # BR-7: tenure and on-time delivery from platform history, every time.
-    await refresh_platform_signals(db, vendor_id)
-    await db.flush()
-    features = await _load_features(db, vendor_id)
-    vendor_row = (await db.execute(
-        text("SELECT name, gstin_verification_status, ifsc_verification_status FROM vendors WHERE id = :id"),
+async def load_fresh_observations(
+    db: AsyncSession, vendor_id: str, ruleset: Dict[str, Any], now: datetime
+) -> Dict[str, Any]:
+    """Loads latest observations for each signal from DB that are still within their TTL."""
+    signals_def = ruleset.get("signals", [])
+    observations = {}
+    for sig in signals_def:
+        sig_key = sig["key"]
+        ttl_days = sig.get("ttl_days", 30)
+        # Query latest observation
+        res = await db.execute(
+            select(VendorSignalObservation)
+            .where(
+                VendorSignalObservation.vendor_id == vendor_id,
+                VendorSignalObservation.signal_key == sig_key,
+            )
+            .order_by(VendorSignalObservation.fetched_at.desc())
+            .limit(1)
+        )
+        obs = res.scalars().first()
+        if obs and obs.fetched_at:
+            f_dt = obs.fetched_at if obs.fetched_at.tzinfo else obs.fetched_at.replace(tzinfo=timezone.utc)
+            if (now - f_dt).total_seconds() <= ttl_days * 86400:
+                observations[sig_key] = obs
+    return observations
+
+
+async def send_high_risk_alert(kafka_producer, vendor, vendor_id: str, headline, total_points, final_band,
+                               top_factors: list) -> bool:
+    """E-mails rule risk.alert_recipients when a vendor turns High or a new
+    hard override fires. Returns whether an alert was sent."""
+    recipients = get_rule("risk.alert_recipients", fallback="procurement-risk-team@company.com")
+    if not recipients:
+        logger.warning(f"High risk transition for vendor {vendor_id} but risk.alert_recipients is empty; omitting email.")
+        return False
+    await kafka_producer.publish_notification(
+        recipient=recipients,
+        channel="email",
+        template_name="vendor_high_risk_alert",
+        template_context={
+            "vendor_id": vendor_id,
+            "vendor_name": vendor.name,
+            "headline": headline,
+            "total_points": total_points,
+            "final_band": final_band,
+            "top_factors": top_factors[:3],
+            "link": f"/app/vendors/{vendor_id}/risk",
+        },
+        priority="urgent",
+        related_entity_id=vendor_id,
+    )
+    return True
+
+
+async def score_vendor(
+    db: AsyncSession,
+    kafka_producer,
+    vendor_id: str,
+    trigger_type: str = "manual",
+    trigger_ref: Optional[str] = None,
+    force_fresh_collect: bool = True,
+) -> RiskScore:
+    """Evaluates vendor risk using the active deterministic ruleset and stores score & rule results."""
+    now = datetime.now(timezone.utc)
+
+    # 1. Vendor existence check
+    vendor = await db.get(Vendor, vendor_id)
+    if vendor is None:
+        raise ValueError(f"vendor {vendor_id} not found")
+
+    # 2. Get active ruleset
+    ruleset_row = await get_active_ruleset(db)
+    ruleset_def = ruleset_row.definition
+
+    # 3. Vendor context & tier
+    v_row = (await db.execute(
+        text("SELECT vendor_tier FROM vendors WHERE id = :id"),
         {"id": vendor_id},
     )).first()
-    gstin_status = vendor_row.gstin_verification_status if vendor_row else None
-    ifsc_status = vendor_row.ifsc_verification_status if vendor_row else None
-    # FR-14: screen against the sanctions list when one is downloaded and
-    # this vendor hasn't been screened against this version (or its name).
-    from app.services import sanctions
-    latest = await sanctions.latest_screening(db, vendor_id)
-    index = sanctions.load_index()
-    if vendor_row and index and (latest is None or latest.list_version != index["version"]
-                                 or latest.screened_name != vendor_row.name):
-        latest = await sanctions.screen_vendor(db, SimpleNamespace(id=vendor_id, name=vendor_row.name), index=index) or latest
-    checks = hard_override_checks(gstin_status, sanctions_match=sanctions.sanctions_override_input(latest),
-                                  ifsc_status=ifsc_status if ifsc_status in ("valid", "invalid") else None)
-    result = assess(model, feature_order, features, checks)
-    risk_score, band, top_factors = result["score"], result["band"], result["top_factors"]
-    scored_at = datetime.now(timezone.utc)
+    spend_tier = (v_row.vendor_tier if v_row else "standard") or "standard"
+    vendor_context = {
+        "name": vendor.name,
+        "spend_tier": spend_tier,
+        "inherent_tier": None,
+    }
 
-    row = RiskScore(
-        id=str(uuid.uuid4()),
-        vendor_id=vendor_id,
-        score=risk_score,
-        band=band,
-        details=top_factors,
-        model_version=version,
-        scored_at=scored_at,
-        signals_used=result["signals_used"],
-        signals_total=result["signals_total"],
-        overrides=checks,
+    # 4. Gather observations (run collectors or load fresh)
+    if force_fresh_collect:
+        observations = await collect_all_signals(db, vendor, now=now, effective_tier=spend_tier)
+    else:
+        observations = await load_fresh_observations(db, vendor_id, ruleset_def, now)
+        if len(observations) < len(ruleset_def.get("signals", [])):
+            fresh_obs = await collect_all_signals(db, vendor, now=now, effective_tier=spend_tier)
+            for k, v in fresh_obs.items():
+                if k not in observations:
+                    observations[k] = v
+
+    # 5. Fetch previous score for delta and alert tracking
+    prev_score = await latest_risk_score(db, vendor_id)
+    prev_dict = None
+    if prev_score:
+        prev_res = await db.execute(
+            select(RiskScoreRuleResult).where(RiskScoreRuleResult.score_id == prev_score.id)
+        )
+        prev_rule_rows = prev_res.scalars().all()
+        prev_dict = {
+            "total_points": prev_score.total_points,
+            "final_band": prev_score.final_band or prev_score.band,
+            "rule_results": [
+                {"signal_key": r.signal_key, "rule_id": r.rule_id, "points": r.points}
+                for r in prev_rule_rows
+            ],
+            "override_rule_ids": prev_score.override_rule_ids or [],
+        }
+
+    # 6. Run pure evaluation function
+    eval_result = evaluate_risk(
+        ruleset=ruleset_def,
+        observations=observations,
+        assessed_at=now,
+        vendor_context=vendor_context,
+        previous_score=prev_dict,
+        trigger_type=trigger_type,
+        trigger_ref=trigger_ref,
     )
-    db.add(row)
+
+    total_points = eval_result["total_points"]
+    final_band = eval_result["final_band"]
+    points_band = eval_result["points_band"]
+    override_ids = eval_result["override_rule_ids"]
+
+    # Top factors for backward compatibility in details column
+    top_factors = []
+    for r in eval_result["rule_results"]:
+        if r["points"] > 0 or r["override_band"]:
+            top_factors.append({
+                "feature": r["signal_key"],
+                "rule_id": r["rule_id"],
+                "contribution": round(r["points"] / 100.0, 4),
+                "override": bool(r["override_band"]),
+                "reason": r["reason_text"],
+            })
+    top_factors.sort(key=lambda x: x["contribution"], reverse=True)
+
+    score_id = str(uuid.uuid4())
+    score_row = RiskScore(
+        id=score_id,
+        vendor_id=vendor_id,
+        score=eval_result.get("risk_score"),
+        band=final_band,
+        details=top_factors[:5],
+        model_version=f"ruleset_v{ruleset_row.version}",
+        scored_at=now,
+        signals_used=sum(1 for r in eval_result["rule_results"] if r["status"] == "assessed"),
+        signals_total=len(eval_result["rule_results"]),
+        overrides=[{"rule_id": oid, "status": "triggered"} for oid in override_ids],
+        ruleset_id=ruleset_row.id,
+        ruleset_version=ruleset_row.version,
+        total_points=total_points,
+        points_band=points_band,
+        final_band=final_band,
+        override_rule_ids=override_ids,
+        unassessed_potential_points=eval_result["unassessed_potential_points"],
+        worst_case_points=eval_result["worst_case_points"],
+        worst_case_band=eval_result["worst_case_band"],
+        is_provisional=eval_result["is_provisional"],
+        provisional_reasons=eval_result["provisional_reasons"],
+        effective_tier=eval_result["effective_tier"],
+        headline=eval_result["headline"],
+        explanation=eval_result["explanation"],
+        observation_ids=eval_result["observation_ids"],
+        snapshot=eval_result["snapshot"],
+        snapshot_sha256=eval_result["snapshot_sha256"],
+        assessed_at=now,
+        trigger_type=trigger_type,
+        trigger_ref=trigger_ref,
+        previous_score_id=prev_score.id if prev_score else None,
+        rating_status=eval_result.get("rating_status", "not_rated"),
+        applicable_max_points=eval_result.get("applicable_max_points", 100),
+        due_diligence_potential_points=eval_result.get("due_diligence_potential_points", 0),
+        history_potential_points=eval_result.get("history_potential_points", 0),
+        points_is_lower_bound=eval_result.get("points_is_lower_bound", False),
+        blocked_by=eval_result.get("blocked_by", []),
+        remediation_path=eval_result.get("remediation_path", []),
+    )
+    db.add(score_row)
+    await db.flush()
+
+    # 7. Persist rule results
+    for r in eval_result["rule_results"]:
+        rr_row = RiskScoreRuleResult(
+            id=str(uuid.uuid4()),
+            score_id=score_id,
+            order_index=r["order_index"],
+            signal_key=r["signal_key"],
+            group_key=r["group_key"],
+            rule_id=r["rule_id"],
+            rule_version_hash=ruleset_row.definition_hash[:16],
+            status=r["status"],
+            points=r["points"],
+            potential_points=r["potential_points"],
+            override_band=r["override_band"],
+            observed_fields=r["observed_fields"],
+            facts=r["facts"],
+            reason_text=r["reason_text"],
+            rationale=r["rationale"],
+            observation_id=r["observation_id"],
+            raw_response_id=r["raw_response_id"],
+            remediation=r["remediation"],
+            remediable=r["remediable"],
+            ages_out_on=datetime.strptime(r["ages_out_on"], "%Y-%m-%d").date() if r.get("ages_out_on") else None,
+        )
+        db.add(rr_row)
+
     await db.commit()
-    await db.refresh(row)
-    risk_assessment_total.labels(risk_band=band).inc()
+    await db.refresh(score_row)
+
+    risk_assessment_total.labels(risk_band=final_band).inc()
+
+    # 8. Alerting & event publishing
+    previous_band = prev_score.band if prev_score else None
+    band_changed = (prev_score is not None and prev_score.band != final_band)
+    prev_overrides = set(prev_dict.get("override_rule_ids", [])) if prev_dict else set()
+    new_override_fired = any(oid not in prev_overrides for oid in override_ids)
 
     if kafka_producer is not None:
         await kafka_producer.publish_risk_score_updated(
             vendor_id=vendor_id,
-            risk_band=band,
-            risk_score=risk_score,
+            risk_band=final_band,
+            risk_score=eval_result["score_float"],
             top_factors=top_factors,
-            model_version=version,
-            scored_at=scored_at,
+            model_version=f"ruleset_v{ruleset_row.version}",
+            scored_at=now,
+            total_points=total_points,
+            points_band=points_band,
+            final_band=final_band,
+            override_rule_ids=override_ids,
+            unassessed_potential_points=eval_result["unassessed_potential_points"],
+            worst_case_band=eval_result["worst_case_band"],
+            ruleset_version=ruleset_row.version,
+            is_provisional=eval_result["is_provisional"],
+            effective_tier=eval_result["effective_tier"],
+            previous_band=previous_band,
+            band_changed=band_changed,
+            trigger_type=trigger_type,
+            explanation_url=f"/app/vendors/{vendor_id}/risk",
         )
-        if band == "High":
-            await kafka_producer.publish_notification(
-                recipient="procurement-risk-team@company.com",
-                channel="email",
-                template_name="vendor_high_risk_alert",
-                template_context={"vendor_id": vendor_id, "risk_score": risk_score, "top_factors": top_factors},
-                priority="urgent",
-                related_entity_id=vendor_id,
-            )
-    return row
+
+        # Prompt 9B Section 11.2 Alert Policy:
+        # Send High alert only when band_changed is true and new band is High, or an override rule newly fired.
+        should_alert = (band_changed and final_band == "High") or new_override_fired
+        if should_alert:
+            await send_high_risk_alert(kafka_producer, vendor, vendor_id, eval_result["headline"], total_points,
+                                       final_band, top_factors)
+
+    return score_row
 
 
 _DELIVERED_SINCE_SCORED = text("""
     SELECT DISTINCT pr.vendor_id::text
     FROM purchase_requests pr
-    JOIN audit_log a ON a.entity_id = pr.id AND a.action = 'contract_fulfilment_applied'
+    JOIN audit_log a ON a.entity_id = pr.id AND a.action IN ('contract_fulfilment_applied', 'goods_received')
     WHERE pr.vendor_id IS NOT NULL
       AND a.created_at > COALESCE((SELECT MAX(scored_at) FROM risk_scores r WHERE r.vendor_id = pr.vendor_id),
                                   'epoch'::timestamptz)
@@ -223,13 +395,12 @@ _DELIVERED_SINCE_SCORED = text("""
 
 
 async def rescore_after_deliveries(session_factory, kafka_producer) -> int:
-    """Re-scores vendors with an order received since their last score, so
-    on-time delivery reaches the score without waiting for a recompute."""
+    """Re-scores vendors with an order received since their last score."""
     async with session_factory() as db:
         vendor_ids = [r[0] for r in (await db.execute(_DELIVERED_SINCE_SCORED)).all()]
     for vendor_id in vendor_ids:
         async with session_factory() as db:
-            await score_vendor(db, kafka_producer, vendor_id)
+            await score_vendor(db, kafka_producer, vendor_id, trigger_type="delivery")
     if vendor_ids:
         logger.info(f"Re-scored {len(vendor_ids)} vendor(s) after deliveries")
     return len(vendor_ids)
@@ -247,7 +418,7 @@ async def run_delivery_rescore(session_factory, kafka_producer, interval_seconds
         await asyncio.sleep(interval_seconds)
 
 
-async def latest_risk_score(db: AsyncSession, vendor_id: str) -> RiskScore | None:
+async def latest_risk_score(db: AsyncSession, vendor_id: str) -> Optional[RiskScore]:
     result = await db.execute(
         select(RiskScore).where(RiskScore.vendor_id == vendor_id).order_by(RiskScore.scored_at.desc()).limit(1)
     )

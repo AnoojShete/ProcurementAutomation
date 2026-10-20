@@ -346,3 +346,17 @@ async def test_sourcing_criteria_must_be_known_weights_summing_to_one(value, ok)
         with pytest.raises(HTTPException) as exc:
             await _validate_rule_value(AsyncMock(), rule, value)
         assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,ok", [("risk-team@acme.test", True), ("", True), ("not-an-email", False),
+                                      ("a@b.c, d@e.f", False), (["a@b.c"], False)])
+async def test_risk_alert_recipients_is_one_address_or_empty(value, ok):
+    rule = BusinessRule(rule_key="risk.alert_recipients", value_type="json", min_value=None, max_value=None,
+                        current_value="x@y.z")
+    if ok:
+        await _validate_rule_value(AsyncMock(), rule, value)
+    else:
+        with pytest.raises(HTTPException) as exc:
+            await _validate_rule_value(AsyncMock(), rule, value)
+        assert exc.value.status_code == 400

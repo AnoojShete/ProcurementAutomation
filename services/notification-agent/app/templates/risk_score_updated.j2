@@ -1,14 +1,15 @@
-Subject: Vendor risk update: {{ vendor_id }} is now {{ risk_band }} ({{ risk_score }})
+Subject: Vendor risk update: {{ vendor_id }} is now {{ risk_band }}{% if risk_score is not none %} ({{ risk_score }}){% endif +%}
 ---
 Hello,
 
 A vendor's risk score has been recomputed.
 
-  Vendor ID:      {{ vendor_id }}
-  Risk band:        {{ risk_band }}
-  Risk score:         {{ risk_score }}
+  Vendor ID:            {{ vendor_id }}
+  Risk band:            {{ risk_band }}
+  Risk score:           {{ risk_score if risk_score is not none else 'Unrated' }}
+  Rating status:        {{ rating_status if rating_status is defined else 'assessed' }}
   Model version:        {{ model_version }}
-  Scored at:              {{ scored_at }}
+  Scored at:            {{ scored_at }}
 
 Top contributing factors:
 {% for factor in top_factors %}

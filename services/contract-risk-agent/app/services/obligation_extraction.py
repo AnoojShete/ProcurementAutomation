@@ -193,8 +193,10 @@ TYPES: dict[str, ObligationType] = {t.key: t for t in [
 
 # Decided by ml/evaluate_obligation_model.py (docs/results/obligations.md):
 # types whose clause the model finds better than the rules on CUAD's test
-# split. Empty until the evaluation has run; every other type uses the rules.
-MODEL_TYPES: frozenset = frozenset()
+# split and also reads every template value (docs/results/obligations.md,
+# 20 Oct 2026): licence limits F1 0.44 vs 0.41, termination for convenience
+# 0.74 vs 0.25. Every other type uses the rules.
+MODEL_TYPES: frozenset = frozenset({"license_limit", "termination_convenience"})
 
 
 def rule_span(text: str, key: str) -> Optional[tuple[int, int]]:

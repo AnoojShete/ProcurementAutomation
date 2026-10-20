@@ -86,21 +86,34 @@ async def _check_rate_limit(request: Request) -> None:
         logger.warning(f"Rate limit check encountered error: {e}")
 
 
-async def _fetch_vendor_risk(vendor_id: Optional[str]) -> tuple[Optional[str], bool]:
-    """Fetches vendor risk band from contract-risk-agent."""
+async def _fetch_vendor_clearance(
+    vendor_id: Optional[str],
+    spend_amount: Optional[float] = None,
+    currency: str = "INR",
+) -> tuple[dict, bool]:
+    """Calls contract-risk-agent GET /vendors/{vendor_id}/clearance?purpose=purchase (Prompt 9C Section C3)."""
     if not vendor_id:
-        return None, True
-    risk_url = f"http://contract-risk-agent:8003/vendors/{vendor_id}/risk"
+        return {"cleared": False, "final_band": "Unrated", "risk_band": "Unrated", "reasons": ["no_vendor_id"]}, True
+    clearance_url = f"http://contract-risk-agent:8003/vendors/{vendor_id}/clearance"
+    params: dict = {"purpose": "purchase", "currency": currency}
+    if spend_amount is not None:
+        params["spend_amount"] = spend_amount
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(risk_url)
+            resp = await client.get(clearance_url, params=params)
             if resp.status_code == 200:
                 data = resp.json().get("data", {})
-                return data.get("risk_band"), False
-            return None, True
+                return data, False
+            return {"cleared": False, "final_band": "Unrated", "risk_band": "Unrated", "reasons": ["clearance_endpoint_error"]}, True
     except Exception as e:
-        logger.warning(f"Could not reach contract-risk-agent for vendor risk: {e}")
-        return None, True
+        logger.warning(f"Could not reach contract-risk-agent for vendor clearance: {e}")
+        return {"cleared": False, "final_band": "Unrated", "risk_band": "Unrated", "reasons": ["service_unreachable"]}, True
+
+
+async def _fetch_vendor_risk(vendor_id: Optional[str]) -> tuple[Optional[str], bool]:
+    """Compatibility wrapper fetching clearance and returning (risk_band, failed)."""
+    cl, failed = await _fetch_vendor_clearance(vendor_id)
+    return cl.get("final_band") or cl.get("risk_band"), (failed or not cl.get("cleared", False))
 
 
 @router.get("/{token}", response_class=HTMLResponse)

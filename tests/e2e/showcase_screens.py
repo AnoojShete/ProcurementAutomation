@@ -234,8 +234,8 @@ async def contract(s, admin):
         unsigned = r.json()["data"]
     await s.shot("contract", "01-contract-risk.png", "finance", f"/app/contracts/{unsigned['id']}", "text=Vendor risk")
     await s.shot("contract", "02-renewal-timeline.png", "finance", scroll_to="text=Renewal Timeline")
-    await s.shot("contract", "03-vendor-risk.png", "finance", f"/app/vendors/{VENDOR}", "text=Risk Signals",
-                 scroll_to="text=Risk Signals")
+    # Deterministic risk scorecard (merged from updated_risk): every check, its points and source.
+    await s.shot("contract", "03-vendor-risk.png", "finance", f"/app/vendors/{VENDOR}/risk", "text=Recompute Rating")
 
 
 async def inventory(s, admin):

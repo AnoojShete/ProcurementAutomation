@@ -105,7 +105,8 @@ async def main():
     def acknowledged_high(x):
         cert = get("admin", f"/contracts/{x['id']}/signature-certificate") or {}
         risk = cert.get("vendor_risk_at_signing") or {}
-        return risk.get("risk_band") == "High" and risk.get("acknowledged")
+        # High, or Unrated (checks incomplete) under the deterministic scorecard
+        return risk.get("risk_band") in ("High", "Unrated") and risk.get("acknowledged")
     high = next((x for x in get("admin", "/contracts/?limit=100") if x["status"] == "signed" and acknowledged_high(x)), None)
     if listed is None:
         sys.exit("No sanctions-listed demo vendor: run tests/e2e/showcase_screens.py sanctions first.")
@@ -199,9 +200,9 @@ async def main():
 
         async def s5():
             if not high:
-                return "skipped: no High-risk contract signed with acknowledgement (run demo_scenarios.py 4)"
+                return "skipped: no contract signed with a risk acknowledgement (run demo_scenarios.py 4)"
             await d.open("finance", f"/app/contracts/{high['id']}", "Signature certificate",
-                         "3:15 · Nobody signs with a High-risk vendor without acknowledging it")
+                         "3:15 · Nobody signs with an uncleared vendor without acknowledging it")
             await page.get_by_role("button", name="Signature certificate").click()
             await page.locator("text=acknowledg >> visible=true").first.wait_for(timeout=15000)
             await page.wait_for_timeout(4000)

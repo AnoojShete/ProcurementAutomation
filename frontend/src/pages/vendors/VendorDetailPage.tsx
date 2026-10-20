@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { AlertTriangle, Ban, FileText, IndianRupee, RefreshCcw, ScrollText } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
@@ -20,7 +20,6 @@ import { Timeline, type TimelineEvent } from "@/components/ui/Timeline";
 import { Modal } from "@/components/ui/Modal";
 import { RiskGauge } from "@/components/vendors/RiskGauge";
 import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
-import { RiskSignalsCard } from "@/components/vendors/RiskSignalsCard";
 import { SanctionsScreening } from "@/components/vendors/SanctionsScreening";
 import { formatPercent, formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { ApiError } from "@/api/client";
@@ -150,7 +149,17 @@ export function VendorDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader title="Vendor Risk" />
+          <CardHeader
+            title="Vendor Risk"
+            action={
+              <Link
+                to={`/app/vendors/${id}/risk`}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-800"
+              >
+                Full risk scorecard
+              </Link>
+            }
+          />
           <CardBody>
             {!risk ? (
               <p className="py-6 text-center text-sm text-slate-500">This vendor hasn't been risk-scored yet.</p>
@@ -163,7 +172,7 @@ export function VendorDetailPage() {
                     {risk.signals_used! < risk.signals_total ? " — missing ones are left out, not guessed." : "."}
                   </p>
                 )}
-                {risk.top_factors.filter((f) => f.override).map((f) => (
+                {(risk.top_factors ?? []).filter((f) => f.override).map((f) => (
                   <div key={f.feature} className="mt-3 rounded-md border border-danger-500/30 bg-danger-50 px-3 py-2 text-13 text-slate-800">
                     <span className="font-medium">Hard override:</span> {f.reason} — rated High regardless of the model score.
                   </div>
@@ -175,11 +184,11 @@ export function VendorDetailPage() {
                   </p>
                 )}
                 <p className="mb-2 mt-5 text-13 font-medium text-ink-2">Contributing factors</p>
-                {risk.top_factors.filter((f) => !f.override).length === 0 && (
+                {(risk.top_factors ?? []).filter((f) => !f.override).length === 0 && (
                   <p className="text-sm text-slate-500">No signals on file to explain the score.</p>
                 )}
                 <div className="flex flex-col gap-2.5">
-                  {risk.top_factors.filter((f) => !f.override).map((f, _i, factors) => {
+                  {(risk.top_factors ?? []).filter((f) => !f.override).map((f, _i, factors) => {
                     const max = Math.max(...factors.map((x) => Math.abs(x.contribution)), 0.001);
                     return (
                       <div key={f.feature} className="flex items-center gap-3">
@@ -205,12 +214,6 @@ export function VendorDetailPage() {
           </CardBody>
         </Card>
       </div>
-
-      <RiskSignalsCard
-        vendorId={vendor.id}
-        canEdit={user?.role === "finance" || user?.role === "admin"}
-        onRescored={() => { reloadRisk(); reloadVendors(); }}
-      />
 
       <SanctionsScreening
         vendorId={vendor.id}

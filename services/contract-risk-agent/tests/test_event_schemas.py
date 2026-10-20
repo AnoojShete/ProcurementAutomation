@@ -59,11 +59,20 @@ class TestEventSchemas:
             top_factors=[{"feature": "on_time_delivery_rate", "contribution": 0.4}],
             model_version="v1", scored_at=datetime.now(timezone.utc),
         )
-        assert set(payload.keys()) == {
-            "vendor_id", "risk_band", "risk_score", "top_factors", "model_version", "scored_at",
-        }
-        assert payload["risk_band"] in ("Low", "Medium", "High")
-        assert 0 <= payload["risk_score"] <= 1
+        # schema_version 2 (deterministic scorecard): every key documented in
+        # shared/schemas/events.md, and the six v1 keys still present.
+        import os, re
+        here = os.path.dirname(os.path.abspath(__file__))
+        # repo checkout: ../../../shared; test image: shared/ mounted next to app/
+        doc_path = next(p for p in (os.path.join(here, "../../../shared/schemas/events.md"),
+                                    os.path.join(here, "../shared/schemas/events.md")) if os.path.exists(p))
+        doc = open(doc_path).read()
+        row = next(l for l in doc.splitlines() if l.startswith("| `risk.score.updated`"))
+        documented = set(re.findall(r"`([a-z_]+)` \(", row)) | {"schema_version"}
+        assert set(payload.keys()) <= documented, set(payload.keys()) - documented
+        assert {"vendor_id", "risk_band", "risk_score", "top_factors", "model_version", "scored_at"} <= set(payload.keys())
+        assert payload["risk_band"] in ("Low", "Medium", "High", "Unrated")
+        assert payload["risk_score"] is None or 0 <= payload["risk_score"] <= 1
 
     def test_vendor_offboarded_payload_keys(self):
         payload = build_vendor_offboarded_payload(

@@ -37,6 +37,7 @@ LOOKALIKE_MIN = 70
 @dataclass
 class VendorProfile:
     name: str
+    country: Optional[str] = None
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     address: Optional[str] = None
@@ -66,6 +67,7 @@ def _clean(v: Optional[str]) -> Optional[str]:
 def normalise(p: VendorProfile) -> VendorProfile:
     return VendorProfile(
         name=(p.name or "").strip(),
+        country=_clean(p.country.upper() if p.country else None),
         contact_email=_clean(p.contact_email.lower() if p.contact_email else None),
         contact_phone=_clean(p.contact_phone),
         address=_clean(p.address),
@@ -82,6 +84,15 @@ def check_fields(p: VendorProfile) -> ProfileCheck:
     c = ProfileCheck()
     if len(p.name) < 2:
         c.errors.append({"field": "name", "message": "Vendor name is required."})
+
+    # Country validation (Prompt 9C B1, B5)
+    if not p.country:
+        c.errors.append({"field": "country", "message": "Vendor country is required."})
+    else:
+        from shared.iso_countries import is_valid_country_code
+        if not is_valid_country_code(p.country):
+            c.errors.append({"field": "country", "message": f"Country '{p.country}' must be a valid 2-letter uppercase ISO 3166-1 alpha-2 code."})
+
     if p.contact_email and not _EMAIL.match(p.contact_email):
         c.errors.append({"field": "contact_email", "message": "Not a valid email address."})
     if p.contact_phone and not _PHONE.match(p.contact_phone):
@@ -99,8 +110,13 @@ def check_fields(p: VendorProfile) -> ProfileCheck:
                          "message": "Give both the account number and the IFSC, or neither."})
     if p.bank_account_number and not _ACCOUNT.match(p.bank_account_number):
         c.errors.append({"field": "bank_account_number", "message": "Account number must be 9–18 digits."})
-    if p.routing_code and not _IFSC.match(p.routing_code):
-        c.errors.append({"field": "routing_code", "message": "IFSC must look like HDFC0001234 (4 letters, 0, 6 characters)."})
+
+    # Foreign vendors: SWIFT/IBAN, Indian IFSC format check does not apply (B4)
+    if p.country and p.country != "IN":
+        pass
+    else:
+        if p.routing_code and not _IFSC.match(p.routing_code):
+            c.errors.append({"field": "routing_code", "message": "IFSC must look like HDFC0001234 (4 letters, 0, 6 characters)."})
     return c
 
 
@@ -165,6 +181,7 @@ async def onboard_vendor(db, kafka_producer, profile: VendorProfile, onboarded_b
     now = datetime.now(timezone.utc)
     vendor = Vendor(
         id=str(uuid.uuid4()), name=p.name, normalized_name=normalize_vendor_name(p.name), status="active",
+        country=p.country,
         contact_email=p.contact_email, contact_phone=p.contact_phone, address=p.address, category=p.category,
         gstin=p.gstin, gstin_verification_status="format_valid" if p.gstin else "unverified",
         ifsc_verification_status=check.ifsc_status,

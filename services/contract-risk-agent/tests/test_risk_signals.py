@@ -72,19 +72,30 @@ async def test_compliance_update_changes_only_given_fields_and_is_audited():
 
 
 @pytest.mark.asyncio
-async def test_scoring_refreshes_platform_signals_first():
+async def test_scoring_collects_fresh_signals_first():
+    """Deterministic scorecard: signals (delivery history among them) are
+    collected before the ruleset is evaluated, so a rescore after a delivery
+    sees it. (Replaces the ML model's refresh-then-load-features test.)"""
     from app.services import risk_service
     order = []
-    refresh = AsyncMock(side_effect=lambda db, vid: order.append("refresh"))
-    load = AsyncMock(side_effect=lambda db, vid: order.append("load") or {n: None for n in risk_service.FEATURE_NAMES})
+
+    async def collect(db, vendor, now=None, effective_tier=None):
+        order.append("collect")
+        return {}
+
+    def evaluate(**kw):
+        order.append("evaluate")
+        raise RuntimeError("stop here")
     db = AsyncMock()
-    db.add = MagicMock()
-    res = MagicMock(); res.scalar_one_or_none.return_value = None
-    db.execute.return_value = res
-    with patch("app.services.risk_signals.refresh_platform_signals", new=refresh), \
-            patch.object(risk_service, "_load_features", new=load):
-        await risk_service.score_vendor(db, None, "v1")
-    assert order == ["refresh", "load"]
+    db.get = AsyncMock(return_value=SimpleNamespace(id="v1", name="Acme", vendor_tier="standard"))
+    db.execute.return_value = MagicMock(first=MagicMock(return_value=None))
+    with patch.object(risk_service, "get_active_ruleset", AsyncMock(return_value=SimpleNamespace(definition={"signals": []}))), \
+            patch.object(risk_service, "collect_all_signals", collect), \
+            patch.object(risk_service, "latest_risk_score", AsyncMock(return_value=None)), \
+            patch.object(risk_service, "evaluate_risk", evaluate):
+        with pytest.raises(RuntimeError):
+            await risk_service.score_vendor(db, None, "v1")
+    assert order == ["collect", "evaluate"]
 
 
 @pytest.mark.asyncio

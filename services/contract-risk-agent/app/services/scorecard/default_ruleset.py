@@ -1,0 +1,1750 @@
+"""Default ruleset definition (Prompt 9B section 5).
+Seeded as Ruleset Version 1.
+"""
+import copy
+import hashlib
+import json
+from typing import Any, Dict
+
+
+DEFAULT_RULESET_DEFINITION: Dict[str, Any] = {
+    "version": 1,
+    "bands": {"low_max": 24, "medium_max": 49},
+    "groups": [
+        {"key": "identity", "label": "Identity and compliance"},
+        {"key": "cyber", "label": "Cyber and technical posture"},
+        {"key": "company", "label": "Company standing and financials"},
+        {"key": "performance", "label": "Operational performance"},
+        {"key": "reputation", "label": "Public reputation"},
+    ],
+    "lookups": {
+        "rating_grades": {
+            "AAA": "investment",
+            "AA": "investment",
+            "A": "investment",
+            "BBB": "investment",
+            "BB": "non_investment",
+            "B": "non_investment",
+            "CCC": "non_investment",
+            "CC": "non_investment",
+            "C": "non_investment",
+            "D": "default",
+        }
+    },
+    "required_signals_by_tier": {
+        "low": [],
+        "moderate": ["sanctions", "gst", "bank"],
+        "high": ["sanctions", "gst", "bank", "jurisdiction", "web"],
+        "critical": [
+            "sanctions",
+            "gst",
+            "bank",
+            "jurisdiction",
+            "web",
+            "certification",
+            "financial",
+            "email",
+            "breach",
+        ],
+    },
+    "min_orders_for_sla": 3,
+    "min_ratings_for_feedback": 3,
+    "signals": [
+        {
+            "key": "sanctions",
+            "label": "Sanctions screening",
+            "group": "identity",
+            "max_points": 25,
+            "ttl_days": 1,
+            "outcomes": [
+                {
+                    "rule_id": "R-SAN-01",
+                    "when": {"field": "sanctions.status", "op": "eq", "value": "match"},
+                    "status": "assessed",
+                    "points": 25,
+                    "override_band": "High",
+                    "rationale": "Dealing with a listed sanctions party is prohibited or restricted under global sanctions regimes.",
+                    "reason": "{sanctions.matched_name} matches {sanctions.list_name} v{sanctions.list_version} at {sanctions.best_score}% similarity; dealing with a listed party is prohibited or restricted.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Compare company registration number, address, and directors with the list entry. If a false positive, record a justified clearance in the sanctions screen.",
+                            "evidence": "sanctions_clearance_justification",
+                            "submit_via": "sanctions:clear_flag",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-SAN-02",
+                    "when": {"field": "sanctions.status", "op": "eq", "value": "possible_match"},
+                    "status": "review_pending",
+                    "points": 12,
+                    "rationale": "A potential match requires human review before full approval.",
+                    "reason": "{sanctions.best_score}% similar to {sanctions.matched_name} on {sanctions.list_name}, between the review threshold {sanctions.review_threshold}% and the match threshold {sanctions.match_threshold}%.",
+                    "remediation": [
+                        {
+                            "who": "finance",
+                            "step": "Reviewer records match or no-match with justification.",
+                            "evidence": "sanctions_review_note",
+                            "submit_via": "sanctions:review",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-SAN-03",
+                    "when": {"field": "sanctions.status", "op": "eq", "value": "no_match"},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Clear sanctions screening indicates no restrictions on trading.",
+                    "reason": "Screened against {sanctions.list_name} v{sanctions.list_version} on {sanctions.screened_at}; nothing at or above {sanctions.review_threshold}%.",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-SAN-04",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Vendor has not been screened against active sanctions lists.",
+                    "reason": "Not screened: {sanctions.status}.",
+                    "remediation": [
+                        {
+                            "who": "admin",
+                            "step": "Run sanctions screening against the consolidated list.",
+                            "evidence": "sanctions_screening_run",
+                            "submit_via": "action:screen_sanctions",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "gst",
+            "label": "GST registration status",
+            "group": "identity",
+            "max_points": 25,
+            "ttl_days": 30,
+            "outcomes": [
+                {
+                    "rule_id": "R-GST-01",
+                    "when": {"field": "gstin.status", "op": "eq", "value": "cancelled"},
+                    "status": "assessed",
+                    "points": 25,
+                    "override_band": "High",
+                    "rationale": "A cancelled supplier is a tax and legal exposure for the buyer.",
+                    "reason": "GSTIN {gstin.number} is Cancelled (cancelled on {gstin.cancellation_date}) per {provider}. Input tax credit generally cannot be claimed on invoices from a cancelled supplier, which creates a tax liability for us.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Provide proof the cancellation was revoked or submit a new valid GSTIN.",
+                            "evidence": "revocation_order_or_new_gstin",
+                            "submit_via": "evidence_register:gst_status_proof",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-GST-02",
+                    "when": {"field": "gstin.status", "op": "eq", "value": "suspended"},
+                    "status": "assessed",
+                    "points": 20,
+                    "override_band": "Medium",
+                    "rationale": "A suspended GSTIN exposes the buyer to disallowed input tax credits and regulatory risk.",
+                    "reason": "GSTIN {gstin.number} is Suspended per {provider}. Input tax credit generally cannot be claimed on invoices from a suspended supplier, which creates a tax liability for us.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Submit proof of suspension revocation from the GST portal.",
+                            "evidence": "suspension_revocation_proof",
+                            "submit_via": "evidence_register:gst_status_proof",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-GST-03",
+                    "when": {"field": "gstin.status", "op": "eq", "value": "not_found"},
+                    "status": "assessed",
+                    "points": 20,
+                    "rationale": "An unverified GSTIN prevents automated compliance validation and credit recovery.",
+                    "reason": "{provider} did not find GSTIN {gstin.number}.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Re-confirm GSTIN number or correct typing errors.",
+                            "evidence": "gst_registration_certificate",
+                            "submit_via": "evidence_register:gst_status_proof",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-GST-04",
+                    "when": {"field": "gstin.verification_level", "op": "eq", "value": "attested_exempt"},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Vendor has legally attested exemption under turnover threshold.",
+                    "reason": "No GSTIN. {confirmed_by} attested on {date} that the vendor is below the GST registration threshold.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-GST-05",
+                    "when": {
+                        "all": [
+                            {"field": "gstin.status", "op": "eq", "value": "active"},
+                            {"field": "gstin.verification_level", "op": "in", "value": ["live", "document"]},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Active, verified GSTIN ensures input tax credit eligibility.",
+                    "reason": "GSTIN {gstin.number} is Active per {provider} (legal name {gstin.legal_name}).",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-GST-06",
+                    "when": {"field": "gstin.verification_level", "op": "eq", "value": "foreign"},
+                    "status": "not_applicable",
+                    "points": 0,
+                    "rationale": "Foreign vendor not subject to Indian GST registration.",
+                    "reason": "Foreign entity outside GST jurisdiction.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-GST-07",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "GSTIN format is valid but registration was not confirmed with registry.",
+                    "reason": "GSTIN {gstin.number} passed the offline format and check-digit test but was not confirmed with the registry: {gstin.not_checked_reason}.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Run live verification mode or upload GST portal certificate to evidence register.",
+                            "evidence": "gst_status_proof",
+                            "submit_via": "evidence_register:gst_status_proof",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "bank",
+            "label": "Bank account & routing verification",
+            "group": "identity",
+            "max_points": 6,
+            "ttl_days": 30,
+            "outcomes": [
+                {
+                    "rule_id": "R-BNK-01",
+                    "when": {"field": "bank.status", "op": "eq", "value": "invalid"},
+                    "status": "assessed",
+                    "points": 6,
+                    "rationale": "Invalid routing codes risk payment failure or interception.",
+                    "reason": "IFSC {bank.ifsc} was not found in the IFSC directory ({provider}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Provide valid IFSC and account details through the dual-control change process.",
+                            "evidence": "cancelled_cheque_or_bank_letter",
+                            "submit_via": "vendors:payment_change",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BNK-02",
+                    "when": {"field": "bank.change_pending", "op": "eq", "value": True},
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "Unverified bank change requests pose a Business Email Compromise (BEC) risk.",
+                    "reason": "A bank-detail change submitted by {bank.change_submitted_by} on {bank.change_submitted_at} is not yet verified by a second person; payments still use the previous verified details.",
+                    "remediation": [
+                        {
+                            "who": "finance",
+                            "step": "Verify by calling the verified contact number on file, not the phone number in the change request.",
+                            "evidence": "phone_callback_confirmation",
+                            "submit_via": "vendors:verify_payment_change",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BNK-03",
+                    "when": {"field": "bank.status", "op": "eq", "value": "valid"},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Verified routing details ensure seamless disbursements.",
+                    "reason": "IFSC {bank.ifsc} is valid: {bank.bank_name}, {bank.branch}.",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BNK-04",
+                    "when": {"field": "bank.status", "op": "eq", "value": "none"},
+                    "status": "not_applicable",
+                    "points": 0,
+                    "rationale": "No bank details recorded yet.",
+                    "reason": "No bank details on file.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BNK-05",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Routing directory was unreachable during evaluation.",
+                    "reason": "IFSC directory not reachable.",
+                    "remediation": [
+                        {
+                            "who": "admin",
+                            "step": "Retry IFSC verification query.",
+                            "evidence": "ifsc_check_retry",
+                            "submit_via": "action:recheck_ifsc",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "jurisdiction",
+            "label": "Country and jurisdiction risk",
+            "group": "identity",
+            "max_points": 4,
+            "ttl_days": 30,
+            "outcomes": [
+                {
+                    "rule_id": "R-JUR-01",
+                    "when": {"field": "country.prohibited", "op": "eq", "value": True},
+                    "status": "assessed",
+                    "points": 4,
+                    "override_band": "High",
+                    "rationale": "Operating in a sanctioned or embargoed country is prohibited by corporate policy.",
+                    "reason": "Vendor country {country.code} is on the prohibited jurisdictions list.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Transactions with prohibited countries cannot be remediated via documentation. Develop an exit and transition plan.",
+                            "evidence": "exit_plan",
+                            "submit_via": "governance:exception",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": False,
+                },
+                {
+                    "rule_id": "R-JUR-02",
+                    "when": {"field": "country.high_risk", "op": "eq", "value": True},
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "High-risk FATF/regulatory jurisdictions require enhanced ongoing monitoring.",
+                    "reason": "Vendor country {country.code} is identified as high-risk (WGI political stability {country.pv}, rule of law {country.rl}, {country.wgi_year}).",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Mitigate through contract protections, escrow provisions, and audit rights.",
+                            "evidence": "contract_safeguards",
+                            "submit_via": "contract_amendment",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": False,
+                },
+                {
+                    "rule_id": "R-JUR-03",
+                    "when": {
+                        "all": [
+                            {"field": "country.is_domestic", "op": "eq", "value": False},
+                            {"field": "country.wgi_composite", "op": "lt", "value": -1.0},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Negative World Bank Governance Indicators suggest weak institutional environment.",
+                    "reason": "Foreign jurisdiction {country.code} has low governance composite ({country.wgi_composite}) (PV: {country.pv}, RL: {country.rl}, year: {country.wgi_year}).",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": False,
+                },
+                {
+                    "rule_id": "R-JUR-04",
+                    "when": {
+                        "all": [
+                            {"field": "country.is_domestic", "op": "eq", "value": False},
+                            {"field": "country.wgi_composite", "op": "lt", "value": 0.0},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 1,
+                    "rationale": "Modest governance indicators in foreign operating base.",
+                    "reason": "Foreign jurisdiction {country.code} has below-average governance score ({country.wgi_composite}) (PV: {country.pv}, RL: {country.rl}).",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": False,
+                },
+                {
+                    "rule_id": "R-JUR-05",
+                    "when": {
+                        "all": [
+                            {"field": "country.is_domestic", "op": "eq", "value": False},
+                            {"field": "country.wgi_composite", "op": "not_null", "value": True},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Stable foreign jurisdiction with positive governance metrics.",
+                    "reason": "Foreign jurisdiction {country.code} has positive governance metrics ({country.wgi_composite}).",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-JUR-06",
+                    "when": {"field": "country.is_domestic", "op": "eq", "value": True},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Domestic jurisdiction governed by local contract and insolvency law.",
+                    "reason": "Domestic vendor (India).",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-JUR-07",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Vendor country not recorded or World Bank data unavailable.",
+                    "reason": "Vendor country not recorded or World Bank data unavailable.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Update vendor profile with operating country.",
+                            "evidence": "vendor_profile_country",
+                            "submit_via": "vendors:update_profile",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "web",
+            "label": "Web & TLS security posture",
+            "group": "cyber",
+            "max_points": 6,
+            "ttl_days": 7,
+            "outcomes": [
+                {
+                    "rule_id": "R-WEB-01",
+                    "when": {
+                        "any": [
+                            {"field": "web.cert_valid", "op": "eq", "value": False},
+                            {"field": "web.ssl_grade", "op": "in", "value": ["F", "T", "M"]},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 6,
+                    "rationale": "Broken TLS or failing SSL configuration exposes communications to eavesdropping.",
+                    "reason": "Website security test failed: invalid TLS certificate or poor SSL Labs grade ({web.ssl_grade}). Issuer: {web.cert_issuer}. Problem: {web.cert_problem}.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Install a valid TLS certificate from a trusted CA, disable deprecated cipher suites, and re-scan.",
+                            "evidence": "tls_cert_renewal",
+                            "submit_via": "action:rescan_web",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-02",
+                    "when": {"field": "web.ssl_grade", "op": "eq", "value": "E"},
+                    "status": "assessed",
+                    "points": 4,
+                    "rationale": "Grade E indicates severe protocol vulnerabilities.",
+                    "reason": "SSL Labs grade E (Issuer: {web.cert_issuer}, Days left: {web.cert_days_left}, HSTS: {web.hsts}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Upgrade web server TLS configuration to modern standards.",
+                            "evidence": "web_config_fix",
+                            "submit_via": "action:rescan_web",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-03",
+                    "when": {"field": "web.ssl_grade", "op": "eq", "value": "D"},
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "Grade D indicates obsolete encryption protocols or weak keys.",
+                    "reason": "SSL Labs grade D (Issuer: {web.cert_issuer}, Days left: {web.cert_days_left}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Enable TLS 1.2+ and modern cipher suites.",
+                            "evidence": "web_config_fix",
+                            "submit_via": "action:rescan_web",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-04",
+                    "when": {"field": "web.ssl_grade", "op": "eq", "value": "C"},
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Grade C indicates substandard TLS configuration.",
+                    "reason": "SSL Labs grade C (Issuer: {web.cert_issuer}, Days left: {web.cert_days_left}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Remediate SSL Labs findings to achieve Grade A or B.",
+                            "evidence": "web_config_fix",
+                            "submit_via": "action:rescan_web",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-05",
+                    "when": {"field": "web.ssl_grade", "op": "eq", "value": "B"},
+                    "status": "assessed",
+                    "points": 1,
+                    "rationale": "Grade B is acceptable but lacks modern forward secrecy or HSTS.",
+                    "reason": "SSL Labs grade B (Issuer: {web.cert_issuer}, HSTS: {web.hsts}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Enable HSTS and modern forward secrecy to reach Grade A.",
+                            "evidence": "hsts_activation",
+                            "submit_via": "action:rescan_web",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-06",
+                    "when": {"field": "web.ssl_grade", "op": "in", "value": ["A+", "A", "A-"]},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Grade A demonstrates robust transport security.",
+                    "reason": "SSL Labs grade {web.ssl_grade} with valid certificate (Issuer: {web.cert_issuer}, {web.cert_days_left} days left).",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-07",
+                    "when": {
+                        "all": [
+                            {"field": "web.ssl_grade", "op": "is_null", "value": True},
+                            {"field": "web.cert_days_left", "op": "lte", "value": 14},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Expiring TLS certificate risks unexpected service disruption.",
+                    "reason": "Direct check: TLS certificate expires in {web.cert_days_left} days (Issuer: {web.cert_issuer}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Renew TLS certificate before expiry.",
+                            "evidence": "renewed_tls_cert",
+                            "submit_via": "action:rescan_web",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-08",
+                    "when": {
+                        "all": [
+                            {"field": "web.ssl_grade", "op": "is_null", "value": True},
+                            {"field": "web.hsts", "op": "eq", "value": False},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 1,
+                    "rationale": "Missing HSTS allows potential downgrade attacks.",
+                    "reason": "Direct check: TLS valid but HSTS header is missing (Issuer: {web.cert_issuer}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Enable HTTP Strict Transport Security (HSTS) on web server.",
+                            "evidence": "hsts_header_proof",
+                            "submit_via": "action:rescan_web",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-09",
+                    "when": {
+                        "all": [
+                            {"field": "web.ssl_grade", "op": "is_null", "value": True},
+                            {"field": "web.cert_valid", "op": "eq", "value": True},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Valid TLS certificate verified via direct TLS handshake.",
+                    "reason": "Direct checks only; no SSL Labs grade. TLS valid ({web.cert_days_left} days left, Issuer: {web.cert_issuer}).",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-WEB-10",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Web host unreachable or no domain on file.",
+                    "reason": "Website unreachable or no domain on file.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Confirm primary domain and ensure web server responds on port 443.",
+                            "evidence": "domain_reachability",
+                            "submit_via": "action:rescan_web",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "email",
+            "label": "Email authentication (SPF & DMARC)",
+            "group": "cyber",
+            "max_points": 3,
+            "ttl_days": 7,
+            "outcomes": [
+                {
+                    "rule_id": "R-EML-01",
+                    "when": {"field": "email.has_mx", "op": "eq", "value": False},
+                    "status": "not_applicable",
+                    "points": 0,
+                    "rationale": "Domain does not handle inbound email.",
+                    "reason": "No MX records found for domain; email security policies not applicable.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-EML-02",
+                    "when": {
+                        "all": [
+                            {"field": "email.dmarc_policy", "op": "eq", "value": "reject"},
+                            {"field": "email.spf_present", "op": "eq", "value": True},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Strong SPF and DMARC enforcement prevents domain spoofing.",
+                    "reason": "DMARC policy is reject and valid SPF record is present.",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-EML-03",
+                    "when": {
+                        "all": [
+                            {"field": "email.dmarc_policy", "op": "eq", "value": "reject"},
+                            {"field": "email.spf_present", "op": "eq", "value": False},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 1,
+                    "rationale": "DMARC reject configured but SPF record is missing.",
+                    "reason": "DMARC policy is reject but SPF record is absent.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Publish an authorized SPF TXT record in domain DNS.",
+                            "evidence": "dns_spf_record",
+                            "submit_via": "action:rescan_email",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-EML-04",
+                    "when": {
+                        "all": [
+                            {"field": "email.dmarc_policy", "op": "eq", "value": "quarantine"},
+                            {"field": "email.spf_present", "op": "eq", "value": True},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 1,
+                    "rationale": "DMARC quarantine provides good protection but reject is preferred.",
+                    "reason": "DMARC policy is quarantine with valid SPF.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Upgrade DMARC policy from quarantine to reject (p=reject).",
+                            "evidence": "dns_dmarc_record",
+                            "submit_via": "action:rescan_email",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-EML-05",
+                    "when": {
+                        "all": [
+                            {"field": "email.dmarc_policy", "op": "eq", "value": "quarantine"},
+                            {"field": "email.spf_present", "op": "eq", "value": False},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "DMARC quarantine without SPF exposes legitimate emails to false spam filtering.",
+                    "reason": "DMARC policy is quarantine but SPF is missing.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Publish SPF and upgrade DMARC policy to p=reject.",
+                            "evidence": "dns_records",
+                            "submit_via": "action:rescan_email",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-EML-06",
+                    "when": {
+                        "all": [
+                            {"field": "email.dmarc_policy", "op": "in", "value": ["none", "missing"]},
+                            {"field": "email.spf_present", "op": "eq", "value": True},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "SPF present but DMARC is not enforced, allowing spoofing.",
+                    "reason": "SPF is configured but DMARC policy is none or missing.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Publish a DMARC policy of p=reject.",
+                            "evidence": "dns_dmarc_record",
+                            "submit_via": "action:rescan_email",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-EML-07",
+                    "when": {
+                        "all": [
+                            {"field": "email.dmarc_policy", "op": "in", "value": ["none", "missing"]},
+                            {"field": "email.spf_present", "op": "eq", "value": False},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "Absence of SPF and DMARC makes the vendor domain vulnerable to impersonation.",
+                    "reason": "Neither SPF nor DMARC authentication is present on the domain.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Configure SPF and publish a DMARC policy of p=reject in DNS.",
+                            "evidence": "dns_records",
+                            "submit_via": "action:rescan_email",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-EML-08",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "DNS resolution failure during evaluation.",
+                    "reason": "DNS resolution failed or no domain available.",
+                    "remediation": [
+                        {
+                            "who": "admin",
+                            "step": "Verify domain nameserver responsiveness and retry email DNS check.",
+                            "evidence": "dns_retry",
+                            "submit_via": "action:rescan_email",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "breach",
+            "label": "Public breach disclosures",
+            "group": "cyber",
+            "max_points": 4,
+            "ttl_days": 7,
+            "outcomes": [
+                {
+                    "rule_id": "R-BRC-01",
+                    "when": {
+                        "all": [
+                            {"field": "breach.count_5y", "op": "gte", "value": 1},
+                            {"field": "breach.remediation_accepted", "op": "eq", "value": True},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 1,
+                    "rationale": "Remediated security breach reduces residual exposure.",
+                    "reason": "{breach.count_5y} breach(es) listed for {breach.domain} (latest {breach.latest_date}); the vendor supplied accepted remediation evidence.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BRC-02",
+                    "when": {
+                        "all": [
+                            {"field": "breach.count_5y", "op": "eq", "value": 1},
+                            {"field": "breach.latest_within_12m", "op": "eq", "value": False},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Single historical breach outside 12-month window.",
+                    "reason": "1 breach on record for {breach.domain} occurring more than 12 months ago ({breach.latest_date}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Provide post-incident remediation report and audit attestation.",
+                            "evidence": "breach_remediation_report",
+                            "submit_via": "evidence_register:breach_remediation",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BRC-03",
+                    "when": {
+                        "all": [
+                            {"field": "breach.count_5y", "op": "eq", "value": 1},
+                            {"field": "breach.latest_within_12m", "op": "eq", "value": True},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "Recent breach within the past 12 months requires verification of mitigation.",
+                    "reason": "1 breach on record within the last 12 months ({breach.latest_date}) for {breach.domain}.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Submit incident investigation report and technical remediation evidence.",
+                            "evidence": "breach_remediation_report",
+                            "submit_via": "evidence_register:breach_remediation",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BRC-04",
+                    "when": {
+                        "all": [
+                            {"field": "breach.count_5y", "op": "gte", "value": 2},
+                            {"field": "breach.latest_within_12m", "op": "eq", "value": False},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "Multiple historical breaches indicate systemic security challenges.",
+                    "reason": "{breach.count_5y} breaches listed for {breach.domain} (latest {breach.latest_date}), none within 12 months.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Submit comprehensive security audit report covering multi-year remediations.",
+                            "evidence": "breach_remediation_report",
+                            "submit_via": "evidence_register:breach_remediation",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BRC-05",
+                    "when": {
+                        "all": [
+                            {"field": "breach.count_5y", "op": "gte", "value": 2},
+                            {"field": "breach.latest_within_12m", "op": "eq", "value": True},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 4,
+                    "rationale": "Multiple breaches with at least one recent disclosure represent high operational risk.",
+                    "reason": "{breach.count_5y} breaches listed for {breach.domain} with recent activity ({breach.latest_date}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Provide comprehensive root-cause analysis and third-party penetration testing proof.",
+                            "evidence": "breach_remediation_report",
+                            "submit_via": "evidence_register:breach_remediation",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BRC-06",
+                    "when": {"field": "breach.count_5y", "op": "eq", "value": 0},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "No breach entries identified in the public catalogue.",
+                    "reason": "none listed in the catalogue; the catalogue is partial, so this is not proof of no breach.",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-BRC-07",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Breach database unreachable or domain not recorded.",
+                    "reason": "HIBP source unreachable or no domain on record.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Verify vendor domain and re-run breach catalogue check.",
+                            "evidence": "domain_verification",
+                            "submit_via": "action:rescan_breach",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "certification",
+            "label": "Security certifications",
+            "group": "cyber",
+            "max_points": 4,
+            "ttl_days": 1,
+            "outcomes": [
+                {
+                    "rule_id": "R-CRT-01",
+                    "when": {"field": "cert.required", "op": "eq", "value": False},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Security certifications are not mandatory for this vendor tier.",
+                    "reason": "not required for this vendor's tier.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-CRT-02",
+                    "when": {
+                        "all": [
+                            {"field": "cert.required", "op": "eq", "value": True},
+                            {"field": "cert.status", "op": "eq", "value": "valid"},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Verified valid certification covering the in-scope service.",
+                    "reason": "Valid {cert.name} certification verified (expires on {cert.expires_on}).",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-CRT-03",
+                    "when": {
+                        "all": [
+                            {"field": "cert.required", "op": "eq", "value": True},
+                            {"field": "cert.status", "op": "eq", "value": "expired"},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "Required security certification has lapsed.",
+                    "reason": "Security certification {cert.name} expired on {cert.expires_on}.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Upload renewed ISO 27001 or SOC 2 report to the evidence register.",
+                            "evidence": "security_certificate",
+                            "submit_via": "evidence_register:security_certificate",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-CRT-04",
+                    "when": {
+                        "all": [
+                            {"field": "cert.required", "op": "eq", "value": True},
+                            {"field": "cert.status", "op": "eq", "value": "out_of_scope"},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "Provided certification does not cover the procured software or service.",
+                    "reason": "certificate does not cover the service we buy.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Provide an attestation report or certificate whose scope explicitly includes the procured service.",
+                            "evidence": "in_scope_soc2_or_iso",
+                            "submit_via": "evidence_register:security_certificate",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-CRT-05",
+                    "when": {
+                        "all": [
+                            {"field": "cert.required", "op": "eq", "value": True},
+                            {"field": "cert.status", "op": "eq", "value": "none"},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 4,
+                    "rationale": "Critical tier vendor lacks necessary third-party security certifications.",
+                    "reason": "No security certification on file for a vendor required to maintain one.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Submit current SOC 2 Type II or ISO 27001 certification report.",
+                            "evidence": "security_certificate",
+                            "submit_via": "evidence_register:security_certificate",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-CRT-06",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Uploaded certification document is pending compliance review.",
+                    "reason": "Certification document submitted and pending compliance review.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Review submitted certificate scope and validity in the evidence register.",
+                            "evidence": "cert_review",
+                            "submit_via": "evidence_register:review",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "financial",
+            "label": "Financial stability & credit",
+            "group": "company",
+            "max_points": 4,
+            "ttl_days": 365,
+            "outcomes": [
+                {
+                    "rule_id": "R-FIN-01",
+                    "when": {"field": "fin.rating_class", "op": "eq", "value": "investment"},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Investment grade rating denotes solid financial solvency.",
+                    "reason": "Credit rating {fin.rating_grade} ({fin.rating_agency}) is investment grade (evidence age {fin.evidence_age_days} days).",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FIN-02",
+                    "when": {"field": "fin.rating_class", "op": "eq", "value": "non_investment"},
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Sub-investment grade rating denotes elevated credit vulnerability.",
+                    "reason": "Credit rating {fin.rating_grade} ({fin.rating_agency}) is non-investment grade.",
+                    "remediation": [
+                        {
+                            "who": "finance",
+                            "step": "Review latest audited financial statement or obtain bank guarantee.",
+                            "evidence": "audited_financials_or_guarantee",
+                            "submit_via": "evidence_register:financial_statement",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FIN-03",
+                    "when": {"field": "fin.rating_class", "op": "eq", "value": "default"},
+                    "status": "assessed",
+                    "points": 4,
+                    "rationale": "Default rating signals imminent bankruptcy or ongoing restructuring.",
+                    "reason": "Credit rating {fin.rating_grade} ({fin.rating_agency}) indicates default or distress.",
+                    "remediation": [
+                        {
+                            "who": "finance",
+                            "step": "Require full upfront escrow or payment on delivery terms only.",
+                            "evidence": "payment_term_restriction",
+                            "submit_via": "finance:payment_terms",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FIN-04",
+                    "when": {
+                        "all": [
+                            {"field": "fin.basis", "op": "eq", "value": "score"},
+                            {"field": "fin.score", "op": "gte", "value": 0.7},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Strong audited financial stability score.",
+                    "reason": "Audited statement score is {fin.score}/1.0.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FIN-05",
+                    "when": {
+                        "all": [
+                            {"field": "fin.basis", "op": "eq", "value": "score"},
+                            {"field": "fin.score", "op": "gte", "value": 0.4},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Moderate financial stability score indicates potential working capital constraints.",
+                    "reason": "Audited statement score is {fin.score}/1.0.",
+                    "remediation": [
+                        {
+                            "who": "finance",
+                            "step": "Request updated quarterly financials.",
+                            "evidence": "quarterly_financial_report",
+                            "submit_via": "evidence_register:financial_statement",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FIN-06",
+                    "when": {
+                        "all": [
+                            {"field": "fin.basis", "op": "eq", "value": "score"},
+                            {"field": "fin.score", "op": "lt", "value": 0.4},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 4,
+                    "rationale": "Weak audited financial score reflects high risk of insolvency.",
+                    "reason": "Audited statement score is low ({fin.score}/1.0).",
+                    "remediation": [
+                        {
+                            "who": "finance",
+                            "step": "Require financial guarantor or letter of credit.",
+                            "evidence": "bank_letter_of_credit",
+                            "submit_via": "evidence_register:financial_statement",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FIN-07",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "No credit rating or financial score on file, or evidence older than 365 days.",
+                    "reason": "No financial documentation on file or evidence is older than 365 days.",
+                    "remediation": [
+                        {
+                            "who": "finance",
+                            "step": "Enter credit rating (agency, grade, date) or upload audited statement.",
+                            "evidence": "credit_rating_or_statement",
+                            "submit_via": "evidence_register:financial_statement",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "company_age",
+            "label": "Company operating age",
+            "group": "company",
+            "max_points": 2,
+            "ttl_days": 90,
+            "outcomes": [
+                {
+                    "rule_id": "R-AGE-01",
+                    "when": {
+                        "all": [
+                            {"field": "age.basis", "op": "in", "value": ["gst_registration", "incorporation"]},
+                            {"field": "age.years", "op": "lt", "value": 1.0},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "New business entity (<1 year) has unproven track record.",
+                    "reason": "Company operating age is {age.years} year(s) based on {age.basis} ({age.date}).",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Monitor performance closely; this risk ages out automatically once the company crosses 1 and 3 operating years.",
+                            "evidence": "time_progression",
+                            "submit_via": "automatic_age_out",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-AGE-02",
+                    "when": {
+                        "all": [
+                            {"field": "age.basis", "op": "in", "value": ["gst_registration", "incorporation"]},
+                            {"field": "age.years", "op": "lt", "value": 3.0},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 1,
+                    "rationale": "Young enterprise (<3 years) still developing operating stability.",
+                    "reason": "Company operating age is {age.years} year(s) based on {age.basis} ({age.date}).",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Ages out automatically as the company operates beyond 3 years.",
+                            "evidence": "time_progression",
+                            "submit_via": "automatic_age_out",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-AGE-03",
+                    "when": {
+                        "all": [
+                            {"field": "age.basis", "op": "in", "value": ["gst_registration", "incorporation"]},
+                            {"field": "age.years", "op": "gte", "value": 3.0},
+                        ]
+                    },
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Established company with 3+ years operating history.",
+                    "reason": "Company operating age is {age.years} year(s) based on {age.basis} ({age.date}).",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-AGE-04",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Only domain age is known or registration date is missing.",
+                    "reason": "only the domain age is known; a registration or incorporation date is needed.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Record incorporation certificate or GST registration date in vendor profile.",
+                            "evidence": "certificate_of_incorporation",
+                            "submit_via": "vendors:update_profile",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "delivery_sla",
+            "label": "Delivery SLA adherence",
+            "group": "performance",
+            "max_points": 6,
+            "ttl_days": 1,
+            "outcomes": [
+                {
+                    "rule_id": "R-SLA-01",
+                    "when": {"field": "sla.orders_delivered", "op": "lt", "value": 3},
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Statistical significance requires a minimum of 3 delivered orders.",
+                    "reason": "{sla.orders_delivered} delivered orders; at least 3 are needed.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Deliver at least 3 orders to establish performance history.",
+                            "evidence": "order_deliveries",
+                            "submit_via": "orders:fulfilment",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-SLA-02",
+                    "when": {"field": "sla.on_time_pct", "op": "gte", "value": 90},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "Strong SLA adherence exceeding 90% threshold.",
+                    "reason": "{sla.orders_on_time} of {sla.orders_delivered} orders were delivered within {sla.allowed_days} days ({sla.on_time_pct}%).",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-SLA-03",
+                    "when": {"field": "sla.on_time_pct", "op": "gte", "value": 75},
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Moderate delivery delays between 75% and 89%.",
+                    "reason": "{sla.orders_on_time} of {sla.orders_delivered} orders were delivered within {sla.allowed_days} days ({sla.on_time_pct}%).",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Establish joint delivery review meeting with vendor.",
+                            "evidence": "meeting_notes",
+                            "submit_via": "performance_plan",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-SLA-04",
+                    "when": {"field": "sla.on_time_pct", "op": "gte", "value": 50},
+                    "status": "assessed",
+                    "points": 4,
+                    "rationale": "Poor delivery performance between 50% and 74%.",
+                    "reason": "{sla.orders_on_time} of {sla.orders_delivered} orders were delivered within {sla.allowed_days} days ({sla.on_time_pct}%).",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Issue formal cure notice and agree on delivery improvement plan.",
+                            "evidence": "performance_improvement_plan",
+                            "submit_via": "performance_plan",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-SLA-05",
+                    "when": {"field": "sla.on_time_pct", "op": "lt", "value": 50},
+                    "status": "assessed",
+                    "points": 6,
+                    "rationale": "Severe SLA failure with over half of orders late.",
+                    "reason": "{sla.orders_on_time} of {sla.orders_delivered} orders were delivered within {sla.allowed_days} days ({sla.on_time_pct}%).",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Procurement agrees an improvement plan with SLA remedies; admin may mark a justified delay as excused (audited).",
+                            "evidence": "sla_remedies_or_excuse",
+                            "submit_via": "admin:excuse_order",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-SLA-06",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Order delivery metrics could not be calculated.",
+                    "reason": "Insufficient order delivery data.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "feedback",
+            "label": "Internal procurement feedback",
+            "group": "performance",
+            "max_points": 5,
+            "ttl_days": 1,
+            "outcomes": [
+                {
+                    "rule_id": "R-FBK-01",
+                    "when": {"field": "fbk.count_12m", "op": "lt", "value": 3},
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "At least 3 internal feedback ratings are required to compute a rating score.",
+                    "reason": "{fbk.count_12m} ratings in 12 months; at least 3 are needed.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Collect internal buyer satisfaction ratings after project milestones.",
+                            "evidence": "feedback_submissions",
+                            "submit_via": "feedback:submit",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FBK-02",
+                    "when": {"field": "fbk.mean_12m", "op": "gte", "value": 4.0},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "High internal stakeholder satisfaction (>= 4.0).",
+                    "reason": "{fbk.count_12m} ratings in 12 months, mean {fbk.mean_12m}/5 (lowest {fbk.min}, highest {fbk.max}); weakest area {fbk.lowest_dimension} {fbk.lowest_dimension_mean}/5.",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FBK-03",
+                    "when": {"field": "fbk.mean_12m", "op": "gte", "value": 3.0},
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Average internal satisfaction (3.0 - 3.9).",
+                    "reason": "{fbk.count_12m} ratings in 12 months, mean {fbk.mean_12m}/5 (lowest {fbk.min}, highest {fbk.max}); weakest area {fbk.lowest_dimension} {fbk.lowest_dimension_mean}/5.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Review lowest scoring feedback dimension with vendor account team.",
+                            "evidence": "vendor_qbr_action_items",
+                            "submit_via": "procurement:meeting",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FBK-04",
+                    "when": {"field": "fbk.mean_12m", "op": "gte", "value": 2.0},
+                    "status": "assessed",
+                    "points": 4,
+                    "rationale": "Below average internal ratings (2.0 - 2.9).",
+                    "reason": "{fbk.count_12m} ratings in 12 months, mean {fbk.mean_12m}/5 (lowest {fbk.min}, highest {fbk.max}); weakest area {fbk.lowest_dimension} {fbk.lowest_dimension_mean}/5.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Procurement resolves complaints and collects more ratings; a rating found invalid can be disputed.",
+                            "evidence": "dispute_or_cure_notice",
+                            "submit_via": "vendors:dispute_rating",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FBK-05",
+                    "when": {"field": "fbk.mean_12m", "op": "lt", "value": 2.0},
+                    "status": "assessed",
+                    "points": 5,
+                    "rationale": "Unsatisfactory internal ratings (< 2.0).",
+                    "reason": "{fbk.count_12m} ratings in 12 months, mean {fbk.mean_12m}/5 (lowest {fbk.min}, highest {fbk.max}); weakest area {fbk.lowest_dimension} {fbk.lowest_dimension_mean}/5.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Formal escalation to vendor executive leadership and initiate procurement freeze.",
+                            "evidence": "executive_escalation_letter",
+                            "submit_via": "procurement:freeze",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-FBK-06",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Internal feedback could not be retrieved.",
+                    "reason": "Internal feedback ratings unavailable.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "incidents",
+            "label": "Operational incidents (24m)",
+            "group": "performance",
+            "max_points": 3,
+            "ttl_days": 1,
+            "outcomes": [
+                {
+                    "rule_id": "R-INC-01",
+                    "when": {"field": "inc.count_24m", "op": "eq", "value": 0},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "No internal service or operational incidents logged in 24 months.",
+                    "reason": "0 operational incidents logged in the past 24 months.",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-INC-02",
+                    "when": {"field": "inc.count_24m", "op": "eq", "value": 1},
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Single operational incident in 24-month rolling window.",
+                    "reason": "1 operational incident logged on {inc.latest_date}.",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Vendor supplies a root-cause report; no rule change, the incident leaves the calculation on the date shown.",
+                            "evidence": "incident_root_cause_analysis",
+                            "submit_via": "incidents:upload_rca",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-INC-03",
+                    "when": {"field": "inc.count_24m", "op": "gte", "value": 2},
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "Multiple operational incidents indicate unreliability or repeated failure.",
+                    "reason": "{inc.count_24m} operational incidents logged in 24 months (latest {inc.latest_date}).",
+                    "remediation": [
+                        {
+                            "who": "vendor",
+                            "step": "Submit formal root-cause analysis and preventive action plan.",
+                            "evidence": "capa_plan",
+                            "submit_via": "incidents:upload_capa",
+                            "shareable_with_vendor": True,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-INC-04",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Incident tracking unavailable.",
+                    "reason": "Incident tracking unavailable.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+        {
+            "key": "adverse_media",
+            "label": "Adverse media screening",
+            "group": "reputation",
+            "max_points": 3,
+            "ttl_days": 3,
+            "outcomes": [
+                {
+                    "rule_id": "R-MED-01",
+                    "when": {"field": "media.sources_reachable", "op": "eq", "value": False},
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Media search providers unreachable during screening.",
+                    "reason": "Media screening sources unreachable.",
+                    "remediation": [
+                        {
+                            "who": "admin",
+                            "step": "Retry media feed query.",
+                            "evidence": "media_retry",
+                            "submit_via": "action:rescan_media",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-MED-02",
+                    "when": {"field": "media.high_severity_count", "op": "gte", "value": 1},
+                    "status": "assessed",
+                    "points": 3,
+                    "rationale": "High-severity adverse media (fraud, bribery, regulatory fines) reported.",
+                    "reason": "{media.high_severity_count} high-severity adverse media article(s) found.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "A reviewer can mark an article 'not about this vendor' or 'resolved' with a justification (audited); the article is then excluded.",
+                            "evidence": "media_relevance_clearance",
+                            "submit_via": "media:clear_article",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-MED-03",
+                    "when": {"field": "media.qualifying_articles", "op": "gte", "value": 2},
+                    "status": "assessed",
+                    "points": 2,
+                    "rationale": "Multiple adverse media articles identified in public sources.",
+                    "reason": "{media.qualifying_articles} qualifying adverse media articles found.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Review articles and document reputational risk assessment.",
+                            "evidence": "media_review_note",
+                            "submit_via": "media:clear_article",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-MED-04",
+                    "when": {"field": "media.qualifying_articles", "op": "eq", "value": 1},
+                    "status": "assessed",
+                    "points": 1,
+                    "rationale": "Single qualifying adverse media article found.",
+                    "reason": "1 qualifying adverse media article found.",
+                    "remediation": [
+                        {
+                            "who": "procurement",
+                            "step": "Review article relevance and record clearance if non-material.",
+                            "evidence": "media_clearance_note",
+                            "submit_via": "media:clear_article",
+                            "shareable_with_vendor": False,
+                        }
+                    ],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-MED-05",
+                    "when": {"field": "media.qualifying_articles", "op": "eq", "value": 0},
+                    "status": "assessed",
+                    "points": 0,
+                    "rationale": "No adverse media found across screened publications.",
+                    "reason": "No adverse media found across screened publications (limited coverage note).",
+                    "remediation": [],
+                    "remediation_target": True,
+                    "remediable": True,
+                },
+                {
+                    "rule_id": "R-MED-06",
+                    "status": "not_assessed",
+                    "points": 0,
+                    "rationale": "Adverse media screening could not be performed.",
+                    "reason": "Adverse media screening not completed.",
+                    "remediation": [],
+                    "remediation_target": False,
+                    "remediable": True,
+                },
+            ],
+        },
+    ],
+}
+
+
+def canonical_json_hash(obj: Any) -> str:
+    """Computes SHA-256 of canonical JSON (sorted keys, no extra whitespace)."""
+    canonical_bytes = json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical_bytes).hexdigest()
+
+
+def get_default_ruleset(version: int = 2) -> Dict[str, Any]:
+    """Returns a deep copy of the default ruleset (Version 2 by default, Version 1 on request)."""
+    if version == 1:
+        return copy.deepcopy(DEFAULT_RULESET_DEFINITION)
+    from app.services.scorecard.ruleset_v2 import get_ruleset_v2
+    return get_ruleset_v2()

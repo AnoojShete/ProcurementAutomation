@@ -43,33 +43,84 @@ class RiskAcknowledgementRequired(ContractGenerationError):
 
 
 # BR-6: the signer must explicitly acknowledge these before signing.
-ACK_BANDS = ("High",)
+ACK_BANDS = ("High", "Unrated")
 
 
-async def signing_risk(db: AsyncSession, vendor_id: Optional[str]) -> dict:
-    """The vendor's latest risk as the signer should see it: band, score,
-    reasons, triggered hard overrides, and whether signing needs an explicit
-    acknowledgement (High — overrides always make a vendor High — or not
-    scored at all, since an unknown risk is not a low one)."""
+async def signing_risk(
+    db: AsyncSession,
+    vendor_id: Optional[str],
+    spend_amount: Optional[float] = None,
+    contract_id: Optional[str] = None,
+) -> dict:
+    """The vendor's latest risk as the signer should see it: clearance, band, score,
+    reasons, triggered hard overrides, and whether signing needs an explicit acknowledgement (Prompt 9C Section C3).
+    """
+    if not vendor_id:
+        return {
+            "risk_band": None,
+            "risk_score": None,
+            "rating_status": "not_rated",
+            "cleared": False,
+            "reasons": [],
+            "overrides": [],
+            "scored_at": None,
+            "acknowledgement_required": True,
+            "acknowledgement_reason": "No vendor is linked to this contract, so its risk is unknown.",
+        }
+
     from app.services.risk_service import latest_risk_score
-    row = await latest_risk_score(db, vendor_id) if vendor_id else None
+    row = await latest_risk_score(db, vendor_id)
     if row is None:
-        return {"risk_band": None, "risk_score": None, "reasons": [], "overrides": [], "scored_at": None,
-                "acknowledgement_required": True,
-                "acknowledgement_reason": ("This vendor has not been risk-scored." if vendor_id
-                                           else "No vendor is linked to this contract, so its risk is unknown.")}
-    triggered = [o for o in (row.overrides or []) if o.get("status") == "triggered"]
-    needs = row.band in ACK_BANDS
+        return {
+            "risk_band": None,
+            "risk_score": None,
+            "rating_status": "not_rated",
+            "cleared": False,
+            "reasons": [],
+            "overrides": [],
+            "scored_at": None,
+            "acknowledgement_required": True,
+            "acknowledgement_reason": "This vendor has not been risk-scored.",
+        }
+
+    band = getattr(row, "final_band", None) or getattr(row, "band", None) or "Unrated"
+    rating_status = getattr(row, "rating_status", None) or ("provisional" if getattr(row, "is_provisional", False) else "assessed")
+    score_val = float(row.score) if getattr(row, "score", None) is not None else None
+
+    # Check overrides
+    triggered = []
+    if hasattr(row, "overrides") and isinstance(row.overrides, list):
+        triggered = [o for o in row.overrides if isinstance(o, dict) and o.get("status") == "triggered"]
+    elif getattr(row, "override_rule_ids", None):
+        triggered = [{"check": oid, "status": "triggered", "reason": f"Override {oid}"} for oid in row.override_rule_ids]
+
+    # Needs ack if High, Unrated, or not cleared
+    needs = (band in ACK_BANDS) or (rating_status != "assessed") or bool(triggered)
+
+    ack_reason = None
+    if needs:
+        if triggered:
+            ack_reason = "Hard override: " + "; ".join(o.get("reason") or o["check"] for o in triggered) + "."
+        elif band == "High":
+            ack_reason = "The vendor's risk band is High."
+        elif band == "Unrated":
+            ack_reason = "Vendor risk checks are incomplete (Unrated)."
+        else:
+            ack_reason = f"Vendor clearance check failed (band={band}, rating_status={rating_status})."
+
+    reasons = [f for f in (getattr(row, "details", None) or []) if not (isinstance(f, dict) and f.get("override"))]
+
     return {
-        "risk_band": row.band,
-        "risk_score": float(row.score) if row.score is not None else None,
-        "reasons": [f for f in (row.details or []) if not f.get("override")],
+        "risk_band": band,
+        "risk_score": score_val,
+        "rating_status": rating_status,
+        "cleared": not needs,
+        "blocked_by": getattr(row, "blocked_by", []),
+        "reasons": reasons,
         "overrides": triggered,
-        "scored_at": row.scored_at.isoformat() if row.scored_at else None,
+        "scored_at": row.scored_at.isoformat() if getattr(row, "scored_at", None) else None,
         "acknowledgement_required": needs,
-        "acknowledgement_reason": (
-            "Hard override: " + "; ".join(o.get("reason") or o["check"] for o in triggered) + "." if needs and triggered
-            else "The vendor's risk band is High." if needs else None),
+        "acknowledgement_reason": ack_reason,
     }
 
 
@@ -493,7 +544,7 @@ async def sign_contract_digitally(
         "signature_image": signature_data,
         "vendor_risk_at_signing": {
             "risk_band": risk["risk_band"], "risk_score": risk["risk_score"],
-            "overrides": [o["check"] for o in risk["overrides"]],
+            "overrides": [o.get("check", str(o)) if isinstance(o, dict) else str(o) for o in risk.get("overrides", [])],
             "acknowledgement_required": risk["acknowledgement_required"],
             "acknowledged": bool(risk_acknowledged and risk["acknowledgement_required"]),
         },

@@ -30,6 +30,8 @@ class Vendor(Base):
     normalized_name: Mapped[Optional[str]] = mapped_column(String(255))
     # Added by this service's migration 0001:
     status: Mapped[str] = mapped_column(String(20), default="active")
+    country: Mapped[Optional[str]] = mapped_column(String(2))
+    activation_exempt_reason: Mapped[Optional[str]] = mapped_column(Text)
     portal_access_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     data_retention_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     offboarded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -140,8 +142,8 @@ class RiskScore(Base):
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
     vendor_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendors.id"))
-    score: Mapped[Optional[float]] = mapped_column(Numeric)  # payload's `risk_score`
-    band: Mapped[Optional[str]] = mapped_column(String(10))  # payload's `risk_band`
+    score: Mapped[Optional[float]] = mapped_column(Numeric)  # payload's `risk_score` (total_points / 100.0)
+    band: Mapped[Optional[str]] = mapped_column(String(10))  # payload's `risk_band` (final_band)
     details: Mapped[Optional[list]] = mapped_column(JSON)  # payload's `top_factors`
     # Added by this service's migration 0001:
     model_version: Mapped[Optional[str]] = mapped_column(String(50))
@@ -150,6 +152,184 @@ class RiskScore(Base):
     signals_used: Mapped[Optional[int]] = mapped_column(Integer)
     signals_total: Mapped[Optional[int]] = mapped_column(Integer)
     overrides: Mapped[Optional[list]] = mapped_column(JSON)
+
+    # Added by migration 0008 (Prompt 9B): deterministic rule-based scorecard
+    ruleset_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("risk_rulesets.id"))
+    ruleset_version: Mapped[Optional[int]] = mapped_column(Integer)
+    total_points: Mapped[Optional[int]] = mapped_column(Integer)
+    points_band: Mapped[Optional[str]] = mapped_column(String(20))
+    final_band: Mapped[Optional[str]] = mapped_column(String(20))
+    override_rule_ids: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    unassessed_potential_points: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    worst_case_points: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    worst_case_band: Mapped[Optional[str]] = mapped_column(String(20))
+    is_provisional: Mapped[bool] = mapped_column(Boolean, default=False)
+    provisional_reasons: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    effective_tier: Mapped[Optional[str]] = mapped_column(String(20))
+    headline: Mapped[Optional[str]] = mapped_column(Text)
+    explanation: Mapped[Optional[dict]] = mapped_column(JSON)
+    observation_ids: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    snapshot: Mapped[Optional[dict]] = mapped_column(JSON)
+    snapshot_sha256: Mapped[Optional[str]] = mapped_column(String(64))
+    assessed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    trigger_type: Mapped[Optional[str]] = mapped_column(String(50))
+    trigger_ref: Mapped[Optional[str]] = mapped_column(String(255))
+    previous_score_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("risk_scores.id"))
+    # Added by migration 0009 (Prompt 9C): clearance, rating status, lower bound, remediation path
+    rating_status: Mapped[Optional[str]] = mapped_column(String(20), default="not_rated")
+    assessed_share_pct: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    applicable_max_points: Mapped[Optional[int]] = mapped_column(Integer, default=100)
+    due_diligence_potential_points: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    history_potential_points: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    points_is_lower_bound: Mapped[bool] = mapped_column(Boolean, default=False)
+    blocked_by: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    remediation_path: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+
+
+class RiskRuleset(Base):
+    __tablename__ = "risk_rulesets"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)  # draft, active, retired
+    definition: Mapped[dict] = mapped_column(JSON, nullable=False)
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    activated_by: Mapped[Optional[str]] = mapped_column(String(255))
+    activated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    change_justification: Mapped[Optional[str]] = mapped_column(Text)
+    dry_run_report: Mapped[Optional[dict]] = mapped_column(JSON)
+
+
+class VendorSignalRawResponse(Base):
+    __tablename__ = "vendor_signal_raw_responses"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"), nullable=False)
+    signal_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_id: Mapped[Optional[str]] = mapped_column(String(100))
+    provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    request_method: Mapped[str] = mapped_column(String(10), nullable=False)
+    request_url_redacted: Mapped[Optional[str]] = mapped_column(Text)
+    request_params_redacted: Mapped[Optional[dict]] = mapped_column(JSON)
+    response_status: Mapped[Optional[int]] = mapped_column(Integer)
+    response_headers_subset: Mapped[Optional[dict]] = mapped_column(JSON)
+    body_text: Mapped[Optional[str]] = mapped_column(Text)
+    body_object_key: Mapped[Optional[str]] = mapped_column(String(255))
+    body_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    body_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    retention_until: Mapped[date] = mapped_column(Date, nullable=False)
+
+
+class VendorSignalObservation(Base):
+    __tablename__ = "vendor_signal_observations"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"), nullable=False)
+    signal_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_id: Mapped[Optional[str]] = mapped_column(String(100))
+    source_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)  # ok, error, rate_limited, not_checked, not_applicable
+    facts: Mapped[list] = mapped_column(JSON, default=list)
+    fields: Mapped[dict] = mapped_column(JSON, default=dict)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    raw_response_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendor_signal_raw_responses.id"))
+    evidence_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    record_refs: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    created_by: Mapped[str] = mapped_column(String(255), default="system")
+    manual_correction: Mapped[bool] = mapped_column(Boolean, default=False)
+    correction_reason: Mapped[Optional[str]] = mapped_column(Text)
+    corrects_observation_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    # Added by migration 0009 (Prompt 9C)
+    extraction: Mapped[Optional[dict]] = mapped_column(JSON, default=None)
+    skip_reason: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class RiskScoreRuleResult(Base):
+    __tablename__ = "risk_score_rule_results"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    score_id: Mapped[str] = mapped_column(Uuid, ForeignKey("risk_scores.id"), nullable=False)
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    signal_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    group_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    rule_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    rule_version_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(30), nullable=False)  # assessed, assessed_no_finding, not_assessed, not_applicable, review_pending
+    points: Mapped[int] = mapped_column(Integer, nullable=False)
+    potential_points: Mapped[int] = mapped_column(Integer, nullable=False)
+    override_band: Mapped[Optional[str]] = mapped_column(String(20))
+    observed_fields: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
+    facts: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    reason_text: Mapped[str] = mapped_column(Text, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    observation_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendor_signal_observations.id"))
+    raw_response_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendor_signal_raw_responses.id"))
+    remediation: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    remediable: Mapped[bool] = mapped_column(Boolean, default=True)
+    ages_out_on: Mapped[Optional[date]] = mapped_column(Date)
+    # Added by migration 0009 (Prompt 9C)
+    kind: Mapped[str] = mapped_column(String(20), default="due_diligence")
+    coverage_type: Mapped[str] = mapped_column(String(20), default="full")
+
+
+class VendorDecision(Base):
+    __tablename__ = "vendor_decisions"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"), nullable=False)
+    decision: Mapped[str] = mapped_column(String(30), nullable=False)  # approve, approve_with_conditions, accept_risk, reject
+    decided_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    justification: Mapped[Optional[str]] = mapped_column(Text)
+    conditions: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    score_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("risk_scores.id"))
+
+
+class VendorAssessmentDispute(Base):
+    __tablename__ = "vendor_assessment_disputes"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    score_id: Mapped[str] = mapped_column(Uuid, ForeignKey("risk_scores.id"), nullable=False)
+    rule_result_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("risk_score_rule_results.id"))
+    raised_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    raised_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open, upheld, rejected
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    resolution_note: Mapped[Optional[str]] = mapped_column(Text)
+    resulting_observation_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendor_signal_observations.id"))
+    resulting_score_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("risk_scores.id"))
+
+
+class VendorEvidence(Base):
+    __tablename__ = "vendor_evidence"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    document_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    file_key: Mapped[Optional[str]] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(30), default="pending_review")  # pending_review, accepted, rejected, expired
+    metadata_json: Mapped[Optional[dict]] = mapped_column("metadata", JSON, default=dict)
+    valid_from: Mapped[Optional[date]] = mapped_column(Date)
+    valid_until: Mapped[Optional[date]] = mapped_column(Date)
+    scope_covers_service: Mapped[bool] = mapped_column(Boolean, default=True)
+    verified_by: Mapped[Optional[str]] = mapped_column(String(255))
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
 class VendorRiskFeatures(Base):
@@ -236,4 +416,5 @@ class SanctionsScreening(Base):
     threshold: Mapped[Optional[float]] = mapped_column(Numeric)
     screened_by: Mapped[Optional[str]] = mapped_column(Text)
     justification: Mapped[Optional[str]] = mapped_column(Text)
+
 
