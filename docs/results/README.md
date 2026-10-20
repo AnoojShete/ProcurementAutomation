@@ -25,14 +25,15 @@ documents.
 | Suite | Result |
 |---|---|
 | document-vendor-agent unit | 334 passed |
-| approval-inventory-agent unit | 179 passed (`data/` mounted, so the demo-data test runs) |
+| approval-inventory-agent unit | 202 passed (`data/` mounted, so the demo-data test runs; 23 budget tests added 20 Oct) |
 | contract-risk-agent unit | 198 passed |
 | notification-agent unit | 58 passed |
-| auth-service unit | 75 passed (incl. real-Postgres account flows) |
+| auth-service unit | 80 passed (incl. real-Postgres account flows) |
 | root tests (`./scripts/test-root.sh`) | 144 passed + 14 passed (email actions, in the approval image); 4 skipped = the chatbot's live script |
 | frontend `npm run build` (typecheck + vite) | passes (react-router 7.18, vite 6.4) |
 | `make e2e` (gateway) | 17 / 17 |
-| `tests/e2e/invoice_lifecycle.py` | 71 / 71 |
+| `tests/e2e/invoice_lifecycle.py` | 71 / 71 (re-run 20 Oct after Phase 1) |
+| `tests/e2e/budget_flow.py` | 30 / 30 (20 Oct) |
 | `tests/e2e/document_pipeline.py --quick` | 48 / 52: the 4 failures are one fixture, `slow_to_parse.pdf`, meant to hit the 120 s extraction limit; Docling 2.140 now reads it in time. The limit itself is unit-tested (`test_slow_file_is_stopped_with_a_clear_message`). |
 | `tests/e2e/auth_flows.py` | 42 / 42 (17 Oct; auth checked live on 19 Oct: 15-minute tokens, logout revokes the refresh cookie, roles) |
 | `tests/e2e/showcase_screens.py` | every step OK (16 Oct) |

@@ -17,6 +17,7 @@ import {
   Users as US,
   Radio as RA,
   Settings2 as SE,
+  Wallet as WA,
 } from "lucide-react";
 import type { Role } from "@/types/api";
 
@@ -65,6 +66,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Approval Inbox", to: "/app/approvals", icon: IN },
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Requests", to: "/app/requests", icon: FT },
+    { label: "Budgets", to: "/app/budgets", icon: WA },
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Notifications", to: "/app/notifications", icon: BE },
@@ -74,6 +76,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Approval Queue", to: "/app/approvals", icon: IN },
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Licenses", to: "/app/licenses", icon: BO },
+    { label: "Budgets", to: "/app/budgets", icon: WA },
     { label: "Spend Analysis", to: "/app/spend", icon: AC },
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Contracts", to: "/app/contracts", icon: SC },
@@ -88,6 +91,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Documents", to: "/app/documents", icon: FI },
     { label: "Vendors", to: "/app/vendors", icon: BU },
     { label: "Approvals", to: "/app/approvals", icon: IN },
+    { label: "Budgets", to: "/app/budgets", icon: WA },
     { label: "Inventory", to: "/app/inventory", icon: BO },
     { label: "Contracts", to: "/app/contracts", icon: SC },
     { label: "Risk", to: "/app/risk", icon: SH },

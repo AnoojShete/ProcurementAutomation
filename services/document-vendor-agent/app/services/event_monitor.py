@@ -90,6 +90,9 @@ def describe(event_type: str, p: dict) -> str:
         case "contract.renewal.due":
             return (f"Contract {_short(p.get('contract_id'))} renewal: {p.get('alert_level')} days before "
                     f"notice deadline {p.get('notice_deadline') or '?'}")
+        case "budget.threshold_crossed":
+            return (f"Budget {p.get('department')} {p.get('category')} {p.get('period')} {p.get('fiscal_year')} "
+                    f"{p.get('status')}: {p.get('left_inr')} INR left after request {_short(p.get('request_id'))}")
     return event_type
 
 

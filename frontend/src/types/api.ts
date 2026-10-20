@@ -82,6 +82,86 @@ export interface PurchaseRequest {
   created_at: string | null;
   updated_at: string | null;
   approval_history: ApprovalHistoryEntry[] | null;
+  /** Budget check made when the request was created (Phase 1). */
+  budget_id?: string | null;
+  budget_status?: BudgetStatus | null;
+  budget_check?: BudgetCheck | null;
+}
+
+export type BudgetCategory = "hardware" | "software" | "saas" | "services";
+export type BudgetStatus = "within" | "warning" | "over" | "no_budget";
+export type BudgetRoutingReason = "over_budget" | "no_budget" | "high_risk_vendor";
+
+export interface BudgetCheck {
+  status?: BudgetStatus;
+  fiscal_year?: string;
+  period?: string;
+  category?: BudgetCategory;
+  department?: string;
+  budget_id?: string | null;
+  budget_amount?: number | null;
+  used_before?: number;
+  request_amount?: number;
+  left_after?: number | null;
+  warning_crossed?: boolean;
+  routing?: BudgetRoutingReason[];
+}
+
+/** A budget with its usage, computed from the requests that draw on it. */
+export interface Budget {
+  id: string;
+  fiscal_year: string;
+  period: string;
+  department: string;
+  category: BudgetCategory;
+  amount_inr: number;
+  owner_email: string | null;
+  consumed: number;
+  committed: number;
+  pending: number;
+  used: number;
+  left: number;
+  used_pct: number | null;
+  status: Exclude<BudgetStatus, "no_budget">;
+}
+
+export interface BudgetRequestRow {
+  id: string;
+  request_type: string | null;
+  status: string;
+  amount: number;
+  invoiced: number;
+  requested_by: string;
+  created_at: string | null;
+  budget_status_at_creation: BudgetStatus | null;
+  counts_as: "consumed/committed" | "pending" | "released";
+}
+
+export interface BudgetDetail extends Budget {
+  requests: BudgetRequestRow[];
+}
+
+export interface BudgetPeriod {
+  fiscal_year: string;
+  period: string;
+  period_type: "quarterly" | "annual";
+  categories: BudgetCategory[];
+}
+
+export interface RequestBudgetLine {
+  applies: boolean;
+  status_at_creation: BudgetStatus | null;
+  check: BudgetCheck | null;
+  budget: Budget | null;
+}
+
+export interface BudgetInput {
+  department: string;
+  category: BudgetCategory;
+  amount_inr: number;
+  fiscal_year?: string;
+  period?: string;
+  owner_email?: string | null;
 }
 
 export interface CreatePurchaseRequestBody {

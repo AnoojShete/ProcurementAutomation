@@ -215,3 +215,80 @@ def test_invoice_unit_price_tolerance_pct(rule):
     assert _match(1020.0, 1020.0) == "variance"
     rule("invoice.unit_price_tolerance_pct", 0.05)
     assert _match(1020.0, 1020.0) == "matched"
+
+
+# --- Phase 1: budget control (app/services/budget_service.py) -------------
+
+def _over_check(**kw):
+    from app.services.budget_service import BudgetCheck
+    base = dict(status="over", fiscal_year="2026-27", period="Q3", category="hardware", department="IT",
+                budget_id="b-1", budget_amount=10000.0, used_before=9000.0, request_amount=2000.0, left_after=-1000.0)
+    return BudgetCheck(**{**base, **kw})
+
+
+def test_budget_fiscal_period_type(rule):
+    from app.services.budget_service import fiscal_period
+    rule("budget.fiscal_year_start_month", 4)
+    rule("budget.fiscal_period_type", "quarterly")
+    assert fiscal_period(datetime(2026, 10, 20)) == ("2026-27", "Q3")
+    rule("budget.fiscal_period_type", "annual")
+    assert fiscal_period(datetime(2026, 10, 20)) == ("2026-27", "FY")
+
+
+def test_budget_fiscal_year_start_month(rule):
+    from app.services.budget_service import fiscal_period
+    rule("budget.fiscal_period_type", "quarterly")
+    rule("budget.fiscal_year_start_month", 4)
+    assert fiscal_period(datetime(2027, 2, 1)) == ("2026-27", "Q4")
+    rule("budget.fiscal_year_start_month", 1)
+    assert fiscal_period(datetime(2027, 2, 1)) == ("2027-28", "Q1")
+
+
+def test_budget_warning_threshold_pct(rule):
+    from app.services.budget_service import status_for
+    rule("budget.warning_threshold_pct", 0.8)
+    assert status_for(1000, 850) == "warning"
+    rule("budget.warning_threshold_pct", 0.9)
+    assert status_for(1000, 850) == "within"
+
+
+def test_budget_over_budget_requires_finance_approval(rule):
+    from app.services.budget_service import route
+    rule("budget.block_when_over", False)
+    rule("budget.over_budget_requires_finance_approval", True)
+    assert route(["dept_manager"], _over_check(), None, True) == (["dept_manager", "finance_head"], ["over_budget"])
+    rule("budget.over_budget_requires_finance_approval", False)
+    assert route(["dept_manager"], _over_check(), None, True) == (["dept_manager"], [])
+
+
+def test_budget_block_when_over(rule):
+    from app.services.budget_service import BudgetBlocked, route
+    rule("budget.over_budget_requires_finance_approval", True)
+    rule("budget.block_when_over", False)
+    assert route([], _over_check(), None, True)[0] == ["finance_head"]
+    rule("budget.block_when_over", True)
+    with pytest.raises(BudgetBlocked) as e:
+        route([], _over_check(), None, True)
+    assert e.value.code == "over_budget"
+
+
+def test_budget_no_budget_policy(rule):
+    from app.services.budget_service import BudgetBlocked, route
+    none = _over_check(status="no_budget", budget_id=None, budget_amount=None, left_after=None)
+    rule("budget.no_budget_policy", "allow")
+    assert route(["dept_manager"], none, None, True) == (["dept_manager"], [])
+    rule("budget.no_budget_policy", "finance_approval")
+    assert route(["dept_manager"], none, None, True) == (["dept_manager", "finance_head"], ["no_budget"])
+    rule("budget.no_budget_policy", "block")
+    with pytest.raises(BudgetBlocked):
+        route(["dept_manager"], none, None, True)
+
+
+def test_approval_high_risk_vendor_requires_finance(rule):
+    from app.services.budget_service import route
+    within = _over_check(status="within", used_before=0.0, left_after=8000.0)
+    rule("approval.high_risk_vendor_requires_finance", False)
+    assert route(["dept_manager"], within, "High", True) == (["dept_manager"], [])
+    rule("approval.high_risk_vendor_requires_finance", True)
+    assert route(["dept_manager"], within, "High", True) == (["dept_manager", "finance_head"], ["high_risk_vendor"])
+    assert route(["dept_manager"], within, "Medium", True) == (["dept_manager"], [])

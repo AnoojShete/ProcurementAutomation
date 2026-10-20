@@ -16,3 +16,4 @@ topics:
   - invoice.matched
   - business_rule.updated
   - order.summary.generated
+  - budget.threshold_crossed

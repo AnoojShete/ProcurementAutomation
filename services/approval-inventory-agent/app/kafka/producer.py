@@ -13,7 +13,8 @@ from app.kafka.events import (
     build_event,
     build_approval_requested_payload,
     build_approval_decided_payload,
-    build_license_usage_updated_payload
+    build_license_usage_updated_payload,
+    build_budget_threshold_crossed_payload,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ TOPIC_LICENSE_USAGE_UPDATED = "license.usage.updated"
 TOPIC_NOTIFICATION_SEND = "notification.send"
 TOPIC_ORDER_SUMMARY_GENERATED = "order.summary.generated"
 TOPIC_REMINDER_DUE = "reminder.due"
+TOPIC_BUDGET_THRESHOLD_CROSSED = "budget.threshold_crossed"
 
 
 class KafkaEventProducer:
@@ -76,6 +78,12 @@ class KafkaEventProducer:
         )
         event = build_event(TOPIC_APPROVAL_REQUESTED, self.service_name, payload)
         await self.publish(TOPIC_APPROVAL_REQUESTED, event)
+
+    async def publish_budget_threshold_crossed(self, request, check):
+        """A request moved its budget into warning or over (budget_service)."""
+        event = build_event(TOPIC_BUDGET_THRESHOLD_CROSSED, self.service_name,
+                            build_budget_threshold_crossed_payload(request, check))
+        await self.publish(TOPIC_BUDGET_THRESHOLD_CROSSED, event)
 
     async def publish_approval_decided(
         self, request_id, decision, decided_by, decision_level,

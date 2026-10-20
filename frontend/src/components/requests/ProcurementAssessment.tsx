@@ -1,6 +1,10 @@
-import { RiskBadge } from "@/components/ui/Badge";
-import { titleCase } from "@/lib/format";
-import type { PurchaseRequest, VendorRisk } from "@/types/api";
+import { Link } from "react-router-dom";
+import { budgetsApi } from "@/api/budgets";
+import { Badge, RiskBadge } from "@/components/ui/Badge";
+import { useApi } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
+import { formatCurrency, titleCase } from "@/lib/format";
+import type { BudgetRoutingReason, PurchaseRequest, RequestBudgetLine, VendorRisk } from "@/types/api";
 
 function AssessmentRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -15,6 +19,43 @@ function Unavailable({ reason }: { reason: string }) {
   return <span className="text-xs italic text-slate-400" title={reason}>Not available</span>;
 }
 
+const ROUTING_LABELS: Record<BudgetRoutingReason, string> = {
+  over_budget: "over budget",
+  no_budget: "no budget set",
+  high_risk_vendor: "high-risk vendor",
+};
+
+const CATEGORY_LABELS: Record<string, string> = { hardware: "hardware", software: "software", saas: "SaaS", services: "IT services" };
+
+function BudgetLine({ line, canOpen }: { line: RequestBudgetLine | null; canOpen: boolean }) {
+  if (!line) return <span className="text-slate-400">Loading…</span>;
+  if (!line.applies) return <Unavailable reason="Reclaims and reinstatements move seats; they don't spend budget" />;
+  const check = line.check;
+  const scope = check ? `${check.department} · ${CATEGORY_LABELS[check.category ?? ""] ?? check.category} · ${check.period} ${check.fiscal_year}` : "";
+  if (!check || line.status_at_creation === "no_budget" || !line.budget) {
+    return (
+      <span className="flex flex-col items-end gap-0.5">
+        <Badge tone="neutral">No budget set</Badge>
+        {scope && <span className="text-caption text-ink-3">{scope}</span>}
+      </span>
+    );
+  }
+  const tone = line.status_at_creation === "over" ? "danger" : line.status_at_creation === "warning" ? "warning" : "success";
+  const label = line.status_at_creation === "over" ? "Over budget" : line.status_at_creation === "warning" ? "Near the limit" : "Within budget";
+  const left = check.left_after ?? 0;
+  const figure = left < 0 ? `${formatCurrency(-left)} over after this request` : `${formatCurrency(left)} left after this request`;
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      <Badge tone={tone}>{label}</Badge>
+      <span className="tabular">{figure}</span>
+      <span className="text-caption text-ink-3">
+        {canOpen ? <Link to={`/app/budgets/${line.budget.id}`} className="underline-offset-2 hover:underline">{scope}</Link> : scope}
+        {" · now "}{formatCurrency(line.budget.left)} left
+      </span>
+    </span>
+  );
+}
+
 export function ProcurementAssessment({
   request,
   vendorRisk,
@@ -25,6 +66,9 @@ export function ProcurementAssessment({
   vendorRiskLoading: boolean;
 }) {
   const chain = request.approval_chain ?? [];
+  const { user } = useAuth();
+  const { data: budgetLine } = useApi(() => budgetsApi.forRequest(request.id), [request.id]);
+  const added = (request.budget_check?.routing ?? []).map((r) => ROUTING_LABELS[r] ?? r);
 
   return (
     <div className="rounded-md border border-surface-border bg-sheet">
@@ -53,12 +97,13 @@ export function ProcurementAssessment({
         </AssessmentRow>
         <AssessmentRow label="Policy routing">
           {chain.length ? `${chain.map(titleCase).join(" → ")}` : "Auto-approved (below threshold)"}
+          {added.length > 0 && <span className="block text-caption text-ink-3">Finance step added: {added.join(", ")}</span>}
         </AssessmentRow>
         <AssessmentRow label="Duplicate detection">
           <Unavailable reason="Duplicate checks run on uploaded documents, not purchase requests directly" />
         </AssessmentRow>
-        <AssessmentRow label="Budget status">
-          <Unavailable reason="No budget-tracking API is exposed by the current backend" />
+        <AssessmentRow label="Budget">
+          <BudgetLine line={budgetLine} canOpen={["approver", "finance", "admin"].includes(user?.role ?? "")} />
         </AssessmentRow>
       </div>
     </div>

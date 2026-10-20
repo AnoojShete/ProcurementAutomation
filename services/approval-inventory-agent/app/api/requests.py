@@ -65,9 +65,12 @@ async def create_request(
         cached = await get_cached_response(request.app.state.redis, settings.service_name, idempotency_key, scope=user.id)
         if cached is not None:
             return cached
+    from app.services.budget_service import BudgetBlocked
     try:
         req = await approval_svc.create_request(data, document_id=data.document_id)
         result = DataResponse(data=PurchaseRequestResponse.model_validate(req))
+    except BudgetBlocked as e:
+        return _error(e.code, e.message, 422)
     except ValueError as e:
         return _error("VALIDATION_ERROR", str(e), 400)
     except Exception:
@@ -136,6 +139,35 @@ async def get_request(
     if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
         return _error("NOT_FOUND", f"Request {request_id} not found", 404)
     return DataResponse(data=PurchaseRequestResponse.model_validate(req))
+
+
+@router.get("/{request_id}/budget", response_model=DataResponse)
+async def get_request_budget(
+    request_id: str,
+    approval_svc: ApprovalService = Depends(get_approval_service),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """The request's budget line: the check made when it was created and
+    the budget as it stands now. Same visibility as the request itself."""
+    if (bad := _malformed_id(request_id)) is not None:
+        return bad
+    req = await approval_svc.get_request_with_history(request_id)
+    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+        return _error("NOT_FOUND", f"Request {request_id} not found", 404)
+    from app.models import Budget
+    from app.services import budget_service
+    current = None
+    if req.budget_id:
+        budget = await approval_svc.db.get(Budget, req.budget_id)
+        if budget is not None:
+            used = await budget_service.usage(approval_svc.db, [str(budget.id)])
+            current = budget_service.summarise(budget, used[str(budget.id)])
+    return DataResponse(data={
+        "applies": budget_service.category_for(req.request_type) is not None,
+        "status_at_creation": req.budget_status,
+        "check": req.budget_check,
+        "budget": current,
+    })
 
 
 @router.post("/{request_id}/approve", response_model=DataResponse)

@@ -93,6 +93,10 @@ class PurchaseRequestResponse(BaseModel):
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     approval_history: Optional[List[ApprovalHistoryResponse]] = None
+    # Budget check at creation (app/services/budget_service.py).
+    budget_id: Optional[str] = None
+    budget_status: Optional[str] = None
+    budget_check: Optional[dict] = None
     model_config = ConfigDict(from_attributes=True)
 
 class InventoryItemResponse(BaseModel):

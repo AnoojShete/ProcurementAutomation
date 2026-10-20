@@ -299,3 +299,18 @@ async def test_force_model_fallback_accepts_only_known_routers(value, ok):
         with pytest.raises(HTTPException) as exc:
             await _validate_rule_value(AsyncMock(), rule, value)
         assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,ok", [("allow", True), ("finance_approval", True), ("block", True),
+                                      ("deny", False), (True, False)])
+async def test_no_budget_policy_accepts_only_known_policies(value, ok):
+    """Phase 1 budgets: a typo would silently behave like 'allow'."""
+    rule = BusinessRule(rule_key="budget.no_budget_policy", value_type="json", min_value=None, max_value=None,
+                        current_value="allow")
+    if ok:
+        await _validate_rule_value(AsyncMock(), rule, value)
+    else:
+        with pytest.raises(HTTPException) as exc:
+            await _validate_rule_value(AsyncMock(), rule, value)
+        assert exc.value.status_code == 400

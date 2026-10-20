@@ -168,6 +168,26 @@ class ApprovalService:
                             reservations.append((sku, item_avail))
                         inventory_reservation_total.labels(status="backordered").inc()
 
+        # 3b. Budget and vendor-risk routing (app/services/budget_service.py).
+        # Done here, right before the insert, so the budget row stays locked
+        # until this request is committed. A refused request gives its
+        # reserved stock back.
+        from app.services import budget_service
+        try:
+            budget_check = await budget_service.check_request(
+                self.db, request_type=data.request_type, department=data.department, amount=data.amount)
+            vendor_band = await budget_service.vendor_risk_band(self.db, data.vendor_id)
+            approval_chain, routing = budget_service.route(
+                approval_chain, budget_check, vendor_band,
+                spends_money=budget_service.category_for(data.request_type) is not None)
+        except Exception:
+            await self.db.rollback()
+            for sku, qty in reservations:
+                await release_reservation(self.db, self.redis, sku, req_id, qty)
+            raise
+        if budget_check is not None:
+            budget_check.routing = routing
+
         # 4. Insert into DB. Nothing in stock at all: the request itself waits
         # for stock — no split into an empty ₹0 "immediate" request that
         # would sit in the approval queue.
@@ -189,6 +209,10 @@ class ApprovalService:
             sla_deadline=sla_deadline,
             items=data.items,
             is_backordered=is_backordered,
+            budget_id=budget_check.budget_id if budget_check else None,
+            budget_status=budget_check.status if budget_check else None,
+            budget_check=(budget_check.to_dict() if budget_check
+                          else ({"routing": routing} if routing else None)),
             comments=(f"Backordered: no stock; {data.comments}" if data.comments else "Backordered: no stock")
             if nothing_in_stock else data.comments,
             status="backordered" if nothing_in_stock else "pending_approval",
@@ -205,6 +229,8 @@ class ApprovalService:
                 # Announced like a backordered split portion; it enters approval
                 # when stock arrives (backordered -> pending_approval).
                 await outbox.publish_approval_requested(req)
+            if budget_check is not None and budget_check.warning_crossed and outbox is not None:
+                await outbox.publish_budget_threshold_crossed(req, budget_check)
             await self.db.commit()
         except Exception:
             # reserve_stock commits on its own, so without this a failed
@@ -234,8 +260,10 @@ class ApprovalService:
             await outbox.publish_approval_requested(req)
             await self.db.commit()
 
-        # 6. If auto-approved, immediately approve and publish decided event
-        if tier_name == "auto":
+        # 6. If auto-approved, immediately approve and publish decided event.
+        # Keyed on the chain, not the tier: a small request that the budget
+        # or vendor-risk rules gave a finance step is not auto-approved.
+        if tier_name == "auto" and not approval_chain:
             req.status = "approved"
             now = datetime.now(timezone.utc)
 

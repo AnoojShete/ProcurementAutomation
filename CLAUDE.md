@@ -54,6 +54,7 @@ purpose (its recipients are placeholder role addresses).
 make e2e                                  # bash e2e through the gateway
 python tests/e2e/auth_flows.py            # accounts + Mailpit (needs EMAIL_MODE=dev)
 python tests/e2e/invoice_lifecycle.py     # one invoice through all five agents
+python tests/e2e/budget_flow.py           # budgets: within/warning/over, finance step, concurrency, rules
 python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service

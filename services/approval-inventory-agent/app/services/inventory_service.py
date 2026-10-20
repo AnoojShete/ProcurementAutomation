@@ -254,6 +254,11 @@ async def split_backorder(
         approval_chain=original_request.approval_chain,
         status="pending_approval",
         items=immediate_items,
+        # Both portions draw on the original's budget (the original becomes
+        # 'split' and stops counting).
+        budget_id=original_request.budget_id,
+        budget_status=original_request.budget_status,
+        budget_check=original_request.budget_check,
         backorder_parent_id=original_request.id,
         is_backordered=False,
         created_at=now,
@@ -274,6 +279,9 @@ async def split_backorder(
         approval_chain=original_request.approval_chain,
         status="backordered",
         items=backorder_items,
+        budget_id=original_request.budget_id,
+        budget_status=original_request.budget_status,
+        budget_check=original_request.budget_check,
         backorder_parent_id=original_request.id,
         is_backordered=True,
         comments=f"Backordered: {total_requested - available_qty} units pending stock",

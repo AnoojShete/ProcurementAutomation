@@ -1,10 +1,10 @@
 # Business rules
 
-Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
+Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
 
 Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed on `business_rule.updated`); each read has a fallback used when auth-service is unreachable. Tests: `services/<service>/tests/test_rules_wiring.py::test_<rule key with _>` — each sets the rule to two values and checks the behaviour differs.
 
-**Enforced: 37** · **Not enforced: 10** (listed at the end — editing them has no effect until the feature exists).
+**Enforced: 44** · **Not enforced: 8** (listed at the end — editing them has no effect until the feature exists).
 
 | Rule | Default | What it changes | Read in | Test |
 |---|---|---|---|---|
@@ -13,9 +13,16 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `approval.email_action_enabled` | `true` | Allow approvers to approve or reject from a single-use email link | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_email_action_enabled` |
 | `approval.email_action_max_amount` | `50000` | Requests above this amount must be decided in the app, not from email | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_email_action_max_amount` |
 | `approval.email_token_ttl_hours` | `48` | How long an approval link in an email stays valid (never past the SLA deadline) | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_email_token_ttl_hours` |
+| `approval.high_risk_vendor_requires_finance` | `false` | Purchases from a High-risk vendor get a finance approval step | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_approval_high_risk_vendor_requires_finance` |
 | `approval.reminder_sla_percents` | `[50, 80]` | Remind the approver when this much of the approval SLA has passed | approval-inventory-agent: workflows/activities.py | `approval-inventory-agent` · `test_approval_reminder_sla_percents` |
 | `approval.sla_escalation_hours` | `48` | Hours before an unapproved request escalates | approval-inventory-agent: approval_service.py, approval-inventory-agent: workflows/activities.py | `approval-inventory-agent` · `test_approval_sla_escalation_hours` |
 | `approval.spend_tiers` | `[{"tier_name": "auto", "max_amount": …` | Approval tiers with amount limits and required roles | approval-inventory-agent: approval_service.py | `approval-inventory-agent` · `test_approval_spend_tiers` |
+| `budget.block_when_over` | `false` | Refuse an over-budget request (422 over_budget) instead of adding a finance step | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_block_when_over` |
+| `budget.fiscal_period_type` | `"quarterly"` | Budgets are per quarter or per fiscal year; decides which budget a request draws on | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_fiscal_period_type` |
+| `budget.fiscal_year_start_month` | `4` | Month the fiscal year starts (April); sets the quarter a request falls in | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_fiscal_year_start_month` |
+| `budget.no_budget_policy` | `"allow"` | Request with no budget for its department, category and period: allow, add a finance step, or refuse | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_no_budget_policy` |
+| `budget.over_budget_requires_finance_approval` | `true` | A request that would exceed its budget gets a finance approval step | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_over_budget_requires_finance_approval` |
+| `budget.warning_threshold_pct` | `0.8` | A request that takes its budget past this share is marked *warning* and publishes budget.threshold_crossed | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_warning_threshold_pct` |
 | `contract.auto_send_scope` | `"all"` | Which approved requests get their contract sent for signature automatically: "all" or "drop_folder" (only quotes dropped in the inbox folder) | contract-risk-agent: contract_service.py | `contract-risk-agent` · `test_contract_auto_send_scope` |
 | `contract.clause_extraction_fallback_threshold` | `0.4` | Confidence threshold to fallback during contract clause extraction | contract-risk-agent: clause_router.py | `contract-risk-agent` · `test_contract_clause_extraction_fallback_threshold` |
 | `contract.signature_reminder_days` | `3` | Remind the signer when a contract has waited this many days for signature | contract-risk-agent: reminder_sweep.py | `contract-risk-agent` · `test_contract_signature_reminder_days` |
@@ -50,8 +57,6 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 
 | Rule | Default | Why it has no effect today |
 |---|---|---|
-| `budget.fiscal_period_type` | `"quarterly"` | No budget tracking exists yet; only validated on save. |
-| `budget.over_budget_requires_finance_approval` | `true` | No budget tracking exists yet. |
 | `document.invoice_po_match_tolerance_pct` | `0.05` | Superseded by invoice.overbill_tolerance_pct and invoice.unit_price_tolerance_pct (what matching actually uses, 1 %). Its 5 % default would loosen a fraud control — candidate for removal (needs a decision). |
 | `license.false_positive_decline_count` | `2` | No false-positive suppression of licence anomalies exists yet. |
 | `license.false_positive_window_months` | `6` | No false-positive suppression of licence anomalies exists yet. |

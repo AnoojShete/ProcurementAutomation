@@ -84,6 +84,23 @@ class Vendor(Base):
     )
 
 
+class Budget(Base):
+    """Money set aside for one department, IT category and fiscal period.
+    Usage is computed from the requests that point at it, not stored."""
+    __tablename__ = "budgets"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid.uuid4()))
+    fiscal_year: Mapped[str] = mapped_column(String(7), nullable=False)
+    period: Mapped[str] = mapped_column(String(2), nullable=False)
+    department: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[str] = mapped_column(String(20), nullable=False)
+    amount_inr: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    owner_email: Mapped[Optional[str]] = mapped_column(String(255))
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
 class PurchaseRequest(Base):
     """A purchase or license-reclaim request flowing through approval."""
     __tablename__ = "purchase_requests"
@@ -107,6 +124,16 @@ class PurchaseRequest(Base):
     comments: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Budget check at creation (app/services/budget_service.py): which budget
+    # the request draws on, the result, and the figures it was based on.
+    budget_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("budgets.id"))
+    budget_status: Mapped[Optional[str]] = mapped_column(String(12))
+    budget_check: Mapped[Optional[dict]] = mapped_column(JSON)
+
+    @property
+    def is_over_budget(self) -> bool:
+        """Read by the e-mail approval page (rule approval.email_action_allowed_over_budget)."""
+        return self.budget_status == "over"
 
     # Relationships
     vendor: Mapped[Optional["Vendor"]] = relationship("Vendor", back_populates="purchase_requests")

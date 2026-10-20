@@ -372,6 +372,25 @@ Notes:
 - There's no Python linter configured; CI (`.github/workflows/ci.yml`)
   only builds images.
 
+### Budgets (feature expansion Phase 1)
+
+Finance sets a budget per **department × IT category × fiscal quarter**
+(`/app/budgets`, or `POST /api/budgets/import` with many rows); categories are
+hardware, software (licence requests), SaaS and IT services. Each new request
+records the budget it draws on and the result of the check
+(`within | warning | over | no_budget`). Nothing is stored as "spent": a
+budget's usage is computed from its requests — *pending* while awaiting
+approval or stock, *committed* once approved, *consumed* once invoiced — so
+rejections and cancellations release money automatically. The budget row is
+locked while a request is checked, so two simultaneous requests can't both
+fit into the last rupees. Over-budget requests get a `finance_head` step (rule
+`budget.over_budget_requires_finance_approval`); requests without a budget
+follow `budget.no_budget_policy`; a request that takes a budget past
+`budget.warning_threshold_pct` publishes `budget.threshold_crossed`. The
+request page shows the budget line; e-mail approval of an over-budget request
+is refused (`approval.email_action_allowed_over_budget`).
+`python tests/e2e/budget_flow.py` checks the whole flow.
+
 ### Research experiment (selective automation)
 
 The study in [RESEARCH_PAPER_PLAN.md](RESEARCH_PAPER_PLAN.md) runs on

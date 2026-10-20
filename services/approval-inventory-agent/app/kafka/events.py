@@ -81,3 +81,22 @@ def build_license_usage_updated_payload(
         "top_factors": top_factors or [],
         "model_version": model_version,
     }
+
+
+def build_budget_threshold_crossed_payload(request, check) -> dict:
+    """Payload for budget.threshold_crossed: a new request took a budget
+    into warning (past budget.warning_threshold_pct) or over it."""
+    return {
+        "budget_id": check.budget_id,
+        "fiscal_year": check.fiscal_year,
+        "period": check.period,
+        "department": check.department,
+        "category": check.category,
+        "status": check.status,
+        "budget_amount_inr": check.budget_amount,
+        "used_inr": round(check.used_before + check.request_amount, 2),
+        "left_inr": check.left_after,
+        "request_id": str(request.id),
+        "requested_by": request.requested_by,
+        "request_amount_inr": check.request_amount,
+    }

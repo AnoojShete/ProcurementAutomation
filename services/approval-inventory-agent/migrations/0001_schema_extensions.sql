@@ -291,3 +291,47 @@ BEGIN
       CHECK (amount <> 'NaN'::numeric AND amount < 'Infinity'::numeric);
   END IF;
 END $$;
+
+-- Feature expansion Phase 1 (docs/feature-expansion-plan.md): budgets per
+-- department x IT category x fiscal period. What a budget has used is not
+-- stored: it is computed from the requests that point at it and the invoice
+-- allocations booked against them (app/services/budget_service.py), so it
+-- follows every status change (approval, rejection, cancellation, split)
+-- without extra bookkeeping. New table and nullable columns: no existing
+-- row changes.
+CREATE TABLE IF NOT EXISTS budgets (
+  id UUID PRIMARY KEY,
+  fiscal_year VARCHAR(7) NOT NULL,          -- e.g. 2026-27
+  period VARCHAR(2) NOT NULL,               -- Q1..Q4, or FY when the period type is annual
+  department VARCHAR(255) NOT NULL,
+  category VARCHAR(20) NOT NULL,            -- hardware | software | saas | services
+  amount_inr NUMERIC(14, 2) NOT NULL,
+  owner_email VARCHAR(255),
+  created_by VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_budgets_scope
+  ON budgets (fiscal_year, period, lower(department), category);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_budgets_values') THEN
+    ALTER TABLE budgets ADD CONSTRAINT ck_budgets_values CHECK (
+      amount_inr >= 0 AND amount_inr <> 'NaN'::numeric
+      AND category IN ('hardware', 'software', 'saas', 'services')
+      AND period IN ('Q1', 'Q2', 'Q3', 'Q4', 'FY')
+      AND fiscal_year ~ '^[0-9]{4}-[0-9]{2}$');
+  END IF;
+END $$;
+
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS budget_id UUID REFERENCES budgets(id);
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS budget_status VARCHAR(12);
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS budget_check JSONB;
+CREATE INDEX IF NOT EXISTS idx_purchase_requests_budget ON purchase_requests (budget_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_requests_budget_status') THEN
+    ALTER TABLE purchase_requests ADD CONSTRAINT ck_purchase_requests_budget_status
+      CHECK (budget_status IS NULL OR budget_status IN ('within', 'warning', 'over', 'no_budget'));
+  END IF;
+END $$;

@@ -17,7 +17,7 @@ from app.database import init_db, get_db, async_session_factory
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
 from app.usage_scanner import run_usage_scanner
-from app.api import health, requests, inventory, inbox, licenses, orders, authority, invoices, ops, email_action, internal_email_action
+from app.api import health, requests, inventory, inbox, licenses, orders, authority, invoices, ops, email_action, internal_email_action, budgets
 from app.services.order_monitor import run_order_monitor
 from app.schemas import ErrorResponse, ErrorDetail
 
@@ -193,6 +193,7 @@ app.include_router(
     invoices.router, prefix="/invoices", tags=["Invoice Ledger"], dependencies=[Depends(get_current_user)]
 )
 app.include_router(ops.router, prefix="/ops", tags=["Operations"])
+app.include_router(budgets.router, prefix="/budgets", tags=["Budgets"], dependencies=[Depends(get_current_user)])
 app.include_router(
     inbox.router, prefix="/inbox", tags=["Approver Inbox"],
     dependencies=[Depends(require_role("approver", "finance", "admin"))],
