@@ -8,21 +8,28 @@ people outside the project; `docs/TODO.md` is the open work and the roadmap
 dated evidence per item); `docs/IMPLEMENTATION_PLAN.md` is the owner's
 short checklist; `docs/RESEARCH_GAP_ANALYSIS.md` and
 `docs/RESEARCH_PAPER_PLAN.md` hold the research direction (RS-xx tasks);
-`git log` is what changed. `docs/project-flow.html` is the visual status
-(tab 1; extended-scope work is starred inside its agent) and the research
-gap analysis (tab 2, `#research`); `docs/showcase.html` is the
-presentation guide (external evaluator / mentor) with screenshots retaken
-by `tests/e2e/showcase_screens.py`. `docs/index.html` is the start page
-listing every document. **Convention:** a document the owner or a presenter
-reads is HTML in the shared look (`index.html`, `showcase.html`,
-`demo-script.html`, `demo-5min.html`, `risk-model.html`, `deployment.html`,
-`competitive-analysis.html`, `codebase-guide.html`, `project-flow.html`);
-references for engineers and agents stay Markdown (TODO, readmeforme,
-business-rules, feature-expansion-plan, design-direction, testing-strategy,
-model-routing, notifications, architecture, quality-audit-report, RESEARCH_*).
-`IMPLEMENTATION_PLAN.md` stays Markdown because the owner edits it.
-`docs/forReport/` and `docs/forResearchPaper/` are reserved for the owner's
-material. Update them, README.md and docs/TODO.md at every roadmap phase.
+`git log` is what changed.
+
+**Everything a person reads is one file: `docs/index.html`**, a dashboard of
+tabs (Overview, Project status, Showcase, 5-minute demo, Demo script, Vendor
+risk, Codebase guide, Deployment, Competitors). Each tab is a whole page kept
+in a `<template id="page-ID">` and rendered in its own frame, so pages keep
+their own CSS/JS. Edit a page with `python scripts/docs_dashboard.py extract
+<id> > f.html`, change it, then `put <id> f.html` (ids: home, status,
+showcase, demo-5min, demo-script, risk, code, deploy, market). Links between
+pages may use a page's former file name (the tab's old `<name>.html`, with
+an anchor) or `index.html#tab/anchor`; both switch tabs. Outside the dashboard link to
+`docs/index.html#<tab>`. Don't add new `.html` files to `docs/` (a test
+fails): add a tab in `scripts/docs_dashboard.py` instead.
+`tests/e2e/demo_scenarios.py` writes the Demo script tab;
+`tests/e2e/showcase_screens.py` retakes the Showcase screenshots.
+Engineering references stay Markdown: TODO, readmeforme (with appendices:
+architecture, model routing, notification coverage, testing strategy),
+business-rules, feature-expansion-plan, design-direction,
+quality-audit-report, RESEARCH_*; `IMPLEMENTATION_PLAN.md` stays Markdown
+because the owner edits it. `docs/forReport/` and `docs/forResearchPaper/`
+are reserved for the owner's material. Update the dashboard tabs, README.md
+and docs/TODO.md at every roadmap phase.
 
 ## What this is
 
@@ -75,10 +82,10 @@ python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service
 python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fails loudly if a step breaks)
-python tests/e2e/demo_scenarios.py        # the eight demo scenarios (core, risk red team, GST, assistant), checked live → docs/demo-script.html
-python tests/e2e/demo_5min.py             # the 5-minute demo (docs/demo-5min.html) rehearsed + recorded → docs/demo/backup-recording.webm
+python tests/e2e/demo_scenarios.py        # the eight demo scenarios (core, risk red team, GST, assistant), checked live → docs/index.html#demo-script
+python tests/e2e/demo_5min.py             # the 5-minute demo (docs/index.html#demo-5min) rehearsed + recorded → docs/demo/backup-recording.webm
 ./scripts/reset-demo.sh                   # back up, clear the data volumes, rebuild realistic demo data (~3 min)
-./scripts/backup.sh / restore.sh <stamp>  # Postgres + MinIO backup into .run/backups/; restore backs up first (docs/deployment.html)
+./scripts/backup.sh / restore.sh <stamp>  # Postgres + MinIO backup into .run/backups/; restore backs up first (docs/index.html#deploy)
 ```
 
 e2e scripts need `pip install -r tests/e2e/requirements.txt` on the host.
@@ -196,7 +203,7 @@ in `docs/readmeforme.md` (Research experiment).
   prohibited country) is never cleared, can't be risk-accepted and blocks
   signing. The red-team set `ml/redteam_scorecard.py` (run by
   `tests/test_risk_redteam.py`) must stay green; add a profile for any new
-  rule. Write-up: `docs/risk-model.html`.
+  rule. Write-up: `docs/index.html#risk`.
 - **The assistant decides intent before retrieving** (`chatbot-agent/app/services/intent.py`):
   greetings, "like what", remarks and topic-only messages get direct replies;
   licence anomalies come from live scores (`topics.py`); only real questions

@@ -141,7 +141,7 @@ flowchart TD
 
 4. **Petty Purchase Exception**:
    - For routine low-value purchases (spend amount ≤ `risk.petty_threshold`, ₹50,000) with **petty**-tier vendors whose checks are still provisional, clearance is granted under `cleared_under_petty_exception` as long as no hard override is active and no sanctions result awaits review.
-   - A **non-remediable** override (sanctions match `R-SAN-01`, prohibited country `R-JUR-01`) is never cleared: an admin can't accept the risk and contract signing is blocked. One function (`clearance.py`) decides for `/clearance` and for signing. Red team, evaluation and limits: [docs/risk-model.html](docs/risk-model.html).
+   - A **non-remediable** override (sanctions match `R-SAN-01`, prohibited country `R-JUR-01`) is never cleared: an admin can't accept the risk and contract signing is blocked. One function (`clearance.py`) decides for `/clearance` and for signing. Red team, evaluation and limits: [docs/index.html#risk](docs/index.html#risk).
 
 5. **Foreign Vendors & GST Limitations**:
    - `vendor.country` (ISO 3166-1 alpha-2) is required at onboarding with no default.
@@ -182,7 +182,7 @@ Open **http://localhost:8080** and sign in as `requester@demo.example.com`
 and dark themes are in Account settings.
 
 Deploying beyond one machine, backups and restore:
-[docs/deployment.html](docs/deployment.html). Every project document starts at
+[docs/index.html#deploy](docs/index.html#deploy). Every project document starts at
 [docs/index.html](docs/index.html).
 
 ## Tech stack

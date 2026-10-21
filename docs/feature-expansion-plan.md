@@ -1,7 +1,7 @@
 # Feature expansion plan: closing the gaps with commercial suites
 
 Status (21 October 2026): **Phases 1, 2, 3 and 4 built** (see their sections); Phases 5–8 are proposals.
-Inputs: [competitive-analysis.html](competitive-analysis.html) (Coupa, Zapro, SAP
+Inputs: [index.html#market](index.html#market) (Coupa, Zapro, SAP
 Ariba, Ivalua, TYASuite) and Zoho's buyer's guide
 (https://www.zoho.com/procurement/academy/procurement-software.html), which
 adds sourcing depth (multi-round events, weighted scoring, sealed bids,
@@ -743,7 +743,7 @@ For every phase, the pull request is done when:
 - [ ] one home page per item; actions in the agent's component; Ledger tokens;
 - [ ] notification templates and assistant tools listed as hand-offs to Anooj;
 - [ ] every fix proven by reverting it; e2e extended for the new flow;
-- [ ] `docs/TODO.md`, `IMPLEMENTATION_PLAN.md`, `project-flow.html`,
+- [ ] `docs/TODO.md`, `IMPLEMENTATION_PLAN.md`, `index.html#status`,
       `readmeforme.md` updated.
 
 ## 4. Decisions needed before starting

@@ -1,4 +1,4 @@
-"""Screenshots of each module's process for docs/showcase.html, taken from
+"""Screenshots of each module's process for docs/index.html#showcase, taken from
 the running stack — so if a pipeline breaks, the pictures show it (and the
 script says which step failed). Saved to docs/showcase/<module>/NN-*.png.
 

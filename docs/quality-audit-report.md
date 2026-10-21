@@ -3,11 +3,11 @@
 A pre-submission audit of the procurement platform: baseline checks, live
 black-box testing through the gateway, controlled dependency failures, a
 browser crawl, then fixes with regression tests. How to rerun everything and
-the full scenario matrix are in [testing-strategy.md](testing-strategy.md).
+the full scenario matrix are in [readmeforme.md#appendix-d-testing-strategy](readmeforme.md#appendix-d-testing-strategy).
 
 > **Update, October 19:** QA-06 and QA-21 fixed; access tokens shortened
 > to 15 minutes; Python and frontend dependencies upgraded; production
-> start-up checked and backups added (`docs/deployment.html`). Status of every
+> start-up checked and backups added (`docs/index.html#deploy`). Status of every
 > item: `docs/TODO.md`. The rest of this report is as written on Oct 17.
 
 **Assessment: READY WITH KNOWN ISSUES** for the local demonstration and

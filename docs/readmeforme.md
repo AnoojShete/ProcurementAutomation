@@ -10,7 +10,7 @@ behind one nginx gateway that also serves the React frontend.
 A student team project (Anjali, Vaidehi, Niraj, Anooj). It's a working,
 tested prototype, not a production deployment — see [TODO.md](TODO.md)
 for what's open (with the roadmap), `git log` for what changed, and
-[docs/showcase.html](showcase.html) for how to present it (full walkthrough for external evaluators, what's-new run for mentors).
+[docs/index.html#showcase](index.html#showcase) for how to present it (full walkthrough for external evaluators, what's-new run for mentors).
 
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
@@ -187,7 +187,7 @@ stopping anything; `./scripts/restore.sh` lists them and
 `./scripts/restore.sh <stamp>` puts one back (it backs up the current data
 first, so a restore can be undone). What is and isn't backed up, and the
 checklist for a deployment beyond this machine (production secrets, HTTPS,
-the advisories still open), are in [deployment.html](deployment.html).
+the advisories still open), are in [index.html#deploy](index.html#deploy).
 
 ## Configuration
 
@@ -341,7 +341,7 @@ curl -s http://localhost:8080/api/requests/ -H "Authorization: Bearer <access_to
 
 Counts from Oct 16 unless a row says otherwise; the fresh-clone setup was
 last verified on Sep 27 (separate Docker project, empty volumes). The test
-plan and scenario matrix are in [testing-strategy.md](testing-strategy.md);
+plan and scenario matrix are in [readmeforme.md#appendix-d-testing-strategy](#appendix-d-testing-strategy);
 the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit-report.md).
 
 | Command | What | Result |
@@ -354,8 +354,8 @@ the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit
 | `python -m pytest tests/e2e/test_flow.py` | Core flow + webhook bad-signature / replay | passed |
 | `python tests/e2e/document_pipeline.py [--quick]` | Normal / huge / corrupt / empty / wrong-type / pathological files, duplicates, outages | 48/52 (`--quick`, Oct 19): `slow_to_parse.pdf` no longer hits the 120 s limit with Docling 2.140 (TODO E2E-1); 52/52 on Oct 15 |
 | `python tests/e2e/ui_flows.py` | Browser (Playwright): back arrow, clickable lifecycle, approve and sign from lifecycle steps, approval-inbox routing, license page's open-request panel | 11/11 (needs `pip install playwright && python -m playwright install chromium`) |
-| `python tests/e2e/demo_scenarios.py` | The five demo scenarios performed in a browser and checked → `docs/demo-script.html` | 18/18 |
-| `python tests/e2e/demo_5min.py` | The 5-minute demo (`docs/demo-5min.html`) rehearsed and recorded → `docs/demo/backup-recording.webm` | 6/6 (Oct 18, 4 runs) |
+| `python tests/e2e/demo_scenarios.py` | The five demo scenarios performed in a browser and checked → `docs/index.html#demo-script` | 18/18 |
+| `python tests/e2e/demo_5min.py` | The 5-minute demo (`docs/index.html#demo-5min`) rehearsed and recorded → `docs/demo/backup-recording.webm` | 6/6 (Oct 18, 4 runs) |
 | `cd frontend && npm run typecheck` | TypeScript | clean |
 
 ```bash
@@ -365,7 +365,7 @@ pip install -r tests/e2e/requirements.txt
 ./scripts/test-root.sh
 # screenshots in docs/showcase/ from the live stack; ends with "STEPS THAT FAILED" if a pipeline breaks
 python tests/e2e/showcase_screens.py
-# the demo script: five scenarios performed and checked live → docs/demo-script.html (~5 min)
+# the demo script: five scenarios performed and checked live → docs/index.html#demo-script (~5 min)
 python tests/e2e/demo_scenarios.py
 # the 5-minute demo, rehearsed and recorded → docs/demo/backup-recording.webm
 python tests/e2e/demo_5min.py
@@ -775,7 +775,7 @@ Business Rules, and a weekly monitoring report replaces PSI drift monitoring (re
 ends the old schedule). The earlier random forest is archived in `ml/archive/`. The red-team set
 (`ml/redteam_scorecard.py`, 22 profiles through the real engine and clearance, run by
 `tests/test_risk_redteam.py`) and the ruleset's evaluation on the forest's test split
-(`ml/evaluate_scorecard.py`, ROC-AUC 0.738 vs 0.715) are written up in `docs/risk-model.html`, with
+(`ml/evaluate_scorecard.py`, ROC-AUC 0.738 vs 0.715) are written up in `docs/index.html#risk`, with
 the merge review (G1–G11, all closed or decided). Rule `approval.unrated_vendor_requires_finance`
 (off) gives purchases from Unrated vendors a finance step.
 A sweep re-scores vendors after a delivery. `tests/e2e/risk_flow.py` checks the module and
@@ -842,7 +842,7 @@ wrapped with the retry / dead-letter handler (TODO.md).
   (sanctions, cancelled GSTIN, bank route → High), rating statuses
   (assessed / provisional / not rated — never a false Low), a clearance gate,
   decisions, evidence, disputes and exact replay. The random forest it
-  replaced (ROC-AUC 0.715, `docs/risk-model.html`) is archived.
+  replaced (ROC-AUC 0.715, `docs/index.html#risk`) is archived.
 - **Vendor vetting**: GSTIN format + checksum (+ optional live lookup with
   quota auto-cutoff), IFSC via Razorpay's free API, spend-based tiers.
 - **Business rules**: 28 tunable rules edited live on an admin page with
@@ -899,3 +899,442 @@ All data is synthetic; see each folder's README under `data/`
 (`synthetic-invoices`, `synthetic-vendors`, `synthetic-sso-logs`,
 `synthetic-classification`) and [`data/README.md`](../data/README.md) for
 the retention policy and which tables hold personal data.
+
+---
+
+# Appendices
+
+Folded in from separate files on 21 Oct 2026 to keep the number of documents down.
+
+## Appendix A: System architecture
+
+![System architecture](assets/architecture.png)
+
+Vector version: [`assets/architecture.svg`](assets/architecture.svg) (use this
+in the report; it scales without blurring). The figure is generated by
+[`assets/make_architecture_svg.py`](assets/make_architecture_svg.py) — edit the
+script and re-run it rather than editing the SVG by hand. A rendering of the
+older feature/status chart (`index.html#status`) is in
+[`assets/project-flow-render.png`](assets/project-flow-render.png).
+
+Checked against the code on 17 Oct 2026 (branch `anjali`, working tree
+including uncommitted changes).
+
+### Components
+
+| Component | Responsibility |
+|---|---|
+| **Web browser** (React 18 + TypeScript, `frontend/`) | One page per item (request, contract, licence, vendor, document); role-based navigation. Keeps the access token in memory; the refresh token is an httpOnly cookie protected by a CSRF header. |
+| **nginx gateway** (`infra/nginx/nginx.conf`, port 8080) | The only public port. Serves the built SPA and proxies `/api/<prefix>` to the owning service, rate-limits the login and email-sending endpoints, adds security headers and a per-request `X-Correlation-ID`, caps uploads at 25 MB (100 MB for batches). |
+| **document-vendor-agent** (8001) + worker | Takes documents in by upload, a drop folder (`./inbox`) or an intake mailbox. Scans each one with ClamAV, stores it in MinIO and queues it (`document.ingested`). The worker reads the file (pdfplumber / Docling / PaddleOCR, with image preprocessing), classifies it (TF-IDF + logistic regression, with a keyword fallback), extracts fields, cross-checks them with LayoutLMv3, matches or creates the vendor, sends bank details to a two-person check, converts the amount to INR, books invoices against the ledger, flags duplicates and decides whether a person must review it. |
+| **approval-inventory-agent** (8002) + Temporal worker | Purchase requests, spend tiers and one approval workflow per request (SLA escalation and reminders), approval authority and separation of duties, inventory reservations and backorders, reorder suggestions, the three-way invoice ledger, licence-usage anomaly scoring (IsolationForest + SHAP), single-use email approval links, and an hourly order monitor. |
+| **contract-risk-agent** (8003) + Temporal worker | Generates contracts from Jinja2 templates (text and PDF). Reads their clauses with Legal-BERT, falling back to regex rules. Built-in e-signature with a SHA-256 seal. Scores vendor risk (random forest plus hard overrides: GSTIN, sanctions, IFSC), screens vendors against sanctions lists, runs renewal-reminder workflows and a weekly PSI drift check. |
+| **notification-agent** (8004) | Consumes 11 event topics and decides urgent vs digest. Renders Jinja2 email templates, sends them through the shared mailer (Mailpit in development) and logs every notification. Serves each person's in-app feed from that log with read receipts (`notification_reads`), so the bell counts only unread, important notifications. |
+| **auth-service** (8005) | Sign-up with email verification, login, refresh, logout and password reset (argon2id, lockout, breached-password check). Admin user management; each person's display name and theme (light / dark / match device). The business-rules engine: 47 tunable rules with a change history. |
+| **chatbot-agent** (8006) | Chat assistant. Sends the conversation to a local Ollama LLM with six read-only tools that call the other agents' APIs with a token for the same user, so their role checks still apply. |
+| **Kafka (Redpanda)** | Event backbone: 17 topics, one SASL/SCRAM login per service, permissions in `infra/redpanda/acls.conf`. Events are written to a transactional outbox and relayed; consumers dedupe, retry, then dead-letter. |
+| **Temporal** | Durable workflows: approvals (SLA timers and reminders), contract renewals, weekly drift check. |
+| **PostgreSQL** | One shared database. Each service migrates its own tables; it also holds the outbox, inbox and DLQ tables, the event log and Temporal's own data. |
+| **Redis** | Idempotency-key responses (24 h), inventory reservation locks. |
+| **MinIO** | Original uploaded files (bucket `documents`). |
+| **Supporting services** | ClamAV (malware scan, fails closed), Mailpit/SMTP, Ollama, Frankfurter (FX), Razorpay IFSC, gstincheck.co.in (quota-gated, off by default), HaveIBeenPwned, OpenSanctions. |
+| **Observability** | Prometheus (metrics from every API and two workers, plus kafka-exporter), Promtail → Loki → Grafana (logs searchable by correlation id), Temporal UI, MLflow. |
+
+### Data flow: one document, from arrival to a matched invoice
+
+1. **Arrival.** A document arrives through `POST /api/documents/upload`, the drop folder or the intake mailbox. ClamAV scans it, its type is checked from its bytes (not its name), it is stored in MinIO, and a `documents` row is written. `document.ingested` goes into the outbox **in the same transaction**, so the row and the event are saved together or not at all.
+2. **Claim and read.** The document worker consumes the event and claims the row (`pending → processing`; only one worker can claim it). Text extraction runs in a child process with a 120-second limit.
+3. **Pipeline stages.** Classify → extract fields → LayoutLMv3 cross-check → vendor match (bank details go to dual control; look-alike vendor names are flagged) → learned per-vendor hints → FX to INR → invoice ledger (`POST /invoices/match` on approval-inventory-agent) → duplicate check (advisory lock per vendor) → confidence score and review decision.
+4. **Results.** The results, an audit row and the `document.classified` and `vendor.matched` events commit together. If a dependency is down, the document goes back to `pending` and a sweep retries it with back-off; after 5 attempts it is marked failed.
+5. **Downstream reactions.** contract-risk-agent scores the vendor (`risk.score.updated`). notification-agent emails the people involved. approval-inventory-agent turns a quote dropped into the drop folder into a purchase request.
+6. **Approval.** A request runs an `ApprovalWorkflow` in Temporal. Each decision is checked against the approver's assignment, amount limit and separation-of-duties rules, then signalled to the workflow, which publishes `approval.decided`.
+7. **Contract and signature.** contract-risk-agent generates the contract and sends it for signature automatically. Signing (built-in e-sign; vendors rated High or not yet scored need an explicit risk acknowledgement) publishes `contract.signed`, and the request moves to `ordered`.
+8. **Receipt and invoice.** "Mark as received" moves the request to `fulfilled`. An invoice booked by the ledger moves it to `partially_invoiced` or `invoice_received`. Every status change goes through the state machine in `shared/lifecycle.py`.
+
+### Known gap shown by this review
+
+`approval.decided` is published once per approval level, but
+contract-risk-agent's handler (`app/kafka/consumer.py`,
+`_handle_approval_decided`) generates a contract on **any** "approved"
+decision. For a two-level (manager + finance) request, the contract can
+therefore exist before finance has decided. A read-only query of the
+development database found 6 contracts generated before the final
+approval decision, and one draft contract whose request was later
+rejected. Not fixed here: documentation only.
+
+## Appendix B: Model routing and fallback (FR-08)
+
+Where the platform chooses between a primary model and a fallback, when the
+fallback fires, and how to show it on demand. Checked against the code on
+16 Oct 2026.
+
+Every routed decision is written to `model_routing_log` (route, model,
+fallback and its reason, confidence, duration) and shown on **System
+Health → Model Routing Log** (admin); counts are also exported as the
+Prometheus metric `model_routing_total`.
+
+### Routers
+
+| Router | Service / file | Primary | Fallback | Fallback fires when | Logged as |
+|---|---|---|---|---|---|
+| **Text extraction** | document-vendor-agent · `app/services/extraction_router.py` | pdfplumber (PDF text layer) · Docling (scanned PDFs) · PaddleOCR (images) — in a killable subprocess with a time limit | LayoutLMv3 second reading of the image (`_layoutlm_image_fallback`); if that fails, the primary's text is kept | an **image**'s OCR quality is below `document.extraction_fallback_confidence_threshold` (0.5) — reason `low_confidence`; or forced (below) — reason `forced`. A file that can't be read at all fails with a message for the uploader instead | `docling_text` / `docling_paddleocr` / `layoutlmv3_fallback` |
+| **Clause extraction** | contract-risk-agent · `app/services/clause_router.py` | Legal-BERT fine-tuned on CUAD (`alex-apostolo/legal-bert-base-cuad`, `clause_model.py`) finds the renewal, notice and expiry passages; parsers turn them into values (FR-13) | regex rules (`clause_extraction.extract_clauses`) | the model isn't downloaded (`model_unavailable`), raised (`exception`), found fewer than 40 % of the three clauses (`low_confidence`, rule `contract.clause_extraction_fallback_threshold`), or forced (`forced`) | `legal_bert_primary` / `regex_fallback` |
+| **Document classification** | document-vendor-agent · `app/services/classification.py` | ML classifier (TF-IDF + logistic regression, `ml/artifacts/classifier.joblib`, trained at image build — FR-29) when ≥ 0.6 confident | keyword classifier | the model is less than 60 % sure, or no model was kept (training keeps it only if it beats the keywords) | not routed through the log |
+
+Not routers, listed for completeness:
+- **LayoutLMv3 cross-check** (document-vendor-agent pipeline): a second
+  opinion on every document when the model is downloaded; disagreement
+  forces review. It never replaces the primary result.
+- **Assistant / chatbot**: one local Ollama model, no fallback. It belongs
+  to another team member and isn't covered here.
+
+Measured, not assumed: Legal-BERT beats the rules on CUAD's 102 test
+contracts (F1 0.85 / 0.80 / 0.91 vs 0.50 / 0.19 / 0.02) and reads every
+value of our own templates — `docs/results/clauses.md`. For contracts we
+generate, the notice period and end date we wrote stay authoritative; a
+disagreement by the extractor is written to the contract's audit log
+(`clause_mismatches`), not stored.
+
+### Showing the fallback on demand (development only)
+
+The business rule **`dev.force_model_fallback`** (Business Rules page,
+category Risk & Compliance) lists routers whose primary is treated as
+failed: `["extraction"]`, `["clauses"]` or both. It is honoured only when
+`APP_ENV=development`; in production it is ignored.
+
+Demo:
+1. Business Rules → *Force Model Fallback (demo)* → set `["extraction"]`.
+2. Upload any document (Documents → Upload).
+3. System Health → Model Routing Log: the newest row is
+   `layoutlmv3_fallback · layoutlmv3 · forced`, with its duration.
+4. Set the rule back to `[]`.
+
+For clauses, set `["clauses"]` and generate a contract (approve a request,
+or Contracts → Generate): the log shows `regex_fallback · regex · forced`.
+
+### Tests
+
+- `services/document-vendor-agent/tests/test_rules_wiring.py::test_dev_force_model_fallback`
+  — forced → `layoutlmv3_fallback` with reason `forced`; ignored with
+  `APP_ENV=production`.
+- `services/contract-risk-agent/tests/test_rules_wiring.py::test_dev_force_model_fallback`
+  — the same for clauses.
+- `services/contract-risk-agent/tests/test_clause_router.py` — model
+  passages become values; no model / a model error → the rules; generated
+  contracts keep their written terms.
+- `…::test_document_extraction_fallback_confidence_threshold` and
+  `…::test_contract_clause_extraction_fallback_threshold` — the natural
+  (low-confidence) fallback follows its rule.
+- `services/auth-service/tests/test_business_rules.py::test_force_model_fallback_accepts_only_known_routers`.
+
+## Appendix C: Notification coverage audit (FR-10)
+
+Checked **16 Oct 2026** against `services/notification-agent/app/kafka/consumer.py`
+(what is consumed), `app/services/routing.py` (urgent vs digest),
+`app/templates/` (what is rendered), `app/services/directory.py` (who
+receives it), and the live notification log (`GET /api/notifications/log`,
+1,557 rows on the development stack).
+
+"Sent today" means the event is consumed **and** an email is sent or
+queued for the daily digest. Counts are from the development log, so they
+reflect test traffic, not real usage.
+
+### Lifecycle stage → event → who hears → template → sent today
+
+| Stage | Event (producer) | Should hear | Template | Priority | Sent today | Log count | Item link |
+|---|---|---|---|---|---|---|---|
+| Document needs review | `document.classified` with `needs_review` (document-vendor) | Finance / reviewer | `document_classified` | digest | ✔ | 171 queued | ✘ |
+| Bank details changed | `vendor.payment_details_flagged` (document-vendor) | Finance (urgent, fraud control) | `vendor_payment_details_flagged` | urgent | ✔ | 2 sent | ✘ |
+| Request needs approval | `approval.requested` (approval-inventory) | The approver for the level | `approval_requested` | urgent | ✔ — **but to a placeholder address** (see gap 1) | 162 sent | ✔ portal + one-click action link |
+| Request decided | `approval.decided` (approval-inventory) | Requester | `approval_decided` | urgent | ✔ | 156 sent | ✘ |
+| Contract generated | `contract.generated` (contract-risk) | Requester | `contract_generated` | urgent | ✔ | 203 sent | ✘ |
+| Contract waiting for a signature | — (`contract.generated` goes to the requester only) | The signer | — | — | ✘ (gap 4) | — | — |
+| Contract signed → ordered | `contract.signed` (contract-risk) | Requester | `contract_signed` | urgent | ✔ | 87 sent | ✘ |
+| Goods received | `goods.received` (approval-inventory, Phase 3) | Requester | `goods_received` | digest | ✔ (21 Oct) | 17 queued | ✔ request link |
+| Invoice matched / held | `invoice.matched` (approval-inventory) | Finance (on a hold or mismatch) | — | — | ✘ not consumed (gap 3) | — | — |
+| Renewal / notice deadline | `contract.renewal.due` (contract-risk) | Contract owner | `contract_renewal_due` | urgent at the configured alert levels, else digest | ✔ | 1 sent | ✘ |
+| Something waiting too long | `reminder.due` (all three agents, FR-03) | `recipient_role` in the payload | — | — | ✘ **not consumed** although `events.md` lists notification-agent (gap 2) | — | payload has `link` |
+| Vendor risk changed | `risk.score.updated` (contract-risk) | Risk / procurement team | `risk_score_updated` | urgent if High, else digest | ✔ | 2 sent + 132 queued | ✘ |
+| Vendor offboarded | `vendor.offboarded` (contract-risk) | Procurement, contract owners | `vendor_offboarded` | urgent | ✔ | 3 sent | ✘ |
+| Licence usage / reclaim | `license.usage.updated`; reclaim warnings via `notification.send` (approval-inventory) | Licence owner, admin | `license_usage_updated`, `generic_fallback` | digest; `notification.send` uses its `priority` | ✔ | 336 queued; 48 sent + 109 queued | ✘ |
+| Budget near / over its limit | `budget.threshold_crossed` (approval-inventory, Phase 1) | Budget owner, else finance mailbox | `budget_threshold_crossed` | urgent when over, digest at the warning threshold | ✔ (21 Oct) | 10 sent + 5 queued | ✔ budget link |
+| Contract obligation due / overdue / breached | `contract.obligation.due` (contract-risk, Phase 2) | Obligation owner, else the requester | `contract_obligation_due` | urgent for breach, overdue or ≤ 7 days; else digest | ✔ (21 Oct) | 5 sent | ✔ contract link |
+| RFQ issued | `rfq.issued` (approval-inventory, Phase 3) | Each invited vendor (contact e-mail, else a placeholder vendor address) | `rfq_invitation` | urgent | ✔ (21 Oct) | 26 sent | quotes the RFQ reference for automatic matching |
+| RFQ awarded | `rfq.awarded` (approval-inventory, Phase 3) | Winner; thank-you to the other vendors | `rfq_awarded`, `rfq_not_selected` | urgent | ✔ (21 Oct) | 4 + 8 sent | — |
+| Daily digest | digest flush loop | Each recipient with queued items | `digest_summary` | — | ✔ | 145 sent | ✘ |
+| Order status summary | `order.summary.generated` (approval-inventory, hourly) | Procurement (optional) | — | — | ✘ not consumed (fine: shown in the app / assistant) | — | — |
+| Internal only | `document.ingested`, `vendor.matched`, `business_rule.updated` | nobody | — | — | n/a | — | — |
+
+Delivery: `email_service.py` sends through `shared/mailer.py` since 11 Oct —
+Mailpit with `EMAIL_MODE=dev`, any SMTP provider with `EMAIL_MODE=smtp`.
+Failures are retried and dead-lettered since FR-31.
+
+### Gaps (the five feature-expansion events were added on 21 Oct; gap 5 is closed by `goods.received`)
+
+1. **Approval emails reach a placeholder, not the approver.**
+   `approval.requested` carries role names in `approval_chain`
+   (`dept_manager`, `finance`…); `directory.as_email` turns them into
+   `dept_manager@users.procurement.local` (158 such rows). Resolve the
+   level to real people through `approver_assignments` (the approval
+   authority table) and their account email.
+2. **`reminder.due` is published but never emailed.** Add it to
+   `CONSUME_TOPICS` (the ACL already allows it), a `reminder_due`
+   template using `kind`, `detail`, `waiting_hours` and `link`, recipient
+   from `recipient_role` via the same resolution as gap 1. FR-03's
+   reminders only reach people once this exists.
+3. **Invoice holds aren't announced.** Consume `invoice.matched` and email
+   finance when the result is a hold or mismatch (not on clean matches).
+4. **Nobody is asked to sign.** Either a `contract.sent_for_signature`
+   event or using `contract.generated` with the signer as recipient.
+5. **"Goods received" has no event.** Needs an event from
+   approval-inventory-agent first (`order.received`), then a template —
+   the producer side is ours, the email side is Anooj's.
+6. **Only approval emails link to the item.** The other templates should
+   include the item's page (`/app/requests/:id`, `/app/contracts/:id`,
+   `/app/vendors/:id`, `/app/documents/:id`) built from `PUBLIC_BASE_URL`,
+   as `approval_requested` already does.
+7. **Default recipient** `procurement-ops@example.com` receives everything
+   without a named person (753 rows) — fine for development, needs a real
+   distribution list.
+
+### In the app (Oct 18)
+
+The bell and the Notifications page read the same log through
+`GET /notifications/feed` with per-person read receipts
+(`notification_reads`, `app/services/feed.py`). A person's feed is mail
+to their own address plus the role mailboxes in `config.yaml`
+`role_mailboxes`. The default "Important" view and the unread count keep
+only urgent, delivered notifications, minus digest roll-ups and
+`contract.signed`; "History" shows everything sent to you, and staff
+also get the whole log. Email sending is unchanged.
+
+## Appendix D: Testing strategy
+
+How the procurement platform is tested: what is covered, the environment the
+tests need, the scenario matrix used for the October 2026 quality audit, and
+what is not covered. Findings and fixes from that audit are in
+[quality-audit-report.md](quality-audit-report.md).
+
+### 1. Scope
+
+In scope: the five FastAPI services (document-vendor, approval-inventory,
+contract-risk, notification, auth), their workers, the shared library
+(`shared/`), the nginx gateway, the React frontend, and the flows between
+them over Kafka, Temporal, Postgres, Redis, MinIO and ClamAV.
+
+Out of scope for changes (tested only, by team agreement): the chatbot agent
+and the email automation (Anooj's). External providers (DocuSign, Documenso,
+GSTIN lookup, SMTP) are tested only through their error paths and test
+doubles; nothing was sent to a real provider.
+
+### 2. Test layers
+
+| Layer | Where | Framework | What it proves |
+|---|---|---|---|
+| Unit + router tests | `services/<svc>/tests/` | pytest, FastAPI `TestClient` with dependency overrides | Business rules, validation, authorization, error mapping — no live dependencies |
+| Shared / config tests | `tests/*.py` | pytest | `shared/` code, Kafka topic + ACL registry, business-rule registry, log redaction, security config |
+| DB-backed auth tests | `services/auth-service/tests/test_account_flows.py` | pytest + throwaway `auth_test` database | Single-use links, lockout, enforced in SQL |
+| Gateway e2e (bash) | `tests/e2e/run.sh` (`make e2e`) | curl + python | Health, auth, rules engine through nginx |
+| Cross-agent e2e | `tests/e2e/invoice_lifecycle.py`, `document_pipeline.py`, `auth_flows.py` | python `requests` | One invoice through all five agents; upload pipeline; account flows with Mailpit |
+| Frontend static | `frontend/` | `tsc --noEmit`, `vite build` | Types and build |
+| Exploratory / audit probes | audit scratch scripts (not committed; cases listed in §5) | python `requests`, Playwright | Edge cases, IDOR, failure injection, UI crawl at 3 viewports |
+
+New in this audit (all run inside the service images):
+
+| File | Covers |
+|---|---|
+| `services/approval-inventory-agent/tests/test_qa_audit_regressions.py` (32 tests) | Amount/department/quantity validation, NaN body → 422, bounded `limit`, malformed id on approve/reject → 400, stock released when a request can't be saved |
+| `services/contract-risk-agent/tests/test_contract_access.py` (22) | Requester sees only contracts on own requests (list, detail, PDFs, certificate, renewals); staff see all; Documenso non-JSON → 400; bounded `limit` |
+| `services/notification-agent/tests/test_notification_log_access.py` (8) | Requester sees only notifications addressed to them, cannot widen with `?recipient=`; staff unchanged |
+| `services/document-vendor-agent/tests/test_list_limits.py` (13) | Bounded `limit` on documents, review queue, vendors, model-routing log |
+| `services/document-vendor-agent/tests/test_pipeline_resilience.py::test_short_digital_pdf_keeps_its_text` | One-line digital PDF is not reported as blank |
+
+Every new test was shown to fail against the pre-fix code (run against a copy
+of the service with the fixed files restored from `HEAD`), except the tests
+that guard valid input from being rejected, which pass both before and after
+by design.
+
+### 3. Environment
+
+- macOS (Apple Silicon), Docker Desktop, the full compose stack
+  (`./run.sh`), `APP_ENV=development`, `EMAIL_MODE=dev` (Mailpit).
+- Postgres 16.15, Redpanda, Temporal, Redis, MinIO, ClamAV, nginx on `:8080`.
+- Service tests run in each service's own image with the source mounted
+  (`scripts/test-service.sh`), so they test the working tree, not the image.
+- Host Python for e2e: a virtualenv with `pip install -r tests/e2e/requirements.txt`
+  (+ `playwright` for UI checks). Playwright used the cached Chromium build.
+- Demo accounts (`requester@`, `approver@`, `approver2@`, `finance@`,
+  `admin@demo.example.com`, password in `docs/readmeforme.md`).
+
+The tests that need Postgres (auth account flows) use the separate
+`auth_test` database. Audit probes used the demo database, with
+disposable data tagged `QA-PROBE` (requests' `comments`, uploaded file names,
+inventory SKU `QA-PROBE-SKU`) so it can be found and removed.
+
+### 4. Commands
+
+Start the system:
+
+```bash
+./run.sh                       # whole stack; rebuilds changed images
+./scripts/seed-demo-data.sh    # demo vendor, request, licenses, inventory (first run)
+```
+
+After changing a service: `docker compose up -d --build <svc> <svc>-worker && docker compose up -d && docker compose restart nginx`, then `docker compose ps`.
+
+Run the tests:
+
+```bash
+./scripts/test-service.sh all                 # every service suite (in its image)
+./scripts/test-service.sh contract-risk-agent # one service
+./scripts/test-root.sh                        # tests/ (shared code, config)
+cd frontend && npm run build                  # typecheck + build
+make e2e                                      # gateway e2e
+python tests/e2e/invoice_lifecycle.py         # five-agent flow
+python tests/e2e/document_pipeline.py --quick
+python tests/e2e/auth_flows.py                # needs EMAIL_MODE=dev
+```
+
+Wait about a minute between e2e suites — the gateway rate-limits logins
+per IP. `tests/e2e/demo_scenarios.py` and `showcase_screens.py` also rewrite
+files under `docs/`; run them only when you mean to refresh those.
+
+Ad-hoc lint (no linter is configured):
+`docker run --rm -v "$PWD:/w:ro" -w /w --entrypoint sh procurementautomation-auth-service -c "pip -q install ruff && ruff check --no-cache --select F services shared tests"`.
+
+### 5. Scenario matrix (October 2026 audit)
+
+Status values: PASS, FAIL (defect found), FIXED (failed before, passes after
+the fix), BLOCKED, NOT RUN. "Evidence" names the probe log line or test.
+
+#### 5.1 Authentication and sessions
+
+| ID | Feature | Input / setup | Expected | Actual | Status |
+|---|---|---|---|---|---|
+| AUTH-01 | API auth | No token | 401 | 401 | PASS |
+| AUTH-02 | API auth | Garbage token | 401 | 401 (message includes decoder detail) | PASS (see QA-17) |
+| AUTH-03 | JWT | `alg: none`, role=admin | 401 | 401 "alg value is not allowed" | PASS |
+| AUTH-04 | JWT | Role changed, original signature | 401 | 401 signature failed | PASS |
+| AUTH-05 | JWT | `exp` changed | 401 | 401 | PASS |
+| AUTH-06/07/08 | RBAC | Requester → admin, ops DLQ, users | 403 | 403 / 403 / 307 redirect drops port | PASS / QA-15 |
+| AUTH-09/10 | Login | Wrong password / unknown email | Same 401 for both | Same message | PASS |
+| AUTH-11/12 | Login | Empty / non-JSON body | 422 | 422 | PASS |
+| AUTH-13 | Internal | `/internal/email-actions/mint` via gateway | Not reachable | 405 from nginx | PASS |
+| SES-01 | Refresh | Cookie + CSRF header | 200 | 200 | PASS |
+| SES-02 | Refresh | Cookie without CSRF header | 403 | 403 | PASS |
+| SES-03 | Logout | Replay refresh cookie after `/auth/logout` | 401 | 401 (Oct 19; was 200) | PASS — QA-06 fixed: logout records the `jti` (`test_logout_ends_a_copied_refresh_cookie`) |
+| SES-04/05 | Logout-all | Other device refreshes | 401 | 401 "session has ended" | PASS |
+| SES-06 | Logout-all | Old access token | 401 | 200 until expiry (≤15 min since Oct 19; was 60) | FAIL — accepted: tokens are checked without a DB lookup; window shortened |
+| e2e | Account flows | `auth_flows.py` | all pass | 42/42 | PASS |
+
+#### 5.2 Purchase requests and approvals
+
+| ID | Input / setup | Expected | Before | After | Status |
+|---|---|---|---|---|---|
+| REQ-01 | amount −1000 | 422 | 500 | 422 | FIXED (QA-04) |
+| REQ-02 | amount 0 | accepted (auto tier) | 200 | 200 | PASS |
+| REQ-03 | amount `NaN` | 422 | 500 **and row stored**; request list then 500 for all users | 422; DB CHECK also rejects | FIXED (QA-01) |
+| REQ-04/05 | `Infinity`, 1e300 | 422 | 500 | 422 | FIXED (QA-04) |
+| REQ-06 | department "   " | 422 | 200 (blank stored) | 422 | FIXED (QA-12) |
+| REQ-07/08/19 | bad type, missing amount, items not list | 422 | 422 | 422 | PASS |
+| REQ-09 | 10k-char comment, Hindi + emoji department | stored intact | 200 | 200 | PASS |
+| REQ-10 | currency "NOTACURRENCY" | 422 | 200 | 200 | FAIL — QA-13 (open, low) |
+| REQ-11/18 | approver creates; requester approves | 403 | 403 | 403 | PASS |
+| REQ-12/13 | GET non-UUID / unknown id | 400 / 404 | 400 / 404 | 400 / 404 | PASS |
+| REQ-14/16 | `limit=-1`, `limit=10^7` | 422 | 500 | 422 | FIXED (QA-05) |
+| REQ-17 | approve non-UUID id | 400 | 500 | 400 | FIXED (QA-10) |
+| SOD-01 | admin approves own request | 403 | 403 SEPARATION_OF_DUTIES | — | PASS |
+| RACE-01 | 10 concurrent approvals (2 approvers) | one decision, one contract | 1 history row, 1 audit row, 1 contract (2 callers got 200 — idempotent reply) | — | PASS |
+| IDEM-01 | same `Idempotency-Key` twice | same request id | same id | — | PASS |
+
+#### 5.3 Inventory
+
+| ID | Input | Expected | Before (available / reserved) | After | Status |
+|---|---|---|---|---|---|
+| INV-01 | hardware, `quantity: -3` | 422, stock unchanged | 200; 5/0 → **8/−3** | 422; 5/0 | FIXED (QA-02) |
+| INV-02 | `quantity: "two"` | 422 | 500 | 422 | FIXED (QA-02) |
+| INV-03 | valid reservation, request insert fails | reservation released | 500; **1 unit stayed reserved** | 422 at the API; failed inserts now release (unit test) | FIXED (QA-03) |
+| INV-04 | `quantity: 0` | 422 | 200 | 422 | FIXED (QA-02) |
+| LIC-03 | reorder settings negative | 422 | 422 | — | PASS |
+
+#### 5.4 Contracts and e-signature
+
+| ID | Input | Expected | Before | After | Status |
+|---|---|---|---|---|---|
+| CON-01 | requester lists contracts | own only | all 278 (44 not theirs) | 239 = exactly own | FIXED (QA-07) |
+| CON-02/03 | requester reads / downloads someone else's contract, signed copy, certificate | 404 | 200 + PDF | 404 on all four; finance still 200 | FIXED (QA-07) |
+| CON-04 | non-UUID id | 400 | 400 | 400 | PASS |
+| CON-05 | `within_days=-5` | empty list | empty | — | PASS |
+| HOOK-01/02 | e-sign webhook bad signature / empty | 401 / 422 | 401 / 422 | — | PASS |
+| HOOK-03 | Documenso non-JSON body | 400 | 500 | 400 | FIXED (QA-14) |
+| HOOK-04/05 | Documenso no secret, DocuSign no signature | 401 | 401 | — | PASS |
+
+#### 5.5 Documents and vendors
+
+| ID | Input | Expected | Actual | Status |
+|---|---|---|---|---|
+| DOC-01 | empty file | 400 | 400 | PASS |
+| DOC-02 | `.exe` | 415 | 415 | PASS |
+| DOC-03 | filename `../../etc/passwd.pdf` | name reduced, key namespaced | stored as `passwd.pdf` under `documents/<id>/` | PASS |
+| DOC-04 | text file named `.pdf` | 415 | 415 | PASS |
+| DOC-05 | EICAR test string | rejected | 422 "malware detected (Eicar-Test-Signature)" | PASS |
+| DOC-06 | no file field | 422 | 422 | PASS |
+| DOC-U | Hindi / quote in filename, then download | 200, safe header | `filename="__QA-PROBE.pdf"`, `qa_22probe.pdf` | PASS |
+| DOC-09 | `limit=-1` | 422 | 500 → 422 | FIXED (QA-05) |
+| DOC-SHORT | valid one-line digital PDF | processed, sent to review | failed "no text, may be blank" → classified + needs review | FIXED (QA-11) |
+| VEN-02/03/05 | onboard empty, bad GSTIN, as requester | 422 / reported / 403 | as expected | PASS |
+| e2e | `document_pipeline.py --quick` | all pass | 52/52 | PASS |
+
+#### 5.6 Notifications
+
+| ID | Input | Expected | Before | After | Status |
+|---|---|---|---|---|---|
+| NOT-01 | requester opens Notifications page / bell | own notifications | 403 on every page (bell), error page | 200, only rows addressed to them | FIXED (QA-08) |
+| NOT-02 | requester `?recipient=procurement-ops@…` | still own only | (403) | own only | FIXED (QA-08) |
+
+#### 5.7 Failure and recovery (local stack, dependency stopped then started)
+
+| ID | Setup | Expected | Actual | Status |
+|---|---|---|---|---|
+| FAIL-01 | ClamAV stopped, upload | refuse, retryable | 503 "scanning unavailable, try again" | PASS |
+| FAIL-02/03 | Redis stopped, create request | clear error, no partial data | generic 500; no rows written | PASS (message: QA-16) |
+| FAIL-04/05 | Redis stopped, list / login | still work | 200 / 200 | PASS |
+| FAIL-06 | Redis started again | creates work | 200 | PASS |
+| DB-DOWN | Postgres unavailable | — | — | NOT RUN (shared stack; the other services' health and DLQ behaviour are covered by existing unit tests) |
+
+#### 5.8 Frontend (Playwright crawl)
+
+Every route (20 + 5 detail pages) as admin at 390 / 768 / 1440 px and as
+requester at 390 / 1440 px, then finance at 1440 px after the fixes.
+
+| ID | Check | Result | Status |
+|---|---|---|---|
+| UI-01 | Uncaught page errors | none | PASS |
+| UI-02 | Horizontal overflow at phone width | none on any page | PASS |
+| UI-03 | Failed API calls (requester) | 403 on `/notifications/log` (every page) and `/vendors/<id>/payment-changes` → fixed | FIXED (QA-08, QA-09) |
+| UI-04 | Form controls without an accessible name | 11 (document review form, search/filter boxes) → aria-labels added | FIXED (QA-18) |
+| UI-05 | 401 on `/auth/me` at each full page load | session bootstrap before silent refresh; harmless console noise | PASS (noted) |
+| UI-06 | Keyboard-only navigation, colour contrast, screen-reader pass | — | NOT RUN |
+
+#### 5.9 Static checks and dependencies
+
+| Check | Result |
+|---|---|
+| `tsc` + `vite build` | pass |
+| `ruff --select F` (undefined names etc.) | 0 undefined names; 130 unused / duplicate imports (cosmetic, not changed) |
+| `npm audit --omit=dev` | Oct 17: 2 moderate (`react-router` 6.x open redirect). Oct 19: react-router 7.18 and vite 6.4 — 0 runtime advisories; build-time `braces` / `postcss-selector-parser` via Tailwind 3 remain (`docs/index.html#deploy` §5) |
+| Python advisories | Oct 19, `pip-audit` on each image: 302 → 152 after upgrading FastAPI 0.148 / Starlette 1.9, Pillow 12.3, pdfminer.six 20260107, Docling 2.140, cryptography 50, aiosmtplib 5.1; left: MLflow 2.14 (+ pyarrow, protobuf), paddlepaddle 2.6, imgaug, pytest (`docs/index.html#deploy` §5) |
+
+### 6. Limitations
+
+- No load or soak test was run; the only concurrency test is ten parallel
+  approvals of one request. No performance claims are made.
+- Postgres, Kafka and Temporal outages were not injected (shared dev stack).
+- `tests/test_chatbot_e2e.py` (4 async tests) is skipped by pytest — there
+  is no `pytest-asyncio` in that image — so it never runs. Chatbot is out of
+  scope; flagged to its owner.
+- `tests/e2e/demo_scenarios.py` was not rerun in this audit because it
+  rewrites `docs/index.html#demo-script`, which has uncommitted changes.
+- No real e-sign provider, SMTP server or GSTIN API was called.
+- Accessibility was checked automatically (labels, alt text, overflow), not
+  with a screen reader or keyboard-only walk-through.

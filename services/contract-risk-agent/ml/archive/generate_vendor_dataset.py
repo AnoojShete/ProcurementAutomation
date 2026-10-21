@@ -31,7 +31,7 @@ N_SYNTHETIC = 2000
 # breaches, more flagged geographies). With only the typical-vendor
 # distributions, very risky vendors almost never occurred, so the forest
 # had nothing to learn High from (Oct 16 evaluation: 400 typical rows →
-# red-team 7/12, "everything bad" scored Medium). See docs/risk-model.html.
+# red-team 7/12, "everything bad" scored Medium). See docs/index.html#risk.
 STRESSED_SHARE = 0.2
 
 

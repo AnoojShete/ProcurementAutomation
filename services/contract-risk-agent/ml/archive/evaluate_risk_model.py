@@ -3,7 +3,7 @@
 
 Run inside the contract-risk-agent image, from /app:
   python ml/evaluate_risk_model.py --out /out
-Writes <out>/risk-model.json and <out>/risk-model.html: dataset size and
+Writes <out>/risk-model.json and <out>/index.html#risk: dataset size and
 class balance, how labels are made, accuracy / ROC-AUC (complete and with
 missing values), incident rate per band, feature importances, and the
 red-team profiles (ml/redteam_profiles.json) against their expected bands.
@@ -155,7 +155,7 @@ def main():
     result = evaluate()
     with open(os.path.join(out, "risk-model.json"), "w") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
-    with open(os.path.join(out, "risk-model.html"), "w") as f:
+    with open(os.path.join(out, "index.html#risk"), "w") as f:
         f.write(to_markdown(result))
     print(json.dumps({k: result[k] for k in ("metrics", "per_band_test_set")}, indent=2))
     print(f"red-team: {result['redteam']['passed']}/{result['redteam']['total']}")

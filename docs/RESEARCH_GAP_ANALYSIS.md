@@ -1,6 +1,6 @@
 # Research gap analysis: selective automation of procurement documents
 
-Search date: **16 October 2026**. Visual version: `docs/project-flow.html#research` (open in a browser); this file is the full text. Prepared for the ProcurementAutomation
+Search date: **16 October 2026**. Visual version: `docs/index.html#status/research` (open in a browser); this file is the full text. Prepared for the ProcurementAutomation
 project (see `TODO.md` for the system context). Companion documents:
 `RESEARCH_PAPER_PLAN.md` (paper blueprint), `IMPLEMENTATION_PLAN.md`
 (checklist).

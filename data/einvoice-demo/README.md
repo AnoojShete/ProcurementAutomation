@@ -8,7 +8,7 @@ Registration Portal signs real ones (RS256 JWT).
 Its public half is `shared/einvoice/demo-irp-public-key.pem`. The
 document-vendor-agent trusts it **only when `APP_ENV=development`**; in
 production it is refused and `EINVOICE_PUBLIC_KEY` must hold the portal's real
-public key (docs/deployment.html). Anyone can sign with this key, so a QR it
+public key (docs/index.html#deploy). Anyone can sign with this key, so a QR it
 verifies proves nothing outside the demo.
 
 Made with `openssl genrsa 2048` on 21 Oct 2026 (feature expansion Phase 4).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Put the stack back into a clean, realistic demo state (docs/demo-5min.html).
+# Put the stack back into a clean, realistic demo state (docs/index.html#demo-5min).
 #
 #   ./scripts/reset-demo.sh          # asks before deleting anything
 #   ./scripts/reset-demo.sh --yes    # no question (e.g. the night before)

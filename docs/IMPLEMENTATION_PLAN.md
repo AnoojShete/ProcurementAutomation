@@ -32,7 +32,7 @@ dead request.
 
 ## Phase 1 — Finish what the presentation needs (by Oct 31)
 
-- [ ] A teammate runs `docs/demo-5min.html` (or the full `docs/demo-script.html`) by hand after `./scripts/reset-demo.sh` (scripts done: full one 18/18 by `tests/e2e/demo_scenarios.py`, 5-minute cut 6/6 by `tests/e2e/demo_5min.py`, backup recording in `docs/demo/`) [FR-05] **[E]**
+- [ ] A teammate runs `docs/index.html#demo-5min` (or the full `docs/index.html#demo-script`) by hand after `./scripts/reset-demo.sh` (scripts done: full one 18/18 by `tests/e2e/demo_scenarios.py`, 5-minute cut 6/6 by `tests/e2e/demo_5min.py`, backup recording in `docs/demo/`) [FR-05] **[E]**
 - [x] Draft the presentation from the templates [FR-12] **[E]** — paste into the Word templates left
 - [x] Add retry + DLQ to the notification consumer; tell Anooj [FR-31] **[E]**
 - [x] Make model routing/fallback visible in a demo [FR-08] **[E]**
