@@ -12,7 +12,11 @@ engine = create_async_engine(
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 _MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "migrations")
-MIGRATIONS = ("0001_notification_tables.sql", "0002_notification_templates.sql")
+MIGRATIONS = (
+    "0001_notification_tables.sql",
+    "0002_notification_templates.sql",
+    "0003_company_smtp_settings.sql",
+)
 
 
 async def get_db():

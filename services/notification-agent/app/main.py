@@ -12,7 +12,7 @@ configure_logging(settings.service_name)
 from app.database import init_db, async_session_factory
 from app.kafka.consumer import start_consumer
 from app.services.digest_service import flush_due_digests
-from app.api import health, notifications, templates
+from app.api import health, notifications, templates, smtp_settings
 from shared.http.error_handlers import register_error_handlers
 from shared.auth import get_current_user
 
@@ -79,6 +79,9 @@ register_error_handlers(app)
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 app.include_router(health.router)
+# Custom company SMTP settings (admin-only)
+app.include_router(smtp_settings.router, prefix="/smtp", tags=["SMTP Settings"])
+app.include_router(smtp_settings.router, prefix="/SmtpSettings", tags=["SMTP Settings"])
 # Before the notifications router, so /notifications/templates isn't read as an id.
 app.include_router(templates.router, prefix="/notifications/templates", tags=["Notification templates"])
 app.include_router(

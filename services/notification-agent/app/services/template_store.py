@@ -101,7 +101,7 @@ def builtin_names() -> list[str]:
 
 def builtin_source(name: str) -> tuple[str, str]:
     """(subject, body) source of app/templates/<name>.j2, unrendered."""
-    with open(os.path.join(templating.TEMPLATES_DIR, f"{name}.j2")) as f:
+    with open(os.path.join(templating.TEMPLATES_DIR, f"{name}.j2"), encoding="utf-8") as f:
         raw = f.read()
     head, _, body = raw.partition("\n---\n")
     subject = head.strip()

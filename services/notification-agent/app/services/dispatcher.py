@@ -39,7 +39,7 @@ async def notify(
                 return priority
             # The routed recipient, plus any copies set on the template.
             for to in [recipient] + [r for r in email.extra_recipients if r != recipient]:
-                await email_service.send_email(to, email.subject, email.body)
+                await email_service.send_email(to, email.subject, email.body, db=db)
                 await log_service.record(
                     db,
                     recipient=to,

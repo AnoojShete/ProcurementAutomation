@@ -89,3 +89,18 @@ class ContractRef(Base):
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
     purchase_request_id: Mapped[Optional[str]] = mapped_column(Uuid)
+
+
+class CompanySmtpSettings(Base):
+    __tablename__ = "company_smtp_settings"
+
+    comp_id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    host: Mapped[str] = mapped_column(String(255), nullable=False)
+    port: Mapped[int] = mapped_column(default=587, nullable=False)
+    email_from: Mapped[str] = mapped_column(String(255), nullable=False)
+    username: Mapped[str] = mapped_column(String(255), nullable=False)
+    password: Mapped[str] = mapped_column(Text, nullable=False)
+    enable_ssl: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[int] = mapped_column(default=1, nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
