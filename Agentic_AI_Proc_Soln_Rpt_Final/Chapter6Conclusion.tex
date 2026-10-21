@@ -1,0 +1,36 @@
+% Chapter 6: Conclusion and Future Scope
+
+\chapter{Conclusion \& Future Scope} \label{chap6}
+\newpage
+
+This report presented the design, implementation and evaluation of an IT Procurement Intelligence Platform. Document extraction, clause analysis, approval workflows, anomaly detection and risk scoring are usually treated as separate problems; the platform joins them in one event-driven system of four cooperating agents---Document and Vendor Intelligence, Approval and Inventory Intelligence, Contract and Risk Analysis, and a Platform agent.
+
+In the implemented system, a document arriving by upload, e-mail or a watched folder is scanned, read, classified, matched to a vendor and confidence-scored; a purchase request is routed through spend-tier approvals with deadlines, escalation and race-safe stock reservation; an approved request becomes a contract that is signed in the application after the vendor's risk is shown, read by a legal language model and tracked for renewal; under-used licences are proposed for reclaim with explanations and a grace period; and every vendor carries a deterministic, replayable risk score with hard overrides and a clearance check. After the competitive analysis, the platform also checks each request against its department's budget, tracks the obligations of signed contracts, offers an IT catalog, runs request-for-quotation events and records partial deliveries, so that invoices are matched against what has actually been received. A retrieval-augmented assistant answers users' questions from the contracts, documents, rules and records each user may see, citing the passage it used. The system passes 1,078 service unit tests and end-to-end tests through its gateway.
+
+Three findings stand out. Trained models were adopted only where they beat a simple baseline on held-out data. The security controls essential to a payment process were verified against the running system rather than assumed. And the evaluation of the review gate showed that the heuristic confidence rule accepts 41\% of invoices with 6.8\% of them wrong; that evidence from the organisation's own records markedly improves the ranking of documents (AUROC 0.74 to 0.95); and that a risk-controlled gate becomes feasible only once the duplicate check catches resubmitted invoices.
+
+\paragraph{Limitations.}
+\begin{itemize}
+  \item All training and test data except the CUAD contracts is synthetic; no accuracy claim is made for an organisation's real documents, licences or vendors.
+  \item Field extraction from scanned images is weak (49\% of fields correct), so such documents depend on human review.
+  \item The licence-anomaly model misses most gradual declines and flags a few normal licences; its proposals always require approval.
+  \item The review gate in production still uses the uncalibrated threshold of 0.8, and the duplicate check misses resubmitted invoices that carry a new number.
+  \item The vendor risk scorecard has not been evaluated against incident outcomes. Contract signing does not yet use the clearance check's human decisions, and most demonstration vendors stay provisional because external registries are unreachable.
+  \item The assistant runs a small local model (3 billion parameters); it was evaluated on sixteen questions about the platform's own generated data, and it occasionally cites the wrong passage label even when the quoted text is right.
+  \item Adverse-media screening is not built, and live GSTIN registry lookups are disabled by default.
+  \item Contract obligations are read by rules except licence limits and termination for convenience, the only types where Legal-BERT beat the rules on CUAD and read every template value. Price drift in the catalog depends on expiry dates and manual updates, and fixed-price IT services cannot yet be ordered from it.
+  \item Signing happens in the application; an external e-signature provider would need the same risk check at send time.
+  \item The system runs on a single Docker host with unencrypted Kafka traffic, and the test suites are not yet run by the CI pipeline.
+\end{itemize}
+
+\paragraph{Future scope.}
+\begin{itemize}
+  \item Fix the duplicate check, repeat the review-gate experiment on a new seed and on public invoice data, and switch the production gate to the calibrated one behind a business rule.
+  \item Evaluate and improve extraction on real, anonymised procurement documents, for example by fine-tuning LayoutLMv3 on labelled invoices, and retrain the classifier from reviewers' corrections.
+  \item Close the remaining gaps with commercial suites (Section~\ref{sec:commercial}): Indian GST and TDS on invoices, a supplier portal for quotes and invoices, export to an ERP, and payment files for approved invoices.
+  \item Add adverse-media screening, GST return reconciliation and live GSTIN registry checks with quota management.
+  \item Evaluate the risk scorecard against incident outcomes, make contract signing and purchase approval use the same clearance check, and retire the remaining drift workflow of the archived model.
+  \item Evaluate the assistant on real documents with a larger question set, try a larger local model, and add a cross-encoder reranker to retrieval.
+  \item Connect an external e-signature provider with the risk acknowledgement enforced at send time.
+  \item Encrypt Kafka traffic, run the test suites in CI, and deploy to a managed environment to measure throughput and latency under load.
+\end{itemize}

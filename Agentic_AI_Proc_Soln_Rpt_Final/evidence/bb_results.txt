@@ -1,0 +1,14 @@
+# Live black-box probes, 17 Oct 2026, 23:42 IST (status, scenario, request, response excerpt)
+401	No token on a protected endpoint	GET /requests/	{"error":{"code":"UNAUTHORIZED","message":"missing bearer token"}}
+403	Requester verifies a bank-detail change	POST /vendors/d28e794a-a032-49d5-a4c2-f3a16a5f5d7a/verify-payment-change	{"error":{"code":"forbidden","message":"role 'requester' is not permitted — requires one of ['finance', 'admin
+404	Requester opens the approver inbox	GET /inbox/	{"detail":"Not Found"}
+404	Approver opens the approver inbox	GET /inbox/	{"detail":"Not Found"}
+401	Webhook with a wrong HMAC signature	POST /webhooks/esign	{"error":{"code":"unauthorized","message":"invalid webhook signature"}}
+400	Malformed UUID in a path	GET /vendors/2.1/risk	{"error":{"code":"bad_request","message":"malformed identifier or field value"}}
+422	NaN amount on a purchase request	POST /requests/	{"error":{"code":"VALIDATION_ERROR","message":"[{'type': 'finite_number', 'loc': ('body', 'amount'), 'msg': 'I
+422	Negative item quantity	POST /requests/	{"error":{"code":"VALIDATION_ERROR","message":"[{'type': 'value_error', 'loc': ('body', 'items'), 'msg': \"Val
+404	Requester downloads another user's contract	GET /contracts/2783ef4b-d9cf-4377-aa0d-cdc7fc1a6bd0/document	{"error":{"code":"not_found","message":"contract not found"}}
+401	Wrong password vs unknown e-mail	POST /auth/login	{"error":{"code":"unauthorized","message":"Invalid email or password."}}
+401		POST /auth/login	{"error":{"code":"unauthorized","message":"Invalid email or password."}}
+
+# Inbox route check: GET /inbox/<approver_id> -> requester 403, approver 200
