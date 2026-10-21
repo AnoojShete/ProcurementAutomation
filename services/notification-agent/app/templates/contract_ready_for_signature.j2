@@ -1,0 +1,26 @@
+Subject: {% if provider is defined and provider %}Please sign: contract with {{ vendor_name }}{% else %}Contract generated: {{ vendor_name }}{% endif +%}
+---
+Hello,
+
+{% if provider is defined and provider %}
+You have been asked to sign the contract with {{ vendor_name }}.
+
+  Contract ID:  {{ contract_id }}
+
+Read and sign it here (sign in first if asked):
+  {{ sign_url }}
+
+The contract PDF can be downloaded from the same page. Once you sign, the
+signed copy is stored and the purchase request moves on to ordering.
+{% else %}
+The contract with {{ vendor_name }} for your purchase request has been
+generated from the approved request.
+
+  Contract ID:  {{ contract_id }}
+
+It is sent to an authorised signatory for e-signature. Follow its status
+and download the PDF here:
+  {{ contract_url }}
+{% endif %}
+
+— IT Procurement Platform

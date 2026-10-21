@@ -21,6 +21,7 @@ for what's open (with the roadmap), `git log` for what changed, and
 - [Project structure](#project-structure)
 - [How it works](#how-it-works)
 - [Troubleshooting](#troubleshooting)
+- [Documentation site (MkDocs)](#documentation-site-mkdocs)
 
 ## Architecture
 
@@ -222,9 +223,11 @@ versions are pinned in the compose files (the same test fails on a new
 > **Authorization vs. Signature**: An email approval records an **AUTHORIZATION** decision; the e-signature provider's flow (Documenso / DocuSign) produces the legally binding **DIGITAL SIGNATURE**. An email approval button is never described or treated as a digital signature.
 
 Only **auth-service** uses the email settings. notification-agent still
-sends every notification to Mailpit (its recipients are placeholder role
-addresses; its email work belongs to Anooj, except the feature-expansion e-mails — budget threshold,
-obligation due/breach, RFQ invitation/award/thank-you, goods received — built on 21 Oct).
+sends every notification to Mailpit. Its email work belongs to Anooj, except the feature-expansion e-mails
+(budget threshold, obligation due/breach, RFQ invitation/award/thank-you, goods received) and the final-checklist
+work (editable templates, approvers resolved to real people, next-level and reminder emails, signer and vendor
+emails), built on 21 Oct at the user's request. Recipients without an assigned person are still placeholder
+role addresses.
 
 ### Real email with Gmail
 
@@ -346,7 +349,7 @@ the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit
 
 | Command | What | Result |
 |---|---|---|
-| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 19, after the dependency upgrades: 844 passed (contract-risk 198, approval-inventory 179, document-vendor 334, notification 58, auth 75) |
+| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 21: 1,261 passed (contract-risk 321, approval-inventory 275, document-vendor 373, notification 116, auth 110, chatbot 66) |
 | root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | Oct 19: 144 + 14 passed, 4 skipped (the chatbot's live script) |
 | `make e2e` | Bash flow through the gateway: login, ClamAV reject/accept, request → approve → contract → signed webhook → risk → email → business-rule change | 17/17 (Oct 19) |
 | `python tests/e2e/auth_flows.py` | Sign-up → email → confirm → login → change password → logout → forgot/reset, expired / reused links, lockout, enumeration, rate limit (reads Mailpit) | 42/42 |
@@ -713,24 +716,33 @@ mail to other addresses is ignored. The document page shows "By email from
 
 ### Drop folder → signed contract (fully automated)
 
-Put a vendor quote (PDF/PNG/JPEG) in `./inbox`. No clicks after that:
+Put a vendor quote (PDF/PNG/JPEG) in `./inbox/input`. No clicks after that:
 
 | Step | Who | Kafka event |
 |---|---|---|
 | File noticed (size stable for one 3 s poll), moved to `inbox/.processing/` | document-vendor-agent-worker (`inbox_watcher.py`) | — |
 | ClamAV scan → MinIO → `documents` row, uploader `inbox@procurement.local` | same code as a UI upload | `document.ingested` |
 | Read / classify / match vendor | worker pipeline | `document.classified`, `vendor.matched` |
+| File held in `inbox/.processing/<document id>/` until the pipeline ends, then moved to `inbox/processed/` (classified) or `inbox/failed/` (pipeline failed, `.error.txt` with the document's error) | worker (`inbox_watcher.settle`) | — |
 | Quote → purchase request (skipped while it needs review, for duplicates, or without vendor/total) | approval-inventory-agent consumer | `approval.requested` |
 | Auto-approved under the spend threshold, else the normal approvers | approval-inventory-agent | `approval.decided` |
 | Contract generated, then sent for signature **once** (built-in e-sign: an authorised signatory signs in the app) | contract-risk-agent consumer | `contract.generated` |
 | Signed in the app → request `ordered` | contract-risk-agent → approval-inventory-agent | `contract.signed` |
 
 The file ends up in `inbox/processed/`, or in `inbox/failed/` with a
-`.error.txt`. Since Oct 16 requests made in the app are auto-sent for
+`.error.txt` (file, time, document id, reason) — rejected at upload or
+failed in the pipeline. Control Panel → Documents shows each folder's count
+and every dropped file's stage. Since Oct 16 requests made in the app are auto-sent for
 signature too (rule `contract.auto_send_scope`, `drop_folder` restores the
 old behaviour).
 
-**Control Panel** (admin, `/app/control-panel`) shows it live: the Kafka
+**Control Panel** (admin, `/app/control-panel`, in the sidebar) is
+organised in sections (`?section=`): Overview, Documents (Input / Being
+read / Processed / Failed counts, each dropped file's stage, every failure
+reason), Processing and logs, Approvals (every queue with SLA countdown),
+Notifications (template editor and recent emails), Contracts and
+e-signatures (every contract with *Pending E-Signature* / *E-Signature
+Complete* and its unsigned / signed PDF), Storage and Administration. It shows the Kafka
 event log (every topic, read through a read-only `event-monitor` Kafka
 login, payloads reduced to ids and statuses — no bank details; stored in
 `event_log`, so it survives restarts, filterable by topic, time, text and
@@ -893,6 +905,24 @@ work).
 - **Leftover "E2E Test Vendor" / "Zenith Test Systems" rows**: e2e test
   data; `./scripts/reset-demo.sh` clears it (it backs up first).
 
+## Documentation site (MkDocs)
+
+The presentable documentation (overall template: introduction → conclusion;
+one page per agent in the four-part agent template; Control Panel; APIs,
+configuration, deployment, testing, troubleshooting; final-checklist
+traceability) is a MkDocs Material site: pages in `docs/guide/`, config
+`mkdocs.yml`, images reused from `docs/assets/` and `docs/showcase/` by
+`scripts/mkdocs_hooks.py`.
+
+```bash
+python3.12 -m venv .venv-docs && . .venv-docs/bin/activate   # 3.9-3.13
+pip install -r requirements-docs.txt
+mkdocs serve            # http://127.0.0.1:8000
+mkdocs build --strict   # what CI runs (.github/workflows/docs.yml) -> .run/docs-site/
+mkdocs gh-deploy        # GitHub Pages (or Actions -> Docs -> Run workflow, tick deploy)
+python scripts/render_diagrams.py   # architecture.png + functional-flow.svg/.png (Playwright)
+```
+
 ## Data provenance
 
 All data is synthetic; see each folder's README under `data/`
@@ -926,13 +956,13 @@ including uncommitted changes).
 |---|---|
 | **Web browser** (React 18 + TypeScript, `frontend/`) | One page per item (request, contract, licence, vendor, document); role-based navigation. Keeps the access token in memory; the refresh token is an httpOnly cookie protected by a CSRF header. |
 | **nginx gateway** (`infra/nginx/nginx.conf`, port 8080) | The only public port. Serves the built SPA and proxies `/api/<prefix>` to the owning service, rate-limits the login and email-sending endpoints, adds security headers and a per-request `X-Correlation-ID`, caps uploads at 25 MB (100 MB for batches). |
-| **document-vendor-agent** (8001) + worker | Takes documents in by upload, a drop folder (`./inbox`) or an intake mailbox. Scans each one with ClamAV, stores it in MinIO and queues it (`document.ingested`). The worker reads the file (pdfplumber / Docling / PaddleOCR, with image preprocessing), classifies it (TF-IDF + logistic regression, with a keyword fallback), extracts fields, cross-checks them with LayoutLMv3, matches or creates the vendor, sends bank details to a two-person check, converts the amount to INR, books invoices against the ledger, flags duplicates and decides whether a person must review it. |
+| **document-vendor-agent** (8001) + worker | Takes documents in by upload, a drop folder (`./inbox/input`) or an intake mailbox. Scans each one with ClamAV, stores it in MinIO and queues it (`document.ingested`). The worker reads the file (pdfplumber / Docling / PaddleOCR, with image preprocessing), classifies it (TF-IDF + logistic regression, with a keyword fallback), extracts fields, cross-checks them with LayoutLMv3, matches or creates the vendor, sends bank details to a two-person check, converts the amount to INR, books invoices against the ledger, flags duplicates and decides whether a person must review it. |
 | **approval-inventory-agent** (8002) + Temporal worker | Purchase requests, spend tiers and one approval workflow per request (SLA escalation and reminders), approval authority and separation of duties, inventory reservations and backorders, reorder suggestions, the three-way invoice ledger, licence-usage anomaly scoring (IsolationForest + SHAP), single-use email approval links, and an hourly order monitor. |
 | **contract-risk-agent** (8003) + Temporal worker | Generates contracts from Jinja2 templates (text and PDF). Reads their clauses with Legal-BERT, falling back to regex rules. Built-in e-signature with a SHA-256 seal. Scores vendor risk (random forest plus hard overrides: GSTIN, sanctions, IFSC), screens vendors against sanctions lists, runs renewal-reminder workflows and a weekly PSI drift check. |
-| **notification-agent** (8004) | Consumes 11 event topics and decides urgent vs digest. Renders Jinja2 email templates, sends them through the shared mailer (Mailpit in development) and logs every notification. Serves each person's in-app feed from that log with read receipts (`notification_reads`), so the bell counts only unread, important notifications. |
+| **notification-agent** (8004) | Consumes 17 event topics and decides urgent vs digest. Renders Jinja2 email templates (admins edit them in the Control Panel: overrides and new templates in `notification_templates`, rendered in Jinja's sandbox), sends them through the shared mailer (Mailpit in development) and logs every notification. Serves each person's in-app feed from that log with read receipts (`notification_reads`), so the bell counts only unread, important notifications. |
 | **auth-service** (8005) | Sign-up with email verification, login, refresh, logout and password reset (argon2id, lockout, breached-password check). Admin user management; each person's display name and theme (light / dark / match device). The business-rules engine: 47 tunable rules with a change history. |
-| **chatbot-agent** (8006) | Chat assistant. Sends the conversation to a local Ollama LLM with six read-only tools that call the other agents' APIs with a token for the same user, so their role checks still apply. |
-| **Kafka (Redpanda)** | Event backbone: 17 topics, one SASL/SCRAM login per service, permissions in `infra/redpanda/acls.conf`. Events are written to a transactional outbox and relayed; consumers dedupe, retry, then dead-letter. |
+| **chatbot-agent** (8006) | Retrieval-augmented assistant: a local Ollama LLM answers from an index (pgvector) of contract clauses, document text, business rules and current records, with access checked per chunk. |
+| **Kafka (Redpanda)** | Event backbone: 23 topics, one SASL/SCRAM login per service, permissions in `infra/redpanda/acls.conf`. Events are written to a transactional outbox and relayed; consumers dedupe, retry, then dead-letter. |
 | **Temporal** | Durable workflows: approvals (SLA timers and reminders), contract renewals, weekly drift check. |
 | **PostgreSQL** | One shared database. Each service migrates its own tables; it also holds the outbox, inbox and DLQ tables, the event log and Temporal's own data. |
 | **Redis** | Idempotency-key responses (24 h), inventory reservation locks. |
@@ -951,16 +981,16 @@ including uncommitted changes).
 7. **Contract and signature.** contract-risk-agent generates the contract and sends it for signature automatically. Signing (built-in e-sign; vendors rated High or not yet scored need an explicit risk acknowledgement) publishes `contract.signed`, and the request moves to `ordered`.
 8. **Receipt and invoice.** "Mark as received" moves the request to `fulfilled`. An invoice booked by the ledger moves it to `partially_invoiced` or `invoice_received`. Every status change goes through the state machine in `shared/lifecycle.py`.
 
-### Known gap shown by this review
+### Gap found by this review (fixed 21 Oct)
 
-`approval.decided` is published once per approval level, but
-contract-risk-agent's handler (`app/kafka/consumer.py`,
-`_handle_approval_decided`) generates a contract on **any** "approved"
-decision. For a two-level (manager + finance) request, the contract can
-therefore exist before finance has decided. A read-only query of the
-development database found 6 contracts generated before the final
-approval decision, and one draft contract whose request was later
-rejected. Not fixed here: documentation only.
+`approval.decided` is published once per approval level, and
+contract-risk-agent used to generate a contract on **any** "approved"
+decision, so for a manager + finance request the contract existed before
+finance decided. Since 21 Oct `_handle_approval_decided` generates only
+after the final level (`is_final_approval`: `level_<n>` with n = the chain
+length, or `auto`); test `TestContractOnlyAfterFinalApproval`, checked live
+with a ₹42,000 request. Contracts already generated early in the
+development database were left as they are.
 
 ## Appendix B: Model routing and fallback (FR-08)
 
@@ -1048,12 +1078,12 @@ reflect test traffic, not real usage.
 | Request needs approval | `approval.requested` (approval-inventory) | The approver for the level | `approval_requested` | urgent | ✔ — **but to a placeholder address** (see gap 1) | 162 sent | ✔ portal + one-click action link |
 | Request decided | `approval.decided` (approval-inventory) | Requester | `approval_decided` | urgent | ✔ | 156 sent | ✘ |
 | Contract generated | `contract.generated` (contract-risk) | Requester | `contract_generated` | urgent | ✔ | 203 sent | ✘ |
-| Contract waiting for a signature | — (`contract.generated` goes to the requester only) | The signer | — | — | ✘ (gap 4) | — | — |
+| Contract waiting for a signature | `notification.send` from `send_for_signature` (contract-risk) | The signer | `contract_ready_for_signature` | urgent | ✔ (21 Oct; before, the template didn't exist and the generic fallback went out) | — | ✔ signing link |
 | Contract signed → ordered | `contract.signed` (contract-risk) | Requester | `contract_signed` | urgent | ✔ | 87 sent | ✘ |
 | Goods received | `goods.received` (approval-inventory, Phase 3) | Requester | `goods_received` | digest | ✔ (21 Oct) | 17 queued | ✔ request link |
 | Invoice matched / held | `invoice.matched` (approval-inventory) | Finance (on a hold or mismatch) | — | — | ✘ not consumed (gap 3) | — | — |
 | Renewal / notice deadline | `contract.renewal.due` (contract-risk) | Contract owner | `contract_renewal_due` | urgent at the configured alert levels, else digest | ✔ | 1 sent | ✘ |
-| Something waiting too long | `reminder.due` (all three agents, FR-03) | `recipient_role` in the payload | — | — | ✘ **not consumed** although `events.md` lists notification-agent (gap 2) | — | payload has `link` |
+| Something waiting too long | `reminder.due` (all three agents, FR-03) | Approvers of the level, the signer, finance or reviewers | `reminder_due` | urgent | ✔ (21 Oct) | — | ✔ item link |
 | Vendor risk changed | `risk.score.updated` (contract-risk) | Risk / procurement team | `risk_score_updated` | urgent if High, else digest | ✔ | 2 sent + 132 queued | ✘ |
 | Vendor offboarded | `vendor.offboarded` (contract-risk) | Procurement, contract owners | `vendor_offboarded` | urgent | ✔ | 3 sent | ✘ |
 | Licence usage / reclaim | `license.usage.updated`; reclaim warnings via `notification.send` (approval-inventory) | Licence owner, admin | `license_usage_updated`, `generic_fallback` | digest; `notification.send` uses its `priority` | ✔ | 336 queued; 48 sent + 109 queued | ✘ |
@@ -1069,22 +1099,29 @@ Delivery: `email_service.py` sends through `shared/mailer.py` since 11 Oct —
 Mailpit with `EMAIL_MODE=dev`, any SMTP provider with `EMAIL_MODE=smtp`.
 Failures are retried and dead-lettered since FR-31.
 
-### Gaps (the five feature-expansion events were added on 21 Oct; gap 5 is closed by `goods.received`)
+### Gaps (the five feature-expansion events were added on 21 Oct; gap 5 is closed by `goods.received`; gaps 1, 2 and 4 closed on 21 Oct for the final checklist)
 
-1. **Approval emails reach a placeholder, not the approver.**
+Since 21 Oct: approval emails go to the people assigned to the level in
+`approver_assignments` (placeholder only when nobody is assigned), the next
+level is asked when one level approves, `reminder.due` is emailed, the signer
+gets `contract_ready_for_signature` with a signing link, and the vendor's
+contact gets `contract_signed_vendor`. Every template is editable in the
+Control Panel (Notifications).
+
+1. ~~**Approval emails reach a placeholder, not the approver.**~~ Fixed.
    `approval.requested` carries role names in `approval_chain`
    (`dept_manager`, `finance`…); `directory.as_email` turns them into
    `dept_manager@users.procurement.local` (158 such rows). Resolve the
    level to real people through `approver_assignments` (the approval
    authority table) and their account email.
-2. **`reminder.due` is published but never emailed.** Add it to
+2. ~~**`reminder.due` is published but never emailed.**~~ Fixed. Add it to
    `CONSUME_TOPICS` (the ACL already allows it), a `reminder_due`
    template using `kind`, `detail`, `waiting_hours` and `link`, recipient
    from `recipient_role` via the same resolution as gap 1. FR-03's
    reminders only reach people once this exists.
 3. **Invoice holds aren't announced.** Consume `invoice.matched` and email
    finance when the result is a hold or mismatch (not on clean matches).
-4. **Nobody is asked to sign.** Either a `contract.sent_for_signature`
+4. ~~**Nobody is asked to sign.**~~ Fixed. Either a `contract.sent_for_signature`
    event or using `contract.generated` with the signer as recipient.
 5. **"Goods received" has no event.** Needs an event from
    approval-inventory-agent first (`order.received`), then a template —

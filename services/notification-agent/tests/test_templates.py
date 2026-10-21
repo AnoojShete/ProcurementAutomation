@@ -119,3 +119,23 @@ class TestTemplateRendering:
         assert "approved" in subject
         assert "192.168.1.100" in body
         assert "req-12345678-abcd" in body
+
+    def test_contract_ready_for_signature_asks_the_signer_to_sign_with_a_link(self):
+        """The signer's e-signature email (contract_service.send_for_signature)
+        used to fall back to the generic template: no link, no vendor."""
+        subject, body = render_template("contract_ready_for_signature", {
+            "contract_id": "c-1", "vendor_name": "Acme Ltd", "provider": "builtin", "provider_ref": "builtin-c-1",
+            "sign_url": "http://localhost:8080/app/contracts/c-1?action=sign",
+            "contract_url": "http://localhost:8080/app/contracts/c-1",
+        })
+        assert subject == "Please sign: contract with Acme Ltd"
+        assert "http://localhost:8080/app/contracts/c-1?action=sign" in body
+
+    def test_contract_ready_for_signature_tells_the_requester_it_was_generated(self):
+        subject, body = render_template("contract_ready_for_signature", {
+            "contract_id": "c-1", "vendor_name": "Acme Ltd",
+            "sign_url": "http://localhost:8080/app/contracts/c-1?action=sign",
+            "contract_url": "http://localhost:8080/app/contracts/c-1",
+        })
+        assert subject == "Contract generated: Acme Ltd"
+        assert "http://localhost:8080/app/contracts/c-1\n" in body and "?action=sign" not in body

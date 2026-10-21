@@ -119,3 +119,83 @@ async def rfq_items(db: AsyncSession, rfq_id: Optional[str]) -> list:
         return []
     items = await _scalar(db, "SELECT items FROM rfq_events WHERE id = CAST(:r AS uuid)", {"r": rfq_id})
     return items if isinstance(items, list) else []
+
+
+# ── Approvers, reviewers and signers as real people ─────────────────────────
+# approval.requested names approval levels (dept_manager, finance_head), not
+# people. The approval authority table says who holds each level; without a
+# match the level's placeholder mailbox is used, as before.
+
+async def _column(db: AsyncSession, sql: str, params: dict) -> list[str]:
+    try:
+        async with db.begin_nested():
+            return [r[0] for r in (await db.execute(_text(sql), params)).all() if r[0]]
+    except Exception as e:
+        logger.warning(f"directory lookup failed ({sql[:40]}…): {e}")
+        return []
+
+
+async def approvers_for_level(db: AsyncSession, level: Optional[str], amount: Optional[float] = None) -> list[str]:
+    """Active people assigned to an approval level whose limit covers the amount."""
+    if not level:
+        return []
+    return await _column(db, """
+        SELECT user_email FROM approver_assignments
+        WHERE level = :level AND active
+          AND (max_amount IS NULL OR CAST(:amount AS numeric) IS NULL OR max_amount >= CAST(:amount AS numeric))
+        ORDER BY user_email
+    """, {"level": level, "amount": amount})
+
+
+async def users_with_roles(db: AsyncSession, roles: list[str]) -> list[str]:
+    return await _column(db, "SELECT email FROM auth_users WHERE role = ANY(:roles) AND is_active ORDER BY email",
+                         {"roles": roles})
+
+
+async def signer_for_contract(db: AsyncSession, contract_id: Optional[str]) -> Optional[str]:
+    """Whoever the contract was last sent to for signature."""
+    if not contract_id:
+        return None
+    return await _scalar(db, """
+        SELECT payload->>'signer_email' FROM audit_log
+        WHERE entity_id = CAST(:c AS uuid) AND action = 'sent_for_signature'
+        ORDER BY created_at DESC LIMIT 1
+    """, {"c": contract_id})
+
+
+async def approval_chain(db: AsyncSession, request_id: Optional[str]) -> tuple[list[str], Optional[float]]:
+    """(approval levels in order, amount) of a purchase request."""
+    if not request_id:
+        return [], None
+    try:
+        async with db.begin_nested():
+            row = (await db.execute(_text(
+                "SELECT approval_chain, amount FROM purchase_requests WHERE id = CAST(:r AS uuid)"
+            ), {"r": request_id})).first()
+    except Exception as e:
+        logger.warning(f"approval_chain({request_id}) lookup failed: {e}")
+        return [], None
+    if row is None:
+        return [], None
+    return list(row.approval_chain or []), float(row.amount) if row.amount is not None else None
+
+
+# Who a reminder.due goes to, by its recipient_role (shared/reminders.py).
+_REMINDER_ROLES = {"finance": ["finance"], "reviewer": ["finance"], "approver": ["approver"]}
+
+
+async def reminder_recipients(db: AsyncSession, payload: dict) -> list[str]:
+    role = payload.get("recipient_role") or ""
+    if role == "signer":
+        signer = await signer_for_contract(db, payload.get("entity_id"))
+        return [signer] if signer else await users_with_roles(db, ["finance", "admin"])
+    people = await approvers_for_level(db, role)  # an approval level (dept_manager, finance_head)
+    if not people and role in _REMINDER_ROLES:
+        people = await users_with_roles(db, _REMINDER_ROLES[role])
+    return people or [as_email(role) if role else default_recipient()]
+
+
+async def vendor_for_contract(db: AsyncSession, contract_id: Optional[str]) -> Optional[str]:
+    if not contract_id:
+        return None
+    return await _scalar(db, "SELECT vendor_id::text FROM contracts WHERE id = CAST(:c AS uuid)", {"c": contract_id})

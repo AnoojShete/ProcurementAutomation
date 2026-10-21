@@ -110,6 +110,66 @@ async def esign_status(db: AsyncSession = Depends(get_db)):
     })
 
 
+# What the Control Panel shows for each contract status.
+ESIGN_LABELS = {
+    "draft": "Not sent for signature",
+    "pending_signature": "Pending E-Signature",
+    "signed": "E-Signature Complete",
+    "terminated": "Terminated",
+    "expired": "Expired",
+}
+
+
+def esign_row(r: dict) -> dict:
+    """One contract on the Control Panel's e-signature list: its status
+    label and the in-app links to the unsigned and (once signed) signed PDF."""
+    cid = r["contract_id"]
+    signed = r["status"] == "signed"
+    return {
+        **r,
+        "status_label": ESIGN_LABELS.get(r["status"], r["status"]),
+        "unsigned_pdf": f"/api/contracts/{cid}/document",
+        "signed_pdf": f"/api/contracts/{cid}/signed-document" if signed else None,
+        "certificate": f"/api/contracts/{cid}/signature-certificate" if signed and r.get("provider") == "builtin" else None,
+    }
+
+
+@router.get("/esign/documents", response_model=DataResponse, dependencies=[Depends(require_role("admin"))])
+async def esign_documents(
+    status: str | None = Query(None, pattern="^(draft|pending_signature|signed|terminated|expired)$"),
+    limit: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    """Every contract's e-signature state with links to its PDFs, so an
+    admin tracks signing from the Control Panel instead of MinIO or the
+    provider's site."""
+    from sqlalchemy import text
+    rows = (await db.execute(text("""
+        SELECT c.id::text AS contract_id, c.status, c.version, c.template AS template_used,
+               c.generated_at, c.signed_at, c.signed_by, c.esign_provider_ref,
+               c.purchase_request_id::text AS request_id, v.name AS vendor_name,
+               pr.amount::float AS amount, pr.currency,
+               a.payload->>'signer_email' AS signer_email, a.payload->>'provider' AS provider,
+               a.created_at AS sent_at
+        FROM contracts c
+        LEFT JOIN vendors v ON v.id = c.vendor_id
+        LEFT JOIN purchase_requests pr ON pr.id = c.purchase_request_id
+        LEFT JOIN LATERAL (
+            SELECT payload, created_at FROM audit_log
+            WHERE entity_id = c.id AND action = 'sent_for_signature'
+            ORDER BY created_at DESC LIMIT 1
+        ) a ON true
+        WHERE CAST(:status AS text) IS NULL OR c.status = :status
+        ORDER BY COALESCE(c.signed_at, a.created_at, c.generated_at) DESC NULLS LAST
+        LIMIT :limit
+    """), {"status": status, "limit": limit})).mappings().all()
+    counts = dict((await db.execute(text("SELECT status, count(*) FROM contracts GROUP BY status"))).all())
+    return DataResponse(
+        data=[esign_row(dict(r)) for r in rows],
+        meta={"counts": {k: counts.get(k, 0) for k in ESIGN_LABELS}},
+    )
+
+
 @router.post(
     "/generate", response_model=DataResponse, dependencies=[Depends(require_role("approver", "finance", "admin"))]
 )

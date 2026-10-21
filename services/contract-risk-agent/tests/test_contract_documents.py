@@ -221,3 +221,66 @@ class TestDocumensoWebhook:
         assert kwargs["signed_by"] == "cfo@acme.test"
         assert kwargs["signed_at"] == datetime(2026, 9, 21, 9, 30, tzinfo=timezone.utc)
         assert kwargs["provider_event_id"] == "documenso-42-completed"
+
+
+class TestEsignTracking:
+    """Control Panel → E-signatures: one row per contract with its status
+    label and in-app PDF links (app/api/contracts.py esign_row)."""
+
+    def test_pending_contract_links_only_the_unsigned_pdf(self):
+        from app.api.contracts import esign_row
+        row = esign_row({"contract_id": "c-1", "status": "pending_signature", "provider": "builtin"})
+        assert row["status_label"] == "Pending E-Signature"
+        assert row["unsigned_pdf"] == "/api/contracts/c-1/document"
+        assert row["signed_pdf"] is None and row["certificate"] is None
+
+    def test_signed_contract_links_the_signed_pdf_and_certificate(self):
+        from app.api.contracts import esign_row
+        row = esign_row({"contract_id": "c-1", "status": "signed", "provider": "builtin"})
+        assert row["status_label"] == "E-Signature Complete"
+        assert row["signed_pdf"] == "/api/contracts/c-1/signed-document"
+        assert row["certificate"] == "/api/contracts/c-1/signature-certificate"
+
+    @pytest.mark.parametrize("role", ["requester", "approver", "finance"])
+    def test_admin_only(self, role):
+        from app.api import contracts
+        app = FastAPI()
+        app.include_router(contracts.router, prefix="/contracts")
+        app.dependency_overrides[get_current_user] = lambda: CurrentUser(id="u", email="x@acme.test", role=role)
+        app.dependency_overrides[get_db] = lambda: MagicMock()
+        assert TestClient(app).get("/contracts/esign/documents").status_code == 403
+
+
+class TestContractOnlyAfterFinalApproval:
+    """approval.decided arrives per level: a manager's approval of a
+    manager + finance request must not generate the contract yet
+    (readmeforme Appendix A, "Known gap")."""
+
+    @pytest.mark.parametrize("level,chain,final", [
+        ("level_1_dept_manager", ["dept_manager", "finance_head"], False),
+        ("level_2_finance_head", ["dept_manager", "finance_head"], True),
+        ("level_1_dept_manager", ["dept_manager"], True),
+        ("auto", [], True),
+        (None, None, True),
+    ])
+    def test_is_final_approval(self, level, chain, final):
+        from app.kafka.consumer import is_final_approval
+        assert is_final_approval(level, chain) is final
+
+    def test_first_level_approval_generates_nothing(self):
+        import asyncio
+        from app.kafka import consumer
+        session = AsyncMock()
+        session.__aenter__.return_value = session
+        session.execute.return_value = SimpleNamespace(scalar_one_or_none=lambda: ["dept_manager", "finance_head"])
+        generate = AsyncMock()
+        with patch.object(consumer, "async_session_factory", return_value=session), \
+             patch.object(consumer, "generate_contract_for_request", generate):
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(consumer._handle_approval_decided(
+                    SimpleNamespace(state=SimpleNamespace(kafka_producer=None)),
+                    {"request_id": "r-1", "decision": "approved", "decision_level": "level_1_dept_manager"}))
+            finally:
+                loop.close()
+        generate.assert_not_awaited()

@@ -48,7 +48,7 @@ export const SYSTEM_SECTIONS: SystemSection[] = [
   { label: "System Health", to: "/app/system-health", icon: HP, description: "Services, consumer lag, live verification" },
   { label: "Users", to: "/app/users", icon: US, description: "Accounts, roles, access" },
   { label: "Controls", to: "/app/controls", icon: SC2, description: "Event reliability, authority, payments, matching" },
-  { label: "Control Panel", to: "/app/control-panel", icon: RA, description: "Drop folder, Kafka events, storage, e-sign" },
+  { label: "Control Panel", to: "/app/control-panel", icon: RA, description: "Documents, processing, approvals, notification templates, e-signatures, storage" },
   { label: "Business Rules", to: "/app/business-rules", icon: SL, description: "Spend tiers, SLAs, thresholds" },
   { label: "Audit & Activity", to: "/app/audit", icon: CL, description: "Activity across requests and contracts" },
 ];
@@ -96,6 +96,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   ],
   admin: [
     { label: "Overview", to: "/app", icon: LD, end: true },
+    { label: "Control Panel", to: "/app/control-panel", icon: RA },
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Requests", to: "/app/requests", icon: FT },
     { label: "Documents", to: "/app/documents", icon: FI },
@@ -109,7 +110,12 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: "Contracts", to: "/app/contracts", icon: SC },
     { label: "Risk", to: "/app/risk", icon: SH },
     { label: "Notifications", to: "/app/notifications", icon: BE },
-    { label: "System", to: "/app/system", icon: SE, match: SYSTEM_SECTIONS.map((s) => s.to) },
+    {
+      label: "System",
+      to: "/app/system",
+      icon: SE,
+      match: SYSTEM_SECTIONS.map((s) => s.to).filter((to) => to !== "/app/control-panel"),
+    },
   ],
 };
 

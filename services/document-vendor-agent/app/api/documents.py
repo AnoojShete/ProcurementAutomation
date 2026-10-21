@@ -245,6 +245,36 @@ async def get_document_endpoint(document_id: str, db: AsyncSession = Depends(get
     return DataResponse(data=_serialize_document(doc, user))
 
 
+@router.get("/{document_id}/validation", response_model=DataResponse)
+async def get_document_validation(document_id: str, db: AsyncSession = Depends(get_db),
+                                  user: CurrentUser = Depends(get_current_user)):
+    """What each pipeline stage concluded about this document (confidence,
+    valid / needs review / invalid, errors and warnings), from the latest
+    run's pipeline_checkpoints rows."""
+    doc = await document_service.get_document(db, document_id)
+    if doc is None or not _can_access(doc, user):
+        raise HTTPException(status_code=404, detail="document not found")
+    from sqlalchemy import text
+    rows = (await db.execute(text("""
+        SELECT stage_index, agent_name, confidence::float AS confidence, validation_status,
+               errors, warnings, duration_ms::float AS duration_ms, created_at
+        FROM pipeline_checkpoints
+        WHERE document_id = CAST(:id AS uuid)
+          AND created_at >= (SELECT max(created_at) - interval '5 minutes'
+                             FROM pipeline_checkpoints WHERE document_id = CAST(:id AS uuid))
+        ORDER BY created_at DESC, stage_index
+    """), {"id": document_id})).mappings().all()
+    stages, seen = [], set()
+    for r in rows:  # newest run first; keep one row per stage
+        if r["agent_name"] in seen:
+            continue
+        seen.add(r["agent_name"])
+        stages.append({**dict(r), "errors": r["errors"] or [], "warnings": r["warnings"] or [],
+                       "created_at": r["created_at"].isoformat() if r["created_at"] else None})
+    stages.sort(key=lambda s: s["stage_index"])
+    return DataResponse(data=stages, meta={"count": len(stages)})
+
+
 @router.get("/{document_id}/file")
 async def download_document_file(
     document_id: str,

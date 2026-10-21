@@ -196,7 +196,8 @@ async def rules(s, admin):
 
 async def reliability(s, admin):
     """FR-06 / FR-31: every event kept, failed events parked, notifications."""
-    await s.shot("reliability", "01-kafka-log.png", "admin", "/app/control-panel", "text=Kafka log", scroll_to="text=Kafka log")
+    await s.shot("reliability", "01-kafka-log.png", "admin", "/app/control-panel?section=processing", "text=Kafka log",
+                 scroll_to="text=Kafka log")
     await s.shot("reliability", "02-failed-events.png", "admin", scroll_to="text=Failed events")
     await s.shot("reliability", "03-notifications.png", "admin", "/app/notifications", "main")
 
@@ -360,8 +361,28 @@ async def gst(s, admin):
                      "text=Tax profile", scroll_to="text=Tax profile")
 
 
+async def cpanel(s, admin):
+    """The Control Panel (final checklist A1-A7): folders and dropped files,
+    approvals, notification templates, contracts and e-signatures, and a
+    document's extracted fields with each stage's validation result."""
+    cp = "/app/control-panel"
+    await s.shot("cpanel", "01-overview.png", "admin", cp, "text=In input folder")
+    await s.shot("cpanel", "02-documents.png", "admin", f"{cp}?section=documents", "text=Dropped files")
+    await s.shot("cpanel", "03-approvals.png", "admin", f"{cp}?section=approvals", "text=Awaiting approval")
+    await s.shot("cpanel", "04-templates.png", "admin", f"{cp}?section=notifications", "text=Message body")
+    await s.shot("cpanel", "05-esignatures.png", "admin", f"{cp}?section=esign", "text=Contract documents",
+                 scroll_to="text=Contract documents")
+    docs = requests.get(f"{API}/documents/?limit=100", headers=H(admin), timeout=30).json()["data"]
+    doc = next((d for d in docs if d["status"] == "classified" and d.get("document_type") == "invoice"), None)
+    if doc:
+        await s.shot("cpanel", "06-extraction.png", "admin", f"/app/documents/{doc['id']}", "text=Every extracted field",
+                     scroll_to="text=Every extracted field")
+    else:
+        failures.append("cpanel/06-extraction.png: no classified invoice to show")
+
+
 MODULES = {f.__name__: f for f in (intake, fallback, clauses, sanctions, licences, rules, reliability, onboarding,
-                                    approval, contract, inventory, expansion, gst)}
+                                    approval, contract, inventory, expansion, gst, cpanel)}
 
 
 async def main(names):

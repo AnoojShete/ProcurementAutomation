@@ -143,6 +143,12 @@ SAMPLE_PAYLOADS = {
         "lines": [{"line_no": 0, "quantity": 30, "asset_tags": ["LT-0101", "LT-0102"]}], "complete": False,
         "status": "partially_received", "received_by": "alice@acme.test", "received_at": "2026-10-20T10:00:00+00:00",
     },
+    "reminder.due": {
+        "kind": "approval_sla", "entity_type": "purchase_request", "entity_id": "r-1",
+        "waiting_since": "2026-10-20T10:00:00+00:00", "waiting_hours": 36.0, "threshold": "75%",
+        "recipient_role": "dept_manager", "link": "/app/requests/r-1?step=approval",
+        "detail": "75% of the 48h approval SLA has passed",
+    },
 }
 
 # Context the handlers add before rendering (links, looked-up names, items).
@@ -153,6 +159,7 @@ HANDLER_EXTRAS = {
                    "deadline_text": "25 Oct 2026, 17:00 UTC"},
     "rfq.awarded": {"vendor_name": "Acme IT Supplies Inc"},
     "goods.received": {"portal_url": "http://localhost:8080/app/requests/r", "received_at_text": "20 Oct 2026, 10:00 UTC"},
+    "reminder.due": {"item_url": "http://localhost:8080/app/requests/r-1?step=approval"},
 }
 
 # Template each event type's handler renders, per app/kafka/consumer.py.
@@ -172,6 +179,7 @@ EXPECTED_TEMPLATE = {
     "rfq.issued": "rfq_invitation",
     "rfq.awarded": "rfq_awarded",
     "goods.received": "goods_received",
+    "reminder.due": "reminder_due",
     # notification.send doesn't map to one fixed template — its own
     # template_name field picks it (see test below).
 }
@@ -180,7 +188,7 @@ EXPECTED_TEMPLATE = {
 class TestConsumedTopicsCoverage:
     def test_all_documented_topics_are_consumed(self):
         """shared/schemas/events.md names notification-agent as a consumer
-        on exactly these 16 topics (cross-checked row by row against the
+        on exactly these 17 topics (cross-checked row by row against the
         'Consumed by' column) — including document.classified and
         vendor.offboarded, which the task brief's own topic list omitted."""
         expected = {
@@ -189,6 +197,7 @@ class TestConsumedTopicsCoverage:
             "contract.renewal.due", "risk.score.updated", "vendor.offboarded",
             "vendor.payment_details_flagged", "notification.send",
             "budget.threshold_crossed", "contract.obligation.due", "rfq.issued", "rfq.awarded", "goods.received",
+            "reminder.due",
         }
         assert set(CONSUME_TOPICS) == expected
         assert set(_HANDLERS.keys()) == expected

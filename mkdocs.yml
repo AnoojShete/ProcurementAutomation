@@ -1,0 +1,105 @@
+# Documentation site (MkDocs + Material). Source: docs/guide/*.md.
+# Preview:  pip install -r requirements-docs.txt && mkdocs serve   -> http://127.0.0.1:8000
+# Build:    mkdocs build --strict                                  -> .run/docs-site/
+# Publish:  mkdocs gh-deploy  (or the "Docs" GitHub Actions workflow) -> GitHub Pages
+site_name: IT Procurement Intelligence Platform
+site_description: Agentic AI procurement — documents, approvals, contracts, e-signatures and vendor risk, automated end to end.
+site_author: Anjali, Vaidehi, Niraj, Anooj
+repo_url: https://github.com/AnoojShete/ProcurementAutomation
+repo_name: ProcurementAutomation
+edit_uri: edit/anjali/docs/guide/
+copyright: Student team project · Fractal Analytics 2026–27
+
+docs_dir: docs/guide
+site_dir: .run/docs-site
+
+# Publishes docs/assets and docs/showcase (diagrams, screenshots) with the
+# site, so the same images serve the dashboard, the report and these pages.
+hooks:
+  - scripts/mkdocs_hooks.py
+
+theme:
+  name: material
+  language: en
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Project:
+      - Introduction and objectives: overview/introduction.md
+      - Proposed system and technology: overview/proposed-system.md
+      - System architecture: overview/architecture.md
+      - Functional workflow: overview/functional-workflow.md
+      - Data model: overview/data-model.md
+      - Screens (mockups): overview/screens.md
+      - Future, references, conclusion: overview/conclusion.md
+  - Agents:
+      - agents/index.md
+      - Document & Vendor: agents/document-vendor.md
+      - Approval & Inventory: agents/approval-inventory.md
+      - Contract & Risk: agents/contract-risk.md
+      - Notification: agents/notification.md
+      - Auth & business rules: agents/auth.md
+      - Assistant (chatbot): agents/assistant.md
+  - Control Panel: control-panel.md
+  - Reference:
+      - APIs: reference/apis.md
+      - Configuration: reference/configuration.md
+      - Deployment: reference/deployment.md
+      - Testing and results: reference/testing.md
+      - Troubleshooting: reference/troubleshooting.md
+      - Final checklist: reference/checklist.md
+      - About these docs: reference/docs-site.md

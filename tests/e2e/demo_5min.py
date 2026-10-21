@@ -11,7 +11,7 @@ captioned video — the backup recording to play if the live demo fails.
     python tests/e2e/demo_5min.py --quote demo-quote.pdf   # a fresh quote to drop live
     HEADLESS=1 python tests/e2e/demo_5min.py  # no display (the PDF preview stays empty)
 
-It changes state like the presenter would: drops one quote into ./inbox
+It changes state like the presenter would: drops one quote into ./inbox/input
 and signs the contract that comes out of it.
 """
 import asyncio
@@ -31,7 +31,7 @@ import random  # noqa: E402
 
 BASE = os.getenv("GATEWAY", "http://localhost:8080")
 API = BASE + "/api"
-INBOX = os.path.join(ROOT, "inbox")
+INBOX = os.path.join(ROOT, "inbox", "input")
 OUT = os.path.join(ROOT, "docs", "demo")
 PASSWORD = "DemoPass123!"
 results: list[tuple[str, float, float, bool, str]] = []
@@ -126,7 +126,7 @@ async def main():
 
         async def s1():
             await d.open("admin", "/app/control-panel", "Dropped files",
-                         "0:00 · One quote dropped in ./inbox — no one clicks anything")
+                         "0:00 · One quote dropped in ./inbox/input — no one clicks anything")
             c["vendor"] = f"{brand(c['rng'])} {brand(c['rng'])} Pvt Ltd"
             pdf, total = doc_pdf(c, "quote", c["vendor"], [{"name": "USB-C dock", "quantity": 2, "unit_price": 210.0}],
                                  f"QT-{c['run']}")
@@ -250,7 +250,7 @@ async def main():
 
 def make_quote(path):
     """A fresh quote under ₹500 (new vendor and number each time, so it is
-    never a duplicate) for the presenter to copy into ./inbox live."""
+    never a duplicate) for the presenter to copy into ./inbox/input live."""
     c = Ctx(run=uuid.uuid4().hex[:6].upper())
     c["rng"] = random.Random(c["run"])
     vendor = f"{brand(c['rng'])} {brand(c['rng'])} Pvt Ltd"

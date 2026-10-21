@@ -1,0 +1,22 @@
+Subject: Reminder: {% if kind == "approval_sla" %}a purchase request is waiting for your approval{% elif kind == "signature_waiting" %}a contract is waiting for your signature{% elif kind == "bank_verification_pending" %}vendor bank details are waiting to be verified{% else %}a document is waiting for review{% endif +%}
+---
+Hello,
+
+{% if kind == "approval_sla" %}
+A purchase request has been waiting for a decision for {{ waiting_hours }} hours.
+{% elif kind == "signature_waiting" %}
+A contract has been waiting for a signature for {{ waiting_hours }} hours.
+{% elif kind == "bank_verification_pending" %}
+A change to a vendor's bank details has been waiting for a second check for {{ waiting_hours }} hours.
+{% else %}
+A document has been waiting for review for {{ waiting_hours }} hours.
+{% endif %}
+{% if detail %}
+
+  {{ detail }}
+{% endif %}
+
+Open it here:
+  {{ item_url }}
+
+— IT Procurement Platform

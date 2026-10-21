@@ -16,7 +16,7 @@ from app.services.contract_service import (
     ContractGenerationError, auto_send_for_signature, generate_contract_for_request,
 )
 from app.models import Contract
-from sqlalchemy import select
+from sqlalchemy import select, text
 from shared.eventing import deliver, PermanentEventError
 from app.services.risk_service import score_vendor
 
@@ -99,6 +99,16 @@ async def _handle_vendor_matched(app, payload: dict):
         await score_vendor(db, app.state.kafka_producer, vendor_id)
 
 
+def is_final_approval(decision_level: str | None, approval_chain: list | None) -> bool:
+    """approval.decided is published once per approval level
+    ("level_<n>_<level>"); only the last level's approval (or an
+    auto-approval) means the request is approved."""
+    parts = str(decision_level or "").split("_", 2)
+    if len(parts) < 3 or parts[0] != "level" or not parts[1].isdigit():
+        return True  # "auto" or an older format: a single, final decision
+    return int(parts[1]) >= len(approval_chain or [])
+
+
 async def _handle_approval_decided(app, payload: dict):
     """An approved purchase request is ready for a contract. Idempotent: a
     redelivered approval.decided must not produce a second contract."""
@@ -106,6 +116,13 @@ async def _handle_approval_decided(app, payload: dict):
         return
     request_id = payload.get("request_id")
     async with async_session_factory() as db:
+        chain = (await db.execute(
+            text("SELECT approval_chain FROM purchase_requests WHERE id = CAST(:r AS uuid)"), {"r": request_id}
+        )).scalar_one_or_none()
+        if not is_final_approval(payload.get("decision_level"), chain):
+            logger.info(f"Request {request_id} approved at {payload.get('decision_level')}; "
+                        f"waiting for the remaining levels before generating a contract")
+            return
         contract = (
             await db.execute(select(Contract).where(Contract.purchase_request_id == request_id).limit(1))
         ).scalar_one_or_none()

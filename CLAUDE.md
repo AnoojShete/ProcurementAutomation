@@ -23,6 +23,13 @@ an anchor) or `index.html#tab/anchor`; both switch tabs. Outside the dashboard l
 fails): add a tab in `scripts/docs_dashboard.py` instead.
 `tests/e2e/demo_scenarios.py` writes the Demo script tab;
 `tests/e2e/showcase_screens.py` retakes the Showcase screenshots.
+**The presentable docs are a MkDocs site** (`mkdocs.yml`, pages in
+`docs/guide/`: project pages in the overall-template order, one page per agent
+in the four-part agent template, Control Panel, reference). It reuses images
+from `docs/assets/` and `docs/showcase/` through `scripts/mkdocs_hooks.py`;
+`mkdocs build --strict` must stay clean (CI: `.github/workflows/docs.yml`).
+Diagrams: `docs/assets/make_architecture_svg.py`, `docs/assets/functional-flow.mmd`,
+rendered by `scripts/render_diagrams.py`. Update `docs/guide/` with the dashboard.
 Engineering references stay Markdown: TODO, readmeforme (with appendices:
 architecture, model routing, notification coverage, testing strategy),
 business-rules, feature-expansion-plan, design-direction,
@@ -81,7 +88,8 @@ python tests/e2e/chatbot_eval.py          # assistant (RAG): grounded answers, c
 python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service
-python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fails loudly if a step breaks)
+python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fails loudly if a step breaks); `cpanel` = Control Panel
+pip install -r requirements-docs.txt && mkdocs serve   # docs site (Python 3.9-3.13; watchdog has no 3.15 wheel)
 python tests/e2e/demo_scenarios.py        # the eight demo scenarios (core, risk red team, GST, assistant), checked live → docs/index.html#demo-script
 python tests/e2e/demo_5min.py             # the 5-minute demo (docs/index.html#demo-5min) rehearsed + recorded → docs/demo/backup-recording.webm
 ./scripts/reset-demo.sh                   # back up, clear the data volumes, rebuild realistic demo data (~3 min)
@@ -215,6 +223,17 @@ in `docs/readmeforme.md` (Research experiment).
   half in `data/einvoice-demo/` signs test invoices via
   `scripts/gst_invoice_lib.py`); production needs `EINVOICE_PUBLIC_KEY`.
   GST/TDS rates are seeded values a chartered accountant must confirm.
+- **Drop folder**: files go in `./inbox/input`; the worker holds an uploaded
+  file in `inbox/.processing/<document id>/` until the pipeline ends, then
+  moves it to `processed/` or `failed/` (+ `.error.txt`). A file left in
+  `.processing/` itself (not a subfolder) is re-queued on restart.
+- **Notification templates** are editable in the Control Panel: a row in
+  `notification_templates` overrides `app/templates/<name>.j2`; render through
+  `template_store.render`, never `templating.render_template` directly in new
+  dispatch code, or admin edits are ignored.
+- **Contracts** are generated only after the final approval level
+  (`is_final_approval` in contract-risk-agent's consumer): `approval.decided`
+  is published once per level.
 - Snapshot data (the demo SSO log) is scored and counted as of its latest
   event, never "today" — otherwise every licence drifts to "abandoned".
 

@@ -1,0 +1,96 @@
+%% Functional flow: from an incoming document to a signed, stored contract.
+%% Rendered to functional-flow.svg/.png by scripts/render_diagrams.py; the
+%% MkDocs site renders this same source. Every step names the service that does it.
+flowchart TB
+  classDef io fill:#FEF3C7,stroke:#B45309,color:#1F2937
+  classDef agent fill:#EDE9FE,stroke:#6D28D9,color:#1F2937
+  classDef decision fill:#DBEAFE,stroke:#1D4ED8,color:#1F2937
+  classDef human fill:#FCE7F3,stroke:#BE185D,color:#1F2937
+  classDef fail fill:#FEE2E2,stroke:#B91C1C,color:#1F2937
+  classDef done fill:#DCFCE7,stroke:#15803D,color:#1F2937
+  classDef note fill:#F3F4F6,stroke:#6B7280,color:#1F2937
+
+  subgraph IN["1 · Ingestion"]
+    direction LR
+    SRC1["Upload in the web app"]:::io
+    SRC2["Drop folder<br/>./inbox/input"]:::io
+    SRC3["Intake mailbox<br/>(attachments)"]:::io
+  end
+
+  SRC1 --> SCAN
+  SRC2 --> SCAN
+  SRC3 --> SCAN
+  SCAN{"File allowed?<br/>PDF/PNG/JPEG, ≤ 25 MB,<br/>ClamAV clean"}:::decision
+  SCAN -- "No" --> REJ["Rejected<br/>drop folder: moved to failed/ + .error.txt<br/>upload: error shown"]:::fail
+  SCAN -- "Yes" --> STORE["Stored in MinIO · documents row<br/>event document.ingested"]:::agent
+
+  subgraph DOC["2 · Document intelligence (document-vendor-agent worker)"]
+    direction TB
+    PARSE["Read text<br/>pdfplumber · Docling · PaddleOCR"]:::agent
+    TEXT{"Any text found?"}:::decision
+    CLS["Classify<br/>quote · invoice · PO · other"]:::agent
+    EXT["Extract fields + confidence<br/>LayoutLMv3 cross-check"]:::agent
+    VAL["Validate<br/>vendor match · currency → INR · GST check<br/>duplicates · invoice match"]:::agent
+    CONF{"Confident and valid?<br/>(overall ≥ 80%, no flags)"}:::decision
+  end
+
+  STORE --> PARSE --> TEXT
+  TEXT -- "No" --> PFAIL["Document failed<br/>status failed + reason<br/>drop folder: moved to failed/"]:::fail
+  TEXT -- "Yes" --> CLS --> EXT --> VAL --> CONF
+  CONF -- "No" --> REVIEW["Manual review<br/>person corrects fields side by side"]:::human
+  REVIEW --> TYPE
+  CONF -- "Yes" --> TYPE
+  TYPE{"Document type?"}:::decision
+  TYPE -- "Invoice" --> INV["3-way match against the order<br/>held if it doesn't fit"]:::agent
+  TYPE -- "Other" --> STOPD["Kept for reference<br/>no purchase started"]:::note
+  TYPE -- "Quote" --> PR
+
+  subgraph APR["3 · Approval routing (approval-inventory-agent + Temporal)"]
+    direction TB
+    PR["Purchase request created<br/>event approval.requested"]:::agent
+    TIER{"Spend tier<br/>(business rules)"}:::decision
+    AUTO["Auto-approved<br/>under the threshold"]:::done
+    ASK["Approver of the current level asked<br/>email with portal + one-click link"]:::agent
+    DEC{"Decision<br/>before the SLA?"}:::decision
+    REM["Reminder at SLA % · escalation<br/>on breach"]:::note
+    NEXT{"More levels?<br/>manager → finance"}:::decision
+  end
+
+  PR --> TIER
+  TIER -- "auto" --> AUTO
+  TIER -- "manager / manager + finance" --> ASK --> DEC
+  DEC -- "No answer" --> REM --> ASK
+  DEC -- "Rejected" --> REJECTED["Request rejected<br/>requester emailed with the reason"]:::fail
+  DEC -- "Approved" --> NEXT
+  NEXT -- "Yes" --> ASK
+  NEXT -- "No" --> APPROVED["Request approved<br/>event approval.decided · requester emailed"]:::done
+  AUTO --> APPROVED
+
+  subgraph CON["4 · Contract and e-signature (contract-risk-agent)"]
+    direction TB
+    GEN["Contract generated from the template<br/>with the approved data · PDF"]:::agent
+    RISK{"Vendor clearance<br/>sanctions · prohibited country · risk"}:::decision
+    SEND["Sent for signature<br/>signer emailed a signing link"]:::agent
+    SIGN{"Signed?"}:::decision
+    SREM["Signature reminder<br/>after the waiting threshold"]:::note
+  end
+
+  APPROVED --> GEN --> RISK
+  RISK -- "Blocked<br/>(sanctions match)" --> BLOCK["Signing blocked<br/>never cleared"]:::fail
+  RISK -- "High risk" --> ACK["Signer must acknowledge the risk"]:::human
+  ACK --> SEND
+  RISK -- "Cleared" --> SEND
+  SEND --> SIGN
+  SIGN -- "Not yet" --> SREM --> SIGN
+  SIGN -- "Yes" --> SIGNED["Contract signed · SHA-256 seal + certificate<br/>event contract.signed"]:::done
+
+  subgraph END["5 · Storage and tracking"]
+    direction LR
+    STORED["Signed PDF available in the Control Panel<br/>status E-Signature Complete"]:::done
+    ORDER["Request moves to ordered<br/>requester and vendor emailed"]:::done
+  end
+  SIGNED --> STORED
+  SIGNED --> ORDER
+
+  NOTE["Every step publishes a Kafka event · notification-agent emails the right person<br/>using templates editable in the Control Panel · every action is in the audit log"]:::note
+  ORDER -.- NOTE

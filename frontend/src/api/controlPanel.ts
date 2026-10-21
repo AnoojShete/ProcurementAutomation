@@ -65,7 +65,17 @@ export interface InboxStatus {
   host_path: string;
   poll_seconds: number;
   uploader: string;
-  folder: { mounted: boolean; waiting: string[]; failed: { name: string; reason: string }[] };
+  folder: {
+    mounted: boolean;
+    /** Files in input/ (and being uploaded). */
+    waiting: string[];
+    /** Uploaded, waiting for the pipeline before moving to processed/ or failed/. */
+    in_pipeline?: { document_id: string; name: string }[];
+    processed_count?: number;
+    failed_count?: number;
+    failed: { name: string; reason: string }[];
+    paths?: { input: string; processed: string; failed: string };
+  };
   drops: DroppedFile[];
 }
 

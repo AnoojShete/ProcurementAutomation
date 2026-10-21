@@ -1,4 +1,11 @@
-# Drop-folder contents are local only.
+# Drop-folder contents are local only; the three folders themselves are kept.
 *
 !.gitignore
 !README.md
+!input/
+!processed/
+!failed/
+input/*
+processed/*
+failed/*
+!*/.gitkeep

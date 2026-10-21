@@ -134,3 +134,93 @@ def test_award_templates_render(template):
 def test_dates_are_written_for_people():
     assert consumer._when("2026-10-25T17:00:00+00:00") == "25 Oct 2026, 17:00 UTC"
     assert consumer._when(None) is None
+
+
+# ── Approval stages, reminders and the vendor (checklist A2) ────────────────
+
+APPROVAL_REQUESTED = {
+    "request_id": "r-1", "request_type": "hardware", "requested_by": "asha@acme.test", "department": "IT",
+    "amount": 90000, "currency": "INR", "spend_tier": "manager+finance",
+    "approval_chain": ["dept_manager", "finance_head"], "sla_deadline": "2026-10-25T17:00:00Z",
+}
+
+
+def _no_action_link():
+    return patch.object(consumer, "_mint_action_url", AsyncMock(return_value=(None, None)))
+
+
+def test_approval_request_goes_to_the_people_holding_the_level():
+    levels = {"dept_manager": ["boss@acme.test", "deputy@acme.test"]}
+    with _no_action_link():
+        sent = _calls("approval.requested", APPROVAL_REQUESTED, approvers_for_level=lambda db, l, a=None: levels.get(l, []))
+    assert [s["recipient"] for s in sent] == ["boss@acme.test", "deputy@acme.test"]
+    assert sent[0]["context"]["portal_url"].endswith("/app/requests/r-1?step=approval")
+
+
+def test_approval_request_without_assigned_people_keeps_the_level_mailbox():
+    with _no_action_link():
+        sent = _calls("approval.requested", APPROVAL_REQUESTED, approvers_for_level=[])
+    assert [s["recipient"] for s in sent] == ["dept_manager@users.procurement.local"]
+
+
+def test_approval_at_one_level_asks_the_next_level():
+    decided = {"request_id": "r-1", "decision": "approved", "decided_by": "boss@acme.test",
+               "decision_level": "level_1_dept_manager", "escalated": False,
+               "decided_at": "2026-10-21T10:00:00Z", "comments": None}
+    row = type("Row", (), {"requested_by": "asha@acme.test", "department": "IT", "currency": "INR",
+                           "request_type": "hardware", "spend_tier": "manager+finance", "sla_deadline": None})()
+    session = AsyncMock()
+    session.__aenter__.return_value = session
+    session.execute.return_value = type("R", (), {"first": lambda self: row})()
+    sent = []
+
+    async def notify(db, **kw):
+        sent.append(kw)
+    with patch.object(consumer.dispatcher, "notify", notify), _no_action_link(), \
+         patch.object(consumer.directory, "requester_for_request_id", AsyncMock(return_value="asha@acme.test")), \
+         patch.object(consumer.directory, "approval_chain", AsyncMock(return_value=(["dept_manager", "finance_head"], 90000.0))), \
+         patch.object(consumer.directory, "approvers_for_level", AsyncMock(return_value=["cfo@acme.test"])), \
+         patch.object(consumer, "async_session_factory", return_value=session):
+        run(consumer.dispatch("approval.decided", {"event_type": "approval.decided", "payload": decided}))
+    assert [(s["template_name"], s["recipient"]) for s in sent] == [
+        ("approval_decided", "asha@acme.test"), ("approval_requested", "cfo@acme.test")]
+    assert sent[1]["context"]["step_index"] == 1
+
+
+@pytest.mark.parametrize("decision,level", [("approved", "level_2_finance_head"), ("rejected", "level_1_dept_manager")])
+def test_last_approval_or_a_rejection_asks_nobody_else(decision, level):
+    decided = {"request_id": "r-1", "decision": decision, "decided_by": "x@acme.test", "decision_level": level,
+               "escalated": False, "decided_at": "2026-10-21T10:00:00Z", "comments": None}
+    sent = _calls("approval.decided", decided, requester_for_request_id="asha@acme.test",
+                  approval_chain=(["dept_manager", "finance_head"], 90000.0))
+    assert [s["template_name"] for s in sent] == ["approval_decided"]
+
+
+def test_sla_reminder_goes_to_the_approvers_with_a_link():
+    payload = {"kind": "approval_sla", "entity_type": "purchase_request", "entity_id": "r-1",
+               "waiting_since": "2026-10-20T10:00:00Z", "waiting_hours": 36.04, "threshold": "75%",
+               "recipient_role": "dept_manager", "link": "/app/requests/r-1?step=approval",
+               "detail": "75% of the 48h approval SLA has passed"}
+    sent = _calls("reminder.due", payload, approvers_for_level=["boss@acme.test"])
+    assert [s["recipient"] for s in sent] == ["boss@acme.test"]
+    assert sent[0]["priority_override"] == "urgent"
+    subject, body = render_template("reminder_due", sent[0]["context"])
+    assert subject == "Reminder: a purchase request is waiting for your approval"
+    assert "36.0 hours" in body and "http://localhost:8080/app/requests/r-1?step=approval" in body
+
+
+def test_signature_reminder_goes_to_the_signer():
+    payload = {"kind": "signature_waiting", "entity_type": "contract", "entity_id": "c-1",
+               "waiting_since": "2026-10-18T10:00:00Z", "waiting_hours": 72, "threshold": "3d",
+               "recipient_role": "signer", "link": "/app/contracts/c-1?action=sign", "detail": None}
+    sent = _calls("reminder.due", payload, signer_for_contract="signer@acme.test")
+    assert [s["recipient"] for s in sent] == ["signer@acme.test"]
+
+
+def test_vendor_is_told_when_the_contract_is_signed():
+    sent = _calls("contract.signed", SAMPLE_PAYLOADS["contract.signed"], requester_for_contract_id="asha@acme.test",
+                  vendor_for_contract="v-1", vendor_name="Acme Ltd", vendor_contact="sales@acme-ltd.test")
+    assert [(s["template_name"], s["recipient"]) for s in sent] == [
+        ("contract_signed", "asha@acme.test"), ("contract_signed_vendor", "sales@acme-ltd.test")]
+    subject, body = render_template("contract_signed_vendor", sent[1]["context"])
+    assert subject == "Contract signed: Acme Ltd" and "c-1" in body

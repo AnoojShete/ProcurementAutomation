@@ -133,11 +133,11 @@ svcs = [
         ("m", "inbox · /email-action/*"),
     ]),
     ("chatbot-agent", ":8006", [
-        "Assistant chat sessions",
-        ("ml", "LLM via Ollama with 6"),
-        ("ml", "  read-only tools"),
-        "Calls agents' APIs with the",
-        "  signed-in user's role",
+        "Assistant chat (RAG)",
+        ("ml", "LLM via Ollama + embeddings"),
+        ("ml", "  in pgvector, kept current"),
+        "Access checked per chunk",
+        "  for the signed-in user",
         ("m", "/api/chat"),
     ]),
     ("contract-risk-agent", ":8003  + Temporal worker", [
@@ -152,10 +152,10 @@ svcs = [
         ("m", "/api/webhooks"),
     ]),
     ("notification-agent", ":8004", [
-        "Consumes 11 event topics",
+        "Consumes 17 event topics",
         "Urgent vs digest routing",
-        "Jinja2 email templates",
-        "Notification log",
+        "Jinja2 templates, editable",
+        "  in the Control Panel",
         ("m", "Sends to Mailpit (dev)"),
         ("m", "/api/notifications"),
     ]),
@@ -204,7 +204,7 @@ text(TX0 - 40, TY1 + 16, "gRPC: start/signal workflows; workers poll task queues
 # ---------------------------------------------------------------- Kafka
 KY0, KY1 = 664, 744
 box(MX0, KY0, MX1 - MX0, KY1 - KY0, "msg")
-text(MX0 + 14, KY0 + 22, "Event backbone — Kafka API (Redpanda) · 17 topics · per-service SASL/SCRAM logins and ACLs",
+text(MX0 + 14, KY0 + 22, "Event backbone — Kafka API (Redpanda) · 23 topics · per-service SASL/SCRAM logins and ACLs",
      size=13.5, weight="bold")
 lines(MX0 + 14, KY0 + 42, [
     ("m", "document.ingested (6 partitions) → worker · document.classified, vendor.matched → approval, contract, notification · "
@@ -226,7 +226,7 @@ text(doc + 46, BY1 + 40, "outbox ↓ / deliver() ↑", size=10.5, fill=MUTED)
 DY0, DY1 = 800, 896
 text(MX0, DY0 - 10, "DATA LAYER", size=11, weight="bold", fill=C["data"][1])
 data = [
-    (MX0, 380, "PostgreSQL 16 — one shared database", [
+    (MX0, 380, "PostgreSQL 16 + pgvector — one shared database", [
         "Business tables · audit_log · auth_users · business_rules",
         "event_outbox/inbox/dlq · event_log · Temporal's store",
         ("m", "Each service migrates its own tables"),
@@ -260,8 +260,8 @@ add(f'<text x="252" y="{(520 + DY0) // 2 + 40}" font-size="11" fill="{MUTED}" te
 IX0, IW = 30, 210
 text(IX0, 336, "DOCUMENT INPUTS", size=11, weight="bold", fill=C["client"][1])
 box(IX0, 346, IW, 62, "client")
-text(IX0 + 10, 366, "Drop folder ./inbox", size=12.5, weight="bold")
-lines(IX0 + 10, 384, [("m", "polled every 3 s by the worker;"), ("m", "→ processed/ or failed/")], size=10.6, gap=14)
+text(IX0 + 10, 366, "Drop folder ./inbox/input", size=12.5, weight="bold")
+lines(IX0 + 10, 384, [("m", "polled every 3 s by the worker;"), ("m", "→ processed/ or failed/ (+ reason)")], size=10.6, gap=14)
 box(IX0, 424, IW, 62, "client")
 text(IX0 + 10, 444, "Intake mailbox", size=12.5, weight="bold")
 lines(IX0 + 10, 462, [("m", "POP3/IMAP, read-only, every 30 s"), ("m", "(Mailpit in development)")], size=10.6, gap=14)
@@ -277,7 +277,7 @@ box(EX0, 296, EW, 448, "ext")
 ext = [
     ("ClamAV (clamd :3310)", "INSTREAM scan of every upload; fails closed", "document-vendor"),
     ("Mailpit / SMTP", "outgoing mail (dev | smtp) · POP3 intake", "auth, notification, doc worker"),
-    ("Ollama LLM (host :11434)", "/api/chat with tool calling", "chatbot"),
+    ("Ollama LLM (host :11434)", "llama3.2 answers · nomic-embed-text", "chatbot"),
     ("Frankfurter (ECB rates)", "currency → INR, rate stored once", "document-vendor"),
     ("Razorpay IFSC · gstincheck.co.in", "bank code lookup · GSTIN (quota-gated)", "document-vendor"),
     ("HaveIBeenPwned range API", "breached-password check (k-anonymity)", "auth"),

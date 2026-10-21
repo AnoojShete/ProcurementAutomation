@@ -4,3 +4,4 @@ pillow
 pytest
 pyjwt
 cryptography
+playwright

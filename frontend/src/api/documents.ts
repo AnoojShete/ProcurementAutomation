@@ -1,7 +1,20 @@
 import { api, downloadFile, fetchBlobUrl } from "./client";
 import type { BatchUploadResult, DocumentRecord, ReviewCorrectionBody } from "@/types/api";
 
+/** What one pipeline stage concluded about a document. */
+export interface StageResult {
+  stage_index: number;
+  agent_name: string;
+  confidence: number | null;
+  validation_status: string;
+  errors: string[];
+  warnings: string[];
+  duration_ms: number | null;
+  created_at: string | null;
+}
+
 export const documentsApi = {
+  validation: (id: string) => api.get<StageResult[]>(`/documents/${id}/validation`),
   list: (limit = 200) => api.get<DocumentRecord[]>(`/documents/?limit=${limit}`),
   reviewQueue: (limit = 50) => api.get<DocumentRecord[]>(`/documents/review-queue?limit=${limit}`),
   get: (id: string) => api.get<DocumentRecord>(`/documents/${id}`),

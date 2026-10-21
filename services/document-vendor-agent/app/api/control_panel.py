@@ -124,18 +124,37 @@ def drop_stage(r: dict) -> tuple[str, str]:
     return "processing", "Creating purchase request"
 
 
+def _failure_reason(log: str) -> str:
+    """The `reason:` line of a .error.txt (older files hold only the reason)."""
+    for line in log.splitlines():
+        if line.startswith("reason:"):
+            return line.removeprefix("reason:").strip()
+    return log.strip()
+
+
 @router.get("/inbox")
 async def get_inbox(limit: int = Query(20, ge=1, le=100), db: AsyncSession = Depends(get_db)):
     inbox = InboxFolder(settings.inbox_dir)
-    folder = {"mounted": inbox.root.is_dir(), "waiting": [], "failed": []}
+    folder = {"mounted": inbox.root.is_dir(), "waiting": [], "in_pipeline": [], "processed_count": 0,
+              "failed": [], "failed_count": 0,
+              "paths": {"input": "./inbox/input", "processed": "./inbox/processed", "failed": "./inbox/failed"}}
     if folder["mounted"]:
-        folder["waiting"] = [f.name for f in inbox.waiting()]
+        if inbox.input.is_dir():
+            folder["waiting"] = [f.name for f in inbox.waiting()]
+        # Legacy: files dropped straight into ./inbox until the worker moves them.
+        folder["waiting"] += [f.name for f in inbox._files(inbox.root)]
         if inbox.processing.is_dir():
             folder["waiting"] += [f.name for f in inbox.processing.iterdir() if f.is_file()]
+            folder["in_pipeline"] = [{"document_id": d, "name": f.name} for d, f in inbox.held()]
+        if inbox.processed.is_dir():
+            folder["processed_count"] = sum(1 for f in inbox.processed.iterdir() if f.is_file())
         if inbox.failed.is_dir():
-            errors = sorted(inbox.failed.glob("*.error.txt"), key=lambda f: f.stat().st_mtime, reverse=True)[:10]
+            all_errors = list(inbox.failed.glob("*.error.txt"))
+            folder["failed_count"] = len(all_errors)
+            errors = sorted(all_errors, key=lambda f: f.stat().st_mtime, reverse=True)[:10]
             folder["failed"] = [
-                {"name": e.name.removesuffix(".error.txt"), "reason": e.read_text().strip()} for e in errors
+                {"name": e.name.removesuffix(".error.txt"), "reason": _failure_reason(e.read_text())}
+                for e in errors
             ]
 
     rows = (await db.execute(_RECENT_DROPS, {"uploader": INBOX_UPLOADER, "limit": limit})).mappings().all()
@@ -147,7 +166,7 @@ async def get_inbox(limit: int = Query(20, ge=1, le=100), db: AsyncSession = Dep
         drops.append(r)
     return DataResponse(data={
         "enabled": settings.inbox_enabled,
-        "host_path": "./inbox",
+        "host_path": "./inbox/input",
         "poll_seconds": settings.inbox_poll_seconds,
         "uploader": INBOX_UPLOADER,
         "folder": folder,

@@ -6,7 +6,7 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services import routing, templating, email_service, log_service, digest_service
+from app.services import routing, template_store, email_service, log_service, digest_service
 from app.metrics import notification_sent_total
 
 logger = logging.getLogger(__name__)
@@ -28,20 +28,30 @@ async def notify(
 
     if priority == routing.URGENT:
         try:
-            subject, body = templating.render_template(template_name, context)
-            await email_service.send_email(recipient, subject, body)
-            await log_service.record(
-                db,
-                recipient=recipient,
-                event_type=event_type,
-                template_name=template_name,
-                subject=subject,
-                body=body,
-                priority=priority,
-                related_entity_id=related_entity_id,
-                status="sent",
-            )
-            notification_sent_total.labels(channel="email", status="sent").inc()
+            email = await template_store.render(db, template_name, context)
+            if not email.enabled:
+                # Turned off on the Control Panel: logged, not sent.
+                await log_service.record(
+                    db, recipient=recipient, event_type=event_type, template_name=template_name,
+                    subject=None, body=None, priority=priority, related_entity_id=related_entity_id,
+                    status="skipped", error="template turned off in the Control Panel",
+                )
+                return priority
+            # The routed recipient, plus any copies set on the template.
+            for to in [recipient] + [r for r in email.extra_recipients if r != recipient]:
+                await email_service.send_email(to, email.subject, email.body)
+                await log_service.record(
+                    db,
+                    recipient=to,
+                    event_type=event_type,
+                    template_name=template_name,
+                    subject=email.subject,
+                    body=email.body,
+                    priority=priority,
+                    related_entity_id=related_entity_id,
+                    status="sent",
+                )
+                notification_sent_total.labels(channel="email", status="sent").inc()
         except Exception as e:
             logger.error(f"Failed to send urgent notification for {event_type}: {e}", exc_info=True)
             await log_service.record(
@@ -57,6 +67,12 @@ async def notify(
                 error=str(e),
             )
             notification_sent_total.labels(channel="email", status="failed").inc()
+    elif not await template_store.is_enabled(db, template_name):
+        await log_service.record(
+            db, recipient=recipient, event_type=event_type, template_name=template_name,
+            subject=None, body=None, priority=priority, related_entity_id=related_entity_id,
+            status="skipped", error="template turned off in the Control Panel",
+        )
     else:
         await digest_service.enqueue(
             db,

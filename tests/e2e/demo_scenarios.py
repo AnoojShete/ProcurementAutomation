@@ -45,7 +45,7 @@ PASSWORD = "DemoPass123!"
 DEMO_VENDOR = "11111111-1111-1111-1111-111111111111"   # Acme IT Supplies Inc (seed-demo-data.sh)
 SHOTS = os.path.join(ROOT, "docs", "demo")
 HTML_OUT = os.path.join(ROOT, "docs", "index.html")   # the dashboard: this script writes its "Demo script" tab
-INBOX = os.path.join(ROOT, "inbox")
+INBOX = os.path.join(ROOT, "inbox", "input")
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -277,7 +277,7 @@ def s2_drop(c):
     doc = poll(lambda: next((d for d in c.api_get("admin", "/documents/?limit=30").json()["data"]
                              if d.get("original_filename") == name and d["status"] not in ("pending", "processing")), None),
                lambda d: d is not None, timeout=150, interval=3)
-    expect(doc, "file not picked up / not processed within 150 s (is the worker running? ./inbox mounted?)")
+    expect(doc, "file not picked up / not processed within 150 s (is the worker running? ./inbox/input mounted?)")
     c["s2_doc"] = doc["id"]
     expect(doc["status"] == "classified" and doc["document_type"] == "quote", f"{doc['status']} {doc['document_type']}")
     return f"₹{total:,.2f} quote · classified as quote · uploader inbox@procurement.local"
@@ -328,7 +328,7 @@ def s2_sign(c):
 
 
 s2.steps = [
-    Step("Copy a vendor quote into <code>./inbox</code> (here: a quote under ₹500 from a vendor the system has never seen). Watch Control Panel → Dropped files.",
+    Step("Copy a vendor quote into <code>./inbox/input</code> (here: a quote under ₹500 from a vendor the system has never seen). Watch Control Panel → Dropped files.",
          "Document & Vendor (inbox watcher, worker pipeline)", "document.ingested → document.classified, vendor.matched",
          "Within ~30 s the file is scanned, stored, read and classified as a <b>quote</b>; a new vendor is created from it.",
          s2_drop, ("admin", lambda c: f"/app/documents/{c['s2_doc']}", "text=Extracted Fields")),

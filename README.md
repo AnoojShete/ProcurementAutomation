@@ -87,7 +87,8 @@ dead-letter queue instead of losing them.
 | **Indian tax** | Every invoice's GST split, rate and arithmetic checked, its signed e-invoice QR verified offline, imported SaaS put under reverse charge, GSTR-2B reconciled; TDS kept with each booked invoice; MSME 45-day deadlines (rates to be confirmed by a CA) |
 | **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
 | **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
-| **Tested** | 1,209 unit tests across six services plus end-to-end runs through the gateway (invoice lifecycle **71/71**, GST **44/44**, risk **49/49**, assistant **20/20**, demo **28/28**) |
+| **One Control Panel** | Admins see the Input / Processed / Failed folders and every file's stage, the live event log, approval queues, every contract as *Pending E-Signature* or *E-Signature Complete* with its PDFs, and edit every notification email without a code change |
+| **Tested** | 1,261 unit tests across six services plus end-to-end runs through the gateway (invoice lifecycle **71/71**, GST **44/44**, risk **49/49**, assistant **20/20**, demo **28/28**) |
 
 ## Vendor Risk & Clearance Architecture (Prompt 9C)
 
@@ -179,11 +180,17 @@ are set up automatically.
 
 Open **http://localhost:8080** and sign in as `requester@demo.example.com`
 (password `DemoPass123!`), or `approver@…`, `finance@…`, `admin@…`. Light
-and dark themes are in Account settings.
+and dark themes are in Account settings. Drop a quote PDF into
+`./inbox/input` and follow it on **Control Panel** (admin).
 
 Deploying beyond one machine, backups and restore:
 [docs/index.html#deploy](docs/index.html#deploy). Every project document starts at
 [docs/index.html](docs/index.html).
+
+**Documentation site:** architecture, functional flow, every agent, APIs,
+configuration, deployment, testing and troubleshooting, built with MkDocs
+from [`docs/guide/`](docs/guide/index.md):
+`pip install -r requirements-docs.txt && mkdocs serve` (Python 3.9–3.13).
 
 ## Tech stack
 

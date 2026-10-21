@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Copy, Download, FileWarning } from "lucide-react";
 import { DocumentAmount } from "@/components/documents/DocumentAmount";
 import { TaxCheckSection } from "@/components/documents/TaxCheckSection";
+import { ExtractionDetails } from "@/components/documents/ExtractionDetails";
 import { DocumentControls } from "@/components/controls/DocumentControls";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
@@ -297,6 +298,8 @@ export function DocumentDetailPage() {
           )}
         </CardBody>
       </Card>
+
+      <ExtractionDetails doc={doc} />
     </div>
   );
 }

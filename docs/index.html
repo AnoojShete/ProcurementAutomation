@@ -579,6 +579,13 @@ const DELIVERABLES = [
     ["FR-13 Clause model", "ok"], ["FR-14 Sanctions screening", "ok"], ["FR-29 Trained classifier", "ok"],
     ["FR-31 Notification retry + DLQ", "ok"], ["FR-32 Licence model tuned", "ok"],
   ]},
+  { group: "Final checklist", color: "var(--notify)", items: [
+    ["Input / Processed / Failed folders", "ok"], ["Notifications at every approval stage", "ok"],
+    ["Templates edited in the Control Panel", "ok"], ["Contract + e-signature by email", "ok"],
+    ["E-signature tracking with PDFs", "ok"], ["Extracted fields, confidence, validation", "ok"],
+    ["Control Panel sections", "ok"], ["Architecture & functional flow diagrams", "ok"],
+    ["Presentation slides", "ok"], ["Standard docs + MkDocs site", "ok"],
+  ]},
 ];
 const W = { ok: 1, part: 0.5, plan: 0 };
 const sum = (items) => items.reduce((a, [, st]) => a + W[st], 0);

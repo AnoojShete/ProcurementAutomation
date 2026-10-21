@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models import NotificationDigestQueue
-from app.services import templating, email_service, log_service
+from app.services import template_store, email_service, log_service
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +78,10 @@ async def flush_due_digests(db: AsyncSession) -> int:
             for item in items
         ]
         try:
-            subject, body = templating.render_template(
-                "digest_summary", {"recipient": recipient, "entries": entries, "count": len(entries)}
+            email = await template_store.render(
+                db, "digest_summary", {"recipient": recipient, "entries": entries, "count": len(entries)}
             )
+            subject, body = email.subject, email.body
             await email_service.send_email(recipient, subject, body)
             status, error = "sent", None
         except Exception as e:

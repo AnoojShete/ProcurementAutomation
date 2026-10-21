@@ -11,9 +11,8 @@ engine = create_async_engine(
 )
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-MIGRATIONS_SQL_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "migrations", "0001_notification_tables.sql"
-)
+_MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "migrations")
+MIGRATIONS = ("0001_notification_tables.sql", "0002_notification_templates.sql")
 
 
 async def get_db():
@@ -25,14 +24,14 @@ async def get_db():
 async def init_db():
     """Test the database connection, then apply this service's own schema
     extensions on top of the shared schema (shared/db/init.sql is never
-    edited directly — see migrations/0001_notification_tables.sql). Every
-    statement in that file is idempotent (IF NOT EXISTS), matching the
+    edited directly — see migrations/, listed in MIGRATIONS). Every
+    statement in those files is idempotent (IF NOT EXISTS), matching the
     pattern in services/approval-inventory-agent/app/database.py."""
     async with engine.begin() as conn:
         pass
 
-    if os.path.exists(MIGRATIONS_SQL_PATH):
-        with open(MIGRATIONS_SQL_PATH) as f:
+    for migration in MIGRATIONS:
+        with open(os.path.join(_MIGRATIONS_DIR, migration)) as f:
             raw_sql = f.read()
         sql = "\n".join(
             line for line in raw_sql.splitlines() if not line.strip().startswith("--")

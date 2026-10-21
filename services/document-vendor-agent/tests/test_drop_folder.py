@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from app.api.control_panel import drop_stage
 from app.services import inbox_watcher
 from app.services.event_monitor import EventMonitor, summarize
-from app.services.inbox_watcher import InboxFolder, ingest_file
+from app.services.inbox_watcher import InboxFolder, ingest_file, settle
 from app.services.upload_service import InvalidUploadError, MalwareDetectedError, ScanUnavailableError
 from shared.drop_folder import INBOX_UPLOADER
 
@@ -39,7 +39,7 @@ def inbox(tmp_path):
 
 class TestInboxFolder:
     def test_file_is_ready_only_once_its_size_stops_changing(self, inbox):
-        f = inbox.root / "quote.pdf"
+        f = inbox.input / "quote.pdf"
         f.write_bytes(PDF)
         assert inbox.ready() == []  # first sighting: may still be copying
         assert inbox.ready() == [f]
@@ -48,12 +48,12 @@ class TestInboxFolder:
 
     def test_readme_hidden_and_partial_files_are_ignored(self, inbox):
         for name in ("README.md", ".DS_Store", "quote.pdf.part", "x.crdownload"):
-            (inbox.root / name).write_bytes(b"x")
+            (inbox.input / name).write_bytes(b"x")
         inbox.ready()
         assert inbox.ready() == []
 
     def test_claim_moves_the_file_and_a_second_claim_gets_nothing(self, inbox):
-        f = inbox.root / "quote.pdf"
+        f = inbox.input / "quote.pdf"
         f.write_bytes(PDF)
         claimed = inbox.claim(f)
         assert claimed == inbox.processing / "quote.pdf" and claimed.exists()
@@ -62,8 +62,23 @@ class TestInboxFolder:
     def test_recover_returns_files_left_mid_upload(self, inbox):
         (inbox.processing / "quote.pdf").write_bytes(PDF)
         inbox.recover()
-        assert (inbox.root / "quote.pdf").exists()
+        assert (inbox.input / "quote.pdf").exists()
         assert not any(inbox.processing.iterdir())
+
+    def test_recover_keeps_uploaded_files_waiting_on_the_pipeline(self, inbox):
+        held = inbox.processing / "doc-1"
+        held.mkdir()
+        (held / "quote.pdf").write_bytes(PDF)
+        inbox.recover()
+        assert inbox.held() == [("doc-1", held / "quote.pdf")]
+        assert not any(inbox.input.iterdir())
+
+    def test_files_dropped_in_the_old_place_move_to_input(self, inbox):
+        (inbox.root / "quote.pdf").write_bytes(PDF)
+        (inbox.root / "README.md").write_text("instructions")
+        inbox.recover()
+        assert (inbox.input / "quote.pdf").exists()
+        assert (inbox.root / "README.md").exists()  # the folder's own instructions stay
 
 
 def _session_factory():
@@ -76,11 +91,11 @@ def _session_factory():
 
 class TestIngestFile:
     def _claimed(self, inbox, data=PDF):
-        f = inbox.root / "quote.pdf"
+        f = inbox.input / "quote.pdf"
         f.write_bytes(data)
         return inbox.claim(f)
 
-    def test_clean_file_is_uploaded_as_the_drop_folder_and_moved_to_processed(self, inbox, monkeypatch):
+    def test_clean_file_is_uploaded_as_the_drop_folder_and_held_for_the_pipeline(self, inbox, monkeypatch):
         monkeypatch.setattr(inbox_watcher, "scan_upload", AsyncMock())
         store = AsyncMock(return_value=SimpleNamespace(id="0b0e5a4c-1111-2222-3333-444455556666"))
         monkeypatch.setattr(inbox_watcher, "store_and_record_upload", store)
@@ -88,12 +103,13 @@ class TestIngestFile:
 
         result = run(ingest_file(factory, "producer", inbox, self._claimed(inbox)))
 
-        assert result == "processed"
+        assert result == "uploaded"
         args = store.await_args.args
         assert args[2] == PDF and args[3] == "quote.pdf" and args[4] == "application/pdf"
         assert args[5] == INBOX_UPLOADER
-        [done] = inbox.processed.iterdir()
-        assert done.name.endswith("_0b0e5a4c_quote.pdf")
+        assert inbox.held() == [("0b0e5a4c-1111-2222-3333-444455556666",
+                                 inbox.processing / "0b0e5a4c-1111-2222-3333-444455556666" / "quote.pdf")]
+        assert not any(inbox.processed.iterdir())  # not until the pipeline finishes
 
     def test_malware_goes_to_failed_with_the_reason(self, inbox, monkeypatch):
         monkeypatch.setattr(inbox_watcher, "scan_upload", AsyncMock(side_effect=MalwareDetectedError("Eicar-Test")))
@@ -121,7 +137,7 @@ class TestIngestFile:
         monkeypatch.setattr(inbox_watcher, "scan_upload", AsyncMock(side_effect=ScanUnavailableError("down")))
         factory, _ = _session_factory()
         assert run(ingest_file(factory, "producer", inbox, self._claimed(inbox))) == "retry"
-        assert (inbox.root / "quote.pdf").exists()
+        assert (inbox.input / "quote.pdf").exists()
         assert not any(inbox.failed.iterdir())
 
     def test_oversized_file_is_rejected_before_scanning(self, inbox, monkeypatch):
@@ -131,6 +147,53 @@ class TestIngestFile:
         factory, _ = _session_factory()
         assert run(ingest_file(factory, "producer", inbox, self._claimed(inbox))) == "failed"
         scan.assert_not_awaited()
+
+
+def _held(inbox, document_id):
+    directory = inbox.processing / document_id
+    directory.mkdir()
+    (directory / "quote.pdf").write_bytes(PDF)
+
+
+def _status_factory(rows):
+    """Session factory whose documents lookup answers from {id: row | None}."""
+    factory, db = _session_factory()
+
+    async def execute(_query, params):
+        return SimpleNamespace(first=lambda: rows.get(params["id"]))
+
+    db.execute = execute
+    return factory
+
+
+class TestSettle:
+    def test_classified_document_moves_to_processed(self, inbox):
+        _held(inbox, "0b0e5a4c-aaaa")
+        factory = _status_factory({"0b0e5a4c-aaaa": SimpleNamespace(status="classified", error_message=None)})
+        assert run(settle(factory, inbox)) == {"0b0e5a4c-aaaa": "processed"}
+        [done] = inbox.processed.iterdir()
+        assert done.name.endswith("_0b0e5a4c_quote.pdf")
+        assert not any(inbox.processing.iterdir())
+
+    def test_failed_pipeline_moves_to_failed_with_its_error(self, inbox):
+        _held(inbox, "77aa0000-bbbb")
+        factory = _status_factory({"77aa0000-bbbb": SimpleNamespace(status="failed",
+                                                                     error_message="couldn't read any text")})
+        assert run(settle(factory, inbox)) == {"77aa0000-bbbb": "failed"}
+        log = next(inbox.failed.glob("*.error.txt")).read_text()
+        assert "reason:   couldn't read any text" in log and "document: 77aa0000-bbbb" in log
+        assert not any(inbox.processed.iterdir())
+
+    def test_document_still_processing_stays_held(self, inbox):
+        _held(inbox, "doc-busy")
+        factory = _status_factory({"doc-busy": SimpleNamespace(status="processing", error_message=None)})
+        assert run(settle(factory, inbox)) == {}
+        assert len(inbox.held()) == 1
+
+    def test_missing_document_record_is_a_failure(self, inbox):
+        _held(inbox, "doc-gone")
+        assert run(settle(_status_factory({}), inbox)) == {"doc-gone": "failed"}
+        assert "no document record" in next(inbox.failed.glob("*.error.txt")).read_text()
 
 
 class TestEventLog:

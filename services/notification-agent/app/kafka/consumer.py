@@ -19,6 +19,9 @@ import asyncio
 import logging
 import os
 import httpx
+from typing import Optional
+
+from sqlalchemy import text
 
 from aiokafka import AIOKafkaConsumer
 from shared.kafka_security import kafka_auth_kwargs
@@ -26,7 +29,7 @@ from shared.kafka_security import kafka_auth_kwargs
 from app.config import settings
 from app.database import async_session_factory
 from app.kafka.events import parse_envelope
-from app.services import dispatcher, directory, routing, templating
+from app.services import dispatcher, directory, routing, template_store
 
 from shared.infra.retry import with_retry
 from shared.logging.context import CorrelationContext
@@ -76,6 +79,7 @@ CONSUME_TOPICS = [
     "rfq.issued",                       # published by approval-inventory-agent
     "rfq.awarded",                      # published by approval-inventory-agent
     "goods.received",                   # published by approval-inventory-agent
+    "reminder.due",                     # published by all three agents (FR-03)
 ]
 
 
@@ -179,19 +183,18 @@ async def _handle_license_usage_updated(db, payload: dict):
     )
 
 
-async def _handle_approval_requested(db, payload: dict):
-    chain = payload.get("approval_chain") or []
-    candidate = chain[0] if chain else None
-    recipient = await directory.resolve_recipient(db, candidate)
-
+async def _send_approval_request(db, payload: dict, level: Optional[str], step_index: int):
+    """Asks the people holding `level` to decide, each with the portal link
+    and (when available) a one-click action link."""
     request_id = payload.get("request_id")
-    step_index = int(payload.get("step_index", 0))
-    approver_candidate = candidate or recipient
+    recipients = await directory.approvers_for_level(db, level, payload.get("amount"))
+    if not recipients:
+        recipients = [await directory.resolve_recipient(db, level)]
 
     # Prompt 8 B1: Mint email action URL at render time
     action_url, action_expires_at = await _mint_action_url(
         request_id=request_id,
-        approver_id=approver_candidate,
+        approver_id=level or recipients[0],
         step_index=step_index,
     )
 
@@ -203,17 +206,69 @@ async def _handle_approval_requested(db, payload: dict):
         context["action_url"] = None
 
     public_base_url = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8080").rstrip("/")
-    context["portal_url"] = f"{public_base_url}/app/requests/{request_id}"
+    context["portal_url"] = f"{public_base_url}/app/requests/{request_id}?step=approval"
 
-    await dispatcher.notify(
-        db,
-        event_type="approval.requested",
-        template_name="approval_requested",
-        context=context,
-        recipient=recipient,
-        related_entity_id=request_id,
-    )
+    for recipient in recipients:
+        await dispatcher.notify(
+            db,
+            event_type="approval.requested",
+            template_name="approval_requested",
+            context=context,
+            recipient=recipient,
+            related_entity_id=request_id,
+        )
 
+
+async def _handle_approval_requested(db, payload: dict):
+    chain = payload.get("approval_chain") or []
+    step_index = int(payload.get("step_index", 0))
+    level = chain[step_index] if step_index < len(chain) else (chain[0] if chain else None)
+    await _send_approval_request(db, payload, level, step_index)
+
+
+async def _ask_next_level(db, payload: dict) -> None:
+    """approval.decided is published per level; after an approval with
+    levels left, the next level's approvers are asked to decide."""
+    if payload.get("decision") != "approved":
+        return
+    chain, amount = await directory.approval_chain(db, payload.get("request_id"))
+    level = str(payload.get("decision_level") or "")  # "level_<n>_<approver level>"
+    parts = level.split("_", 2)
+    if len(parts) < 3 or parts[0] != "level" or not parts[1].isdigit():
+        return
+    next_index = int(parts[1])  # levels are 1-based, so this is the next one
+    if next_index >= len(chain):
+        return
+    row = (await db.execute(text(
+        "SELECT requested_by, department, currency, request_type, spend_tier, sla_deadline "
+        "FROM purchase_requests WHERE id = CAST(:r AS uuid)"
+    ), {"r": payload["request_id"]})).first()
+    if row is None:
+        return
+    await _send_approval_request(db, {
+        "request_id": payload["request_id"], "requested_by": row.requested_by, "department": row.department,
+        "amount": amount, "currency": row.currency or "INR", "request_type": row.request_type,
+        "spend_tier": row.spend_tier, "sla_deadline": _when(row.sla_deadline.isoformat()) if row.sla_deadline else "",
+        "approval_chain": chain, "step_index": next_index,
+    }, chain[next_index], next_index)
+
+
+async def _handle_reminder_due(db, payload: dict):
+    """An approval, signature, bank-detail check or review waiting too long
+    (shared/reminders.py): remind the people who can act on it."""
+    link = payload.get("link") or "/app"
+    context = {**payload, "item_url": _portal(link), "waiting_hours": round(float(payload.get("waiting_hours") or 0), 1),
+               "detail": payload.get("detail") or ""}
+    for recipient in await directory.reminder_recipients(db, payload):
+        await dispatcher.notify(
+            db,
+            event_type="reminder.due",
+            template_name="reminder_due",
+            context=context,
+            recipient=recipient,
+            related_entity_id=payload.get("entity_id"),
+            priority_override=routing.URGENT,
+        )
 
 
 async def _handle_approval_decided(db, payload: dict):
@@ -231,6 +286,7 @@ async def _handle_approval_decided(db, payload: dict):
         recipient=recipient,
         related_entity_id=payload.get("request_id"),
     )
+    await _ask_next_level(db, payload)
 
 
 async def _handle_contract_generated(db, payload: dict):
@@ -257,6 +313,18 @@ async def _handle_contract_signed(db, payload: dict):
         recipient=recipient,
         related_entity_id=payload.get("contract_id"),
     )
+    # The vendor hears it too (contact e-mail, else a placeholder address).
+    vendor_id = await directory.vendor_for_contract(db, payload.get("contract_id"))
+    if vendor_id:
+        await dispatcher.notify(
+            db,
+            event_type="contract.signed",
+            template_name="contract_signed_vendor",
+            context={**payload, "vendor_name": await directory.vendor_name(db, vendor_id) or "Supplier",
+                     "signed_at": _when(payload.get("signed_at")) or payload.get("signed_at")},
+            recipient=await directory.vendor_contact(db, vendor_id),
+            related_entity_id=payload.get("contract_id"),
+        )
 
 
 async def _handle_contract_renewal_due(db, payload: dict):
@@ -326,9 +394,13 @@ async def _handle_notification_send(db, payload: dict):
     requested_template = payload.get("template_name")
     template_context = payload.get("template_context") or {}
 
-    if requested_template and templating.template_exists(requested_template):
+    if requested_template and await template_store.exists(db, requested_template):
         template_name = requested_template
-        context = template_context
+        context = dict(template_context)
+        # Links into the app for templates about a contract.
+        if context.get("contract_id"):
+            context.setdefault("contract_url", _portal(f"/app/contracts/{context['contract_id']}"))
+            context.setdefault("sign_url", _portal(f"/app/contracts/{context['contract_id']}?action=sign"))
     else:
         template_name = "generic_fallback"
         context = {"template_name": requested_template or "(none specified)", "context": template_context}
@@ -435,6 +507,7 @@ _HANDLERS = {
     "license.usage.updated": _handle_license_usage_updated,
     "approval.requested": _handle_approval_requested,
     "approval.decided": _handle_approval_decided,
+    "reminder.due": _handle_reminder_due,
     "contract.generated": _handle_contract_generated,
     "contract.signed": _handle_contract_signed,
     "contract.renewal.due": _handle_contract_renewal_due,

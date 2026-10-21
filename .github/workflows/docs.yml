@@ -1,0 +1,38 @@
+name: Docs
+
+# Builds the MkDocs site on every push that touches the docs (a broken link
+# or missing page fails the build). Publishing to GitHub Pages runs only when
+# started by hand: Actions → Docs → Run workflow, with "deploy" ticked.
+on:
+  push:
+    paths: [ 'docs/guide/**', 'docs/assets/**', 'docs/showcase/**', 'mkdocs.yml', 'requirements-docs.txt', 'scripts/mkdocs_hooks.py' ]
+  pull_request:
+    paths: [ 'docs/guide/**', 'mkdocs.yml' ]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Publish to GitHub Pages
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-docs.txt
+      - run: mkdocs build --strict
+      - name: Publish to GitHub Pages (gh-pages branch)
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          mkdocs gh-deploy --force --no-history

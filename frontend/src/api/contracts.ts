@@ -3,7 +3,32 @@ import type {
   Contract, ContractObligation, ContractObligations, ContractTemplate, ObligationConfirm, ObligationType, SlaCredit,
 } from "@/types/api";
 
+/** One contract on the Control Panel's e-signature list. */
+export interface EsignDocument {
+  contract_id: string;
+  status: string;
+  status_label: string;
+  version: number | null;
+  template_used: string | null;
+  vendor_name: string | null;
+  request_id: string | null;
+  amount: number | null;
+  currency: string | null;
+  generated_at: string | null;
+  sent_at: string | null;
+  signer_email: string | null;
+  provider: string | null;
+  signed_at: string | null;
+  signed_by: string | null;
+  unsigned_pdf: string;
+  signed_pdf: string | null;
+  certificate: string | null;
+}
+
 export const contractsApi = {
+  /** Admin: every contract's e-signature state with its PDF links. */
+  esignDocuments: (status?: string) =>
+    api.get<EsignDocument[]>(`/contracts/esign/documents?limit=200${status ? `&status=${status}` : ""}`),
   list: (limit = 200) => api.get<Contract[]>(`/contracts/?limit=${limit}`),
   get: (id: string) => api.get<Contract>(`/contracts/${id}`),
   renewalsDue: (withinDays = 60) => api.get<Contract[]>(`/contracts/renewals-due?within_days=${withinDays}`),

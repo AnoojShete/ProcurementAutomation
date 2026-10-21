@@ -222,6 +222,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | DOCS-1 | Documentation: one dashboard for everything a person reads; fewer files | COMPLETE (Oct 21: `docs/index.html` is the only HTML file in docs/: a dashboard with nine tabs (Overview, Project status, Showcase, 5-minute demo, Demo script, Vendor risk, Codebase guide, Deployment, Competitors), each page kept whole in a template and rendered in its own frame; links between pages switch tabs; deep links `index.html#risk/findings`. Tool `scripts/docs_dashboard.py` (list / extract / put / build); `demo_scenarios.py` writes its tab; `tests/test_docs_dashboard.py` (13). Removed: eight separate HTML pages (now tabs), risk-model.md, results/risk-model.md, risk-merge-review.md, presentation-outline, roadmap-implementation-prompt, three UI working notes; architecture, model-routing, notifications and testing-strategy folded into readmeforme.md appendices. docs/ went from 32 files to 10 (plus image and result folders)) | P2 | — | `docs/index.html`, `scripts/docs_dashboard.py` | One place to start; no stale files | Docs |
 | NOTIF-1 | E-mails for the feature-expansion events: `budget.threshold_crossed`, `contract.obligation.due`, `rfq.issued`, `rfq.awarded`, `goods.received` | COMPLETE (Oct 21, at the user's request since Anooj is on other work: 6 templates, recipients from the budget owner / obligation owner / vendor contact / requester, priorities per event, ACLs; 81 notification tests; checked live in Mailpit) | P1 | — | notification-agent `kafka/consumer.py`, `services/routing.py`, `services/directory.py`, `templates/` | Each event reaches the right person with a readable e-mail | Core |
 | RISK-1 | Merge `updated_risk` (deterministic risk scorecard) into anjali and check its integration | COMPLETE (Oct 21: 15 errors fixed — duplicate Alembic revisions, module/package clash, migration writing `business_rules` with wrong columns (service couldn't start), 4 unseeded rules (auth `0018`), High-risk alerts silently off, 43 TypeScript errors, two endpoints always 500, risk e-mail template not rendering, vendor page calling a removed endpoint, scorecard page crashing the app, demo scenarios; `tests/e2e/risk_flow.py` 49/49; see `docs/index.html#risk/merge-review`) | P0 | — | contract-risk-agent `scorecard/`, `collectors/`, `risk_service.py`, `api/vendors.py`, `api/rulesets.py` | All suites green; demo 18/18 | Core |
+| CHK-1 | Fractal final checklist (A1–A7, B–F): Input/Processed/Failed folders, approval notifications, editable templates, contract + e-sign by email, e-sign tracking, field-extraction visibility, Control Panel sections, diagrams, slides, standard docs, MkDocs | COMPLETE (Oct 21; see Part B "CHK-1"). Needs the owner: GitHub Pages publishing, sharing the slide deck, team rehearsal | P0 | — | `inbox_watcher.py`, notification-agent `template_store.py` / `api/templates.py` / `consumer.py`, contract-risk `consumer.py` / `api/contracts.py`, `ControlPanelPage.tsx`, `docs/guide/`, `mkdocs.yml` | `docs/guide/reference/checklist.md` all rows checked | Core |
 | RISK-2 | Contract signing gate disagrees with `/clearance` (ignores post-score decisions and vendor status) | COMPLETE (Oct 21, FR-04: one clearance function `clearance.py` for both; a non-remediable override now blocks signing outright) | P1 | — | contract-risk `clearance.py`, `contract_service.signing_risk` | One clearance | Core |
 | RISK-3 | Merge-review G2–G11 (Unrated routing, provisional demo vendors, PSI schedule, access rules, outbox, reasons, narrative) | COMPLETE (Oct 21, FR-04: rule `approval.unrated_vendor_requires_finance` (off; migration 0020), country passed to the engine, PSI removed, `procurement` role removed and rulesets/report staff-only, risk events via the outbox, deciding reasons only, narrative/version fixed. Still true: external sources unreachable here, so live vendors stay provisional — see index.html#risk/limits) | P1 | — | contract-risk, approval-inventory | Each item decided | Core |
 | DUP-1 | Duplicate check misses a resubmitted invoice with a new number: it requires numbers ≥ 85 % similar (rule `vendor.duplicate_invoice_number_fuzzy_threshold`) | PENDING (decision; found Oct 19 by RS-06: most of the errors left among the best-scored invoices) | P1 | user | `duplicate_detection.py`, auth-service rule seed | Same vendor + amount + date window flags review whatever the number, or the trade-off is documented | Core |
@@ -263,6 +264,12 @@ better vendor-risk model, invoice-fraud detector, counterfactual
 explanations, LLM agent orchestration.
 
 ## A.6 Immediate next actions
+
+0. **CHK-1 follow-ups (owner)** — share the slide deck with the team; publish
+   the MkDocs site (Actions → Docs → Run workflow with deploy, then Settings →
+   Pages → `gh-pages`); `./scripts/reset-demo.sh` before the review (the
+   checklist checks left test data: `checklist_*` files, a ₹42,000 two-level
+   request, the Acme contract signed).
 
 (Oct 19: FR-27 mostly done, DEP-1 done, RS-01…06 and RS-09 done; see
 `docs/results/selective.md`.)
@@ -1268,6 +1275,46 @@ before any other roadmap item.
   through `shared/mailer.py` since Oct 11, SMTP with `EMAIL_MODE=smtp`.)*
 - [ ] Assistant/chatbot must call `/orders/summary/latest` with a staff or
   service token (requesters get 403).
+
+### CHK-1 — Fractal final checklist (Oct 21)
+
+- [x] **A1** `./inbox/input` · `processed/` · `failed/`. The watcher holds an
+  uploaded file in `.processing/<document id>/` until the pipeline ends
+  (`settle`), so a pipeline failure lands in `failed/` with
+  `<file>.error.txt` (file, time, document id, reason); files dropped in
+  `./inbox` are moved to `input/`. *Evidence:* `TestSettle` (4) fails with
+  the failure branch removed; live: quote → processed, blank PDF → failed
+  ("couldn't find any text"), `.txt` → failed (unsupported).
+- [x] **A2** approvers resolved through `approver_assignments`; next level
+  asked on a per-level `approval.decided`; `reminder.due` consumed (ACL
+  added — the doc said it existed, it didn't); vendor emailed on
+  `contract.signed`. *Evidence:* 7 tests in `test_expansion_notifications.py`
+  (next-level test fails with the call removed); live ₹42,000 request:
+  finance emailed after the manager approved.
+- [x] **A3** `notification_templates` (migration 0002) + admin API
+  `/notifications/templates` + Control Panel editor; sandboxed rendering,
+  placeholder check on save, fallback to the built-in, on/off, copy
+  recipients. *Evidence:* `test_template_store.py` (sandbox test fails with
+  a plain Environment); live edit received by signer and copy in Mailpit.
+- [x] **A4** signer's email: template `contract_ready_for_signature` didn't
+  exist (generic fallback went out) — added, with signing link. Contract
+  only after the **final** approval level (readmeforme Appendix A gap).
+  *Evidence:* `TestContractOnlyAfterFinalApproval` (fails with the guard
+  removed); live two-level request.
+- [x] **A5** `GET /contracts/esign/documents` + Control Panel tracker
+  (Pending E-Signature / E-Signature Complete, unsigned/signed PDF).
+- [x] **A6** `GET /documents/{id}/validation` (pipeline_checkpoints) +
+  document page: every field with confidence, per-stage validation.
+- [x] **A7** Control Panel sections (`?section=`), in the admin sidebar.
+- [x] **B/C** architecture diagram refreshed (RAG assistant, 17/23 topics,
+  pgvector); functional flow `docs/assets/functional-flow.mmd` →
+  `scripts/render_diagrams.py`.
+- [x] **D** slide deck (16 slides) made as a claude.ai Slides artifact,
+  downloadable as .pptx/PDF; private until the owner shares it.
+- [x] **E/F** MkDocs Material site `docs/guide/` (overall template + agent
+  template), `mkdocs build --strict` clean, `.github/workflows/docs.yml`
+  (build on push; Pages deploy only on manual run).
+- Suites Oct 21: services 1,261 passed; root 165 + 14; invoice_lifecycle 71/71; typecheck clean.
 
 ### UX-1 — UI pass (Oct 18)
 
