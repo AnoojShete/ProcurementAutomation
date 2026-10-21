@@ -98,7 +98,8 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   ],
   admin: [
     { label: "Overview", to: "/app", icon: LD, end: true },
-    { label: "Control Panel", to: "/app/control-panel", icon: RA },
+    { label: "Control Panel", to: "/app/control-panel", icon: RA },
+    { label: "Email Settings", to: "/app/email-settings", icon: Mail },
     { label: "Licenses", to: "/app/licenses", icon: BO },
     { label: "Requests", to: "/app/requests", icon: FT },
     { label: "Documents", to: "/app/documents", icon: FI },
@@ -116,7 +117,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
       label: "System",
       to: "/app/system",
       icon: SE,
-      match: SYSTEM_SECTIONS.map((s) => s.to).filter((to) => to !== "/app/control-panel"),
+      match: SYSTEM_SECTIONS.map((s) => s.to).filter((to) => to !== "/app/control-panel" && to !== "/app/email-settings"),
     },
   ],
 };

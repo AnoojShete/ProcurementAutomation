@@ -22,7 +22,8 @@ import { formatCountdown, formatCurrency, formatRelativeTime } from "@/lib/forma
 import { Tabs } from "@/components/ui/Tabs";
 import { StatusDot as StatusTag } from "@/components/ui/Badge";
 import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
-import { TemplateManager } from "@/components/notifications/TemplateManager";
+import { TemplateManager } from "@/components/notifications/TemplateManager";
+import { EmailSettingsPage } from "@/pages/admin/EmailSettingsPage";
 import { EsignTracker } from "@/components/contracts/EsignTracker";
 import { contractsApi } from "@/api/contracts";
 import { notificationsApi } from "@/api/notifications";
@@ -133,7 +134,8 @@ const SECTIONS = [
   { key: "documents", label: "Documents" },
   { key: "processing", label: "Processing and logs" },
   { key: "approvals", label: "Approvals" },
-  { key: "notifications", label: "Notifications" },
+  { key: "notifications", label: "Notifications" },
+  { key: "email", label: "Email Settings" },
   { key: "esign", label: "Contracts and e-signatures" },
   { key: "storage", label: "Storage" },
   { key: "admin", label: "Administration" },
@@ -222,6 +224,8 @@ export function ControlPanelPage() {
         </>
       )}
 
+      {section === "email" && <EmailSettingsPage onBack={() => go("overview")} />}
+
       {section === "esign" && (
         <>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
