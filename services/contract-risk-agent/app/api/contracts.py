@@ -181,6 +181,8 @@ async def sign_contract(
             user_agent=request.headers.get("user-agent"),
             risk_acknowledged=data.risk_acknowledged,
         )
+    except contract_service.VendorBlocked as e:
+        raise HTTPException(status_code=409, detail={"code": "vendor_blocked", "message": str(e)})
     except contract_service.RiskAcknowledgementRequired as e:
         raise HTTPException(status_code=409, detail={"code": "risk_acknowledgement_required", "message": str(e)})
     except contract_service.ContractGenerationError as e:

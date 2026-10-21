@@ -93,7 +93,7 @@ export interface PurchaseRequest {
 
 export type BudgetCategory = "hardware" | "software" | "saas" | "services";
 export type BudgetStatus = "within" | "warning" | "over" | "no_budget";
-export type BudgetRoutingReason = "over_budget" | "no_budget" | "high_risk_vendor" | "catalog_preapproved";
+export type BudgetRoutingReason = "over_budget" | "no_budget" | "high_risk_vendor" | "unrated_vendor" | "catalog_preapproved";
 
 export interface BudgetCheck {
   status?: BudgetStatus;
@@ -697,6 +697,9 @@ export interface SigningRisk {
   scored_at: string | null;
   acknowledgement_required: boolean;
   acknowledgement_reason: string | null;
+  /** A sanctions match or prohibited country: nobody can sign. */
+  signing_blocked?: boolean;
+  blocked_reason?: string | null;
 }
 
 // --- notification-agent ---

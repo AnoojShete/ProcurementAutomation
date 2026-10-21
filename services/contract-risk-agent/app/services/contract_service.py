@@ -42,8 +42,36 @@ class RiskAcknowledgementRequired(ContractGenerationError):
     """Signing for a High-risk (or never-scored) vendor without saying so."""
 
 
+class VendorBlocked(ContractGenerationError):
+    """Signing with a vendor under a non-remediable hard override (a
+    sanctions match or a prohibited country). No acknowledgement lifts it."""
+
+
 # BR-6: the signer must explicitly acknowledge these before signing.
-ACK_BANDS = ("High", "Unrated")
+
+
+ACK_MESSAGES = {
+    "vendor_not_rated": "Vendor risk checks are incomplete (Unrated).",
+    "rating_provisional": "Vendor risk checks are incomplete (Unrated).",
+    "high_risk_band": "The vendor's risk band is High.",
+    "decision_rejected": "A risk reviewer rejected this vendor.",
+    "approval_ineligible": "The vendor's approval no longer applies: its latest score is not assessed Low or Medium.",
+    "condition_overdue": "A condition of the vendor's approval is overdue.",
+    "risk_acceptance_expired": "The accepted risk for this vendor has expired.",
+}
+
+
+def _ack_reason(reasons: list, triggered: list) -> str:
+    if triggered or any(r.startswith("override_") for r in reasons):
+        named = "; ".join(o.get("reason") or o.get("check", "") for o in triggered) or \
+            ", ".join(r.removeprefix("override_") for r in reasons if r.startswith("override_"))
+        return f"Hard override: {named}."
+    for r in reasons:
+        if r in ACK_MESSAGES:
+            return ACK_MESSAGES[r]
+        if r.startswith("vendor_status_"):
+            return f"The vendor is not active (status {r.removeprefix('vendor_status_').split('_')[0]})."
+    return "Vendor clearance check failed."
 
 
 async def signing_risk(
@@ -52,76 +80,71 @@ async def signing_risk(
     spend_amount: Optional[float] = None,
     contract_id: Optional[str] = None,
 ) -> dict:
-    """The vendor's latest risk as the signer should see it: clearance, band, score,
-    reasons, triggered hard overrides, and whether signing needs an explicit acknowledgement (Prompt 9C Section C3).
-    """
+    """The vendor's latest risk as the signer should see it. Whether signing
+    needs an explicit acknowledgement is the clearance decision for
+    purpose=contract (app/services/clearance.py), so it agrees with
+    /clearance, including human decisions and vendor status
+    (merge review G1)."""
+    not_scored = {
+        "risk_band": None, "risk_score": None, "rating_status": "not_rated", "cleared": False,
+        "reasons": [], "overrides": [], "scored_at": None, "acknowledgement_required": True,
+        "clearance_reasons": [], "signing_blocked": False, "blocked_reason": None,
+    }
     if not vendor_id:
-        return {
-            "risk_band": None,
-            "risk_score": None,
-            "rating_status": "not_rated",
-            "cleared": False,
-            "reasons": [],
-            "overrides": [],
-            "scored_at": None,
-            "acknowledgement_required": True,
-            "acknowledgement_reason": "No vendor is linked to this contract, so its risk is unknown.",
-        }
+        return {**not_scored, "acknowledgement_reason": "No vendor is linked to this contract, so its risk is unknown."}
 
+    from app.services import clearance
     from app.services.risk_service import latest_risk_score
     row = await latest_risk_score(db, vendor_id)
     if row is None:
-        return {
-            "risk_band": None,
-            "risk_score": None,
-            "rating_status": "not_rated",
-            "cleared": False,
-            "reasons": [],
-            "overrides": [],
-            "scored_at": None,
-            "acknowledgement_required": True,
-            "acknowledgement_reason": "This vendor has not been risk-scored.",
-        }
+        return {**not_scored, "acknowledgement_reason": "This vendor has not been risk-scored."}
+    vendor, view, decision = await clearance.load(db, vendor_id)
+    if view is None:
+        view = clearance.score_view(row, set())
+    from shared.rules_engine import get_rule
+    result = clearance.decide(
+        view, decision, purpose="contract", spend_amount=spend_amount,
+        vendor_tier=getattr(vendor, "vendor_tier", None), vendor_status=getattr(vendor, "status", None),
+        petty_threshold=float(get_rule("risk.petty_threshold", fallback=50000.0)), now=datetime.now(timezone.utc))
 
-    band = getattr(row, "final_band", None) or getattr(row, "band", None) or "Unrated"
-    rating_status = getattr(row, "rating_status", None) or ("provisional" if getattr(row, "is_provisional", False) else "assessed")
-    score_val = float(row.score) if getattr(row, "score", None) is not None else None
-
-    # Check overrides
     triggered = []
-    if hasattr(row, "overrides") and isinstance(row.overrides, list):
+    if isinstance(getattr(row, "overrides", None), list):
         triggered = [o for o in row.overrides if isinstance(o, dict) and o.get("status") == "triggered"]
     elif getattr(row, "override_rule_ids", None):
         triggered = [{"check": oid, "status": "triggered", "reason": f"Override {oid}"} for oid in row.override_rule_ids]
 
-    # Needs ack if High, Unrated, or not cleared
-    needs = (band in ACK_BANDS) or (rating_status != "assessed") or bool(triggered)
-
-    ack_reason = None
-    if needs:
-        if triggered:
-            ack_reason = "Hard override: " + "; ".join(o.get("reason") or o["check"] for o in triggered) + "."
-        elif band == "High":
-            ack_reason = "The vendor's risk band is High."
-        elif band == "Unrated":
-            ack_reason = "Vendor risk checks are incomplete (Unrated)."
-        else:
-            ack_reason = f"Vendor clearance check failed (band={band}, rating_status={rating_status})."
-
+    needs = not result["cleared"]
+    hard = result.get("non_remediable_overrides") or []
     reasons = [f for f in (getattr(row, "details", None) or []) if not (isinstance(f, dict) and f.get("override"))]
-
     return {
-        "risk_band": band,
-        "risk_score": score_val,
-        "rating_status": rating_status,
-        "cleared": not needs,
-        "blocked_by": getattr(row, "blocked_by", []),
+        "risk_band": view.final_band,
+        "risk_score": view.score,
+        "rating_status": view.rating_status,
+        "cleared": result["cleared"],
+        "blocked_by": result["blocked_by"],
         "reasons": reasons,
         "overrides": triggered,
+        "clearance_reasons": result["reasons"],
         "scored_at": row.scored_at.isoformat() if getattr(row, "scored_at", None) else None,
         "acknowledgement_required": needs,
-        "acknowledgement_reason": ack_reason,
+        "acknowledgement_reason": _ack_reason(result["reasons"], triggered) if needs else None,
+        # Red-team finding: an acknowledgement used to let anyone sign with a
+        # sanctioned vendor. A non-remediable override blocks signing.
+        "signing_blocked": bool(hard),
+        "blocked_reason": (f"Signing is blocked: {', '.join(hard)} (a sanctions match or a prohibited country) applies "
+                           f"to this vendor. Only resolving it, e.g. an upheld dispute, can unblock it.") if hard else None,
     }
+
+
+async def _contract_amount(db: AsyncSession, contract) -> Optional[float]:
+    if not getattr(contract, "purchase_request_id", None):
+        return None
+    try:
+        value = (await db.execute(text("SELECT amount FROM purchase_requests WHERE id = :id"),
+                                  {"id": str(contract.purchase_request_id)})).scalar()
+        return float(value) if value is not None else None
+    except Exception:
+        return None
 
 
 async def _infer_template_name(db: AsyncSession, purchase_request_id: str) -> str:
@@ -513,7 +536,9 @@ async def sign_contract_digitally(
     provider_name = live_provider_ref(contract.esign_provider_ref)
     if provider_name:
         raise ContractGenerationError(f"this contract is out for signature in {provider_name}; it completes there")
-    risk = await signing_risk(db, contract.vendor_id)
+    risk = await signing_risk(db, contract.vendor_id, spend_amount=await _contract_amount(db, contract))
+    if risk.get("signing_blocked"):
+        raise VendorBlocked(risk["blocked_reason"])
     if risk["acknowledgement_required"] and not risk_acknowledged:
         raise RiskAcknowledgementRequired(
             f"{risk['acknowledgement_reason']} Acknowledge the vendor's risk before signing.")

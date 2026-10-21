@@ -23,6 +23,7 @@ const ROUTING_LABELS: Record<BudgetRoutingReason, string> = {
   over_budget: "over budget",
   no_budget: "no budget set",
   high_risk_vendor: "high-risk vendor",
+  unrated_vendor: "vendor not yet rated",
   catalog_preapproved: "pre-approved catalog price",
 };
 

@@ -36,7 +36,9 @@ export function VendorRiskPanel({ risk, compact = false }: { risk: SigningRisk; 
           Main factors: {risk.reasons.map((r) => titleCase(r.feature)).join(", ")}
         </p>
       )}
-      {alarming && (
+      {risk.signing_blocked ? (
+        <p className="mt-2 text-13 font-medium text-danger-700">{risk.blocked_reason}</p>
+      ) : alarming && (
         <p className="mt-2 text-xs text-slate-700">
           {risk.overrides.length ? "" : `${risk.acknowledgement_reason ?? ""} `}Signing needs an explicit acknowledgement.
         </p>

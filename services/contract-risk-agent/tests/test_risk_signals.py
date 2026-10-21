@@ -96,22 +96,3 @@ async def test_scoring_collects_fresh_signals_first():
         with pytest.raises(RuntimeError):
             await risk_service.score_vendor(db, None, "v1")
     assert order == ["collect", "evaluate"]
-
-
-@pytest.mark.asyncio
-async def test_drift_compares_informed_vendors_only(tmp_path):
-    """Low-signal vendors are left out of the drift check and counted."""
-    import json
-    from app.services import drift_service
-    baseline = tmp_path / "baseline.json"
-    baseline.write_text(json.dumps({"bin_edges": [0, 0.5, 1], "counts": [50, 50], "n_samples": 100}))
-    rows = MagicMock()
-    rows.all.return_value = [SimpleNamespace(score=0.3, signals_used=4), SimpleNamespace(score=0.6, signals_used=6),
-                             SimpleNamespace(score=0.45, signals_used=0), SimpleNamespace(score=0.45, signals_used=None)]
-    db = AsyncMock()
-    db.execute.return_value = rows
-    with patch.object(drift_service, "BASELINE_PATH", str(baseline)), \
-            patch.object(drift_service, "load_drift_config", return_value={"min_outcomes_for_check": 5}):
-        result = await drift_service.check_drift(db)
-    assert result["checked"] is False and result["excluded_low_signal_scores"] == 2
-    assert "only 2 vendors scored on ≥ 3 signals" in result["reason"]

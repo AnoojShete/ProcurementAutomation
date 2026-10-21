@@ -1,7 +1,7 @@
 # Feature expansion plan: closing the gaps with commercial suites
 
 Status (21 October 2026): **Phases 1, 2, 3 and 4 built** (see their sections); Phases 5–8 are proposals.
-Inputs: [competitive-analysis.md](competitive-analysis.md) (Coupa, Zapro, SAP
+Inputs: [competitive-analysis.html](competitive-analysis.html) (Coupa, Zapro, SAP
 Ariba, Ivalua, TYASuite) and Zoho's buyer's guide
 (https://www.zoho.com/procurement/academy/procurement-software.html), which
 adds sourcing depth (multi-round events, weighted scoring, sealed bids,

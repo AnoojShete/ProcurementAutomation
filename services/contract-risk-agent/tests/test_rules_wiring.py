@@ -97,36 +97,6 @@ def test_contract_signature_reminder_days(rule):
     assert _signature_reminders_sent() == 0
 
 
-def _drift(tmp_path):
-    from app.services import drift_service
-    baseline = tmp_path / "b.json"
-    baseline.write_text(json.dumps({"bin_edges": [0, 0.5, 1], "counts": [50, 50], "n_samples": 100}))
-    rows = MagicMock(all=MagicMock(return_value=[SimpleNamespace(score=0.3, signals_used=6)] * 7
-                                   + [SimpleNamespace(score=0.7, signals_used=6)] * 3))
-    db = AsyncMock()
-    db.execute.return_value = rows
-    with patch.object(drift_service, "BASELINE_PATH", str(baseline)), \
-            patch.object(drift_service, "load_drift_config", return_value={"min_outcomes_for_check": 5}), \
-            patch.object(drift_service, "_log_to_mlflow", lambda *a: None):
-        return run(drift_service.check_drift(db))     # PSI here ≈ 0.17
-
-
-def test_risk_psi_significant_threshold(rule, tmp_path):
-    rule("risk.psi_moderate_threshold", 0.01)
-    rule("risk.psi_significant_threshold", 0.2)
-    assert _drift(tmp_path)["model_drift_detected"] is False
-    rule("risk.psi_significant_threshold", 0.1)
-    assert _drift(tmp_path)["model_drift_detected"] is True
-
-
-def test_risk_psi_moderate_threshold(rule, tmp_path):
-    rule("risk.psi_significant_threshold", 0.9)
-    rule("risk.psi_moderate_threshold", 0.2)
-    assert _drift(tmp_path)["moderate_drift_detected"] is False
-    rule("risk.psi_moderate_threshold", 0.1)
-    assert _drift(tmp_path)["moderate_drift_detected"] is True
-
-
 def _clause_route(found):
     """Routes with the Legal-BERT path stubbed to return `found`."""
     from app.services import clause_router
@@ -239,8 +209,8 @@ def test_contract_sla_credit_auto_expect(rule):
 
 def _clearance(spend):
     from app.api import vendors as api
-    vendor = SimpleNamespace(id="v1", vendor_tier="low", status="active")
-    score = SimpleNamespace(rating_status="provisional", is_provisional=True, final_band="Low", band="Low", points_band="Low",
+    vendor = SimpleNamespace(id="v1", vendor_tier="petty", status="active")
+    score = SimpleNamespace(id="s1", rating_status="provisional", is_provisional=True, final_band="Low", band="Low", points_band="Low",
                             blocked_by=[], override_rule_ids=[], provisional_reasons=["incidents"], score=None)
     db = AsyncMock()
     db.get = AsyncMock(return_value=vendor)

@@ -360,7 +360,10 @@ def evaluate_risk(
 
     if assessed_share_pct == 0:
         rating_status = "not_rated"
-    elif assessed_share_pct == 100 and all_required_satisfied:
+    elif assessed_share_pct == 100 and all_required_satisfied and vendor_country:
+        # Without the country of incorporation the jurisdiction and GST rules
+        # can't be trusted, so the rating stays provisional (red-team finding:
+        # it used to be noted as a reason yet rated assessed Low).
         rating_status = "assessed"
     else:
         rating_status = "provisional"
@@ -443,7 +446,7 @@ def evaluate_risk(
     unassessed_sentence = f" {unassessed_potential_points} unassessed potential points remaining." if unassessed_potential_points > 0 else ""
     arithmetic_line = (
         f"Total = {non_zero_str} = {total_points}. Bands: Low 0-24, Medium 25-49, High 50+. "
-        f"Result {points_band}.{override_sentence}{unassessed_sentence}"
+        f"Points band {points_band}; result {final_band}.{override_sentence}{unassessed_sentence}"
     )
     thought_steps.append({
         "step": len(groups_def) + 1,
@@ -561,7 +564,9 @@ def evaluate_risk(
         "change_since_last": change_since_last,
         "audit": {
             "assessed_at": assessed_at.isoformat(),
-            "ruleset_version": ruleset.get("version", 2),
+            # The governance version of the active ruleset (what GET /risk
+            # reports), not the definition's schema version (G11).
+            "ruleset_version": vendor_context.get("ruleset_version", ruleset.get("version", 2)),
             "definition_hash": definition_hash,
             "snapshot_sha256": snapshot_hash,
             "observation_ids": observation_ids,

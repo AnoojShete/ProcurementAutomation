@@ -1,9 +1,10 @@
 # Design direction: three concepts, one choice, and the spec
 
-Phases 4–5 of the UI redesign task (17 Oct 2026). Inputs:
-[ui-research.md](ui-research.md) (sources) and [ui-audit.md](ui-audit.md)
-(problems H1–H7, M1–M8, L1–L7). The build order is in
-[ui-implementation-plan.md](ui-implementation-plan.md).
+Phases 4–5 of the UI redesign task (17 Oct 2026, built as UX-1). The research
+notes, the audit (problems H1–H7, M1–M8, L1–L7) and the build plan it came from
+were working documents; they were removed on 21 Oct 2026 once the redesign was
+built and are in the git history (`git log -- docs/ui-audit.md`). This file is
+the spec new UI code follows.
 
 Every colour pair quoted below was measured with the WCAG 2 contrast formula.
 Ratios are against the named background. Every font named was checked for

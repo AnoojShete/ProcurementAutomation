@@ -1,5 +1,6 @@
-"""Demo script (FR-05): five scenarios a reviewer can run by hand from a
-fresh stack, and this script runs them for real first.
+"""Demo script (FR-05): eight scenarios a reviewer can run by hand from a
+fresh stack, and this script runs them for real first: the core flows (1-5),
+the risk red-team controls (6), the GST check (7) and the assistant (8).
 
 Each step says what to do in the app, which agent acts and which event it
 sends, and what you should see. The script performs the same step through
@@ -10,7 +11,7 @@ app does, and a broken pipeline shows up as a red row.
 
     ./run.sh && ./scripts/seed-demo-data.sh
     pip install -r tests/e2e/requirements.txt playwright
-    python tests/e2e/demo_scenarios.py              # all five (~4 min)
+    python tests/e2e/demo_scenarios.py              # all eight (~8 min)
     python tests/e2e/demo_scenarios.py 2 3          # some
     python tests/e2e/demo_scenarios.py --no-screens # checks + HTML only
 
@@ -35,6 +36,7 @@ import requests
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "services", "document-vendor-agent", "scripts"))
 from synthetic_invoice_lib import build_pdf_bytes, render_document  # noqa: E402
+from gst_invoice_lib import build_pdf, gst_invoice  # noqa: E402,F401  (scenario 7)
 
 BASE = os.getenv("GATEWAY", "http://localhost:8080")
 GW = BASE + "/api"
@@ -533,6 +535,209 @@ s5.steps = [
 ]
 
 
+# ── 6. Risk red team: controls that hold ───────────────────────────────────
+
+s6 = scenario(6, "Risk red team: a sanctioned vendor can't get through",
+              "Hard overrides decide on their own: a sanctions match makes the vendor High and blocks it; an admin can't accept that risk and nobody can sign with it. The whole red-team set passes against the real scorecard.",
+              "finance → admin → requester → approver → finance", 4)
+
+
+def s6_vendor(c):
+    vendors = c.api_get("admin", "/vendors/?limit=500").json()["data"]
+    listed = next((v for v in vendors if "rosoboronexport" in v["name"].lower()), None)
+    if listed is None:
+        r = c.api_post("finance", "/vendors/onboard", json={
+            "name": "Rosoboronexport OJSC", "contact_email": "info@rosoboronexport.example", "category": "Hardware",
+            "country": "RU", "confirm": ["no_gstin"], "no_gstin_reason": "Foreign vendor (Russia), not registered for GST in India"})
+        expect(r.status_code == 201, f"onboarding: {r.status_code} {r.text[:200]}")
+        d = r.json()["data"]
+        listed = d if "id" in d else d["vendor"]
+    c["s6_vendor"] = listed["id"]
+    c.api_post("finance", f"/vendors/{listed['id']}/risk/recompute", json={})
+    gate = poll(lambda: c.api_get("finance", f"/vendors/{listed['id']}/clearance?purpose=purchase").json()["data"],
+                lambda g: "R-SAN-01" in (g.get("overrides_active") or []), timeout=60)
+    expect(gate and gate["final_band"] == "High" and gate["cleared"] is False and "R-SAN-01" in gate["non_remediable_overrides"],
+           f"sanctions override not active (is the sanctions list downloaded? ./scripts/download-sanctions.sh): {gate}")
+    return f"High · override R-SAN-01 (sanctions match, non-remediable) · not cleared ({', '.join(gate['reasons'])})"
+
+
+def s6_accept(c):
+    r = c.api_post("admin", f"/vendors/{c['s6_vendor']}/decisions",
+                   json={"decision": "accept_risk", "justification": "Strategic supplier, accepting for this quarter"})
+    expect(r.status_code == 400 and "non_remediable_override" in r.text, f"accept risk was not refused: {r.status_code} {r.text[:200]}")
+    gate = c.api_get("finance", f"/vendors/{c['s6_vendor']}/clearance?purpose=purchase").json()["data"]
+    expect(gate["cleared"] is False, gate)
+    return "admin's accept risk → refused (400 non_remediable_override) · still not cleared"
+
+
+def s6_sign(c):
+    r = c.api_post("requester", "/requests/", json={
+        "request_type": "hardware", "department": "Facilities", "amount": 3800, "currency": "INR", "vendor_id": c["s6_vendor"],
+        "items": [{"description": "Rugged field tablet", "quantity": 1, "unit_price": 3800}],
+        "comments": f"Demo scenario 6 ({c['run']})"})
+    expect(r.status_code == 200, r.text[:200])
+    pr = r.json()["data"]["id"]
+    for role in ("approver", "finance"):
+        if request_of(c, pr)["status"] == "pending_approval":
+            c.api_post(role, f"/requests/{pr}/approve", json={"comments": "demo"})
+            time.sleep(2)
+    ct = poll(lambda: contract_for(c, pr), lambda x: x and x["status"] in ("pending_signature", "draft"), timeout=60)
+    expect(ct, "no contract generated")
+    c["s6_contract"] = ct["id"]
+    risk = c.api_get("finance", f"/contracts/{ct['id']}").json()["data"].get("vendor_risk") or {}
+    expect(risk.get("signing_blocked") is True, f"risk panel doesn't block signing: {risk}")
+    r = sign(c, ct["id"], acknowledge=True)
+    expect(r.status_code == 409 and "vendor_blocked" in r.text, f"signed with a sanctioned vendor: {r.status_code} {r.text[:200]}")
+    return "contract generated · signing with the acknowledgement ticked → refused (409 vendor_blocked)"
+
+
+def s6_redteam(c):
+    import json as _json
+    import subprocess
+    image = os.getenv("CONTRACT_RISK_IMAGE", "procurementautomation-contract-risk-agent")
+    svc = os.path.join(ROOT, "services", "contract-risk-agent")
+    out = subprocess.run(["docker", "run", "--rm", "-e", "APP_ENV=development", "-v", f"{svc}:/app",
+                          "-v", f"{ROOT}/shared:/app/shared", "-v", f"{ROOT}/docs:/docs", "-w", "/app",
+                          "--entrypoint", "python", image, "ml/redteam_scorecard.py"], capture_output=True, text=True, timeout=180)
+    last = [l for l in out.stdout.splitlines() if "profiles as expected" in l]
+    expect(out.returncode == 0 and last, f"red-team run failed: {(out.stdout or out.stderr)[-300:]}")
+    return last[0].strip()
+
+
+s6.steps = [
+    Step("As <b>finance</b>: Vendors → <i>Rosoboronexport OJSC</i> (a name on the consolidated sanctions list) → Full risk scorecard → Recompute Rating.",
+         "Contract & Risk", "risk.score.updated",
+         "Rating <b>High</b> because rule <b>R-SAN-01</b> (sanctions match) fired, whatever the points; the clearance check says <b>not cleared</b>.",
+         s6_vendor, ("finance", lambda c: f"/app/vendors/{c['s6_vendor']}/risk", "text=Recompute Rating")),
+    Step("As <b>admin</b>: vendor page → Record decision → <i>Accept risk</i> for 30 days, with a justification.",
+         "Contract & Risk", "— (refused)",
+         "<b>Refused</b>: a sanctions match (or a prohibited country) can't be accepted; only resolving it, e.g. an upheld dispute, changes the rating.",
+         s6_accept, None),
+    Step("As <b>requester</b>: a ₹3,800 request for that vendor; as <b>approver</b>: approve. As <b>finance</b>: open the contract → Sign now, tick the risk acknowledgement.",
+         "Approval & Inventory → Contract & Risk", "approval.decided, contract.generated",
+         "The Vendor risk panel says <b>signing is blocked</b>; signing is refused even with the acknowledgement.",
+         s6_sign, ("finance", lambda c: f"/app/contracts/{c['s6_contract']}", "text=Vendor risk")),
+    Step("(Presenter's terminal) <code>docker run … contract-risk-agent ml/redteam_scorecard.py</code>: 22 attack profiles through the real scorecard and clearance code.",
+         "Contract & Risk (offline)", "—",
+         "<b>22/22 profiles as expected</b>: sanctions behind a perfect record, accept-risk on a sanctions match, missing data shown as Low, stale checks, petty-purchase abuse, old approvals… (table in <a href=\"risk-model.html\">risk-model.html</a>).",
+         s6_redteam, None),
+]
+
+
+# ── 7. Indian tax: the GST check of an invoice ─────────────────────────────
+
+s7 = scenario(7, "Indian tax: an invoice's GST is checked as it's read",
+              "Every invoice's GST split, rate, totals and signed e-invoice QR are checked; a wrong one goes to review without touching its confidence score.",
+              "finance", 3)
+
+GST_BUYER = "29AAACA1234B1ZE"
+
+
+def _gst_seller(c):
+    return {"name": f"{brand(c['rng'])} Infotech Pvt Ltd", "gstin": "29AABCD5678E1ZG"}
+
+
+def s7_flagged(c):
+    from gst_invoice_lib import build_pdf, gst_invoice
+    c["s7_seller"] = _gst_seller(c)
+    items = [{"name": "IT support retainer", "hsn": "998313", "quantity": 1, "unit_price": 50000.0}]
+    lines, _, _ = gst_invoice(c["s7_seller"], GST_BUYER, f"INV-{c['run']}-G1", date.today(), items, split="inter")
+    doc_id = upload(c, "finance", f"gst_igst_{c['run']}.pdf", build_pdf(lines))
+    d = poll(lambda: doc_of(c, doc_id), lambda x: x["status"] not in ("pending", "processing"), timeout=180)
+    tax = d.get("tax_check") or {}
+    expect(tax.get("status") == "flagged" and d["needs_review"], f"not flagged: {tax.get('status')} {tax.get('issues')}")
+    c["s7_flagged"] = doc_id
+    return f"flagged: {tax['issues'][0]}"
+
+
+def s7_einvoice(c):
+    from gst_invoice_lib import build_pdf, demo_signing_key, gst_invoice
+    items = [{"name": "IT support retainer", "hsn": "998313", "quantity": 1, "unit_price": 50000.0}]
+    lines, _, qr = gst_invoice(c["s7_seller"], GST_BUYER, f"INV-{c['run']}-G2", date.today(), items, sign_with=demo_signing_key())
+    doc_id = upload(c, "finance", f"gst_einvoice_{c['run']}.pdf", build_pdf(lines, qr))
+    d = poll(lambda: doc_of(c, doc_id), lambda x: x["status"] not in ("pending", "processing"), timeout=180)
+    tax = d.get("tax_check") or {}
+    expect(tax.get("status") == "ok" and (tax.get("einvoice") or {}).get("verified") is True, f"{tax.get('status')} {tax.get('einvoice')}")
+    c["s7_ok"] = doc_id
+    return "GST correct (CGST + SGST within Karnataka, 18 % for SAC 998313) · e-invoice QR signature verified"
+
+
+def s7_page(c):
+    s = c.api_get("finance", "/gst/summary").json()["data"]
+    expect(s["by_status"]["flagged"] >= 1 and s["by_status"]["ok"] >= 1, s["by_status"])
+    return f"this month: {s['invoices']} invoices checked, {s['by_status']['flagged']} with a GST problem"
+
+
+s7.steps = [
+    Step("As <b>finance</b>: Documents → Upload an invoice from a Karnataka supplier that charges <b>IGST</b> (a supply within the state).",
+         "Document & Vendor", "document.classified, invoice.tax_flagged",
+         "Status <b>Needs review</b>; the <b>GST check</b> panel says <i>expected CGST + SGST, found IGST</i>. The confidence score is unchanged.",
+         s7_flagged, ("finance", lambda c: f"/app/documents/{c['s7_flagged']}", "h2:text-is('GST check')")),
+    Step("Upload the same supplier's correct <b>e-invoice</b> (CGST + SGST, signed QR code).",
+         "Document & Vendor", "document.classified",
+         "<b>GST correct</b>; every check green, <b>E-invoice QR: Verified</b> (the portal's signature checked offline).",
+         s7_einvoice, ("finance", lambda c: f"/app/documents/{c['s7_ok']}", "h2:text-is('GST check')")),
+    Step("Open <b>GST and TDS</b> (left menu).",
+         "Document & Vendor + Approval & Inventory", "—",
+         "The month's figures: invoices checked, GST problems, input tax, reverse charge payable; each invoice with its check; GSTR-2B upload; TDS and MSME tab.",
+         s7_page, ("finance", lambda c: "/app/gst", "text=Invoices this month")),
+]
+
+
+# ── 8. Ask the assistant ───────────────────────────────────────────────────
+
+s8 = scenario(8, "Ask the assistant",
+              "The assistant understands conversation (greetings, 'like what', remarks), answers from live records with evidence, and keeps each user's limits.",
+              "requester → finance", 3)
+
+
+def _chat(c, role, *turns):
+    session, answer = None, ""
+    for t in turns:
+        r = c.api_post(role, "/chat/", json={"message": t, "session_id": session})
+        expect(r.status_code == 200, f"chat: {r.status_code} {r.text[:150]}")
+        body = r.json().get("data") or r.json()
+        session, answer = body.get("session_id"), body.get("message", "")
+    return answer
+
+
+def s8_conversation(c):
+    hi = _chat(c, "requester", "hi")
+    expect(hi.lower().startswith("hi") and "?" in hi, hi[:150])
+    more = _chat(c, "requester", "hi", "like what")
+    expect("things you could ask" in more, more[:150])
+    remark = _chat(c, "requester", "sure procurement is easy like vendors")
+    expect("no record" not in remark.lower() and "vendor" in remark.lower(), remark[:150])
+    return "greeting with examples · 'like what' gives new examples · a remark about vendors offers vendor questions"
+
+
+def s8_licences(c):
+    a = _chat(c, "finance", "Are there any SaaS license anomalies?")
+    expect(("0.39" in a) and ("What to do" in a) and "license.anomaly" not in a, a[:200])
+    return a.splitlines()[0][:160]
+
+
+def s8_limits(c):
+    a = _chat(c, "requester", "Which software licences have unassigned seats we could reclaim?")
+    expect("approvers, finance and admins" in a, a[:150])
+    return "requester asking about licences → told it's for approvers, finance and admins"
+
+
+s8.steps = [
+    Step("As <b>requester</b>: open the assistant (bottom right) → <i>hi</i>, then <i>like what</i>, then <i>sure procurement is easy like vendors</i>.",
+         "Assistant", "—",
+         "A natural greeting with example questions; fresh examples for <i>like what</i>; the remark is taken as a remark (vendor questions offered), not a lookup for a vendor called “sure procurement”.",
+         s8_conversation, None),
+    Step("As <b>finance</b>: <i>Are there any SaaS license anomalies?</i>",
+         "Assistant + Approval & Inventory", "—",
+         "A yes/no from <b>live</b> licence scores, how detection works, the current threshold (0.39, a business rule), the licences closest to it and what to do next.",
+         s8_licences, None),
+    Step("As <b>requester</b>: <i>Which software licences have unassigned seats we could reclaim?</i>",
+         "Assistant", "—", "Licences are staff-only: the assistant says so and offers what the requester can ask.",
+         s8_limits, None),
+]
+
+
 # ── run ────────────────────────────────────────────────────────────────────
 
 class Browser:
@@ -672,14 +877,16 @@ def write_html(ran, run_id):
 </style></head>
 <body><div class="page">
   <h1>Demo script</h1>
-  <p class="muted">Five scenarios, each step: what to do, which agent acts and what event it sends, and what you should see. Generated by <code>tests/e2e/demo_scenarios.py</code>, which performs every step on the running stack first — the result and screenshot in each row are from that run.</p>
+  <p class="muted">Eight scenarios: the core flows (1–5), the risk red team (6), Indian tax (7) and the assistant (8). Each step: what to do, which agent acts and what event it sends, and what you should see. Generated by <code>tests/e2e/demo_scenarios.py</code>, which performs every step on the running stack first — the result and screenshot in each row are from that run.</p>
   <div class="card"><b>Last verified:</b> {stamp} (run <code>{run_id}</code>) · <span class="sum">{ok} / {len(steps)} steps as described</span>
     · see also <a href="showcase.html">showcase.html</a> (what to say) and <a href="project-flow.html">project-flow.html</a> (status)</div>
   <div class="card"><b>Before you start</b> — from a fresh clone:
 <pre>./run.sh                              # first run builds everything
 ./scripts/seed-demo-data.sh           # demo accounts (password DemoPass123!), demo vendor, licences, stock
 ./scripts/download-models.sh          # optional: LayoutLMv3 + Legal-BERT
-python tests/e2e/demo_scenarios.py    # optional: run all five once and refresh this page (~4 min)</pre>
+./scripts/download-sanctions.sh       # scenario 6: the consolidated sanctions list
+ollama pull llama3.2:3b nomic-embed-text   # scenario 8: the assistant's models
+python tests/e2e/demo_scenarios.py    # optional: run all eight once and refresh this page (~8 min)</pre>
   Log in at <a href="http://localhost:8080">localhost:8080</a> as <code>requester@</code>, <code>approver@</code>, <code>finance@</code> or <code>admin@demo.example.com</code>. Use a private window per role. Scenario 3 continues scenario 2's order; scenario 5 continues scenario 4's vendor. If a row here is red, that step is broken on this machine — fix or skip it before presenting.</div>
   <nav class="toc">{''.join(f'<a href="#s{sc.num}">{sc.num}. {html.escape(sc.title)}</a>' for sc in S)}</nav>
   {''.join(blocks)}

@@ -83,18 +83,8 @@ def load_config() -> dict:
 
 
 @lru_cache
-def load_risk_config() -> dict:
-    return load_config().get("risk_model", {})
-
-
-@lru_cache
 def load_renewal_config() -> dict:
     return load_config().get("renewal", {})
-
-
-@lru_cache
-def load_drift_config() -> dict:
-    return load_config().get("drift_monitoring", {})
 
 
 @lru_cache

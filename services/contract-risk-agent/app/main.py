@@ -18,7 +18,7 @@ from app.services.docusign_client import run_status_poller
 from app.services.reminder_sweep import run_reminder_sweeps
 from app.models import AuditLog
 from shared.http.error_handlers import register_error_handlers
-from shared.auth import get_current_user
+from shared.auth import get_current_user, require_role
 from shared.audit import build_audit_router
 
 
@@ -115,7 +115,9 @@ app.include_router(
     vendors.router, prefix="/vendors", tags=["Vendor Risk"], dependencies=[Depends(get_current_user)]
 )
 app.include_router(
-    rulesets.router, prefix="/admin/risk-rulesets", tags=["Ruleset Governance"], dependencies=[Depends(get_current_user)]
+    rulesets.router, prefix="/admin/risk-rulesets", tags=["Ruleset Governance"],
+    # Staff only (merge review G5); writes are admin-only on each route.
+    dependencies=[Depends(require_role("approver", "finance", "admin"))]
 )
 # Not JWT-gated: the e-sign provider has no platform login. Trust comes
 # from the HMAC signature verified inside the handler instead.

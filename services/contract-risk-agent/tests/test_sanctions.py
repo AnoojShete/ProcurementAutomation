@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 from app.services import sanctions  # noqa: E402
-from app.services.risk_service import hard_override_checks  # noqa: E402
 
 # A slice in the same format as OpenSanctions' targets.simple.csv.
 CSV = '''id,schema,name,aliases,birth_date,countries,addresses,identifiers,sanctions,phones,emails,dataset,first_seen,last_seen,last_change
@@ -69,13 +68,6 @@ def test_near_matches_are_flagged(index, vendor):
                                     "Sea Shell Logistics", "Ivan Petrov Consulting"])
 def test_unrelated_companies_are_not_flagged(index, vendor):
     assert sanctions.screen_name(vendor, index, cutoff=90) == []
-
-
-def test_a_match_is_a_hard_override():
-    checks = {c["check"]: c["status"] for c in hard_override_checks("active", sanctions_match=True, ifsc_status="valid")}
-    assert checks["sanctions"] == "triggered" and checks["ifsc"] == "clear"
-    checks = {c["check"]: c["status"] for c in hard_override_checks("active", sanctions_match=False, ifsc_status="invalid")}
-    assert checks["sanctions"] == "clear" and checks["ifsc"] == "triggered"
 
 
 def test_override_input_follows_the_latest_screening():

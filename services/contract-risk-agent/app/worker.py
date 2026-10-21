@@ -6,27 +6,23 @@ from temporalio.worker import Worker
 
 from app.config import settings
 from app.workflows.renewal_workflow import ContractRenewalWorkflow
-from app.workflows.drift_workflow import DriftMonitoringWorkflow
-from app.workflows.activities import (
-    fetch_contract_renewal_info, publish_renewal_due_event, run_drift_check_activity,
-)
+from app.workflows.activities import fetch_contract_renewal_info, publish_renewal_due_event
 
 logger = logging.getLogger(__name__)
 
 
-async def _ensure_drift_schedule(client: Client):
-    """Idempotently start the weekly drift-check workflow. A fixed
-    workflow id + cron_schedule means re-running this on every worker
-    boot just no-ops against the already-running schedule."""
+async def _stop_retired_drift_schedule(client: Client):
+    """The weekly PSI drift check belonged to the retired ML risk model
+    (ml/archive/). Stacks started before its removal still have its cron
+    workflow; end it so it stops failing every week (merge review G4).
+    The weekly monitoring report (GET /vendors/risk-monitoring/weekly-report)
+    replaces it."""
     try:
-        await client.start_workflow(
-            DriftMonitoringWorkflow.run,
-            id="vendor-risk-drift-monitor",
-            task_queue=settings.temporal_task_queue,
-            cron_schedule="0 3 * * 0",  # weekly, Sunday 03:00
-        )
-    except Exception as e:
-        logger.info(f"Drift monitor schedule already running or could not be started: {e}")
+        await client.get_workflow_handle("vendor-risk-drift-monitor").terminate(
+            reason="PSI drift monitoring retired with the ML risk model")
+        logger.info("Stopped the retired vendor-risk-drift-monitor workflow")
+    except Exception:
+        pass  # never started, or already ended
 
 
 async def _connect_with_retry(max_attempts: int = 15, delay_seconds: int = 5) -> Client:
@@ -48,13 +44,13 @@ async def _connect_with_retry(max_attempts: int = 15, delay_seconds: int = 5) ->
 async def main():
     client = await _connect_with_retry()
 
-    await _ensure_drift_schedule(client)
+    await _stop_retired_drift_schedule(client)
 
     worker = Worker(
         client,
         task_queue=settings.temporal_task_queue,
-        workflows=[ContractRenewalWorkflow, DriftMonitoringWorkflow],
-        activities=[fetch_contract_renewal_info, publish_renewal_due_event, run_drift_check_activity],
+        workflows=[ContractRenewalWorkflow],
+        activities=[fetch_contract_renewal_info, publish_renewal_due_event],
     )
     logger.info(f"Starting contract-risk-agent Temporal worker on task queue {settings.temporal_task_queue}")
     await worker.run()

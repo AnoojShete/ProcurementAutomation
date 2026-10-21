@@ -212,8 +212,8 @@ requester at 390 / 1440 px, then finance at 1440 px after the fixes.
 |---|---|
 | `tsc` + `vite build` | pass |
 | `ruff --select F` (undefined names etc.) | 0 undefined names; 130 unused / duplicate imports (cosmetic, not changed) |
-| `npm audit --omit=dev` | Oct 17: 2 moderate (`react-router` 6.x open redirect). Oct 19: react-router 7.18 and vite 6.4 — 0 runtime advisories; build-time `braces` / `postcss-selector-parser` via Tailwind 3 remain (`docs/deployment.md` §5) |
-| Python advisories | Oct 19, `pip-audit` on each image: 302 → 152 after upgrading FastAPI 0.148 / Starlette 1.9, Pillow 12.3, pdfminer.six 20260107, Docling 2.140, cryptography 50, aiosmtplib 5.1; left: MLflow 2.14 (+ pyarrow, protobuf), paddlepaddle 2.6, imgaug, pytest (`docs/deployment.md` §5) |
+| `npm audit --omit=dev` | Oct 17: 2 moderate (`react-router` 6.x open redirect). Oct 19: react-router 7.18 and vite 6.4 — 0 runtime advisories; build-time `braces` / `postcss-selector-parser` via Tailwind 3 remain (`docs/deployment.html` §5) |
+| Python advisories | Oct 19, `pip-audit` on each image: 302 → 152 after upgrading FastAPI 0.148 / Starlette 1.9, Pillow 12.3, pdfminer.six 20260107, Docling 2.140, cryptography 50, aiosmtplib 5.1; left: MLflow 2.14 (+ pyarrow, protobuf), paddlepaddle 2.6, imgaug, pytest (`docs/deployment.html` §5) |
 
 ## 6. Limitations
 

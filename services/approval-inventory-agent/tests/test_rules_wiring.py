@@ -294,6 +294,17 @@ def test_approval_high_risk_vendor_requires_finance(rule):
     assert route(["dept_manager"], within, "Medium", True) == (["dept_manager"], [])
 
 
+def test_approval_unrated_vendor_requires_finance(rule):
+    from app.services.budget_service import route
+    within = _over_check(status="within", used_before=0.0, left_after=8000.0)
+    rule("approval.unrated_vendor_requires_finance", False)
+    assert route(["dept_manager"], within, "Unrated", True) == (["dept_manager"], [])
+    rule("approval.unrated_vendor_requires_finance", True)
+    assert route(["dept_manager"], within, "Unrated", True) == (["dept_manager", "finance_head"], ["unrated_vendor"])
+    assert route(["dept_manager"], within, "Low", True) == (["dept_manager"], [])
+    assert route(["dept_manager"], within, "Unrated", False) == (["dept_manager"], [])
+
+
 # ── Phase 3: catalog, RFQs, goods receipts ──────────────────────────────────
 
 def _resolution(amount, all_catalog=True):

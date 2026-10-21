@@ -65,7 +65,7 @@ flowchart TB
 |---|---|
 | **Document & Vendor** | Takes documents by upload, email or folder, virus-scans them, straightens and reads PDFs and scans (Docling, PaddleOCR, LayoutLMv3 cross-check), sorts invoices / POs / quotes / other, converts foreign currency to INR, checks each invoice's GST and signed e-invoice QR, reconciles GSTR-2B, onboards and matches vendors |
 | **Approval & Inventory** | Routes requests by spend and budget, enforces who may approve what, runs the IT catalog and requests for quotation, tracks licences, stock and partial deliveries, suggests reorders, matches invoices to orders and to what was received, works out TDS and MSME payment deadlines |
-| **Contract & Risk** | Writes contracts and reads their clauses with Legal-BERT, collects e-signatures, reminds before notice deadlines, tracks what signed contracts commit to (SLA credits, seat limits, warranties), screens vendors against sanctions lists, keeps a vendor scorecard, scores vendor risk from delivery and compliance history with an evaluated ML model and shows it before signing (High risk must be acknowledged) |
+| **Contract & Risk** | Writes contracts and reads their clauses with Legal-BERT, collects e-signatures, reminds before notice deadlines, tracks what signed contracts commit to (SLA credits, seat limits, warranties), screens vendors against sanctions lists, keeps a vendor scorecard, rates vendor risk with a deterministic 100-point ruleset and decides clearance before buying or signing (a sanctioned vendor can't be signed at all) |
 | **Notification** | Turns events into emails and an in-app feed; the bell counts only unread, important ones |
 | **Auth** | Accounts, roles, and the business rules admins can change live |
 
@@ -79,7 +79,7 @@ dead-letter queue instead of losing them.
 | | |
 |---|---|
 | **Document AI** | A sample scanned invoice went from **0.50 → 0.93** confidence after reading table rows by position and cross-checking totals |
-| **Risk you can audit** | A deterministic 100-point vendor scorecard: every point traces to a check and its source, hard overrides (sanctions, cancelled GSTIN) force High, a vendor with checks missing is never shown as Low, and any past score replays exactly |
+| **Risk you can audit** | A deterministic 100-point vendor scorecard: every point traces to a check and its source, hard overrides (sanctions, cancelled GSTIN) force High, a vendor with checks missing is never shown as Low, and any past score replays exactly. A red team of 22 attack profiles passes; the ruleset ranks synthetic incidents with ROC-AUC 0.738 (the retired ML model: 0.715) |
 | **Contract clauses** | Legal-BERT on 102 held-out, lawyer-annotated contracts: F1 **0.85 / 0.80 / 0.91** for renewal, notice and expiry clauses vs **0.50 / 0.19 / 0.02** for the regex rules it replaced (kept as fallback) |
 | **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; vendors are screened against 25,000 sanctioned companies; invoices are held until bank details are verified |
 | **Separation of duties** | Nobody — not even an admin — approves their own request |
@@ -87,7 +87,7 @@ dead-letter queue instead of losing them.
 | **Indian tax** | Every invoice's GST split, rate and arithmetic checked, its signed e-invoice QR verified offline, imported SaaS put under reverse charge, GSTR-2B reconciled; TDS kept with each booked invoice; MSME 45-day deadlines (rates to be confirmed by a CA) |
 | **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
 | **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
-| **Tested** | Unit suites per service plus end-to-end runs through the gateway (invoice lifecycle **71/71**, document pipeline **52/52**) |
+| **Tested** | 1,209 unit tests across six services plus end-to-end runs through the gateway (invoice lifecycle **71/71**, GST **44/44**, risk **49/49**, assistant **20/20**, demo **28/28**) |
 
 ## Vendor Risk & Clearance Architecture (Prompt 9C)
 
@@ -140,7 +140,8 @@ flowchart TD
    - **Fail-Closed**: Unscored vendors or unreachable endpoints always return `cleared=false`.
 
 4. **Petty Purchase Exception**:
-   - For routine low-value purchases (spend amount ≤ ₹50,000) with low-tier vendors whose checks are still provisional, clearance is granted under `cleared_under_petty_exception` as long as no hard overrides (sanctions, cancelled GSTIN, invalid bank routing) are active.
+   - For routine low-value purchases (spend amount ≤ `risk.petty_threshold`, ₹50,000) with **petty**-tier vendors whose checks are still provisional, clearance is granted under `cleared_under_petty_exception` as long as no hard override is active and no sanctions result awaits review.
+   - A **non-remediable** override (sanctions match `R-SAN-01`, prohibited country `R-JUR-01`) is never cleared: an admin can't accept the risk and contract signing is blocked. One function (`clearance.py`) decides for `/clearance` and for signing. Red team, evaluation and limits: [docs/risk-model.html](docs/risk-model.html).
 
 5. **Foreign Vendors & GST Limitations**:
    - `vendor.country` (ISO 3166-1 alpha-2) is required at onboarding with no default.
@@ -181,7 +182,8 @@ Open **http://localhost:8080** and sign in as `requester@demo.example.com`
 and dark themes are in Account settings.
 
 Deploying beyond one machine, backups and restore:
-[docs/deployment.md](docs/deployment.md).
+[docs/deployment.html](docs/deployment.html). Every project document starts at
+[docs/index.html](docs/index.html).
 
 ## Tech stack
 

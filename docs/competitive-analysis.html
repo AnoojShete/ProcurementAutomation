@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Competitive Analysis</title><meta name="description" content="Five commercial procurement suites compared with this platform">
+<style>
+:root { --bg:#f4f6f9; --panel:#fff; --ink:#172033; --muted:#5d6879; --line:#d6dce5; --accent:#2563c9; --ok:#1d8a4a; --bad:#c2412d; --warn:#a46200; --plan:#8b95a3; }
+:root[data-theme="dark"] { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#2a333f; --accent:#7aa7f2; --ok:#4cc27f; --bad:#f07a62; --warn:#e0a53c; --plan:#7d8796; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#2a333f; --accent:#7aa7f2; --ok:#4cc27f; --bad:#f07a62; --warn:#e0a53c; --plan:#7d8796; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+.page { max-width:1080px; margin:0 auto; padding:24px 16px 56px; }
+header.top { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; }
+h1 { margin:0 0 4px; font-size:24px; } h2 { font-size:19px; margin:30px 0 8px; } h3 { font-size:16px; margin:20px 0 6px; }
+a { color:var(--accent); } p { margin:8px 0; }
+.lead { color:var(--muted); margin:0 0 6px; max-width:760px; }
+.muted { color:var(--muted); font-size:13px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:12px 0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin:12px 0; }
+.stat { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+.stat b { display:block; font-size:24px; } .stat span { color:var(--muted); font-size:13px; }
+.toc { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+.toc a { background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:4px 12px; text-decoration:none; color:var(--ink); font-size:13px; }
+.tblwrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--panel); margin:10px 0; }
+table { border-collapse:collapse; width:100%; font-size:13.5px; }
+th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+tr:last-child td { border-bottom:0; }
+th { color:var(--muted); font-weight:600; font-size:12.5px; white-space:nowrap; }
+code { font:12.5px ui-monospace,Menlo,monospace; background:color-mix(in srgb,var(--line) 35%,transparent); padding:1px 4px; border-radius:4px; }
+pre { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; overflow-x:auto; font:12.5px/1.5 ui-monospace,Menlo,monospace; }
+pre code { background:none; padding:0; }
+.pill { display:inline-block; font-size:11.5px; font-weight:700; border:1px solid; border-radius:999px; padding:0 8px; white-space:nowrap; }
+.g { color:var(--ok); } .r { color:var(--bad); } .w { color:var(--warn); } .n { color:var(--plan); }
+ul { margin:6px 0; padding-left:20px; } li { margin:3px 0; }
+blockquote { margin:10px 0; padding:8px 14px; border-left:3px solid var(--accent); background:var(--panel); border-radius:0 8px 8px 0; }
+@media (max-width:640px) { body { font-size:14px; } th, td { padding:7px 8px; } }
+</style></head>
+<body><div class="page">
+<h1 id="competitive-analysis">Competitive analysis</h1>
+<p>Based on the 12 products in Scry AI, <em>Best Procurement Automation Software</em>
+(https://scryai.com/blog/best-procurement-automation-software/), each checked on
+the vendor's own pages where they could be fetched (20 October 2026). Vendor
+pages are marketing material; accuracy and adoption figures quoted by vendors
+are their claims, not verified.</p>
+<blockquote>
+<p><strong>Since this snapshot (21 Oct 2026):</strong> the gaps it found were closed by the
+feature expansion (<a href="feature-expansion-plan.md">feature-expansion-plan.md</a>):
+budget control (Phase 1), contract obligations (Phase 2), IT catalog, RFQs
+and partial receipts (Phase 3), and Indian GST and TDS: GST check with the
+signed e-invoice QR, reverse charge, GSTR-2B reconciliation, TDS at booking,
+MSME deadlines (Phase 4). The tables below are kept as they were found.</p>
+</blockquote>
+<h2 id="1-choosing-the-five-competitors">1. Choosing the five competitors</h2>
+<p>Each product was scored on the eight capability areas our platform covers:
+document capture and extraction, vendor verification and fraud controls,
+invoice matching, requisitions and approvals, inventory, software licences,
+contracts and renewals, supplier risk (1 = covered, ½ = partly, 0 = not stated).</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Score</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Coupa</strong></td>
+<td><strong>7</strong></td>
+<td>Every area except licences; 50+ AI agents</td>
+</tr>
+<tr>
+<td><strong>Zapro</strong></td>
+<td><strong>6</strong></td>
+<td>AI intake, AP matching, inventory, contracts, licence tracking</td>
+</tr>
+<tr>
+<td><strong>SAP Ariba</strong></td>
+<td><strong>5.5</strong></td>
+<td>Guided buying, contracts, AI supplier risk, smart OCR, fraud detection</td>
+</tr>
+<tr>
+<td><strong>Ivalua</strong></td>
+<td><strong>4.5</strong></td>
+<td>Full source-to-pay; no AI stated</td>
+</tr>
+<tr>
+<td><strong>TYASuite</strong></td>
+<td><strong>4</strong></td>
+<td>Indian P2P suite: AI invoice capture, GST/TDS, 3-way match</td>
+</tr>
+<tr>
+<td>Collatio (Scry AI)</td>
+<td>3.5</td>
+<td>Document AI and six-way matching only; no purchasing workflow</td>
+</tr>
+<tr>
+<td>Procurify</td>
+<td>3</td>
+<td>Requests, budgets, 2/3-way matching</td>
+</tr>
+<tr>
+<td>ZYNO</td>
+<td>2.5</td>
+<td>SME requisitions, quotations, invoice matching</td>
+</tr>
+<tr>
+<td>Precoro, Spendesk, MetaWMS</td>
+<td>1.5</td>
+<td>Purchasing/approvals, cards, or warehouse only</td>
+</tr>
+<tr>
+<td>Rippling</td>
+<td>1</td>
+<td>Cards, expenses, bills</td>
+</tr>
+</tbody>
+</table></div>
+<p>The five competitors are <strong>Coupa, Zapro, SAP Ariba, Ivalua and TYASuite</strong>.
+Collatio is not one of the five, but it is the closest to our document agent and
+research (matching an invoice against several records), so it is discussed in
+the research gap.</p>
+<p><strong>Top competitor: Coupa.</strong> It overlaps with the most areas (7 of 8), has the
+most mature AI (invoice capture via Rossum, obligation extraction from
+contracts, supplier-risk and sanctions agents) and adds budgets, sourcing,
+catalogs, a supplier network and payments. <strong>Zapro</strong> is the closest peer in
+size and scope: mid-market, AI intake, contracts with renewal alerts, inventory,
+and the only other product that tracks software licences.</p>
+<h2 id="2-comparison">2. Comparison</h2>
+<p>✓ = offered · ◐ = partly · – = not stated in the sources reviewed</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th>Capability</th>
+<th><strong>This platform</strong></th>
+<th>Coupa</th>
+<th>Zapro</th>
+<th>SAP Ariba</th>
+<th>Ivalua</th>
+<th>TYASuite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AI document capture and extraction</td>
+<td>✓ pdfplumber, Docling, PaddleOCR; upload, e-mail, folder</td>
+<td>✓ Rossum-based capture</td>
+<td>✓</td>
+<td>✓ smart OCR</td>
+<td>◐ AP automation</td>
+<td>✓ ZeroTouch</td>
+</tr>
+<tr>
+<td>Document classification with per-field confidence and review</td>
+<td>✓</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Measured error rate of automatic acceptance</td>
+<td>✓ calibrated gate study</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Invoice matching</td>
+<td>✓ line-level 3-way, payment hold</td>
+<td>✓</td>
+<td>✓ 2/3-way</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ 3-way, multi-GRN</td>
+</tr>
+<tr>
+<td>Duplicate and fraud checks</td>
+<td>✓ duplicates, look-alike vendors</td>
+<td>◐ risk sentinel</td>
+<td>–</td>
+<td>✓ fraud detection</td>
+<td>–</td>
+<td>✓ duplicate/tax checks</td>
+</tr>
+<tr>
+<td>Bank-detail change needs a second person</td>
+<td>✓</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Requisitions and approvals</td>
+<td>✓ spend tiers, SoD, SLA escalation, e-mail approval</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ guided buying</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Budget control</td>
+<td>–</td>
+<td>✓</td>
+<td>✓</td>
+<td>–</td>
+<td>–</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Sourcing / RFQ, quote comparison</td>
+<td>◐ quotes read into requests</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ bid-analysis agent</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Catalogs / punch-out</td>
+<td>–</td>
+<td>✓</td>
+<td>✓ Amazon Business</td>
+<td>✓</td>
+<td>✓</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Supplier portal / network</td>
+<td>–</td>
+<td>✓</td>
+<td>◐ onboarding templates</td>
+<td>✓ Business Network</td>
+<td>◐</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Inventory</td>
+<td>✓ reservation, backorder, reorder</td>
+<td>✓</td>
+<td>✓</td>
+<td>–</td>
+<td>◐ receiving</td>
+<td>◐ GRN and QC</td>
+</tr>
+<tr>
+<td>Software-licence usage</td>
+<td>✓ ML anomaly + explained reclaim</td>
+<td>–</td>
+<td>◐ licence and renewal tracking</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Contract lifecycle</td>
+<td>✓ templates, in-app e-sign, renewal reminders</td>
+<td>✓</td>
+<td>◐ repository, renewal alerts</td>
+<td>✓</td>
+<td>✓</td>
+<td>–</td>
+</tr>
+<tr>
+<td>ML clause / obligation extraction</td>
+<td>✓ Legal-BERT, evaluated on CUAD</td>
+<td>✓ obligation agent</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Supplier risk scoring</td>
+<td>✓ explainable model, overrides, drift check</td>
+<td>✓ risk agents</td>
+<td>◐ performance tracking</td>
+<td>✓ AI risk analysis</td>
+<td>◐</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Sanctions screening</td>
+<td>✓</td>
+<td>✓</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Indian tax compliance</td>
+<td>◐ GSTIN check digit, IFSC</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>–</td>
+<td>✓ GST, 2B, TDS</td>
+</tr>
+<tr>
+<td>Payments</td>
+<td>–</td>
+<td>✓ Coupa Pay</td>
+<td>◐ payment-status sync</td>
+<td>–</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Spend analytics</td>
+<td>◐ spend by category</td>
+<td>✓ with benchmarks</td>
+<td>✓</td>
+<td>◐</td>
+<td>–</td>
+<td>✓ reports</td>
+</tr>
+<tr>
+<td>ERP integration</td>
+<td>–</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓ SAP, Oracle, Tally</td>
+</tr>
+<tr>
+<td>Conversational AI / agents</td>
+<td>◐ read-only assistant</td>
+<td>✓ 50+ agents</td>
+<td>✓ prompt-to-buy, agents</td>
+<td>✓ Joule</td>
+<td>–</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>Self-hosted, open-source components</td>
+<td>SaaS</td>
+<td>SaaS</td>
+<td>SaaS</td>
+<td>SaaS</td>
+<td>SaaS (AWS)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="3-what-they-have-and-we-dont">3. What they have and we don't</h2>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th>Gap</th>
+<th>Who has it</th>
+<th>Priority for us</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ERP integration (SAP, Oracle, Tally, NetSuite)</td>
+<td>all five</td>
+<td>High for adoption; out of project scope</td>
+</tr>
+<tr>
+<td>Budget control before approval</td>
+<td>Coupa, Zapro, TYASuite</td>
+<td>High: rules are seeded but not enforced</td>
+</tr>
+<tr>
+<td>Supplier portal (self-onboarding, invoice upload, payment status)</td>
+<td>Coupa, Ariba, TYASuite</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Sourcing / RFQ events and quote comparison</td>
+<td>all five</td>
+<td>Medium: we already read quotes</td>
+</tr>
+<tr>
+<td>Catalogs and punch-out buying</td>
+<td>Coupa, Zapro, Ariba, Ivalua</td>
+<td>Low for IT procurement pilots</td>
+</tr>
+<tr>
+<td>Payment execution</td>
+<td>Coupa, Ivalua, TYASuite</td>
+<td>Out of scope by design</td>
+</tr>
+<tr>
+<td>Indian GST compliance (2B reconciliation, TDS, e-invoice)</td>
+<td>TYASuite</td>
+<td>Medium: only GSTIN/IFSC validation today</td>
+</tr>
+<tr>
+<td>Many task agents (buying, sourcing, contracts)</td>
+<td>Coupa, Zapro, Ariba</td>
+<td>Low: auditability first</td>
+</tr>
+<tr>
+<td>Contract obligation tracking beyond renewal terms</td>
+<td>Coupa</td>
+<td>Medium: extend the Legal-BERT questions</td>
+</tr>
+<tr>
+<td>Benchmarked spend analytics</td>
+<td>Coupa, Zapro</td>
+<td>Low</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="4-what-we-have-and-they-dont-per-their-public-material">4. What we have and they don't (per their public material)</h2>
+<ul>
+<li>An <strong>error rate for automatic acceptance</strong>, measured and controlled: vendors
+  quote extraction accuracy (Coupa 96 %, TYASuite 99 %), not how often a
+  document accepted without review is wrong.</li>
+<li><strong>Licence-usage anomaly detection</strong> with explanations and a grace period;
+  Zapro tracks licences but describes no usage model.</li>
+<li><strong>Dual control of bank-detail changes</strong> and <strong>look-alike vendor</strong> detection.</li>
+<li><strong>Evaluated</strong> models (clause extraction against rules on CUAD, risk model
+  against its ceiling) with published results.</li>
+<li><strong>Self-hosted</strong>: documents never leave the organisation's machine.</li>
+</ul>
+<p>Zoho Procurement (not in the Scry list) is also worth watching: India-built,
+requisitions to goods receipt, RFQs, contract tracking and agentic AI, per
+Zoho's own buyer's guide.</p>
+<p>How the gaps would be closed, phase by phase: <a href="feature-expansion-plan.md">feature-expansion-plan.md</a>.</p>
+<p>Sources: <a href="https://scryai.com/blog/best-procurement-automation-software/">Scry AI article</a>,
+<a href="https://www.coupa.com/blog/agentic-enterprise-september-2026-release/">Coupa Sept 2026 release</a>,
+<a href="https://coupa.com/demo/lp_all-demand-demo-procurement-invoicing-payments">Coupa demo: budgets and inventory</a>,
+<a href="https://www.sap.com/products/spend-management/smart-source-to-pay-procurement-software.html">SAP next-gen Ariba</a>,
+<a href="https://www.zapro.ai/">Zapro</a>, <a href="https://www.tyasuite.com/procurement-software">TYASuite procurement</a>,
+<a href="https://scryai.com/collatio/">Collatio</a>,
+<a href="https://www.zoho.com/procurement/academy/procurement-software.html">Zoho procurement buyer's guide</a>.</p>
+<p class="muted" style="margin-top:36px">All project pages: <a href="index.html">docs index</a></p>
+</div><script>try{const t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script></body></html>

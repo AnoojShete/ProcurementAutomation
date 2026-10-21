@@ -1,0 +1,37 @@
+{
+  "dataset": {
+    "vendors": 2000,
+    "test_vendors": 400,
+    "incident_rate": 0.18,
+    "label": "synthetic: weighted rule over the six features plus noise (ml/archive/generate_vendor_dataset.py)"
+  },
+  "roc_auc_scorecard_points": 0.738,
+  "roc_auc_random_forest_archived": 0.715,
+  "roc_auc_ceiling_label_rule": 0.739,
+  "bands": [
+    {
+      "band": "Low",
+      "vendors": 360,
+      "incidents": 53,
+      "incident_rate": 0.147
+    },
+    {
+      "band": "Medium",
+      "vendors": 40,
+      "incidents": 19,
+      "incident_rate": 0.475
+    },
+    {
+      "band": "High",
+      "vendors": 0,
+      "incidents": 0,
+      "incident_rate": null
+    }
+  ],
+  "points": {
+    "min": 0,
+    "max": 31,
+    "mean": 14.9
+  },
+  "run_at": "2026-10-21T01:32:46.995891+00:00"
+}

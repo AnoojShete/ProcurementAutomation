@@ -22,81 +22,10 @@ from app.services.scorecard.default_ruleset import (
     get_default_ruleset,
 )
 from app.services.scorecard.engine import evaluate_risk
+from shared.eventing import staged
 from shared.rules_engine import get_rule
 
 logger = logging.getLogger(__name__)
-
-
-GSTIN_FAILED = ("cancelled", "suspended")
-GSTIN_NOT_CHECKED = (None, "", "unverified", "offline", "simulated")
-
-
-def hard_override_checks(gstin_status: Optional[str] = None, sanctions_match: Optional[bool] = None,
-                         ifsc_status: Optional[str] = None, *args, **kwargs) -> list[dict]:
-    """Each check: triggered (vendor is High), clear, or not_checked."""
-    status = (gstin_status or "").lower() or None
-    checks = [{
-        "check": "gstin",
-        "status": "triggered" if status in GSTIN_FAILED else "not_checked" if status in GSTIN_NOT_CHECKED else "clear",
-        "reason": f"GSTIN is {status}" if status in GSTIN_FAILED else None,
-    }, {
-        "check": "sanctions",
-        "status": "not_checked" if sanctions_match is None else "triggered" if sanctions_match else "clear",
-        "reason": "matched a sanctions list" if sanctions_match else None,
-    }, {
-        "check": "ifsc",
-        "status": "not_checked" if ifsc_status is None else "triggered" if ifsc_status == "invalid" else "clear",
-        "reason": "bank IFSC failed verification" if ifsc_status == "invalid" else None,
-    }]
-    return checks
-
-
-def _band_for_score(score: float) -> str:
-    from app.config import load_risk_config
-    cfg = load_risk_config().get("bands", {"low_max": 0.33, "medium_max": 0.65})
-    med_max = min(cfg.get("medium_max", 0.65), 0.65)
-    if score <= cfg.get("low_max", 0.33):
-        return "Low"
-    if score <= med_max:
-        return "Medium"
-    return "High"
-
-
-def _top_factors(model, features: dict, feature_order: list[str], top_n: int = 3) -> list[dict]:
-    importances = model.feature_importances_
-    contributions = []
-    for name, importance in zip(feature_order, importances):
-        value = features.get(name)
-        if value is None:
-            continue
-        if name in ("security_cert_flag",):
-            deviation = -(value - 0.5) * 2
-        elif name in ("geo_risk_flag", "breach_disclosure_count"):
-            deviation = value if isinstance(value, (int, float)) and value <= 1 else min(value / 3.0, 1.0)
-        elif name == "vendor_tenure_months":
-            deviation = -(min(value, 60) / 60.0 - 0.5) * 2
-        else:
-            deviation = (0.5 - value) * 2
-        contributions.append({"feature": name, "contribution": round(float(importance * abs(deviation)), 4)})
-    contributions.sort(key=lambda c: c["contribution"], reverse=True)
-    return contributions[:top_n]
-
-
-def assess(model, feature_order: list[str], features: dict, override_checks: list[dict]) -> dict:
-    """Legacy ML assess compatibility helper."""
-    import numpy as np
-    X = [[np.nan if features.get(name) is None else features[name] for name in feature_order]]
-    score = float(model.predict_proba(X)[0][1])
-    band = _band_for_score(score)
-    factors = _top_factors(model, features, feature_order)
-    triggered = [c for c in override_checks if c.get("status") == "triggered"]
-    if triggered:
-        band = "High"
-        factors = [{"feature": f"override:{c['check']}", "contribution": 1.0, "override": True, "reason": c.get("reason")}
-                   for c in triggered] + factors
-    used = sum(1 for name in feature_order if features.get(name) is not None)
-    return {"score": score, "band": band, "top_factors": factors,
-            "signals_used": used, "signals_total": len(feature_order)}
 
 
 async def get_active_ruleset(db: AsyncSession) -> RiskRuleset:
@@ -210,6 +139,10 @@ async def score_vendor(
         "name": vendor.name,
         "spend_tier": spend_tier,
         "inherent_tier": None,
+        # Without the country every vendor came out provisional ("vendor
+        # country missing"), even one onboarded with it (merge review G3).
+        "country": getattr(vendor, "country", None),
+        "ruleset_version": getattr(ruleset_row, "version", None),
     }
 
     # 4. Gather observations (run collectors or load fresh)
@@ -340,19 +273,18 @@ async def score_vendor(
         )
         db.add(rr_row)
 
-    await db.commit()
-    await db.refresh(score_row)
-
     risk_assessment_total.labels(risk_band=final_band).inc()
 
-    # 8. Alerting & event publishing
+    # 8. Alerting & event publishing, through the outbox so the events commit
+    # together with the score (merge review G6).
     previous_band = prev_score.band if prev_score else None
     band_changed = (prev_score is not None and prev_score.band != final_band)
     prev_overrides = set(prev_dict.get("override_rule_ids", [])) if prev_dict else set()
     new_override_fired = any(oid not in prev_overrides for oid in override_ids)
 
-    if kafka_producer is not None:
-        await kafka_producer.publish_risk_score_updated(
+    outbox = staged(kafka_producer, db)
+    if outbox is not None:
+        await outbox.publish_risk_score_updated(
             vendor_id=vendor_id,
             risk_band=final_band,
             risk_score=eval_result["score_float"],
@@ -378,9 +310,11 @@ async def score_vendor(
         # Send High alert only when band_changed is true and new band is High, or an override rule newly fired.
         should_alert = (band_changed and final_band == "High") or new_override_fired
         if should_alert:
-            await send_high_risk_alert(kafka_producer, vendor, vendor_id, eval_result["headline"], total_points,
+            await send_high_risk_alert(outbox, vendor, vendor_id, eval_result["headline"], total_points,
                                        final_band, top_factors)
 
+    await db.commit()
+    await db.refresh(score_row)
     return score_row
 
 

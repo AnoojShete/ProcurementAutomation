@@ -113,7 +113,7 @@ def test_clean_vendor_reaches_100_percent_assessed():
         "adverse_media": {"fields": {"media.sources_reachable": True, "media.qualifying_articles": 0}},
     }
 
-    res = evaluate_risk(RULESET_V2, obs, now, vendor_context={"spend_tier": "critical"})
+    res = evaluate_risk(RULESET_V2, obs, now, vendor_context={"spend_tier": "critical", "country": "IN"})
 
     assert res["rating_status"] == "assessed"
     assert res["total_points"] == 0
@@ -181,11 +181,12 @@ def test_remediation_cumulative_override_priority():
         "incidents": {"fields": {"inc.history_available": True, "inc.count_24m": 0}},
     }
 
-    eval_res = evaluate_risk(RULESET_V2, obs, now)
+    domestic = {"spend_tier": "standard", "country": "IN"}
+    eval_res = evaluate_risk(RULESET_V2, obs, now, vendor_context=domestic)
     assert eval_res["final_band"] == "High"
     assert "R-GST-01" in eval_res["blocked_by"]
 
-    plan = build_remediation_plan(RULESET_V2, eval_res, obs, now)
+    plan = build_remediation_plan(RULESET_V2, eval_res, obs, now, vendor_context=domestic)
     steps = plan["steps"]
 
     # Step 1 MUST be clearing the GST override
@@ -278,6 +279,13 @@ from app.api.vendors import get_vendor_clearance
 from app.models import Vendor, RiskScore, VendorDecision
 
 
+def _no_flags():
+    """The score's stored rule results: no non-remediable override, nothing awaiting review."""
+    res = MagicMock()
+    res.all.return_value = []
+    return res
+
+
 @pytest.mark.asyncio
 async def test_clearance_petty_exception():
     vendor_id = "v-petty-123"
@@ -287,7 +295,7 @@ async def test_clearance_petty_exception():
     vendor = MagicMock(spec=Vendor)
     vendor.id = vendor_id
     vendor.status = "active"
-    vendor.vendor_tier = "low"
+    vendor.vendor_tier = "petty"   # vendors.vendor_tier: petty | standard | strategic
 
     # Provisional score (due diligence in progress)
     score = MagicMock(spec=RiskScore)
@@ -307,7 +315,7 @@ async def test_clearance_petty_exception():
     score_res.scalars().first.return_value = score
     dec_res = MagicMock()
     dec_res.scalars().first.return_value = None
-    db_mock.execute.side_effect = [score_res, dec_res]
+    db_mock.execute.side_effect = [score_res, dec_res, _no_flags()]
 
     res = await get_vendor_clearance(vendor_id=vendor_id, purpose="purchase", spend_amount=40000.0, db=db_mock)
     data = res.data
@@ -315,17 +323,17 @@ async def test_clearance_petty_exception():
     assert "cleared_under_petty_exception" in data["reasons"]
 
     # Case B: spend 60,000 INR > 50,000 threshold -> Not cleared
-    db_mock.execute.side_effect = [score_res, dec_res]
+    db_mock.execute.side_effect = [score_res, dec_res, _no_flags()]
     res_b = await get_vendor_clearance(vendor_id=vendor_id, purpose="purchase", spend_amount=60000.0, db=db_mock)
     assert res_b.data["cleared"] is False
     assert "rating_provisional" in res_b.data["reasons"]
 
-    # Case C: standard tier vendor with 40,000 INR -> Not cleared (petty exception only for low tier)
+    # Case C: standard tier vendor with 40,000 INR -> Not cleared (petty exception only for petty tier)
     vendor_std = MagicMock(spec=Vendor)
     vendor_std.status = "active"
     vendor_std.vendor_tier = "standard"
     db_mock.get.return_value = vendor_std
-    db_mock.execute.side_effect = [score_res, dec_res]
+    db_mock.execute.side_effect = [score_res, dec_res, _no_flags()]
     res_c = await get_vendor_clearance(vendor_id=vendor_id, purpose="purchase", spend_amount=40000.0, db=db_mock)
     assert res_c.data["cleared"] is False
 
@@ -343,7 +351,9 @@ async def test_clearance_petty_exception():
     db_mock.get.return_value = vendor
     score_ov_res = MagicMock()
     score_ov_res.scalars().first.return_value = score_ov
-    db_mock.execute.side_effect = [score_ov_res, dec_res]
+    nonrem_res = MagicMock()
+    nonrem_res.all.return_value = []                      # R-GST-01 is remediable
+    db_mock.execute.side_effect = [score_ov_res, dec_res, nonrem_res]
     res_d = await get_vendor_clearance(vendor_id=vendor_id, purpose="purchase", spend_amount=40000.0, db=db_mock)
     assert res_d.data["cleared"] is False
     assert any("override_R-GST-01" in r for r in res_d.data["reasons"])
@@ -381,7 +391,7 @@ async def test_clearance_activation_deadlock_prevention():
     dec_res.scalars().first.return_value = None
 
     # 1. purpose='activation' on onboarding status succeeds (deadlock avoided!)
-    db_mock.execute.side_effect = [score_res, dec_res]
+    db_mock.execute.side_effect = [score_res, dec_res, _no_flags()]
     res_act = await get_vendor_clearance(vendor_id=vendor_id, purpose="activation", db=db_mock)
     assert res_act.data["cleared"] is True
 
@@ -398,13 +408,13 @@ async def test_clearance_activation_deadlock_prevention():
     score_prov_res = MagicMock()
     score_prov_res.scalars().first.return_value = score_prov
 
-    db_mock.execute.side_effect = [score_prov_res, dec_res]
+    db_mock.execute.side_effect = [score_prov_res, dec_res, _no_flags()]
     res_act_prov = await get_vendor_clearance(vendor_id=vendor_id, purpose="activation", db=db_mock)
     assert res_act_prov.data["cleared"] is False
     assert "rating_provisional" in res_act_prov.data["reasons"]
 
     # 3. purpose='purchase' on onboarding status fails (purchases require 'active' vendor)
-    db_mock.execute.side_effect = [score_res, dec_res]
+    db_mock.execute.side_effect = [score_res, dec_res, _no_flags()]
     res_purch = await get_vendor_clearance(vendor_id=vendor_id, purpose="purchase", db=db_mock)
     assert res_purch.data["cleared"] is False
     assert "vendor_status_onboarding_not_active" in res_purch.data["reasons"]
@@ -444,7 +454,7 @@ async def test_clearance_decisions_and_overdue_conditions():
 
     db_mock = AsyncMock()
     db_mock.get.return_value = vendor
-    db_mock.execute.side_effect = [score_res, dec_res_a]
+    db_mock.execute.side_effect = [score_res, dec_res_a, _no_flags()]
 
     res_a = await get_vendor_clearance(vendor_id=vendor_id, purpose="purchase", db=db_mock)
     assert res_a.data["cleared"] is True
@@ -457,7 +467,7 @@ async def test_clearance_decisions_and_overdue_conditions():
     dec_res_b = MagicMock()
     dec_res_b.scalars().first.return_value = dec_overdue
 
-    db_mock.execute.side_effect = [score_res, dec_res_b]
+    db_mock.execute.side_effect = [score_res, dec_res_b, _no_flags()]
     res_b = await get_vendor_clearance(vendor_id=vendor_id, purpose="purchase", db=db_mock)
     assert res_b.data["cleared"] is False
     assert "condition_overdue" in res_b.data["reasons"]
@@ -470,7 +480,7 @@ async def test_clearance_decisions_and_overdue_conditions():
     dec_res_c = MagicMock()
     dec_res_c.scalars().first.return_value = dec_reject
 
-    db_mock.execute.side_effect = [score_res, dec_res_c]
+    db_mock.execute.side_effect = [score_res, dec_res_c, _no_flags()]
     res_c = await get_vendor_clearance(vendor_id=vendor_id, purpose="purchase", db=db_mock)
     assert res_c.data["cleared"] is False
     assert "decision_rejected" in res_c.data["reasons"]

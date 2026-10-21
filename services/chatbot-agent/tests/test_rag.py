@@ -148,7 +148,7 @@ def test_model_gets_the_passages_with_the_question_and_no_tools():
     with patch.object(llm_client.rag_service, "retrieve", AsyncMock(return_value=hits)), \
             patch.object(llm_client.httpx, "AsyncClient", return_value=MagicMock(__aenter__=AsyncMock(return_value=client),
                                                                                __aexit__=AsyncMock(return_value=False))):
-        assert run(llm_client.query_llm_with_tools([_msg("user", "q")], CurrentUser(id="u", email="f@x", role="finance"), MagicMock())) == "ok"
+        assert run(llm_client.query_llm_with_tools([_msg("user", "What is the liability cap?")], CurrentUser(id="u", email="f@x", role="finance"), MagicMock())) == "ok"
     assert "tools" not in post.await_args.kwargs["json"]
 
 

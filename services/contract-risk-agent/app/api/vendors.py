@@ -27,7 +27,7 @@ from app.models import (
     VendorSignalRawResponse,
 )
 from app.schemas import DataResponse, LogOutcomeRequest, OffboardVendorRequest
-from app.services import offboard_service, risk_service
+from app.services import clearance, offboard_service, risk_service
 from app.services.scorecard.engine import evaluate_risk
 from app.services.scorecard.monitoring import generate_monitoring_report
 from app.services.scorecard.remediation import build_remediation_plan, simulate_what_if
@@ -235,6 +235,8 @@ async def get_remediation_plan(
         observations=score.snapshot or {},
         assessed_at=score.scored_at or datetime.now(timezone.utc),
         audience=audience,
+        vendor_context={"name": getattr(vendor, "name", "Vendor"), "spend_tier": score.effective_tier or "standard",
+                        "country": getattr(vendor, "country", None)},
     )
     return DataResponse(data=plan)
 
@@ -248,171 +250,11 @@ async def get_vendor_clearance(
     currency: str = Query("INR"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Deterministic clearance check for downstream workflows (Prompt 9C Section C3, C4)."""
-    vendor = await db.get(Vendor, vendor_id)
-    if vendor is None:
+    """Deterministic clearance check for downstream workflows (app/services/clearance.py)."""
+    result = await clearance.evaluate(db, vendor_id, purpose=purpose, spend_amount=spend_amount)
+    if result is None:
         raise HTTPException(status_code=404, detail="vendor not found")
-
-    score = await risk_service.latest_risk_score(db, vendor_id)
-    now = datetime.now(timezone.utc)
-
-    # 1. Fail closed if no score
-    if score is None:
-        return DataResponse(data={
-            "cleared": False,
-            "purpose": purpose,
-            "rating_status": "not_rated",
-            "final_band": "Unrated",
-            "points_band": "Low",
-            "risk_score": None,
-            "blocked_by": [],
-            "overrides_active": [],
-            "required_signals_missing": [],
-            "post_score_decision": None,
-            "decision_expires_at": None,
-            "conditions": [],
-            "reasons": ["scorecard_unavailable"],
-        })
-
-    rating_status = score.rating_status or ("provisional" if score.is_provisional else "assessed")
-    final_band = score.final_band or score.band or "Unrated"
-    points_band = score.points_band or "Low"
-    blocked_by = list(score.blocked_by or [])
-    overrides_active = list(score.override_rule_ids or [])
-    provisional_reasons = list(score.provisional_reasons or [])
-
-    # Load latest post-score decision
-    dec_res = await db.execute(
-        select(VendorDecision)
-        .where(VendorDecision.vendor_id == vendor_id)
-        .order_by(desc(VendorDecision.decided_at))
-        .limit(1)
-    )
-    latest_decision = dec_res.scalars().first()
-
-    post_score_decision = latest_decision.decision if latest_decision else None
-    decision_expires_at = latest_decision.expires_at.isoformat() if (latest_decision and latest_decision.expires_at) else None
-    conditions = latest_decision.conditions if (latest_decision and latest_decision.conditions) else []
-
-    # Check condition overdue status
-    conditions_with_overdue = []
-    has_overdue_conditions = False
-    for c in conditions:
-        due_str = c.get("due_date")
-        c_status = c.get("status", "pending")
-        overdue = False
-        if due_str and c_status != "fulfilled":
-            try:
-                due_dt = datetime.strptime(due_str[:10], "%Y-%m-%d").date()
-                if due_dt < now.date():
-                    overdue = True
-                    has_overdue_conditions = True
-            except Exception:
-                pass
-        conditions_with_overdue.append({
-            "id": c.get("id", str(uuid.uuid4())[:8]),
-            "text": c.get("text", ""),
-            "due_date": due_str,
-            "status": c_status,
-            "overdue": overdue,
-        })
-
-    cleared = True
-    reasons: List[str] = []
-
-    # 2. Hard overrides
-    if len(overrides_active) > 0:
-        cleared = False
-        for oid in overrides_active:
-            reasons.append(f"override_{oid}")
-        for b in overrides_active:
-            if b not in blocked_by:
-                blocked_by.append(b)
-
-    # 3. Rating status gate
-    if rating_status == "not_rated":
-        cleared = False
-        reasons.append("vendor_not_rated")
-    elif rating_status == "provisional":
-        if purpose == "activation":
-            cleared = False
-            reasons.append("rating_provisional")
-        else:
-            # Check petty exception
-            from shared.rules_engine import get_rule
-            petty_threshold = float(get_rule("risk.petty_threshold", fallback=50000.0))
-            is_low_tier = getattr(vendor, "vendor_tier", "standard") == "low"
-            under_petty = (spend_amount is not None and spend_amount <= petty_threshold)
-
-            if is_low_tier and under_petty and len(overrides_active) == 0:
-                reasons.append("cleared_under_petty_exception")
-            else:
-                cleared = False
-                reasons.append("rating_provisional")
-
-    # 4. Post-score human decision state machine
-    if latest_decision:
-        dec = latest_decision.decision
-        if dec == "approve":
-            if rating_status == "assessed" and final_band in ("Low", "Medium"):
-                cleared = True
-            else:
-                cleared = False
-                reasons.append("approval_ineligible")
-        elif dec == "approve_with_conditions":
-            if has_overdue_conditions:
-                cleared = False
-                reasons.append("condition_overdue")
-            else:
-                cleared = True
-        elif dec == "accept_risk":
-            if latest_decision.expires_at and latest_decision.expires_at < now:
-                cleared = False
-                reasons.append("risk_acceptance_expired")
-            else:
-                cleared = True
-        elif dec == "reject":
-            cleared = False
-            reasons.append("decision_rejected")
-    else:
-        # 5 & 6. Default rule when no human decision
-        if has_overdue_conditions:
-            cleared = False
-            reasons.append("condition_overdue")
-        elif rating_status == "assessed":
-            if final_band in ("Low", "Medium"):
-                if len(overrides_active) == 0:
-                    cleared = True
-            elif final_band == "High":
-                cleared = False
-                reasons.append("high_risk_band")
-
-    # 7. Vendor status check (User Correction 2)
-    v_status = getattr(vendor, "status", "onboarding")
-    if purpose in ("purchase", "contract"):
-        if v_status != "active":
-            cleared = False
-            reasons.append(f"vendor_status_{v_status}_not_active")
-    elif purpose == "activation":
-        if v_status not in ("onboarding", "active"):
-            cleared = False
-            reasons.append(f"vendor_status_{v_status}_invalid_for_activation")
-
-    return DataResponse(data={
-        "cleared": cleared,
-        "purpose": purpose,
-        "rating_status": rating_status,
-        "final_band": final_band,
-        "points_band": points_band,
-        "risk_score": float(score.score) if score.score is not None else None,
-        "blocked_by": blocked_by,
-        "overrides_active": overrides_active,
-        "required_signals_missing": provisional_reasons,
-        "post_score_decision": post_score_decision,
-        "decision_expires_at": decision_expires_at,
-        "conditions": conditions_with_overdue,
-        "reasons": reasons,
-    })
+    return DataResponse(data=result)
 
 
 class DecisionCreateRequest(BaseModel):
@@ -425,7 +267,7 @@ class DecisionCreateRequest(BaseModel):
 @router.post(
     "/{vendor_id}/decisions",
     response_model=DataResponse,
-    dependencies=[Depends(require_role("procurement", "finance", "admin"))],
+    dependencies=[Depends(require_role("finance", "admin"))],
 )
 async def record_vendor_decision(
     vendor_id: str,
@@ -456,6 +298,13 @@ async def record_vendor_decision(
     elif body.decision == "accept_risk":
         if "admin" not in (user.role or "").lower():
             raise HTTPException(status_code=403, detail="accept_risk requires role 'admin'")
+        _, view, _ = await clearance.load(db, vendor_id)
+        hard = [o for o in (view.override_rule_ids if view else []) if o in view.non_remediable]
+        if hard:
+            raise HTTPException(status_code=400, detail={
+                "code": "non_remediable_override",
+                "message": f"risk can't be accepted while {', '.join(hard)} applies (a sanctions match or a "
+                           f"prohibited country); only resolving it, e.g. an upheld dispute, can change the rating"})
         if len(body.justification.strip()) < 20:
             raise HTTPException(status_code=400, detail="accept_risk justification must be at least 20 characters")
         days = body.expires_in_days or 30
@@ -537,7 +386,8 @@ async def what_if_simulation(
         base_observations=base_snapshot,
         field_overrides=overrides,
         assessed_at=now,
-        vendor_context={"name": vendor.name, "spend_tier": getattr(vendor, "vendor_tier", "standard")},
+        vendor_context={"name": vendor.name, "spend_tier": getattr(vendor, "vendor_tier", "standard"),
+                        "country": getattr(vendor, "country", None)},
     )
 
     return DataResponse(data=sim_res)
@@ -946,7 +796,8 @@ async def add_vendor_evidence(
 
 
 # --- Section 12 Monitoring Endpoint ---
-@router.get("/risk-monitoring/weekly-report", response_model=DataResponse)
+@router.get("/risk-monitoring/weekly-report", response_model=DataResponse,
+            dependencies=[Depends(require_role("approver", "finance", "admin"))])
 async def get_weekly_monitoring_report(db: AsyncSession = Depends(get_db)):
     """Weekly descriptive report (replaces legacy PSI drift monitoring)."""
     report = await generate_monitoring_report(db)

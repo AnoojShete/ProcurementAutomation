@@ -32,7 +32,8 @@ export function DigitalSignatureModal({
   const [typedFont, setTypedFont] = useState<"serif" | "cursive" | "mono">("cursive");
   const [legalConsent, setLegalConsent] = useState(false);
   const risk = contract.vendor_risk;
-  const needsRiskAck = !!risk?.acknowledgement_required;
+  const blocked = !!risk?.signing_blocked;
+  const needsRiskAck = !blocked && !!risk?.acknowledgement_required;
   const [riskAck, setRiskAck] = useState(false);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,7 +219,7 @@ export function DigitalSignatureModal({
           <Button
             onClick={handleExecuteSign}
             loading={signing}
-            disabled={!signerName.trim() || !signerEmail.trim() || !legalConsent || (needsRiskAck && !riskAck)}
+            disabled={blocked || !signerName.trim() || !signerEmail.trim() || !legalConsent || (needsRiskAck && !riskAck)}
             icon={<FileSignature className="size-4" />}
           >
             Sign & Execute Contract

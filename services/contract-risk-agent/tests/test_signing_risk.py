@@ -22,12 +22,23 @@ GSTIN_OVERRIDE = {"check": "gstin", "status": "triggered", "reason": "GSTIN is c
 
 
 def _score(band, overrides=()):
+    """A scorecard row: assessed, with the band given; a GSTIN override is
+    rule R-GST-01 (remediable)."""
     factors = [{"feature": "on_time_delivery_rate", "contribution": 0.2}]
     if overrides:
         factors = [{"feature": "override:gstin", "override": True, "reason": "GSTIN is cancelled"}] + factors
-    return SimpleNamespace(band=band, score=0.81 if band == "High" else 0.12, details=factors,
+    return SimpleNamespace(id="s1", band=band, final_band=band, rating_status="assessed", points_band=band,
+                           score=0.81 if band == "High" else 0.12, details=factors,
+                           override_rule_ids=["R-GST-01"] if overrides else [], blocked_by=[], provisional_reasons=[],
                            overrides=list(overrides) + [{"check": "sanctions", "status": "not_checked"}],
                            scored_at=datetime(2026, 10, 1, tzinfo=timezone.utc))
+
+
+def _loaded(score, status="active", decision=None):
+    """What clearance.load returns for an active vendor with this score."""
+    from app.services import clearance
+    vendor = SimpleNamespace(status=status, vendor_tier="standard")
+    return AsyncMock(return_value=(vendor, clearance.score_view(score, set()) if score else None, decision))
 
 
 def _contract():
@@ -41,6 +52,7 @@ async def _sign(score, acknowledged):
     db = AsyncMock()
     db.get.return_value = _contract()
     with patch("app.services.risk_service.latest_risk_score", new=AsyncMock(return_value=score)), \
+            patch("app.services.clearance.load", new=_loaded(score)), \
             patch("app.services.contract_service.staged", return_value=AsyncMock()), \
             patch("app.services.contract_service.write_audit_log", new=AsyncMock()):
         return await contract_service.sign_contract_digitally(
@@ -79,12 +91,29 @@ async def test_low_risk_vendor_signs_without_one():
 
 @pytest.mark.asyncio
 async def test_signing_risk_lists_reasons_and_triggered_overrides_only():
-    with patch("app.services.risk_service.latest_risk_score",
-               new=AsyncMock(return_value=_score("High", [GSTIN_OVERRIDE]))):
+    score = _score("High", [GSTIN_OVERRIDE])
+    with patch("app.services.risk_service.latest_risk_score", new=AsyncMock(return_value=score)), \
+            patch("app.services.clearance.load", new=_loaded(score)):
         risk = await contract_service.signing_risk(AsyncMock(), "v1")
     assert [o["check"] for o in risk["overrides"]] == ["gstin"]
     assert [r["feature"] for r in risk["reasons"]] == ["on_time_delivery_rate"]
     assert risk["acknowledgement_reason"] == "Hard override: GSTIN is cancelled."
+
+
+@pytest.mark.asyncio
+async def test_signing_follows_clearance_decisions_and_vendor_status():
+    """G1: signing asks for an acknowledgement exactly when /clearance
+    (purpose=contract) says not cleared: an admin's accepted risk clears an
+    Unrated vendor; an inactive vendor is never cleared."""
+    from app.services.clearance import DecisionView
+    unrated = SimpleNamespace(**{**vars(_score("Low")), "rating_status": "provisional", "final_band": "Unrated"})
+    accepted = DecisionView("accept_risk", datetime(2099, 1, 1, tzinfo=timezone.utc), [])
+    for decision, status, needed in ((None, "active", True), (accepted, "active", False), (accepted, "offboarded", True)):
+        with patch("app.services.risk_service.latest_risk_score", new=AsyncMock(return_value=unrated)), \
+                patch("app.services.clearance.load", new=_loaded(unrated, status, decision)):
+            risk = await contract_service.signing_risk(AsyncMock(), "v1")
+        assert risk["acknowledgement_required"] is needed, (decision, status)
+    assert "not active" in risk["acknowledgement_reason"]
 
 
 def test_api_answers_409_with_a_code():

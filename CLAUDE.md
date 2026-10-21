@@ -12,9 +12,17 @@ short checklist; `docs/RESEARCH_GAP_ANALYSIS.md` and
 (tab 1; extended-scope work is starred inside its agent) and the research
 gap analysis (tab 2, `#research`); `docs/showcase.html` is the
 presentation guide (external evaluator / mentor) with screenshots retaken
-by `tests/e2e/showcase_screens.py`. `docs/forReport/` and
-`docs/forResearchPaper/` are reserved for the owner's material. Update
-them, README.md and docs/TODO.md at every roadmap phase.
+by `tests/e2e/showcase_screens.py`. `docs/index.html` is the start page
+listing every document. **Convention:** a document the owner or a presenter
+reads is HTML in the shared look (`index.html`, `showcase.html`,
+`demo-script.html`, `demo-5min.html`, `risk-model.html`, `deployment.html`,
+`competitive-analysis.html`, `codebase-guide.html`, `project-flow.html`);
+references for engineers and agents stay Markdown (TODO, readmeforme,
+business-rules, feature-expansion-plan, design-direction, testing-strategy,
+model-routing, notifications, architecture, quality-audit-report, RESEARCH_*).
+`IMPLEMENTATION_PLAN.md` stays Markdown because the owner edits it.
+`docs/forReport/` and `docs/forResearchPaper/` are reserved for the owner's
+material. Update them, README.md and docs/TODO.md at every roadmap phase.
 
 ## What this is
 
@@ -67,10 +75,10 @@ python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
 docker compose up -d --build <svc> && docker compose restart nginx   # after changing a service
 python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fails loudly if a step breaks)
-python tests/e2e/demo_scenarios.py        # the five demo scenarios, checked live → docs/demo-script.html
-python tests/e2e/demo_5min.py             # the 5-minute demo (docs/demo-5min.md) rehearsed + recorded → docs/demo/backup-recording.webm
+python tests/e2e/demo_scenarios.py        # the eight demo scenarios (core, risk red team, GST, assistant), checked live → docs/demo-script.html
+python tests/e2e/demo_5min.py             # the 5-minute demo (docs/demo-5min.html) rehearsed + recorded → docs/demo/backup-recording.webm
 ./scripts/reset-demo.sh                   # back up, clear the data volumes, rebuild realistic demo data (~3 min)
-./scripts/backup.sh / restore.sh <stamp>  # Postgres + MinIO backup into .run/backups/; restore backs up first (docs/deployment.md)
+./scripts/backup.sh / restore.sh <stamp>  # Postgres + MinIO backup into .run/backups/; restore backs up first (docs/deployment.html)
 ```
 
 e2e scripts need `pip install -r tests/e2e/requirements.txt` on the host.
@@ -182,6 +190,17 @@ in `docs/readmeforme.md` (Research experiment).
   minute; `rag_service.retrieve` applies access per chunk. No function tools.
   Rebuild the index now: `docker compose exec chatbot-agent python
   scripts/backfill_embeddings.py`.
+- **Vendor clearance** has one source: `contract-risk-agent/app/services/clearance.py`
+  (`decide` is pure). `/clearance`, contract signing and anything new must go
+  through it. A non-remediable override (R-SAN-01 sanctions match, R-JUR-01
+  prohibited country) is never cleared, can't be risk-accepted and blocks
+  signing. The red-team set `ml/redteam_scorecard.py` (run by
+  `tests/test_risk_redteam.py`) must stay green; add a profile for any new
+  rule. Write-up: `docs/risk-model.html`.
+- **The assistant decides intent before retrieving** (`chatbot-agent/app/services/intent.py`):
+  greetings, "like what", remarks and topic-only messages get direct replies;
+  licence anomalies come from live scores (`topics.py`); only real questions
+  are retrieved for. Regression tests: `tests/test_intent.py`.
 - **GST check (Phase 4)** runs as pipeline stage `tax_agent`; it may force
   review but must never change the confidence score or `field_extraction.py`
   (the review-gate study depends on both). E-invoice QRs verify against

@@ -1,4 +1,4 @@
-"""The 5-minute demo (docs/demo-5min.md), rehearsed in a real browser.
+"""The 5-minute demo (docs/demo-5min.html), rehearsed in a real browser.
 
 Walks the presenter's click path as the right roles, checks every "you
 should see", times each step against its budget, and records the run as a

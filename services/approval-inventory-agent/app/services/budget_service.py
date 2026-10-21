@@ -180,11 +180,13 @@ async def check_request(db: AsyncSession, *, request_type: Optional[str], depart
 
 
 async def vendor_risk_band(db: AsyncSession, vendor_id: Optional[str]) -> Optional[str]:
-    """Latest risk band from contract-risk-agent's risk_scores (shared DB)."""
+    """Latest risk band from contract-risk-agent's risk_scores (shared DB):
+    Low, Medium, High, or Unrated while the scorecard's checks are
+    incomplete."""
     if not vendor_id:
         return None
     row = (await db.execute(text(
-        "SELECT band FROM risk_scores WHERE vendor_id = :v ORDER BY scored_at DESC NULLS LAST LIMIT 1"
+        "SELECT COALESCE(final_band, band) FROM risk_scores WHERE vendor_id = :v ORDER BY scored_at DESC NULLS LAST LIMIT 1"
     ), {"v": vendor_id})).first()
     return row[0] if row else None
 
@@ -212,6 +214,10 @@ def route(chain: list[str], check: Optional[BudgetCheck], vendor_band: Optional[
                 reasons.append("no_budget")
     if spends_money and vendor_band == "High" and get_rule("approval.high_risk_vendor_requires_finance", fallback=False):
         reasons.append("high_risk_vendor")
+    elif spends_money and vendor_band == "Unrated" and get_rule("approval.unrated_vendor_requires_finance", fallback=False):
+        # merge review G2: a vendor whose checks are incomplete isn't
+        # known to be safe; finance decides whether that needs a second look.
+        reasons.append("unrated_vendor")
     chain = list(chain or [])
     if reasons and FINANCE_LEVEL not in chain:
         chain.append(FINANCE_LEVEL)

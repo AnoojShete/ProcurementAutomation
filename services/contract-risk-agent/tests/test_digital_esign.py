@@ -154,8 +154,12 @@ class TestSignContractDigitally:
         # BR-6 gate passes: an assessed Low-band vendor (deterministic scorecard fields).
         low_risk = MagicMock(band="Low", final_band="Low", rating_status="assessed", is_provisional=False, score=0.1,
                              details=[], overrides=[], override_rule_ids=[], blocked_by=[], scored_at=None)
+        from types import SimpleNamespace
+        from app.services import clearance
+        loaded = (SimpleNamespace(status="active", vendor_tier="standard"), clearance.score_view(low_risk, set()), None)
         with patch("app.services.contract_service.staged", return_value=outbox), \
                 patch("app.services.risk_service.latest_risk_score", new=AsyncMock(return_value=low_risk)), \
+                patch("app.services.clearance.load", new=AsyncMock(return_value=loaded)), \
                 patch("app.services.contract_service.write_audit_log", new=AsyncMock()) as audit:
             signed, cert = await self._sign(db, contract)
         assert signed.status == "signed" and signed.signed_by == "Alice <alice@company.com>"

@@ -80,7 +80,12 @@ Shared contracts:
   index is built on start-up and kept current every minute; each chunk
   carries who may see it (staff; the owner of a request, contract or
   document; or everyone for rules and vendors), and bank details are masked
-  before indexing. Evaluation: `python tests/e2e/chatbot_eval.py` →
+  before indexing. Before retrieving, it decides what the message means
+  (`intent.py`): greetings, "like what", remarks and topic-only messages get a
+  direct reply with example questions for the user's role; a name matching
+  several vendors gets "which one?"; licence anomalies are answered from the
+  live usage scores (`topics.py`: criteria, the threshold rule, closest
+  licences, next steps). Evaluation: `python tests/e2e/chatbot_eval.py` →
   `docs/results/chatbot-eval.md`. Without Ollama the rest of the platform
   works; the assistant can't answer.
 - **Python 3 + pip** on the host only for the end-to-end test scripts.
@@ -182,7 +187,7 @@ stopping anything; `./scripts/restore.sh` lists them and
 `./scripts/restore.sh <stamp>` puts one back (it backs up the current data
 first, so a restore can be undone). What is and isn't backed up, and the
 checklist for a deployment beyond this machine (production secrets, HTTPS,
-the advisories still open), are in [deployment.md](deployment.md).
+the advisories still open), are in [deployment.html](deployment.html).
 
 ## Configuration
 
@@ -350,7 +355,7 @@ the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit
 | `python tests/e2e/document_pipeline.py [--quick]` | Normal / huge / corrupt / empty / wrong-type / pathological files, duplicates, outages | 48/52 (`--quick`, Oct 19): `slow_to_parse.pdf` no longer hits the 120 s limit with Docling 2.140 (TODO E2E-1); 52/52 on Oct 15 |
 | `python tests/e2e/ui_flows.py` | Browser (Playwright): back arrow, clickable lifecycle, approve and sign from lifecycle steps, approval-inbox routing, license page's open-request panel | 11/11 (needs `pip install playwright && python -m playwright install chromium`) |
 | `python tests/e2e/demo_scenarios.py` | The five demo scenarios performed in a browser and checked → `docs/demo-script.html` | 18/18 |
-| `python tests/e2e/demo_5min.py` | The 5-minute demo (`docs/demo-5min.md`) rehearsed and recorded → `docs/demo/backup-recording.webm` | 6/6 (Oct 18, 4 runs) |
+| `python tests/e2e/demo_5min.py` | The 5-minute demo (`docs/demo-5min.html`) rehearsed and recorded → `docs/demo/backup-recording.webm` | 6/6 (Oct 18, 4 runs) |
 | `cd frontend && npm run typecheck` | TypeScript | clean |
 
 ```bash
@@ -736,11 +741,15 @@ contract, and the MinIO and DocuSign connections.
 
 **Risk before signing.** The contract page and the signing dialog show
 the vendor's latest risk (band, score, main factors, any hard override).
-Signing a contract whose vendor is High risk — or not scored, or not
-linked — needs the signer to tick an acknowledgement; the API refuses
-it otherwise (409 `risk_acknowledgement_required`) and the signature
-certificate records the band and the acknowledgement
-(`contract_service.signing_risk`).
+Signing needs the signer to tick an acknowledgement exactly when the
+vendor isn't cleared for `purpose=contract` (the same decision as
+`/clearance`, `app/services/clearance.py`: score, overrides, human decisions,
+vendor status); the API refuses it otherwise (409
+`risk_acknowledgement_required`) and the signature certificate records the
+band and the acknowledgement. A **non-remediable override** (sanctions match
+R-SAN-01, prohibited country R-JUR-01) blocks signing outright (409
+`vendor_blocked`; the dialog says why), and an admin can't accept that risk
+(400 `non_remediable_override`).
 
 **Sanctions screening.** `./scripts/download-sanctions.sh` (once; ~80 MB,
 no API key, OpenSanctions consolidated list, CC BY-NC 4.0) builds an index
@@ -762,10 +771,13 @@ answers whether a vendor may be used for activation, a purchase or a contract, t
 decisions (approve, approve with conditions, accept risk — admin only, reject) and vendor status into
 account. Evidence, disputes, a remediation plan and what-if simulation are on the vendor's scorecard
 page (`/app/vendors/{id}/risk`); admins manage rulesets (draft, validate, dry-run, activate) under
-Business Rules, and a weekly monitoring report replaces the PSI drift card. The earlier random forest
-is archived in `ml/archive/` with its evaluation (`docs/risk-model.md`). Known gaps are listed in
-`docs/risk-merge-review.md` (for example, contract signing does not yet use the clearance gate's
-decisions).
+Business Rules, and a weekly monitoring report replaces PSI drift monitoring (retired; the worker
+ends the old schedule). The earlier random forest is archived in `ml/archive/`. The red-team set
+(`ml/redteam_scorecard.py`, 22 profiles through the real engine and clearance, run by
+`tests/test_risk_redteam.py`) and the ruleset's evaluation on the forest's test split
+(`ml/evaluate_scorecard.py`, ROC-AUC 0.738 vs 0.715) are written up in `docs/risk-model.html`, with
+the merge review (G1–G11, all closed or decided). Rule `approval.unrated_vendor_requires_finance`
+(off) gives purchases from Unrated vendors a finance step.
 A sweep re-scores vendors after a delivery. `tests/e2e/risk_flow.py` checks the module and
 everything that reads it (signing, budget routing, RFQ scoring, notifications, onboarding).
 
@@ -830,7 +842,7 @@ wrapped with the retry / dead-letter handler (TODO.md).
   (sanctions, cancelled GSTIN, bank route → High), rating statuses
   (assessed / provisional / not rated — never a false Low), a clearance gate,
   decisions, evidence, disputes and exact replay. The random forest it
-  replaced (ROC-AUC 0.715, `docs/risk-model.md`) is archived.
+  replaced (ROC-AUC 0.715, `docs/risk-model.html`) is archived.
 - **Vendor vetting**: GSTIN format + checksum (+ optional live lookup with
   quota auto-cutoff), IFSC via Razorpay's free API, spend-based tiers.
 - **Business rules**: 28 tunable rules edited live on an admin page with

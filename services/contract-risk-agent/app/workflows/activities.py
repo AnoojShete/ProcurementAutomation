@@ -1,4 +1,4 @@
-"""Temporal activities for the renewal-reminder and drift-monitoring
+"""Temporal activities for the renewal-reminder
 workflows. Each activity opens its own DB session / Kafka producer since
 activities run in the worker process, not the FastAPI request context."""
 import logging
@@ -11,7 +11,6 @@ from app.config import settings
 from app.database import async_session_factory
 from app.models import Contract
 from app.kafka.producer import KafkaEventProducer
-from app.services.drift_service import check_drift
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +56,3 @@ async def publish_renewal_due_event(
     finally:
         await producer.stop()
     logger.info(f"Published contract.renewal.due for {contract_id} at alert_level={alert_level}")
-
-
-@activity.defn
-async def run_drift_check_activity() -> dict:
-    async with async_session_factory() as session:
-        return await check_drift(session)

@@ -196,8 +196,9 @@ async def load_sources(db) -> dict[tuple[str, str], list[Chunk]]:
     rules = (await db.execute(text(
         "SELECT rule_key, display_name, description, current_value, category FROM business_rules"))).all()
     for r in rules:
-        body = (f"Business rule “{r.display_name}” ({r.rule_key}, {r.category}): {r.description} "
-                f"Current value: {rule_value_text(r.rule_key, r.current_value)}.")
+        # Plain words first; the key stays only as the reference to cite.
+        body = (f"Business rule “{r.display_name}” ({r.category.replace('_', ' ')}): {r.description}. "
+                f"It is currently set to {rule_value_text(r.rule_key, r.current_value)}. Reference: {r.rule_key}.")
         out[("rule", r.rule_key)] = [Chunk("rule", r.rule_key, f"rule {r.rule_key}", r.display_name, 0, body, "all",
                                            None, _hash(body))]
     return out

@@ -1,10 +1,10 @@
 # Business rules
 
-Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct; 55 after the Phase 2 obligation rules; 59 after the Phase 3 sourcing rules; 63 after merging the deterministic risk scorecard; 70 after the Phase 4 GST and TDS rules) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
+Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct; 55 after the Phase 2 obligation rules; 59 after the Phase 3 sourcing rules; 63 after merging the deterministic risk scorecard; 70 after the Phase 4 GST and TDS rules; 71 after FR-04) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
 
 Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed on `business_rule.updated`); each read has a fallback used when auth-service is unreachable. Tests: `services/<service>/tests/test_rules_wiring.py::test_<rule key with _>` — each sets the rule to two values and checks the behaviour differs.
 
-**Enforced: 62** · **Not enforced: 8** (listed at the end — editing them has no effect until the feature exists).
+**Enforced: 61** · **Not enforced: 10** (listed at the end — editing them has no effect until the feature exists).
 
 | Rule | Default | What it changes | Read in | Test |
 |---|---|---|---|---|
@@ -17,6 +17,7 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `approval.reminder_sla_percents` | `[50, 80]` | Remind the approver when this much of the approval SLA has passed | approval-inventory-agent: workflows/activities.py | `approval-inventory-agent` · `test_approval_reminder_sla_percents` |
 | `approval.sla_escalation_hours` | `48` | Hours before an unapproved request escalates | approval-inventory-agent: approval_service.py, approval-inventory-agent: workflows/activities.py | `approval-inventory-agent` · `test_approval_sla_escalation_hours` |
 | `approval.spend_tiers` | `[{"tier_name": "auto", "max_amount": …` | Approval tiers with amount limits and required roles | approval-inventory-agent: approval_service.py | `approval-inventory-agent` · `test_approval_spend_tiers` |
+| `approval.unrated_vendor_requires_finance` | `false` | Purchases from a vendor whose risk checks are incomplete (Unrated) get a finance step (merge review G2) | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_approval_unrated_vendor_requires_finance` |
 | `budget.block_when_over` | `false` | Refuse an over-budget request (422 over_budget) instead of adding a finance step | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_block_when_over` |
 | `budget.fiscal_period_type` | `"quarterly"` | Budgets are per quarter or per fiscal year; decides which budget a request draws on | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_fiscal_period_type` |
 | `budget.fiscal_year_start_month` | `4` | Month the fiscal year starts (April); sets the quarter a request falls in | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_fiscal_year_start_month` |
@@ -56,8 +57,6 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `risk.contract_renewal_milestones_days` | `[60, 30, 15]` | Days before renewal to trigger notification alerts | contract-risk-agent: api/contracts.py, contract-risk-agent: workflows/activities.py | `contract-risk-agent` · `test_risk_contract_renewal_milestones_days` |
 | `risk.min_relationship_days` | `90` | Days on file (without a delivered order) before a vendor's incident history counts as assessed | contract-risk-agent: collectors/performance_collectors.py | `contract-risk-agent` · `test_risk_min_relationship_days` |
 | `risk.petty_threshold` | `50000` | A provisional low-tier vendor is still cleared for a purchase or contract up to this amount (no hard override) | contract-risk-agent: api/vendors.py (clearance) | `contract-risk-agent` · `test_risk_petty_threshold` |
-| `risk.psi_moderate_threshold` | `0.1` | Population Stability Index threshold for moderate risk drift | contract-risk-agent: drift_service.py | `contract-risk-agent` · `test_risk_psi_moderate_threshold` |
-| `risk.psi_significant_threshold` | `0.2` | Population Stability Index threshold for significant risk drift | contract-risk-agent: drift_service.py | `contract-risk-agent` · `test_risk_psi_significant_threshold` |
 | `risk.raw_retention_months` | `24` | How long raw responses from the risk signal collectors are kept | contract-risk-agent: collectors/base.py | `contract-risk-agent` · `test_risk_raw_retention_months` |
 | `risk.sanctions_match_threshold_pct` | `90.0` | Match score (0–100) at which a vendor name counts as a potential sanctions match (hard override until finance clears it; FR-14) | contract-risk-agent: services/sanctions.py | `contract-risk-agent` · `test_risk_sanctions_match_threshold_pct` |
 | `sourcing.default_criteria` | `{"price": 0.45, "lead_time": 0.15, …}` | Weights for comparing RFQ quotes (price, lead time, warranty, support, vendor risk, delivery record; add up to 1); each new RFQ starts with them | approval-inventory-agent: sourcing_service.py | `approval-inventory-agent` · `test_sourcing_default_criteria` |
@@ -75,6 +74,8 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 
 | Rule | Default | Why it has no effect today |
 |---|---|---|
+| `risk.psi_moderate_threshold` | `0.1` | Retired 21 Oct 2026 with the PSI drift check of the archived ML risk model (`ml/archive/`); the weekly monitoring report replaced it |
+| `risk.psi_significant_threshold` | `0.2` | Retired 21 Oct 2026 with the PSI drift check of the archived ML risk model (`ml/archive/`); the weekly monitoring report replaced it |
 | `document.invoice_po_match_tolerance_pct` | `0.05` | Superseded by invoice.overbill_tolerance_pct and invoice.unit_price_tolerance_pct (what matching actually uses, 1 %). Its 5 % default would loosen a fraud control — candidate for removal (needs a decision). |
 | `license.false_positive_decline_count` | `2` | No false-positive suppression of licence anomalies exists yet. |
 | `license.false_positive_window_months` | `6` | No false-positive suppression of licence anomalies exists yet. |

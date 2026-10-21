@@ -1,0 +1,482 @@
+{
+  "run_at": "2026-10-21T09:00:00+00:00",
+  "passed": 22,
+  "total": 22,
+  "profiles": [
+    {
+      "name": "Clean, established vendor",
+      "attack": "control: nothing wrong",
+      "expected": {
+        "final_band": "Low",
+        "rating_status": "assessed",
+        "cleared": true
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": true,
+        "reasons": [
+          "assessed_low"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Sanctions match behind a perfect record",
+      "attack": "excellent delivery and finances to outweigh a sanctions hit",
+      "expected": {
+        "final_band": "High",
+        "override": "R-SAN-01",
+        "cleared": false
+      },
+      "got": {
+        "final_band": "High",
+        "points": 10,
+        "rating_status": "assessed",
+        "overrides": [
+          "R-SAN-01"
+        ],
+        "cleared": false,
+        "reasons": [
+          "override_R-SAN-01"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Sanctions match, admin accepts the risk",
+      "attack": "an admin's time-boxed 'accept risk' to clear a sanctioned vendor",
+      "expected": {
+        "final_band": "High",
+        "override": "R-SAN-01",
+        "cleared": false,
+        "reason": "override_R-SAN-01"
+      },
+      "got": {
+        "final_band": "High",
+        "points": 10,
+        "rating_status": "assessed",
+        "overrides": [
+          "R-SAN-01"
+        ],
+        "cleared": false,
+        "reasons": [
+          "override_R-SAN-01"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Prohibited country",
+      "attack": "clean paperwork from a prohibited jurisdiction",
+      "expected": {
+        "final_band": "High",
+        "override": "R-JUR-01",
+        "cleared": false
+      },
+      "got": {
+        "final_band": "High",
+        "points": 4,
+        "rating_status": "assessed",
+        "overrides": [
+          "R-JUR-01"
+        ],
+        "cleared": false,
+        "reasons": [
+          "override_R-JUR-01"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Cancelled GSTIN",
+      "attack": "invoice from a deregistered entity with a good history",
+      "expected": {
+        "final_band": "High",
+        "override": "R-GST-01",
+        "cleared": false
+      },
+      "got": {
+        "final_band": "High",
+        "points": 20,
+        "rating_status": "assessed",
+        "overrides": [
+          "R-GST-01"
+        ],
+        "cleared": false,
+        "reasons": [
+          "override_R-GST-01"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Cancelled GSTIN, admin accepts the risk for 20 days",
+      "attack": "remediable override: a documented, time-boxed acceptance is allowed",
+      "expected": {
+        "final_band": "High",
+        "cleared": true,
+        "reason": "risk_accepted_until_"
+      },
+      "got": {
+        "final_band": "High",
+        "points": 20,
+        "rating_status": "assessed",
+        "overrides": [
+          "R-GST-01"
+        ],
+        "cleared": true,
+        "reasons": [
+          "risk_accepted_until_2026-11-10"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Brand-new vendor, nothing checked",
+      "attack": "no data at all, hoping for a default Low",
+      "expected": {
+        "final_band": "Unrated",
+        "rating_status": "not_rated",
+        "cleared": false
+      },
+      "got": {
+        "final_band": "Unrated",
+        "points": 0,
+        "rating_status": "not_rated",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "vendor_not_rated"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Only identity checked",
+      "attack": "partial checks, 0 points, hoping to show as Low",
+      "expected": {
+        "final_band": "Unrated",
+        "rating_status": "provisional",
+        "cleared": false,
+        "reason": "rating_provisional"
+      },
+      "got": {
+        "final_band": "Unrated",
+        "points": 0,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Stale sanctions check",
+      "attack": "a clear sanctions result from three days ago (valid for one)",
+      "expected": {
+        "final_band": "Unrated",
+        "rating_status": "provisional",
+        "cleared": false
+      },
+      "got": {
+        "final_band": "Unrated",
+        "points": 0,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Country of incorporation missing",
+      "attack": "leave the country blank to skip jurisdiction rules",
+      "expected": {
+        "final_band": "Unrated",
+        "rating_status": "provisional",
+        "cleared": false
+      },
+      "got": {
+        "final_band": "Unrated",
+        "points": 0,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Petty vendor, small purchase, checks incomplete",
+      "attack": "control: the petty exception for a small purchase",
+      "expected": {
+        "final_band": "Unrated",
+        "cleared": true,
+        "reason": "cleared_under_petty_exception"
+      },
+      "got": {
+        "final_band": "Unrated",
+        "points": 0,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": true,
+        "reasons": [
+          "cleared_under_petty_exception"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Petty vendor with a possible sanctions match",
+      "attack": "use the petty exception while a sanctions match awaits review",
+      "expected": {
+        "cleared": false,
+        "reason": "rating_provisional"
+      },
+      "got": {
+        "final_band": "Unrated",
+        "points": 5,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Petty vendor, purchase just over the limit",
+      "attack": "split-free purchase above the petty limit",
+      "expected": {
+        "cleared": false,
+        "reason": "rating_provisional"
+      },
+      "got": {
+        "final_band": "Unrated",
+        "points": 0,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Poor performer",
+      "attack": "late, badly rated, frequent incidents, otherwise compliant",
+      "expected": {
+        "final_band": "Medium",
+        "points": 35,
+        "rating_status": "assessed",
+        "cleared": true
+      },
+      "got": {
+        "final_band": "Medium",
+        "points": 35,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": true,
+        "reasons": [
+          "assessed_medium"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Poor performer with weak finances and recent breaches",
+      "attack": "many medium problems, no single override",
+      "expected": {
+        "final_band": "High",
+        "points": 53,
+        "cleared": false,
+        "reason": "high_risk_band"
+      },
+      "got": {
+        "final_band": "High",
+        "points": 53,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "high_risk_band"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Approved when Low, now High",
+      "attack": "an old approval keeping a vendor cleared after it got worse",
+      "expected": {
+        "final_band": "High",
+        "cleared": false,
+        "reason": "approval_ineligible"
+      },
+      "got": {
+        "final_band": "High",
+        "points": 53,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "high_risk_band",
+          "approval_ineligible"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Approved with a condition now overdue",
+      "attack": "ignore the condition attached to an approval",
+      "expected": {
+        "final_band": "Medium",
+        "cleared": false,
+        "reason": "condition_overdue"
+      },
+      "got": {
+        "final_band": "Medium",
+        "points": 35,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "condition_overdue"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Rejected by a reviewer",
+      "attack": "a Low score after a person rejected the vendor",
+      "expected": {
+        "final_band": "Low",
+        "cleared": false,
+        "reason": "decision_rejected"
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "decision_rejected"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "New supplier with no order history",
+      "attack": "control: missing history must not count against it",
+      "expected": {
+        "final_band": "Low",
+        "points": 0,
+        "rating_status": "assessed",
+        "cleared": true
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": true,
+        "reasons": [
+          "assessed_low"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Adverse media only",
+      "attack": "a single detect-only finding can't make a vendor High",
+      "expected": {
+        "final_band": "Low",
+        "points": 3,
+        "cleared": true
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 3,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": true,
+        "reasons": [
+          "assessed_low"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Offboarded vendor with a clean score",
+      "attack": "buy from a vendor that was offboarded",
+      "expected": {
+        "final_band": "Low",
+        "cleared": false,
+        "reason": "vendor_status_offboarded_not_active"
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "vendor_status_offboarded_not_active"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Vendor still onboarding",
+      "attack": "buy before activation",
+      "expected": {
+        "cleared": false,
+        "reason": "vendor_status_onboarding_not_active"
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "vendor_status_onboarding_not_active"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    }
+  ]
+}

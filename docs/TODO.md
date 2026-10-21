@@ -131,18 +131,18 @@ How the pieces interact:
 | GST and TDS compliance | COMPLETE | `tax_check.py` (stage `tax_agent`), `einvoice.py`, `gstr2b.py`, `tds_service.py`; page `/app/gst` (FEAT-4) | Rates confirmed by a CA; production IRP key | finance lead |
 | Contracts: generation, built-in e-sign, renewals | COMPLETE | `contract_service.py`, renewal workflow (FR-01, FR-02) | — | — |
 | Risk shown before signing | COMPLETE | `signing_risk()` (BR-6) | External e-sign path would need the check at send time | — |
-| Vendor risk model | PARTIAL | RF + overrides + platform signals + sanctions screening (FR-04, BR-7, FR-14) | Red-team vs agent doc, drift min-sample decision (DRIFT-1) | decision |
+| Vendor risk model | COMPLETE | Deterministic 100-point scorecard + hard overrides, one clearance decision for `/clearance` and signing, red team 22/22, ruleset ROC-AUC 0.738 vs 0.715 for the retired forest ([risk-model.html](risk-model.html), FR-04) | Real incident outcomes; live sources for external checks | — |
 | Clause extraction with a model | COMPLETE | Legal-BERT (CUAD) primary, regex fallback; CUAD test F1 0.85 / 0.80 / 0.91 vs rules 0.50 / 0.19 / 0.02 (FR-13) | Contracts from outside (we only read our own) | — |
 | Licence-usage anomaly model | COMPLETE | IsolationForest + SHAP on 360 simulated licences, ROC-AUC 0.95 (FR-32) | Real usage data | — |
 | Notifications | COMPLETE | notification-agent (SMTP / Mailpit), retry + DLQ, health (FR-31), coverage audit (FR-10); in-app feed with per-person read receipts and an unread-only bell (UX-1) | Gaps listed for Anooj (FR-10) | — |
 | Frontend UI | COMPLETE | Ledger design system (`docs/design-direction.md`), dark mode saved per account, names instead of emails, clickable dashboard figures, one admin **System** page (UX-1) | — | — |
-| Demo readiness | PARTIAL | `docs/demo-script.html` (18/18), 5-minute cut `docs/demo-5min.md` (6/6) + backup recording, `scripts/reset-demo.sh` (FR-05) | A teammate's run on fresh data | a teammate |
-| Email automation, chatbot | OUT OF SCOPE | Anooj's | — | — |
+| Demo readiness | PARTIAL | `docs/demo-script.html` (eight scenarios incl. risk red team, GST, assistant: 28/28 on Oct 21), 5-minute cut `docs/demo-5min.html` (6/6) + backup recording, `scripts/reset-demo.sh` (FR-05) | A teammate's run on fresh data | a teammate |
+| Email automation, chatbot | PARTIAL | Email automation is Anooj's (Phase 1–3 e-mails built here, NOTIF-1); the assistant was made retrieval-augmented (CHAT-1) and conversational (CHAT-2) at the user's request | — | — |
 | Observability (metrics, logs, correlation id) | COMPLETE | Prometheus, Grafana, Loki (FR-07) | — | — |
 | Failed-events / Kafka log | COMPLETE | Control Panel (FR-06) | — | — |
 | CI | PARTIAL | builds images only | Run tests in CI (FR-25) | — |
 | Kubernetes / PySpark claims | BLOCKED | none | Needs an architecture decision (FR-15, FR-16) | user decision |
-| Credentials for any shared deploy | BLOCKED | dev defaults; production mode checked (Oct 19): every service and worker refuses the published secrets and starts with real ones ([deployment.md](deployment.md)) | Rotate GSTINCheck key (P0) | a person |
+| Credentials for any shared deploy | BLOCKED | dev defaults; production mode checked (Oct 19): every service and worker refuses the published secrets and starts with real ones ([deployment.html](deployment.html)) | Rotate GSTINCheck key (P0) | a person |
 | Backups and restore | COMPLETE | `scripts/backup.sh` / `restore.sh` (Oct 19): Postgres (app + Temporal) and MinIO; restore checked into a throwaway Postgres and volume, identical counts | Schedule it on a real host | — |
 | Linux (Ubuntu VM) run | UNVERIFIED | steps in `readmeforme.md`; macOS fresh-clone build passes and every image pulls (FR-26, REPRO-1) | Full rehearsal on the VM (FR-26) | VM |
 | Research: calibrated document gate | PARTIAL | First run Oct 19 (`docs/results/selective.md`): at α ≤ 5 % no calibrated gate accepts anything (H1 not supported); enterprise evidence lifts AUROC 0.74 → 0.94; current heuristic 6.8 % wrong among accepted | Duplicate-rule decision, new seed, RS-08, RS-10…12 | decision |
@@ -196,21 +196,21 @@ evidence for FR/BR items are in Part B under the same ID.
 |---|---|---|---|---|---|---|---|
 | OPS-1 | Terminate 6 stale approval workflows; cancel PR `90261afb` | COMPLETE (Oct 18: the demo-data reset (user's choice) cleared Temporal's state with Postgres, so 0 open approval workflows and PR `90261afb` is gone; before that: BLOCKED (permission; Oct 17: tried again, blocked by Claude Code's permission check; the two other open `approval-` workflows, `0ca1ad3a`/`adbfc130`, are live licence reclaims, leave them) | P0 | person / permission | Temporal (`tctl`) | All 6 `approval-…` workflows Terminated; PR not `pending_approval` | Core |
 | REPRO-1 | Replace the MinIO image: `minio/minio` (and `minio/mc`, used by `install.sh`) can no longer be pulled from Docker Hub or quay.io, so a fresh clone can't start | COMPLETE (Oct 18: `pgsty/minio:RELEASE.2026-08-04T00-00-00Z`, the community continuation, chosen by the user; volume backed up first to `.run/backups/miniodata-20261018-0006.tgz`; 373 objects before and after, old documents download through the API, document pipeline e2e 52/52; `install.sh` runs `mc` inside the MinIO container; `test_images_are_pinned` allows no exceptions) | P0 | user | `docker-compose.yml`, `install.sh` | `docker compose pull` works on a clean machine; uploads and downloads pass e2e | Core |
-| SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) for the key. Oct 19: services start with `APP_ENV=production` and real secrets (all 6 + workers), refuse the defaults; `RULES_ENGINE_INTERNAL_SECRET` now reaches every service that reads rules and is refused at its default; Temporal takes `POSTGRES_PASSWORD`; checklist in `docs/deployment.md` | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
-| DEP-1 | Deployment guide, production-mode check, backup and restore | COMPLETE (Oct 19: `docs/deployment.md`; `scripts/backup.sh`, `scripts/restore.sh`, used by `reset-demo.sh`; restore checked into throwaway containers: 0 errors, identical row counts and Temporal executions, every MinIO object) | P1 | — | `docs/deployment.md`, `scripts/` | Written, and each check run | Core |
-| FR-05 | Demo script | PARTIAL (`docs/demo-script.html`, verified 18/18 by `tests/e2e/demo_scenarios.py`; Oct 18: 5-minute cut `docs/demo-5min.md` with checked fallbacks, rehearsed 6/6 by `tests/e2e/demo_5min.py` (4 runs, 35–42 s of actions), backup recording `docs/demo/backup-recording.webm`, `scripts/reset-demo.sh` for a clean demo state (run end to end: 2 min 23 s); a teammate's run left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
-| FR-12 | Presentation draft, template-shaped docs | COMPLETE (team pastes into templates) | P1 | FR-05 | `docs/results/`, `docs/presentation-outline.md` | Draft reviewed by team | Core |
+| SEC-1 | Rotate GSTINCheck key; real secrets before any shared deploy | BLOCKED (person) for the key. Oct 19: services start with `APP_ENV=production` and real secrets (all 6 + workers), refuse the defaults; `RULES_ENGINE_INTERNAL_SECRET` now reaches every service that reads rules and is refused at its default; Temporal takes `POSTGRES_PASSWORD`; checklist in `docs/deployment.html` | P0 | key owner | `.env` | Old key revoked; services start with `APP_ENV=production` | Core |
+| DEP-1 | Deployment guide, production-mode check, backup and restore | COMPLETE (Oct 19: `docs/deployment.html`; `scripts/backup.sh`, `scripts/restore.sh`, used by `reset-demo.sh`; restore checked into throwaway containers: 0 errors, identical row counts and Temporal executions, every MinIO object) | P1 | — | `docs/deployment.html`, `scripts/` | Written, and each check run | Core |
+| FR-05 | Demo script | PARTIAL (`docs/demo-script.html`, verified 18/18 by `tests/e2e/demo_scenarios.py`; Oct 18: 5-minute cut `docs/demo-5min.html` with checked fallbacks, rehearsed 6/6 by `tests/e2e/demo_5min.py` (4 runs, 35–42 s of actions), backup recording `docs/demo/backup-recording.webm`, `scripts/reset-demo.sh` for a clean demo state (run end to end: 2 min 23 s); a teammate's run left) | P1 | — | `docs/showcase.html` | Script runs a reviewer through every agent | Core |
+| FR-12 | Presentation draft, template-shaped docs | COMPLETE (team pastes into templates) | P1 | FR-05 | `docs/results/`, `docs/showcase.html` | Draft reviewed by team | Core |
 | FR-31 | Notification consumer retry + DLQ, unhealthy when stopped | COMPLETE | P1 | — | `services/notification-agent` | Failure lands in `event_dlq`; `/health` red when consumer down | Core |
 | FR-08 | Model routing and fallback, demonstrable | COMPLETE | P1 | — | `extraction_router.py` | Demo shows fallback path with logged reason | Core |
 | FR-09 | Business rules validated | COMPLETE | P1 | — | auth-service | Every rule has validation + test | Core |
 | FR-10 | Notification coverage audit | COMPLETE (gaps listed for Anooj) | P2 | — | notification-agent | Table of events → notifications, gaps fixed or listed | Core |
-| FR-04 | Risk analysis remainder (red-team vs agent doc) | PARTIAL | P2 | — | contract-risk-agent `ml/` | Part B "Done when" met | Core |
+| FR-04 | Risk analysis remainder (red-team vs agent doc) | COMPLETE (Oct 21: red-team set for the deterministic scorecard and clearance gate, 22 profiles through the real code (`ml/redteam_scorecard.py`, `tests/test_risk_redteam.py`), 22/22; it found and led to five fixes: accept-risk cleared a sanctioned vendor, an acknowledgement let anyone sign with one, old approvals outlived a worse score, the petty exception ignored a pending sanctions review (and never applied: tier name), missing country rated assessed Low. Ruleset evaluated on the retired model's test split: ROC-AUC 0.738 vs 0.715, ceiling 0.739 (`ml/evaluate_scorecard.py`). Merge-review items G1–G11 closed or decided. Retired ML copies, PSI drift workflow and the image's dead training step removed. Agent doc's own list isn't in the repo: profiles derived from its requirements. Write-up: `docs/risk-model.html`) | P2 | — | contract-risk-agent `clearance.py`, `ml/` | Part B "Done when" met | Core |
 | FR-11 | Layout-analysis accuracy, schema-validated output | COMPLETE (noisy scans: known limit) | P2 | — | `preprocess.py`, `eval_extraction.py` | Noisy-scan accuracy ≥ without preprocessing | Both |
 | FR-13 | Clause extraction with Legal-BERT, rules fallback | COMPLETE | P2 | — | contract-risk-agent | `docs/results/clauses.json` | Core |
 | FR-14 | Sanctions screening + strategic-tier checks | COMPLETE | P2 | — | contract-risk-agent `sanctions.py` | Sanctions override in risk | Core |
 | FR-29 | Train the document classifier | COMPLETE | P2 | labelled docs | `ml/train_classifier.py` | Accuracy reported vs keyword baseline | Both |
 | FR-32 | Licence anomaly model evaluated and tuned | COMPLETE | P2 | — | approval-inventory-agent | `docs/results/licence-anomaly.json` | Core |
-| DRIFT-1 | Decide minimum sample before PSI is reported | PENDING (decision) | P2 | user | `drift_service.py` | Rule chosen and documented | Core |
+| DRIFT-1 | Decide minimum sample before PSI is reported | CLOSED (Oct 21: PSI drift monitoring retired with the ML risk model; the weekly monitoring report replaces it; rules `risk.psi_*` documented as not enforced) | P2 | — | — | — | Core |
 | FEAT-1 | Budget control before approval (feature expansion Phase 1) | COMPLETE (Oct 20: budgets per department × IT category × fiscal quarter; usage computed from requests + invoice allocations; over-budget / no-budget / high-risk-vendor routing to finance; `budget.threshold_crossed`; `/app/budgets`; 7 rules enforced (5 new, migration `0015`); `tests/e2e/budget_flow.py` 30/30) | P1 | — | approval-inventory-agent `budget_service.py`, `api/budgets.py`; frontend `pages/finance/Budget*`, `components/approvals/BudgetActions.tsx` | Over-budget request gets a finance step; request page shows budget left | Core |
 | FEAT-2 | Contract obligation tracking (feature expansion Phase 2) | COMPLETE (Oct 20: 11 obligation types read from signed contracts by a 60 s sweep, confirmed by finance, due-date reminders (`contract.obligation.due`), SLA downtime → service credit → note on matching invoices, licence-seat breach check, reclaims respect the minimum commitment; 3 rules (migration `0016`); contract-risk Alembic `0008`; `tests/e2e/obligation_flow.py` 47/47. CUAD comparison done (`docs/results/obligations.md`): model for licence limits and termination for convenience, rules for the other nine) | P1 | CUAD run | contract-risk-agent `obligation_extraction.py`, `obligation_service.py`, `api/obligations.py`; frontend `components/contracts/ObligationActions.tsx` | 0.3 % below SLA → right credit, invoice flagged; seat breach flagged; per-type model/rules decision on file | Core |
 | FEAT-3 | Sourcing: IT catalog, RFQs, vendor scorecards, partial goods receipts (feature expansion Phase 3) | COMPLETE (Oct 20: catalog with agreed prices, expiry and optional pre-approval (`catalog.preapproved_max_inr`), seat add-ons that add licence seats on receipt; RFQs with sealed quotes, quotes linked from the pipeline by `RFQ-` reference, weighted comparison (`sourcing.default_criteria`), rounds and award into a purchase request; advisory RFQ note above `sourcing.rfq_required_above_inr`; partial receipts with asset tags and status `partially_received`; invoices checked against received quantity (`invoice.match_against_received`); vendor scorecard; 4 rules (migration `0017`), contract-risk Alembic `0009`; `tests/e2e/sourcing_flow.py` 69/69) | P1 | — | approval-inventory-agent `catalog_service.py`, `sourcing_service.py`, `receipt_service.py`; contract-risk `scorecard.py`; frontend `pages/sourcing/*`, `components/approvals/{Catalog,Sourcing,Receipt}Actions.tsx` | Seat add-on adds seats; expired price can't be ordered; 50 invoiced / 30 received → variance; sealed amounts hidden from every role | Core |
@@ -218,10 +218,12 @@ evidence for FR/BR items are in Part B under the same ID.
 | FEAT-4a | GST/TDS values need a chartered accountant's confirmation; the real IRP public key for production (`EINVOICE_PUBLIC_KEY`); TDS for non-residents (s. 195), 2B credit/debit notes, an e-mail for `invoice.tax_flagged` (Anooj) | PENDING (decisions / owner) | P2 | finance lead, Anooj | `gst_rates`, `tds_sections`, rules `gst.*`, `tds.*`, `msme.*` | Rates confirmed; key configured; scope decided | Core |
 | APPR-1 | A multi-level request gets its contract after the **first** approval: the approval workflow (and the direct fallback) publishes `approval.decided` `approved` at every level, and contract-risk generates and sends a contract on any `approved` (found Oct 20 by the obligation e2e: manager approved, finance pending, contract already out) | PENDING (decision: contract-risk only acts on the last level of the chain, or approval publishes a final flag / a separate event) | P1 | user | approval-inventory-agent `workflows/approval_workflow.py`, `approval_service._process_decision_direct`; contract-risk `kafka/consumer.py` | No contract until the last level approves; test for a two-level chain | Core |
 | CHAT-1 | Merge `chatbot2` (Anooj's RAG start) and make the assistant answer from the platform's records | COMPLETE (Oct 21). As merged it answered nothing: the endpoint still called the old function signature (every reply was the error message), Postgres had no pgvector, the embedding model wasn't pulled, the backfill read a field no document has (0 chunks) and wasn't in the image, and search had no access control. Now: Postgres `pgvector/pgvector:0.8.1-pg16-trixie`; index of contract clauses, documents, rules, requests, vendors, licences, budgets and totals kept current every minute; per-chunk access (staff / owner / all), bank details masked; retrieve-then-generate with citations, no function tools; eval 16/16 on three runs (`tests/e2e/chatbot_eval.py`) | P1 | — | chatbot-agent `indexer.py`, `rag_service.py`, `llm_client.py` | Grounded, cited answers; requester can't retrieve others' data; "not found" instead of guesses | Core |
+| CHAT-2 | Assistant: intent and conversation failures ("Are there any SaaS license anomalies?" answered with a raw rule value; "hi" got a canned line; "like what" searched with the previous message; "sure procurement is easy like vendors" looked up a vendor named "sure procurement") | COMPLETE (Oct 21: intent step before retrieval (`intent.py`: greeting, capabilities, examples, small talk, topic-only clarifying question, ambiguous vendor name → "which one?"); licence anomalies answered from live scores with criteria, the 0.39 threshold from its rule, closest licences and next steps (`topics.py`); rules indexed in plain words; prompt's "no record" rule limited to real names; follow-ups not merged after a greeting. 51 new tests (each fix reverted once: tests fail); live eval 20/20 incl. the four regressions) | P1 | — | chatbot-agent `intent.py`, `topics.py`, `llm_client.py`, `indexer.py` | The four cases and their edge cases answered naturally | Core |
+| DOCS-1 | Documentation cleanup: human-facing pages in HTML, references in Markdown, redundant files removed | COMPLETE (Oct 21: start page `docs/index.html`; new `risk-model.html` (replaces risk-model.md, results/risk-model.md, risk-merge-review.md), `demo-5min.html`, `deployment.html`, `competitive-analysis.html`; removed presentation-outline (superseded by showcase), roadmap-implementation-prompt (done), ui-audit / ui-research / ui-implementation-plan (redesign built; spec kept in design-direction.md); all references updated) | P2 | — | `docs/` | One place to start; no stale files | Docs |
 | NOTIF-1 | E-mails for the feature-expansion events: `budget.threshold_crossed`, `contract.obligation.due`, `rfq.issued`, `rfq.awarded`, `goods.received` | COMPLETE (Oct 21, at the user's request since Anooj is on other work: 6 templates, recipients from the budget owner / obligation owner / vendor contact / requester, priorities per event, ACLs; 81 notification tests; checked live in Mailpit) | P1 | — | notification-agent `kafka/consumer.py`, `services/routing.py`, `services/directory.py`, `templates/` | Each event reaches the right person with a readable e-mail | Core |
-| RISK-1 | Merge `updated_risk` (deterministic risk scorecard) into anjali and check its integration | COMPLETE (Oct 21: 15 errors fixed — duplicate Alembic revisions, module/package clash, migration writing `business_rules` with wrong columns (service couldn't start), 4 unseeded rules (auth `0018`), High-risk alerts silently off, 43 TypeScript errors, two endpoints always 500, risk e-mail template not rendering, vendor page calling a removed endpoint, scorecard page crashing the app, demo scenarios; `tests/e2e/risk_flow.py` 49/49; see `docs/risk-merge-review.md`) | P0 | — | contract-risk-agent `scorecard/`, `collectors/`, `risk_service.py`, `api/vendors.py`, `api/rulesets.py` | All suites green; demo 18/18 | Core |
-| RISK-2 | Contract signing gate disagrees with `/clearance` (ignores post-score decisions and vendor status) | PENDING (decision: risk owner) | P1 | Niraj | contract-risk `contract_service.signing_risk`, `api/vendors.get_vendor_clearance` | One clearance function used by signing; accept-risk vendor signs without a second acknowledgement | Core |
-| RISK-3 | Demo vendors are provisional/Unrated (external sources unreachable, no `country`); budget routing and RFQ read `band`, so Unrated never adds a finance step; PSI drift workflow still scheduled; access rules (procurement role, evidence/disputes by any requester) | PENDING (decisions, `docs/risk-merge-review.md` G2–G9) | P1 | Niraj | contract-risk, approval-inventory | Each item decided | Core |
+| RISK-1 | Merge `updated_risk` (deterministic risk scorecard) into anjali and check its integration | COMPLETE (Oct 21: 15 errors fixed — duplicate Alembic revisions, module/package clash, migration writing `business_rules` with wrong columns (service couldn't start), 4 unseeded rules (auth `0018`), High-risk alerts silently off, 43 TypeScript errors, two endpoints always 500, risk e-mail template not rendering, vendor page calling a removed endpoint, scorecard page crashing the app, demo scenarios; `tests/e2e/risk_flow.py` 49/49; see `docs/risk-model.html#merge-review`) | P0 | — | contract-risk-agent `scorecard/`, `collectors/`, `risk_service.py`, `api/vendors.py`, `api/rulesets.py` | All suites green; demo 18/18 | Core |
+| RISK-2 | Contract signing gate disagrees with `/clearance` (ignores post-score decisions and vendor status) | COMPLETE (Oct 21, FR-04: one clearance function `clearance.py` for both; a non-remediable override now blocks signing outright) | P1 | — | contract-risk `clearance.py`, `contract_service.signing_risk` | One clearance | Core |
+| RISK-3 | Merge-review G2–G11 (Unrated routing, provisional demo vendors, PSI schedule, access rules, outbox, reasons, narrative) | COMPLETE (Oct 21, FR-04: rule `approval.unrated_vendor_requires_finance` (off; migration 0020), country passed to the engine, PSI removed, `procurement` role removed and rulesets/report staff-only, risk events via the outbox, deciding reasons only, narrative/version fixed. Still true: external sources unreachable here, so live vendors stay provisional — see risk-model.html#limits) | P1 | — | contract-risk, approval-inventory | Each item decided | Core |
 | DUP-1 | Duplicate check misses a resubmitted invoice with a new number: it requires numbers ≥ 85 % similar (rule `vendor.duplicate_invoice_number_fuzzy_threshold`) | PENDING (decision; found Oct 19 by RS-06: most of the errors left among the best-scored invoices) | P1 | user | `duplicate_detection.py`, auth-service rule seed | Same vendor + amount + date window flags review whatever the number, or the trade-off is documented | Core |
 | E2E-1 | `document_pipeline.py`: the `slow_to_parse.pdf` case no longer times out (Docling 2.140 reads it within 120 s), 4 checks fail | PENDING (decision: new fixture, or expect `classified` and rely on the unit test for the limit) | P2 | user | `tests/e2e/document_pipeline.py` | Suite green without weakening the time-limit check | Core |
 | FR-15/16 | PySpark / Kubernetes claims | BLOCKED (decision) | P3 | user | — | Built or removed from docs | Core |
@@ -236,7 +238,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-25 | CI runs the service suites and root tests | PENDING | P1 | — | CI fails on a failing test | Core |
 | TEST-1 | Fix pre-existing failing root tests (`test_mailer`; `test_email_action` needs `redis` — Anooj) | COMPLETE (Oct 17: `test-root.sh` 139 passed + 14 passed, 4 skipped = chatbot live script) | P1 | — | Root suite green | Core |
 | FR-26 | Fresh-clone rehearsal on Ubuntu (UTM) | PARTIAL (Oct 18, macOS: from a copy holding only what a clone would (tracked + new unignored files, no `.env`/`dist`/`secrets`), all 6 service images and the frontend build; every third-party image is pullable (MinIO after REPRO-1). Not run as a second stack: Docker's 7.75 GB is mostly used by the live one. Still open: a full run on the VM) | P1 | VM | `docs/results/fresh-clone.md` with times | Core |
-| FR-27 | Security P1s (dependency upgrades etc.) | PARTIAL (Oct 19: FastAPI 0.148 / Starlette 1.9 everywhere, Pillow 12.3, pdfplumber 0.11.10 / pdfminer 20260107, Docling 2.140, accelerate 1.15, cryptography 50, aiosmtplib 5.1, react-router 7.18, vite 6.4; pip-audit 302 → 152 findings, npm high 7 → 5; logout revokes the refresh token; access tokens 15 min; `INTERNAL_SERVICE_TOKEN` refused at its default. Left, each documented in `docs/deployment.md` §5: MLflow 2.14 (3.x is a major upgrade), paddlepaddle 2.6 (PaddleOCR 3 rewrite), Tailwind 3's `braces` (build-time only); QA-19 and the smaller QA leftovers) | P1 | — | Part B list closed | Core |
+| FR-27 | Security P1s (dependency upgrades etc.) | PARTIAL (Oct 19: FastAPI 0.148 / Starlette 1.9 everywhere, Pillow 12.3, pdfplumber 0.11.10 / pdfminer 20260107, Docling 2.140, accelerate 1.15, cryptography 50, aiosmtplib 5.1, react-router 7.18, vite 6.4; pip-audit 302 → 152 findings, npm high 7 → 5; logout revokes the refresh token; access tokens 15 min; `INTERNAL_SERVICE_TOKEN` refused at its default. Left, each documented in `docs/deployment.html` §5: MLflow 2.14 (3.x is a major upgrade), paddlepaddle 2.6 (PaddleOCR 3 rewrite), Tailwind 3's `braces` (build-time only); QA-19 and the smaller QA leftovers) | P1 | — | Part B list closed | Core |
 | FR-28 | Final documentation pass | PARTIAL (Oct 19: test counts, deployment guide, research results, readmeforme, README and CLAUDE.md updated; templates (`docs/forReport/`) still the owner's) | P1 | all | Templates filled | Both |
 
 ### Research (selected contribution — see `RESEARCH_PAPER_PLAN.md`)
@@ -271,12 +273,12 @@ explanations, LLM agent orchestration.
    decides the research's main system too.
 3. **E2E-1** — pick how the time-limit e2e case should work now that
    Docling is faster.
-4. **FR-05** — a teammate runs `docs/demo-5min.md` after
+4. **FR-05** — a teammate runs `docs/demo-5min.html` after
    `./scripts/reset-demo.sh`.
 5. **RS** — after DUP-1: re-run with a new seed (`eval_selective.py
    extract --seed 11`), then RS-08 (external validity) and RS-12.
 6. **FR-25 / FR-26** — tests in CI; the fresh-clone run on the Ubuntu VM.
-7. **FR-04, DRIFT-1** — red-team list; drift minimum sample.
+7. **FR-04, DRIFT-1** — done Oct 21 (risk-model.html).
 
 ---
 
@@ -557,7 +559,7 @@ before any other roadmap item.
   *For Anooj (spec):* notification-agent should consume `reminder.due`
   (add the read ACL with it) and send a template per `kind` to
   `recipient_role`, linking to `link`.
-- [ ] **FR-04 Risk analysis on synthetic data, documented and
+- [x] **FR-04 Risk analysis on synthetic data, documented and
   evaluated** (29 Aug, Team A #3). *Now:* RandomForest on
   `ml/data/synthetic-vendors/vendor_risk_training_data.csv`, accuracy/AUC
   logged to MLflow; no dataset card, no per-band results. Missing
@@ -573,7 +575,7 @@ before any other roadmap item.
   and on the vendor page instead of silent defaults. *Done when:* the
   evaluation script runs in the image and its output is committed; tests
   for override-beats-model and missing-data-not-penalised pass;
-  `docs/risk-model.md` explains dataset, criteria and results in
+  `docs/risk-model.html` explains dataset, criteria and results in
   presentation-ready words.
   *Partial (Oct 16):* `ml/evaluate_risk_model.py` runs in the image
   (model now trained at image build) → `docs/results/risk-model.{json,md}`:
@@ -586,11 +588,33 @@ before any other roadmap item.
   `test_risk_model.py` 14 passed (11 new + the 3 earlier ones; 5 of the
   new fail with the old defaults/no overrides); contract-risk 103 passed; `invoice_lifecycle.py` 71/0 (risk
   check now: coverage reported, factors only from signals on file).
-  `docs/risk-model.md` written; results committed (03e7f59). *Missing:* the
+  `docs/risk-model.html` written; results committed (03e7f59). *Missing:* the
   12 red-team profiles are ours (the Agent doc's list isn't in the repo —
   compare them); sanctions and IFSC overrides report "not checked" (no
   data: FR-14, and IFSC results aren't stored); live vendors have no risk
   signals, so every live score is 0/6 and the drift check flags PSI 7.2.
+  *Done (Oct 21), for the deterministic scorecard that replaced the forest:*
+  the Agent doc's red-team list isn't in the repo, so the set was rebuilt from
+  what that doc requires (overrides decide alone, missing data never safe, no
+  false Low, explainable and replayable): `ml/redteam_scorecard.py`, 22
+  profiles through the real engine and `clearance.decide`, expectations
+  written first; `tests/test_risk_redteam.py` runs them (32 tests incl. API
+  checks). Five findings fixed, each test failing with its fix reverted:
+  (1) admin accept-risk cleared a sanctions match → refused, 400
+  `non_remediable_override`; (2) an acknowledgement let anyone sign with a
+  sanctioned vendor → 409 `vendor_blocked`, dialog explains; (3) an old
+  approval kept a vendor cleared after it turned High; (4) the petty
+  exception ignored a pending sanctions review and never applied (checked
+  tier "low", tier is "petty"); (5) missing country rated assessed Low
+  (`score_vendor` never passed the country). Sanctions and GSTIN overrides
+  now have data (R-SAN-01 from screening, R-GST-0x from the GST signal).
+  Evaluation of the ruleset on the forest's 400-vendor test split:
+  ROC-AUC 0.738 (forest 0.715, ceiling 0.739), incident rate Low 14.7 % vs
+  Medium 47.5 % (`ml/evaluate_scorecard.py` →
+  `docs/results/risk-scorecard-eval.json`). PSI drift retired (worker ends
+  the old schedule). Demo scenario 6 shows it live (4/4). Write-up:
+  `docs/risk-model.html`. contract-risk 310 passed; risk_flow 49/49;
+  invoice_lifecycle 71/71; demo 28/28.
 - [ ] **FR-05 Demo script** (29 Aug, Team A #4: "explain each step, the
   workflow and the expected outcome"). *Do:* `docs/demo-script.md`, one
   table per scenario (in-app request → approval → auto-sent contract →
@@ -768,13 +792,13 @@ before any other roadmap item.
   and the metrics from FR-04/FR-08/FR-11 and the e2e pass counts.
   Include `run.sh`/`install.sh` in the appendix (18 Jul #3). Draft deck
   outline (problem, solution, architecture, implementation, results) in
-  `docs/presentation-outline.md`. *Done when:* each agent has a sample,
+  `docs/showcase.html`. *Done when:* each agent has a sample,
   a screenshot and a metric to paste into the Word doc.
   *Evidence (Oct 16):* `docs/results/README.md` — per agent a sample
   (`docs/results/samples/`, written read-only from the running stack by
   `scripts/presentation_samples.py`), screenshots (`docs/results/screens/`,
   13, by `tests/e2e/presentation_screens.py`) and its metrics, plus the
-  test and e2e counts. `docs/presentation-outline.md`: 14-slide deck with
+  test and e2e counts. `docs/showcase.html`: 14-slide deck with
   the picture and number per slide, and what to paste into the Word
   templates (run.sh / install.sh in the appendix). Pasting into the
   Fractal templates is for the team (templates aren't in the repo).
@@ -1094,7 +1118,7 @@ before any other roadmap item.
   uploads; needs a coordinated upgrade and a retest of Docling/Paddle.
   *Why: known CVEs on the upload path.*
 - [ ] (Oct 19: still 2.14.3, kept on purpose and listed in
-  `docs/deployment.md` §5; 3.x changes the model registry.) MLflow 2.14.3
+  `docs/deployment.html` §5; 3.x changes the model registry.) MLflow 2.14.3
   has many advisories; bound to localhost for now.
   *Why: must not be exposed as is.*
 - [x] (Fixed Oct 17, QA audit QA-07: requesters see only contracts on their

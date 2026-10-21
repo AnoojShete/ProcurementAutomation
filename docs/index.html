@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Documents</title><meta name="description" content="Start page for every project document">
+<style>
+:root { --bg:#f4f6f9; --panel:#fff; --ink:#172033; --muted:#5d6879; --line:#d6dce5; --accent:#2563c9; --ok:#1d8a4a; --bad:#c2412d; --warn:#a46200; --plan:#8b95a3; }
+:root[data-theme="dark"] { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#2a333f; --accent:#7aa7f2; --ok:#4cc27f; --bad:#f07a62; --warn:#e0a53c; --plan:#7d8796; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#2a333f; --accent:#7aa7f2; --ok:#4cc27f; --bad:#f07a62; --warn:#e0a53c; --plan:#7d8796; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+.page { max-width:1080px; margin:0 auto; padding:24px 16px 56px; }
+header.top { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; }
+h1 { margin:0 0 4px; font-size:24px; } h2 { font-size:19px; margin:30px 0 8px; } h3 { font-size:16px; margin:20px 0 6px; }
+a { color:var(--accent); } p { margin:8px 0; }
+.lead { color:var(--muted); margin:0 0 6px; max-width:760px; }
+.muted { color:var(--muted); font-size:13px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:12px 0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin:12px 0; }
+.stat { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+.stat b { display:block; font-size:24px; } .stat span { color:var(--muted); font-size:13px; }
+.toc { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+.toc a { background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:4px 12px; text-decoration:none; color:var(--ink); font-size:13px; }
+.tblwrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--panel); margin:10px 0; }
+table { border-collapse:collapse; width:100%; font-size:13.5px; }
+th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+tr:last-child td { border-bottom:0; }
+th { color:var(--muted); font-weight:600; font-size:12.5px; white-space:nowrap; }
+code { font:12.5px ui-monospace,Menlo,monospace; background:color-mix(in srgb,var(--line) 35%,transparent); padding:1px 4px; border-radius:4px; }
+pre { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; overflow-x:auto; font:12.5px/1.5 ui-monospace,Menlo,monospace; }
+pre code { background:none; padding:0; }
+.pill { display:inline-block; font-size:11.5px; font-weight:700; border:1px solid; border-radius:999px; padding:0 8px; white-space:nowrap; }
+.g { color:var(--ok); } .r { color:var(--bad); } .w { color:var(--warn); } .n { color:var(--plan); }
+ul { margin:6px 0; padding-left:20px; } li { margin:3px 0; }
+blockquote { margin:10px 0; padding:8px 14px; border-left:3px solid var(--accent); background:var(--panel); border-radius:0 8px 8px 0; }
+@media (max-width:640px) { body { font-size:14px; } th, td { padding:7px 8px; } }
+</style></head>
+<body><div class="page">
+<header class="top"><div><h1>Project documents</h1>
+<p class="lead">IT Procurement Intelligence Platform. Pages to read are below; the Markdown files further down are working references for the team and the coding agent.</p></div>
+<span class="muted">21 Oct 2026</span></header>
+<h2>To read</h2>
+<div class="grid"><a class="stat" href="showcase.html" style="text-decoration:none;color:inherit"><b style="font-size:17px">Showcase</b><span>Evaluator, mentor · 25 min</span><p style="margin:6px 0 0;font-size:14px">The guided presentation: what to show, what to say, screenshots, evidence and likely questions.</p></a><a class="stat" href="demo-5min.html" style="text-decoration:none;color:inherit"><b style="font-size:17px">Five-minute demo</b><span>Presenter</span><p style="margin:6px 0 0;font-size:14px">One path through every agent, with the fallback for each thing that can break.</p></a><a class="stat" href="demo-script.html" style="text-decoration:none;color:inherit"><b style="font-size:17px">Demo script</b><span>Anyone running the demo</span><p style="margin:6px 0 0;font-size:14px">Eight scenarios step by step, each checked on the running stack: core flows, risk red team, GST, assistant.</p></a><a class="stat" href="project-flow.html" style="text-decoration:none;color:inherit"><b style="font-size:17px">Project flow</b><span>Team, mentor</span><p style="margin:6px 0 0;font-size:14px">What is built per agent and its status; tab two is the research gap analysis.</p></a><a class="stat" href="risk-model.html" style="text-decoration:none;color:inherit"><b style="font-size:17px">Vendor risk</b><span>Risk owner, evaluator</span><p style="margin:6px 0 0;font-size:14px">The 100-point scorecard, clearance, the red team (22/22), the evaluation and the merge review.</p></a><a class="stat" href="codebase-guide.html" style="text-decoration:none;color:inherit"><b style="font-size:17px">Codebase guide</b><span>Developers</span><p style="margin:6px 0 0;font-size:14px">Every service, file, table, endpoint and algorithm explained, with a file explorer.</p></a><a class="stat" href="deployment.html" style="text-decoration:none;color:inherit"><b style="font-size:17px">Deployment guide</b><span>Whoever deploys it</span><p style="margin:6px 0 0;font-size:14px">Production settings, secrets, HTTPS, the e-invoice key, backups and restore.</p></a><a class="stat" href="competitive-analysis.html" style="text-decoration:none;color:inherit"><b style="font-size:17px">Competitive analysis</b><span>Report, evaluator</span><p style="margin:6px 0 0;font-size:14px">Five commercial suites compared with the platform (the gaps found were then built).</p></a></div>
+<h2>Working references (Markdown)</h2>
+<div class="tblwrap"><table><thead><tr><th>File</th><th>What it holds</th></tr></thead><tbody>
+<tr><td><a href="TODO.md"><code>TODO.md</code></a></td><td>Task register and roadmap, with dated evidence per item</td></tr><tr><td><a href="IMPLEMENTATION_PLAN.md"><code>IMPLEMENTATION_PLAN.md</code></a></td><td>Your own checklist (edit it as items finish)</td></tr><tr><td><a href="readmeforme.md"><code>readmeforme.md</code></a></td><td>Full technical reference: setup, configuration, every feature's internals, testing</td></tr><tr><td><a href="feature-expansion-plan.md"><code>feature-expansion-plan.md</code></a></td><td>The feature-expansion phases: design, what was built, deliberate changes</td></tr><tr><td><a href="business-rules.md"><code>business-rules.md</code></a></td><td>Every business rule: what it changes, where it's read, its test</td></tr><tr><td><a href="testing-strategy.md"><code>testing-strategy.md</code></a></td><td>How the platform is tested</td></tr><tr><td><a href="design-direction.md"><code>design-direction.md</code></a></td><td>The Ledger UI design spec new frontend code follows</td></tr><tr><td><a href="model-routing.md"><code>model-routing.md</code></a></td><td>Primary model vs fallback, per pipeline</td></tr><tr><td><a href="notifications.md"><code>notifications.md</code></a></td><td>Which event sends which notification</td></tr><tr><td><a href="architecture.md"><code>architecture.md</code></a></td><td>The architecture diagram and its parts</td></tr><tr><td><a href="quality-audit-report.md"><code>quality-audit-report.md</code></a></td><td>The 17 Oct audit; tests cite its finding numbers</td></tr><tr><td><a href="RESEARCH_GAP_ANALYSIS.md"><code>RESEARCH_GAP_ANALYSIS.md</code></a></td><td>Research gap analysis (visual version in Project flow, tab two)</td></tr><tr><td><a href="RESEARCH_PAPER_PLAN.md"><code>RESEARCH_PAPER_PLAN.md</code></a></td><td>The paper's plan and RS tasks</td></tr><tr><td><a href="results/README.md"><code>results/README.md</code></a></td><td>Evaluation results and samples per agent</td></tr>
+</tbody></table></div>
+<p class="muted">The public overview is the repository's <code>README.md</code>. Material for the report and the paper goes in <code>forReport/</code> and <code>forResearchPaper/</code>.</p>
+
+</div><script>try{const t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script></body></html>

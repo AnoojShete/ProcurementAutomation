@@ -62,8 +62,18 @@ CASES = [
      [r"request|procure|vendor|contract|document"], []),
     ("requester", "chat", "What is the capital of France?",
      [], []),
+    # Regressions seen in use on 21 Oct (intent.py, topics.py)
+    ("finance", "data", "Are there any SaaS license anomalies?",
+     [r"\b(no|yes)\b", r"0\.39", r"isolation forest|anomaly model", r"what to do"],
+     [r"license\.anomaly_anomalous_threshold", r"^\W*\"?threshold score for flagging"]),
+    ("requester", "chat", "hi",
+     [r"^hi\b", r"\?"], [r"I can help with procurement-related questions"]),
+    ("requester", "follow-up", ["hi", "like what"],
+     [r"things you could ask", r"- .+\?"], [r"approval\.email_action", r"business rule"]),
+    ("requester", "chat", "sure procurement is easy like vendors",
+     [r"vendor"], [r"no record", r"sure procurement"]),
 ]
-QUICK = {0, 2, 6, 8, 9}
+QUICK = {0, 2, 6, 8, 9, 16, 17, 18, 19}
 
 
 def login(role):
