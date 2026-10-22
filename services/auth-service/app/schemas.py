@@ -51,8 +51,16 @@ Role = Literal["requester", "approver", "finance", "admin"]
 
 
 class UserUpdateRequest(BaseModel):
+    email: Optional[EmailStr] = None
     role: Optional[Role] = None
     is_active: Optional[bool] = None
+
+
+class DemoAccountResponse(BaseModel):
+    role: str
+    email: str
+    display_name: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 Theme = Literal["light", "dark", "system"]

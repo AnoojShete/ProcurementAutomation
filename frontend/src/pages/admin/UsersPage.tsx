@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Pencil, Search } from "lucide-react";
 import { authApi } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { ErrorState, InlineError } from "@/components/ui/ErrorState";
+import { ChangeEmailModal } from "@/components/admin/ChangeEmailModal";
 import { ROLE_LABELS } from "@/lib/roleNav";
 import { formatDateTime } from "@/lib/format";
 
@@ -25,6 +26,7 @@ export function UsersPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [editingEmailUser, setEditingEmailUser] = useState<AccountUser | null>(null);
 
   const load = useCallback(async (q: string) => {
     setLoading(true);
@@ -75,7 +77,20 @@ export function UsersPage() {
     {
       key: "email",
       header: "Email",
-      render: (u) => <span className="text-ink-2">{u.email}</span>,
+      render: (u) => (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-ink-2">{u.email}</span>
+          <button
+            type="button"
+            aria-label={`Change email for ${u.display_name || u.email}`}
+            title="Change email"
+            onClick={() => setEditingEmailUser(u)}
+            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-sheet-sunk dark:hover:text-ink transition-colors"
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        </span>
+      ),
       sortValue: (u) => u.email,
     },
     {
@@ -127,19 +142,29 @@ export function UsersPage() {
     {
       key: "actions",
       header: "",
-      render: (u) =>
-        u.id === me?.id ? (
-          <span className="text-xs text-slate-400">You</span>
-        ) : (
+      render: (u) => (
+        <div className="flex items-center justify-end gap-1.5">
           <Button
             size="sm"
-            variant={u.is_active ? "secondary" : "primary"}
-            loading={busy === u.id}
-            onClick={() => void update(u, { is_active: !u.is_active })}
+            variant="ghost"
+            onClick={() => setEditingEmailUser(u)}
           >
-            {u.is_active ? "Disable" : "Enable"}
+            Edit email
           </Button>
-        ),
+          {u.id === me?.id ? (
+            <span className="text-xs text-slate-400 px-2">You</span>
+          ) : (
+            <Button
+              size="sm"
+              variant={u.is_active ? "secondary" : "primary"}
+              loading={busy === u.id}
+              onClick={() => void update(u, { is_active: !u.is_active })}
+            >
+              {u.is_active ? "Disable" : "Enable"}
+            </Button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -168,6 +193,15 @@ export function UsersPage() {
           emptyTitle="No users match"
         />
       </Card>
+
+      <ChangeEmailModal
+        user={editingEmailUser}
+        isSelf={editingEmailUser?.id === me?.id}
+        onClose={() => setEditingEmailUser(null)}
+        onSaved={(updated) => {
+          setUsers((list) => list.map((x) => (x.id === updated.id ? updated : x)));
+        }}
+      />
     </div>
   );
 }

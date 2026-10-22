@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +24,37 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [unverified, setUnverified] = useState(false);
   const [resent, setResent] = useState<string | null>(null);
+  const [demoAccounts, setDemoAccounts] = useState(DEMO_ACCOUNTS);
+
+  useEffect(() => {
+    if (!SHOW_DEMO_ACCOUNTS) return;
+    authApi
+      .getDemoAccounts()
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          setDemoAccounts((prev) =>
+            prev.map((acct) => {
+              const match = res.data.find(
+                (d) => d.role.toLowerCase() === acct.role.toLowerCase(),
+              );
+              if (!match) return acct;
+              const roleName = acct.role.charAt(0).toUpperCase() + acct.role.slice(1);
+              const label = match.display_name
+                ? `${match.display_name} · ${roleName}`
+                : acct.label;
+              return {
+                ...acct,
+                email: match.email,
+                label,
+              };
+            }),
+          );
+        }
+      })
+      .catch(() => {
+        // Fallback to static DEMO_ACCOUNTS if endpoint is unavailable
+      });
+  }, []);
 
   if (status === "authenticated") return <Navigate to="/app" replace />;
 
@@ -47,7 +78,7 @@ export function LoginPage() {
     }
   };
 
-  const pickDemoRole = (role: (typeof DEMO_ACCOUNTS)[number]) => {
+  const pickDemoRole = (role: (typeof demoAccounts)[number]) => {
     setSelectedRole(role.role);
     setEmail(role.email);
     setPassword(role.password);
@@ -178,7 +209,7 @@ export function LoginPage() {
             </div>
             <p className="mt-1 text-13 text-ink-2">Pick a role to fill in a seeded account, then sign in.</p>
             <ul className="mt-3 divide-y divide-rule overflow-hidden rounded border border-rule bg-sheet">
-              {DEMO_ACCOUNTS.map((acct) => {
+              {demoAccounts.map((acct) => {
                 const selected = selectedRole === acct.role;
                 return (
                   <li key={acct.role}>

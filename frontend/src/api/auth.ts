@@ -64,8 +64,15 @@ export const authApi = {
       `/auth/users${q ? `?q=${encodeURIComponent(q)}` : ""}`,
     ),
   getUser: (id: string) => api.get<AccountUser>(`/auth/users/${id}`),
-  updateUser: (id: string, changes: { role?: Role; is_active?: boolean }) =>
-    api.patch<AccountUser>(`/auth/users/${id}`, changes),
+  updateUser: (
+    id: string,
+    changes: { email?: string; role?: Role; is_active?: boolean },
+  ) => api.patch<AccountUser>(`/auth/users/${id}`, changes),
+  getDemoAccounts: () =>
+    api.get<{ role: string; email: string; display_name: string | null }[]>(
+      "/auth/demo-accounts",
+      { skipAuthRetry: true },
+    ),
 };
 
 /** Reads the one-time token from the link's "#token=..." and removes it

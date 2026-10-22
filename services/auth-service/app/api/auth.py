@@ -26,7 +26,7 @@ from app.database import get_db
 from app.models import User
 from app.schemas import (
     AccessTokenResponse, ChangePasswordRequest, DataResponse, EmailOnlyRequest, LoginRequest, ProfileUpdateRequest,
-    RegisterRequest, ResetPasswordRequest, TokenRequest, TokenResponse, UserResponse,
+    RegisterRequest, ResetPasswordRequest, TokenRequest, TokenResponse, UserResponse, DemoAccountResponse,
 )
 from app.security import (
     PasswordPolicyError, check_password_policy, hash_password, is_password_breached, needs_rehash, normalize_email,
@@ -372,3 +372,27 @@ async def change_password(data: ChangePasswordRequest, response: Response, backg
     background.add_task(emails.send_quietly, user.email, emails.password_changed_email())
     # This device gets a fresh session carrying the new token_version.
     return _session_response(response, user)
+
+
+@router.get("/demo-accounts", response_model=DataResponse)
+async def list_demo_accounts(db: AsyncSession = Depends(get_db)):
+    """Returns the current email addresses for evaluation/demo roles so the
+    login page's quick-fill buttons reflect any email changes made by an admin."""
+    import os
+    from shared.runtime_env import is_development
+    if not (is_development() or os.environ.get("SEED_DEMO_USERS", "").lower() == "true"):
+        raise HTTPException(status_code=404, detail="demo accounts not available")
+
+    roles = ["admin", "finance", "requester", "approver"]
+    stmt = select(User).where(User.role.in_(roles), User.is_active == True).order_by(User.created_at.asc())
+    users = (await db.execute(stmt)).scalars().all()
+    by_role = {}
+    for u in users:
+        if u.role not in by_role:
+            by_role[u.role] = DemoAccountResponse(
+                role=u.role,
+                email=u.email,
+                display_name=u.display_name,
+            )
+    result = [by_role[r] for r in roles if r in by_role]
+    return DataResponse(data=result)

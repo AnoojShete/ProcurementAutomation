@@ -1,8 +1,8 @@
-"""Admin user management: list accounts, change a role, disable/enable.
+"""Admin user management: list accounts, change a role, disable/enable, change email.
 
 Sign-up always creates a "requester"; an admin promotes people from here.
-Changing a role or disabling an account bumps token_version, so the
-person's existing sessions stop refreshing and the change applies within
+Changing a role, disabling an account, or changing an email bumps token_version,
+so the person's existing sessions stop refreshing and the change applies within
 one access-token lifetime (JWT_EXPIRY_MINUTES).
 """
 from typing import Optional
@@ -11,10 +11,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import audit
+from app import account_tokens, audit, lockout
 from app.database import get_db
 from app.models import User
 from app.schemas import AdminUserResponse, DataResponse, PersonResponse, UserUpdateRequest
+from app.security import normalize_email
 from shared.auth.middleware import CurrentUser, get_current_user, require_role
 
 router = APIRouter()
@@ -60,6 +61,20 @@ async def update_user(user_id: str, data: UserUpdateRequest, admin: CurrentUser 
         raise HTTPException(status_code=400, detail="You can't change your own role or disable your own account.")
 
     changes = {}
+    if data.email is not None:
+        new_email = normalize_email(str(data.email))
+        if new_email != user.email:
+            existing = (await db.execute(select(User).where(func.lower(User.email) == new_email))).scalars().first()
+            if existing and existing.id != user.id:
+                raise HTTPException(status_code=400, detail="A user with that email already exists.")
+            old_email = user.email
+            changes["email"] = {"from": old_email, "to": new_email}
+            user.email = new_email
+            await account_tokens.revoke_all(db, user.id, account_tokens.VERIFY_EMAIL)
+            await account_tokens.revoke_all(db, user.id, account_tokens.RESET_PASSWORD)
+            await lockout.clear(db, old_email)
+            await lockout.clear(db, new_email)
+
     if data.role is not None and data.role != user.role:
         changes["role"] = {"from": user.role, "to": data.role}
         user.role = data.role
