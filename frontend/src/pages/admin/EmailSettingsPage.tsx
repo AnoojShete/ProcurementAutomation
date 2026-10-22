@@ -24,7 +24,7 @@ const providerConfig: Record<Exclude<SmtpProvider, "custom">, { host: string; po
 
 const detectProvider = (host: string): SmtpProvider => {
   const normalizedHost = (host || "").toLowerCase();
-  if (normalizedHost.includes("gmail")) return "gmail";
+  if (normalizedHost.includes("gmail") || normalizedHost.includes("google")) return "gmail";
   if (normalizedHost.includes("office365") || normalizedHost.includes("outlook")) return "outlook";
   if (normalizedHost.includes("yahoo")) return "yahoo";
   if (normalizedHost.includes("zoho")) return "zoho";
@@ -84,9 +84,17 @@ export function EmailSettingsPage({ onBack }: EmailSettingsProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
+    let finalValue: any = type === "checkbox" ? checked : name === "port" ? parseInt(value) || 0 : value;
+    if (name === "host") {
+      const normalized = (value || "").trim().toLowerCase();
+      if (normalized === "smtp.google.com" || normalized === "google.com") {
+        finalValue = "smtp.gmail.com";
+      }
+      setSmtpProvider(detectProvider(finalValue));
+    }
     setSettings((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : name === "port" ? parseInt(value) || 0 : value,
+      [name]: finalValue,
     }));
   };
 
@@ -323,6 +331,11 @@ export function EmailSettingsPage({ onBack }: EmailSettingsProps) {
                   className="field"
                   required
                 />
+                {(smtpProvider === "gmail" || (settings.host || "").includes("gmail")) && (
+                  <span className="text-11 text-amber-600">
+                    For Gmail, Username MUST be your full email address (e.g. yourname@gmail.com).
+                  </span>
+                )}
               </label>
 
               {/* Password */}
@@ -350,6 +363,11 @@ export function EmailSettingsPage({ onBack }: EmailSettingsProps) {
                 <span className="text-12 text-ink-3">
                   Passwords are encrypted using AES-256-GCM before storage in the database.
                 </span>
+                {(smtpProvider === "gmail" || (settings.host || "").includes("gmail")) && (
+                  <span className="text-11 text-amber-600">
+                    For Gmail, use a 16-character App Password generated from Google Account &gt; Security &gt; 2-Step Verification &gt; App passwords (not your personal account password).
+                  </span>
+                )}
               </div>
             </div>
 

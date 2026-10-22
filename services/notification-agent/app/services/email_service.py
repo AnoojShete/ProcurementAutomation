@@ -40,14 +40,15 @@ async def get_custom_smtp_settings(db: Optional[AsyncSession] = None) -> Optiona
         if not row or not row.host:
             return None
 
+        resolved_host = "smtp.gmail.com" if (row.host or "").lower() in ("smtp.google.com", "google.com", "gmail.com") else row.host
         decrypted_password = default_encryption_service.decrypt(row.password) or ""
-        if row.host and ("gmail.com" in row.host.lower()):
+        if resolved_host and ("gmail.com" in resolved_host.lower()):
             decrypted_password = decrypted_password.replace(" ", "")
         security = "ssl" if (row.enable_ssl and row.port == 465) else ("starttls" if row.enable_ssl else "none")
 
         return MailSettings(
             mode="smtp",
-            host=row.host,
+            host=resolved_host,
             port=row.port,
             security=security,
             username=row.username,

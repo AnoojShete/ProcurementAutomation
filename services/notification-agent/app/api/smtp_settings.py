@@ -42,6 +42,13 @@ class SmtpSettingsDto(BaseModel):
     companyId: Optional[int] = 1
 
 
+def normalize_smtp_host(host: str) -> str:
+    h = (host or "").strip()
+    if h.lower() in ("smtp.google.com", "google.com", "gmail.com"):
+        return "smtp.gmail.com"
+    return h
+
+
 def _send_test_email_sync(
     host: str,
     port: int,
@@ -53,7 +60,7 @@ def _send_test_email_sync(
     timeout: float = 15.0,
 ) -> None:
     """Synchronous SMTP connection and test message delivery."""
-    host = host.strip() if host else ""
+    host = normalize_smtp_host(host)
     username = username.strip() if username else ""
     email_from = email_from.strip() if email_from else ""
     if password:
@@ -142,7 +149,7 @@ async def save_settings(
 
     now = datetime.now(timezone.utc)
     if existing:
-        existing.host = request.host
+        existing.host = normalize_smtp_host(request.host)
         existing.port = request.port
         existing.email_from = request.emailFrom
         existing.username = request.username
@@ -154,7 +161,7 @@ async def save_settings(
     else:
         new_settings = CompanySmtpSettings(
             comp_id=company_id,
-            host=request.host,
+            host=normalize_smtp_host(request.host),
             port=request.port,
             email_from=request.emailFrom,
             username=request.username,
@@ -221,7 +228,7 @@ async def test_connection(
 
         await asyncio.to_thread(
             _send_test_email_sync,
-            host=request.host,
+            host=normalize_smtp_host(request.host),
             port=request.port,
             username=request.username,
             password=password_to_use,
@@ -233,6 +240,39 @@ async def test_connection(
         payload = {"success": True, "message": f"Test email sent to {user_email}!"}
         return {**payload, "data": payload}
 
+    except smtplib.SMTPAuthenticationError as auth_ex:
+        error_msg = (
+            f"Authentication failed: {auth_ex}. "
+            "For Gmail: 1) Username MUST be your full Gmail address (e.g., yourname@gmail.com). "
+            "2) Password MUST be a 16-character App Password from myaccount.google.com/apppasswords "
+            "(with 2-Step Verification enabled; do not use your personal Gmail password)."
+        )
+        logger.warning("SMTP auth error: %s", error_msg)
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": error_msg,
+                "error": {"code": "auth_error", "message": error_msg},
+            },
+        )
+    except OSError as os_err:
+        error_msg = f"Network Error: {os_err}"
+        if "Network is unreachable" in str(os_err) or getattr(os_err, "errno", None) == 101:
+            error_msg = (
+                f"Network unreachable connecting to {request.host}:{request.port}. "
+                "For Gmail, the SMTP host must be 'smtp.gmail.com' (not 'smtp.google.com'). "
+                "Ensure port 587 is used with SSL/TLS enabled."
+            )
+        logger.warning("SMTP network error: %s", error_msg)
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "success": False,
+                "message": error_msg,
+                "error": {"code": "network_error", "message": error_msg},
+            },
+        )
     except smtplib.SMTPException as smtp_ex:
         error_msg = f"SMTP Error: {smtp_ex}"
         if "Connection unexpectedly closed" in str(smtp_ex) and ("gmail" in (request.host or "").lower()):
