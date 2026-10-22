@@ -41,6 +41,8 @@ async def get_custom_smtp_settings(db: Optional[AsyncSession] = None) -> Optiona
             return None
 
         decrypted_password = default_encryption_service.decrypt(row.password) or ""
+        if row.host and ("gmail.com" in row.host.lower()):
+            decrypted_password = decrypted_password.replace(" ", "")
         security = "ssl" if (row.enable_ssl and row.port == 465) else ("starttls" if row.enable_ssl else "none")
 
         return MailSettings(

@@ -53,6 +53,14 @@ def _send_test_email_sync(
     timeout: float = 15.0,
 ) -> None:
     """Synchronous SMTP connection and test message delivery."""
+    host = host.strip() if host else ""
+    username = username.strip() if username else ""
+    email_from = email_from.strip() if email_from else ""
+    if password:
+        password = password.strip()
+        if host.endswith("gmail.com") or host == "smtp.gmail.com":
+            password = password.replace(" ", "")
+
     msg = EmailMessage()
     msg["From"] = email_from
     msg["To"] = to_email
@@ -127,7 +135,10 @@ async def save_settings(
         if existing and existing.password:
             password_to_save = existing.password
     else:
-        password_to_save = default_encryption_service.encrypt(request.password)
+        pwd = request.password.strip()
+        if request.host and (request.host.strip().endswith("gmail.com") or request.host.strip() == "smtp.gmail.com"):
+            pwd = pwd.replace(" ", "")
+        password_to_save = default_encryption_service.encrypt(pwd)
 
     now = datetime.now(timezone.utc)
     if existing:
@@ -224,6 +235,8 @@ async def test_connection(
 
     except smtplib.SMTPException as smtp_ex:
         error_msg = f"SMTP Error: {smtp_ex}"
+        if "Connection unexpectedly closed" in str(smtp_ex) and ("gmail" in (request.host or "").lower()):
+            error_msg += " (Google rejected the connection. This occurs when 2-Step Verification is off or you used your regular Google account password instead of a 16-character App Password from myaccount.google.com/apppasswords)."
         logger.warning("SMTP test connection failed: %s", error_msg)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
