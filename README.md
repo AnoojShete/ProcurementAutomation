@@ -185,7 +185,8 @@ and dark themes are in Account settings. Drop a quote PDF into
 
 Deploying beyond one machine, backups and restore:
 [docs/index.html#deploy](docs/index.html#deploy). Every project document starts at
-[docs/index.html](docs/index.html).
+[docs/index.html](docs/index.html); what to show while presenting is in
+[docs/presentation.html](docs/presentation.html).
 
 **Documentation site:** architecture, functional flow, every agent, APIs,
 configuration, deployment, testing and troubleshooting, built with MkDocs

@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presentation · Procurement Platform</title>
+<meta name="description" content="Project documents of the IT Procurement Intelligence Platform: Presentation">
+<style>
+:root { --bg:#f4f6f9; --panel:#fff; --side:#fbfcfe; --ink:#172033; --muted:#5d6879; --line:#e1e6ee; --hover:#eef2f8;
+  --blue:#2563c9; --orange:#d9730d; --green:#1d8a4a; --purple:#7a3fa3; --pink:#d1336b; --teal:#0f7f86; --grey:#4b5563; }
+:root[data-theme="dark"] { --bg:#0e1218; --panel:#161c24; --side:#121820; --ink:#e6ebf1; --muted:#9aa5b4; --line:#252e3a; --hover:#1c2430;
+  --blue:#7aa7f2; --orange:#f2a250; --green:#4cc27f; --purple:#b98ae0; --pink:#f07aa0; --teal:#52c3c9; --grey:#a3adba; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1218; --panel:#161c24; --side:#121820; --ink:#e6ebf1; --muted:#9aa5b4; --line:#252e3a; --hover:#1c2430;
+  --blue:#7aa7f2; --orange:#f2a250; --green:#4cc27f; --purple:#b98ae0; --pink:#f07aa0; --teal:#52c3c9; --grey:#a3adba; } }
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+body { display:flex; }
+svg.i { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+.side { width:232px; flex:none; display:flex; flex-direction:column; gap:16px; padding:16px 12px; background:var(--side); border-right:1px solid var(--line); transition:width .15s; }
+.brand { display:flex; align-items:center; gap:10px; padding:2px 4px; font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; }
+.mark { width:34px; height:34px; border-radius:10px; flex:none; display:grid; place-items:center; color:#fff;
+  background:linear-gradient(135deg, var(--blue), var(--purple)); }
+.mode { display:grid; grid-template-columns:1fr 1fr; gap:2px; background:var(--hover); border-radius:10px; padding:3px; }
+.mode a { display:flex; align-items:center; justify-content:center; gap:6px; padding:6px 4px; border-radius:8px; color:var(--muted);
+  text-decoration:none; font-weight:600; font-size:13px; }
+.mode a[aria-current="true"] { background:var(--panel); color:var(--ink); box-shadow:0 1px 2px rgb(0 0 0 / .1); }
+.mode svg.i { width:16px; height:16px; }
+nav { display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
+nav a { --c:var(--blue); display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:10px; color:var(--ink);
+  text-decoration:none; font-weight:500; white-space:nowrap; }
+nav a .ic { width:30px; height:30px; flex:none; border-radius:8px; display:grid; place-items:center; color:var(--c);
+  background:color-mix(in srgb, var(--c) 14%, transparent); }
+nav a:hover { background:var(--hover); }
+nav a[aria-current="page"] { background:color-mix(in srgb, var(--c) 11%, var(--panel)); font-weight:650; }
+nav a[aria-current="page"] .ic { background:var(--c); color:var(--panel); }
+.foot { margin-top:auto; display:flex; gap:6px; }
+.btn { display:grid; place-items:center; width:36px; height:36px; border:1px solid var(--line); background:var(--panel); color:var(--muted);
+  border-radius:9px; cursor:pointer; }
+.btn:hover { color:var(--ink); }
+body.slim .side { width:68px; }
+body.slim .lbl, body.slim .mode .lbl { display:none; }
+body.slim .mode { grid-template-columns:1fr; }
+body.slim .foot { flex-direction:column; }
+main { flex:1; position:relative; min-width:0; }
+main iframe { position:absolute; inset:0; width:100%; height:100%; border:0; background:var(--bg); }
+main iframe[hidden] { display:none; }
+@media (max-width:760px) {
+  body { flex-direction:column; }
+  .side, body.slim .side { width:auto; flex-direction:row; align-items:center; gap:8px; padding:8px 12px; border-right:0; border-bottom:1px solid var(--line); overflow-x:auto; }
+  .lbl, .brand .lbl { display:none; }
+  .mode { grid-template-columns:1fr 1fr; flex:none; }
+  nav { flex-direction:row; overflow:visible; }
+  nav a { padding:4px; }
+  .foot { margin:0 0 0 auto; flex-direction:row; }
+  #slim { display:none; }
+}
+</style></head>
+<body>
+<aside class="side">
+  <div class="brand"><span class="mark"><svg class="i"><use href="#i-box"/></svg></span><span class="lbl">Procurement Platform</span></div>
+  <div class="mode" role="group" aria-label="Dashboard"><a href="index.html" data-dash="team" aria-current="false" title="Team workspace"><svg class="i"><use href="#i-users"/></svg><span class="lbl">Team</span></a><a href="presentation.html" data-dash="present" aria-current="true" title="Presentation"><svg class="i"><use href="#i-screen"/></svg><span class="lbl">Present</span></a></div>
+  <nav aria-label="Pages"><a href="#status" data-id="status" title="What is built, agent by agent" style="--c:var(--blue)"><span class="ic"><svg class="i"><use href="#i-flow"/></svg></span><span class="lbl">Project status</span></a><a href="#risk" data-id="risk" title="Scorecard, clearance, red team, evaluation" style="--c:var(--pink)"><span class="ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="lbl">Vendor risk</span></a><a href="#slides" data-id="slides" title="The final-review deck, slide by slide" style="--c:var(--purple)"><span class="ic"><svg class="i"><use href="#i-screen"/></svg></span><span class="lbl">Slides</span></a></nav>
+  <div class="foot">
+    <button class="btn" type="button" id="theme" aria-label="Switch light or dark theme" title="Light or dark"><svg class="i"><use href="#i-moon"/></svg></button>
+    <button class="btn" type="button" id="slim" aria-label="Collapse the sidebar" title="Collapse the sidebar"><svg class="i"><use href="#i-side"/></svg></button>
+  </div>
+</aside>
+<main id="main"></main>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z"/></symbol><symbol id="i-checks" viewBox="0 0 24 24"><path d="M4 7l2 2 3.5-3.5M4 15l2 2 3.5-3.5M13 7.5h7M13 15.5h7"/></symbol><symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 15h9"/></symbol><symbol id="i-code" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></symbol><symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol><symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol><symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v4a2 2 0 0 0 2 2H14"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol><symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></symbol><symbol id="i-box" viewBox="0 0 24 24"><path d="M12 3l9 5v8l-9 5-9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol><symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol></defs></svg>
+<template id="page-status">
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Procurement Platform Flow</title>
+<style>
+  :root {
+    --bg: #f4f6f9; --panel: #ffffff; --ink: #172033; --muted: #5d6879; --line: #d6dce5; --arrow: #8e99a8;
+    --src: #1f5fbf; --stream: #7a3fa3; --proc: #2563c9; --gate: #1d8a4a; --agent: #d9730d; --notify: #d1336b; --shared: #4b5563;
+    --ok: #1d8a4a; --part: #b7791f; --plan: #8b95a3; --extra: #a16207;
+    --tint: 8%;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1218; --panel: #161c24; --ink: #e6ebf1; --muted: #9aa5b4; --line: #2a333f; --arrow: #5d6876;
+    --src: #6aa1f5; --stream: #b98ae0; --proc: #7aa7f2; --gate: #4cc27f; --agent: #f2a250; --notify: #f07aa0; --shared: #a3adba;
+    --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796; --extra: #f5c542;
+    --tint: 14%;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1218; --panel: #161c24; --ink: #e6ebf1; --muted: #9aa5b4; --line: #2a333f; --arrow: #5d6876;
+      --src: #6aa1f5; --stream: #b98ae0; --proc: #7aa7f2; --gate: #4cc27f; --agent: #f2a250; --notify: #f07aa0; --shared: #a3adba;
+      --ok: #4cc27f; --part: #e3b04f; --plan: #7d8796; --extra: #f5c542;
+      --tint: 14%;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .page { max-width: 1200px; margin: 0 auto; padding: 22px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; }
+  h1 { margin: 0; font-size: 21px; letter-spacing: .01em; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12.5px; color: var(--muted); margin: 12px 0 20px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+  .theme button { border: 0; background: none; color: var(--muted); padding: 5px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .theme button[aria-pressed="true"] { background: var(--line); color: var(--ink); }
+
+  svg.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .st { width: 14px; height: 14px; flex: none; }
+  .st.ok { color: var(--ok); } .st.part { color: var(--part); } .st.plan { color: var(--plan); }
+
+  .sec { --c: var(--src); border: 1.5px solid var(--c); border-radius: 12px;
+         background: color-mix(in srgb, var(--c) var(--tint), var(--panel)); padding: 10px 12px 12px; }
+  .sec > h2 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--c);
+              display: flex; align-items: center; gap: 7px; }
+  .sec.src { --c: var(--src); } .sec.stream { --c: var(--stream); } .sec.proc { --c: var(--proc); }
+  .sec.gate { --c: var(--gate); } .sec.agent { --c: var(--agent); } .sec.notify { --c: var(--notify); } .sec.shared { --c: var(--shared); }
+
+  .grid { display: grid; gap: 8px; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); }
+  .item { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 9px;
+          display: flex; flex-direction: column; gap: 4px; }
+  .item .hd { display: flex; align-items: center; gap: 7px; font-weight: 650; font-size: 13px; }
+  .item .hd svg.i { color: var(--c); }
+  .item .hd .st { margin-left: auto; }
+  .item ul { margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); display: grid; gap: 2px; }
+  .item li { display: flex; align-items: flex-start; gap: 5px; }
+  .item li .st { width: 12px; height: 12px; margin-top: 2px; }
+  .bar { margin-top: 8px; border: 1px dashed var(--c); border-radius: 8px; padding: 5px 9px; font-size: 12px;
+         color: var(--ink); display: flex; align-items: center; gap: 7px; justify-content: center; background: var(--panel); }
+  .bar svg.i { color: var(--c); width: 16px; height: 16px; }
+
+  .down { display: flex; flex-direction: column; align-items: center; margin: 2px 0; }
+  .down i { width: 2px; height: 14px; background: var(--arrow); }
+  .down b { width: 0; height: 0; border: 6px solid transparent; border-top-color: var(--arrow); border-bottom: 0; }
+  .down .tag { font: 600 11px ui-monospace, Menlo, monospace; color: var(--stream); border: 1px solid var(--line);
+               background: var(--panel); border-radius: 999px; padding: 2px 10px; margin: 3px 0; }
+  .row2 { display: grid; gap: 12px; grid-template-columns: 1fr 260px; align-items: stretch; }
+  .decide { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin: 4px 0; }
+  .diamond { width: 104px; height: 104px; display: grid; place-items: center; justify-self: center; }
+  .diamond div { width: 74px; height: 74px; transform: rotate(45deg); border: 2px solid var(--proc);
+                 background: var(--panel); display: grid; place-items: center; border-radius: 6px; }
+  .diamond span { transform: rotate(-45deg); font-size: 11.5px; font-weight: 700; text-align: center; line-height: 1.2; }
+  .h { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); --c: var(--proc); }
+  .h::before { content: ""; height: 2px; width: 28px; background: var(--arrow); }
+  .h .item { flex: 1; }
+  .life { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; }
+  .life .step { display: inline-flex; align-items: center; gap: 6px; background: var(--panel); border: 1px solid var(--line);
+                border-radius: 999px; padding: 4px 11px; font-size: 12.5px; font-weight: 600; }
+  .life .step svg.i { width: 16px; height: 16px; color: var(--agent); }
+  .life .arr { color: var(--arrow); }
+  /* Extended scope: built beyond the brief, shown inside the agent/step it belongs to */
+  .item li.extra { background: color-mix(in srgb, var(--extra) var(--tint), transparent); border-left: 3px solid var(--extra);
+                   border-radius: 4px; padding: 2px 5px; color: var(--ink); }
+  .item li.extra .xs, .legend .xs { width: 12px; height: 12px; margin-top: 2px; flex: none; color: var(--extra); fill: currentColor; }
+  .item.extra { border: 1.5px dashed var(--extra); }
+  .item.extra .hd::after { content: "extra"; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+                           color: var(--extra); order: 1; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .row2 { grid-template-columns: 1fr; }
+    .decide { grid-template-columns: 1fr; } .decide > :first-child { display: none; }
+    .h::before { display: none; }
+  }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ── tabs ───────────────────────────────────────────────────────────── */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 14px 0 0; flex-wrap: wrap; }
+  .tabs a { padding: 8px 14px; border-radius: 8px 8px 0 0; color: var(--muted); text-decoration: none; font-weight: 600;
+            font-size: 13.5px; border: 1px solid transparent; border-bottom: 0; display: inline-flex; gap: 7px; align-items: center; }
+  .tabs a svg.i { width: 16px; height: 16px; }
+  .tabs a[aria-selected="true"] { color: var(--ink); background: var(--panel); border-color: var(--line); margin-bottom: -1px; }
+  [hidden] { display: none !important; }
+
+  /* ── research tab ───────────────────────────────────────────────────── */
+  .rs { --c: var(--proc); }
+  .rs a { color: var(--src); }
+  .rs h2.t { margin: 26px 0 10px; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--c);
+             display: flex; align-items: center; gap: 8px; }
+  .rs h2.t svg.i { width: 18px; height: 18px; }
+  .rs p { margin: 6px 0; }
+  .rs .lead { font-size: 15px; line-height: 1.5; max-width: 900px; }
+  .rs .muted { color: var(--muted); font-size: 12.5px; }
+  .cards { display: grid; gap: 10px; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+  .card h3 { margin: 0 0 6px; font-size: 13.5px; display: flex; align-items: center; gap: 7px; }
+  .card h3 svg.i { color: var(--c); width: 18px; height: 18px; }
+  .card ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+  .card li { margin: 2px 0; }
+  .card.hl { border: 1.5px solid var(--gate); background: color-mix(in srgb, var(--gate) var(--tint), var(--panel)); }
+  .card.warn { border: 1.5px solid var(--part); background: color-mix(in srgb, var(--part) var(--tint), var(--panel)); }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line);
+          color: var(--muted); background: var(--panel); white-space: nowrap; }
+  .pill.g { color: var(--ok); border-color: var(--ok); } .pill.a { color: var(--part); border-color: var(--part); }
+  .pill.n { color: var(--plan); border-color: var(--plan); }
+  .tbl { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+         overflow: hidden; font-size: 12.5px; }
+  .tblwrap { overflow-x: auto; border-radius: 10px; }
+  .tbl th, .tbl td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl th { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--line) 35%, var(--panel)); }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl td.c { text-align: center; }
+  .tbl tr.me td { background: color-mix(in srgb, var(--gate) var(--tint), var(--panel)); font-weight: 600; }
+  .y { color: var(--ok); font-weight: 700; } .x { color: #c2412d; font-weight: 700; } .q { color: var(--plan); font-weight: 700; } .h2 { color: var(--part); font-weight: 700; }
+  .pipe { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
+  .pipe .box { flex: 1 1 150px; background: var(--panel); border: 1.5px solid var(--c); border-radius: 9px; padding: 8px 10px; font-size: 12.5px; }
+  .pipe .box b { display: block; font-size: 13px; margin-bottom: 2px; }
+  .pipe .box.e { --c: var(--agent); } .pipe .box.g { --c: var(--gate); } .pipe .box.r { --c: var(--notify); }
+  .pipe .ar { align-self: center; color: var(--arrow); font-weight: 700; }
+  .gap { border-left: 4px solid var(--c); }
+  .gap dl { display: grid; grid-template-columns: 150px 1fr; gap: 4px 10px; margin: 6px 0 0; font-size: 12.5px; }
+  .gap dt { color: var(--muted); font-weight: 600; } .gap dd { margin: 0; }
+  ol.refs { font-size: 12.5px; padding-left: 22px; } ol.refs li { margin: 3px 0; }
+  .claim { font-size: 15px; line-height: 1.5; border: 1.5px dashed var(--gate); border-radius: 10px; padding: 12px 14px; background: var(--panel); }
+  @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } .gap dl { grid-template-columns: 1fr; } }
+
+  /* ── progress bar (deliverables only) ────────────────────────────────── */
+  .progress { margin: 16px 0 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+  .progress .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .progress .top b { font-size: 22px; } .progress .top span { color: var(--muted); font-size: 12.5px; }
+  .track { display: flex; height: 14px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 8px 0 7px; }
+  .track > div { height: 100%; transition: width .6s ease; }
+  .keys { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+  .keys span { display: inline-flex; align-items: center; gap: 6px; } .keys i { width: 10px; height: 10px; border-radius: 3px; }
+  .keys b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .progress details { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+  .progress details summary { cursor: pointer; }
+  .progress details ul { columns: 3 240px; margin: 6px 0 0; padding-left: 0; list-style: none; }
+  .progress details li { display: flex; gap: 6px; align-items: flex-start; break-inside: avoid; margin: 2px 0; color: var(--ink); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.6 8.3l2.2 2.2 4.6-4.8" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="part" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"/></symbol>
+    <symbol id="plan" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-dasharray="2.6 2.2"/></symbol>
+    <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+    <symbol id="plug" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="stream" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.3 7.2l7.4 3.6M8.3 16.8l7.4-3.6"/></symbol>
+    <symbol id="gateway" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 16V8l8 8V8"/></symbol>
+    <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+    <symbol id="sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+    <symbol id="scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9h8M8 12h8M8 15h5"/></symbol>
+    <symbol id="wand" viewBox="0 0 24 24"><path d="M4 20L16 8M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 11l.6 1.4L21 13l-1.4.6L19 15l-.6-1.4L17 13l1.4-.6z"/></symbol>
+    <symbol id="tags" viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/></symbol>
+    <symbol id="table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 10v10M15 10v10"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/></symbol>
+    <symbol id="layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5"/></symbol>
+    <symbol id="user" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0M16 11l2 2 4-4"/></symbol>
+    <symbol id="building" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/></symbol>
+    <symbol id="approve" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 14l2 2 4-4"/></symbol>
+    <symbol id="boxes" viewBox="0 0 24 24"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M4 6.5l8 4.5 8-4.5M12 11v9"/></symbol>
+    <symbol id="pen" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 17c1.5-2 2.5-2 3 0s1.5 2 3 0"/></symbol>
+    <symbol id="alert" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M12 8v5M12 16v.5"/></symbol>
+    <symbol id="bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="package" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></symbol>
+    <symbol id="receipt" viewBox="0 0 24 24"><path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+    <symbol id="db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+    <symbol id="bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="activity" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></symbol>
+    <symbol id="currency" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 8h6M9 11h6M11 8c3 0 3 3 0 3h-2l5 5"/></symbol>
+    <symbol id="route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
+    <symbol id="brain" viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V5a2 2 0 0 0-3-1zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/></symbol>
+    <symbol id="chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
+    <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></symbol>
+    <symbol id="book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></symbol>
+    <symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 15h9"/></symbol>
+    <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+    <symbol id="flow" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/><path d="M6.5 9v4a2 2 0 0 0 2 2H14"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <header>
+    <div>
+      <h1>Project status</h1>
+      
+    </div>
+  </header>
+  <div id="tab-flow">
+  <div class="progress" id="progress"></div>
+  <div class="legend">
+    <span><svg class="st ok"><use href="#ok"/></svg>Complete</span>
+    <span><svg class="st part"><use href="#part"/></svg>Partly built</span>
+    <span><svg class="st plan"><use href="#plan"/></svg>Planned</span>
+    <span style="border-left:3px solid var(--extra);padding-left:6px"><svg class="xs"><use href="#star"/></svg>Extended scope — built beyond the brief, shown in the agent and step it belongs to</span>
+  </div>
+
+  <div id="chart"></div>
+  <footer>Status reflects the code at the last update of this page.</footer>
+  </div>
+</div>
+
+<script>
+// ── Statuses (ok | part | plan) — update at every phase ────────────────
+const S = {
+  portal: "ok", api: "ok", folder: "ok", email: "ok",
+  gateway: "ok", scan: "ok", store: "ok", stream: "ok",
+  preprocess: "ok", ocr: "ok", classifyCore: "ok", classifyMore: "ok", extract: "ok", validate: "ok", enrich: "ok", workers: "ok",
+  review: "ok", learning: "ok",
+  vendorMatch: "ok", onboarding: "ok", bankGuard: "ok",
+  rules: "ok", routing: "ok", reminders: "ok",
+  reserve: "ok", backorder: "ok", reorder: "ok",
+  templates: "ok", esign: "ok", renewals: "ok",
+  riskModel: "ok", riskBeforeSign: "ok", riskHistory: "ok",
+  lifecycle: "ok", ruleEngine: "ok", notify: "ok", platform: "ok",
+  dropAuto: "ok", currency: "ok", match3: "ok", fraud: "ok", tracing: "ok",
+  eventLog: "ok", emailApprove: "ok", sod: "ok", licenceMl: "ok", assistant: "ok", clauseModel: "ok", sanctions: "ok",
+  // Feature expansion (docs/feature-expansion-plan.md), Phases 1–4
+  budgets: "ok", obligations: "ok", catalog: "ok", rfq: "ok", receipts: "ok", scorecard: "ok", gst: "ok", tds: "ok", redteam: "ok",
+};
+// ───────────────────────────────────────────────────────────────────────
+
+const icon = (id) => `<svg class="i"><use href="#${id}"/></svg>`;
+const mark = (s) => `<svg class="st ${s}"><use href="#${s}"/></svg>`;
+const combined = (keys) => {
+  const v = keys.map((k) => S[k]);
+  if (v.every((x) => x === "ok")) return "ok";
+  if (v.every((x) => x === "plan")) return "plan";
+  return "part";
+};
+// card with sub-points: [icon, title, [[key, text, extra?], ...]] — extra = extended scope (highlighted)
+const line = ([k, t, extra]) => extra
+  ? `<li class="extra" title="Extended scope — beyond the brief"><svg class="xs"><use href="#star"/></svg>${mark(S[k])}<span>${t}</span></li>`
+  : `<li>${mark(S[k])}<span>${t}</span></li>`;
+const card = (ic, title, lines) => `<div class="item"><div class="hd">${icon(ic)}${title}${mark(combined(lines.map(([k]) => k)))}</div>
+  <ul>${lines.map(line).join("")}</ul></div>`;
+// single feature: [icon, title, key, note, extra?]
+const tile = (ic, title, k, note, extra) => `<div class="item${extra ? " extra" : ""}"><div class="hd">${icon(ic)}${title}${mark(S[k])}</div>${note ? `<ul><li><span>${note}</span></li></ul>` : ""}</div>`;
+const X = true;   // marks an extended-scope line
+const down = (tag) => `<div class="down"><i></i>${tag ? `<span class="tag">${tag}</span><i></i>` : ""}<b></b></div>`;
+
+document.getElementById("chart").innerHTML = `
+  <section class="sec src"><h2>${icon("globe")}Sources</h2><div class="grid" style="--n:4">
+    ${tile("globe", "Web portal", "portal", "Batch upload, live progress")}
+    ${tile("plug", "APIs / systems", "api", "Same checks as the portal")}
+    ${card("folder", "Shared folder", [["folder", "Drop a file — no clicks"], ["dropAuto", "Folder to signed contract: a dropped quote runs every agent unattended", X]])}
+    ${tile("mail", "Email", "email", "Attachments from a mailbox")}
+  </div></section>
+  ${down()}
+  <div class="row2">
+    <section class="sec gate"><h2>${icon("gateway")}API gateway · scan · store</h2><div class="grid" style="--n:3">
+      ${tile("gateway", "Gateway", "gateway", "Routing, rate limits, size caps")}
+      ${tile("shield", "Virus scan", "scan", "Every file, before storage")}
+      ${tile("db", "File storage", "store", "Originals kept in MinIO")}
+    </div></section>
+    <section class="sec stream"><h2>${icon("stream")}Message stream</h2>
+      ${card("stream", "Kafka", [["stream", "Documents, metadata and status events — saved with each change"], ["eventLog", "Event log & failed events: kept, searchable, nothing lost", X]])}
+    </section>
+  </div>
+  ${down("document.ingested")}
+  <section class="sec proc"><h2>${icon("scan")}Document intelligence</h2><div class="grid" style="--n:6">
+    ${tile("wand", "Preprocess", "preprocess", "Deskew & resize scans")}
+    ${tile("scan", "OCR & layout", "ocr", "PaddleOCR · Docling · LayoutLMv3 cross-check")}
+    ${card("tags", "Classify", [["classifyCore", "PO · invoice · quote"], ["classifyMore", "Non-PO · others"]])}
+    ${tile("table", "Extract", "extract", "Headers, line items, totals")}
+    ${tile("check", "Validate", "validate", "Totals add up · GSTIN · duplicates")}
+    ${card("layers", "Enrich", [["enrich", "Vendor match"], ["currency", "Multi-currency: rate captured once, value never drifts", X], ["gst", "GST check: split, rate by HSN/SAC, signed e-invoice QR, reverse charge; GSTR-2B reconciled", X]])}
+  </div>
+  <div class="bar">${icon("bolt")}Parallel workers · automatic retries · dead-letter queue ${mark(S.workers)}</div></section>
+  ${down()}
+  <div class="decide">
+    <div></div>
+    <div class="diamond"><div><span>Confident<br>enough?</span></div></div>
+    <div class="h">no ${card("user", "Manual review", [["review", "Correct fields side by side"], ["learning", "Corrections teach the extractor"]])}</div>
+  </div>
+  ${down("document.classified · vendor.matched")}
+  <section class="sec agent"><h2>${icon("bolt")}Procurement agents</h2><div class="grid" style="--n:5">
+    ${card("building", "Vendor intelligence", [["vendorMatch", "Match & de-duplicate"], ["onboarding", "Onboarding & profile checks"], ["bankGuard", "Bank changes need a 2nd person"], ["fraud", "Fraud guard: look-alike vendors, first-seen bank details", X]])}
+    ${card("approve", "Approval", [["rules", "Rules by spend tier"], ["routing", "Routing & escalation"], ["reminders", "Reminders before the deadline"], ["sod", "Separation of duties: nobody approves their own request", X], ["emailApprove", "Approve from email: single-use signed links", X], ["budgets", "Budget check before approval: over budget adds a finance step", X], ["catalog", "IT catalog: agreed prices, optional pre-approval, seat add-ons", X], ["rfq", "RFQs: sealed quotes, weighted comparison, rounds, award", X]])}
+    ${card("boxes", "Inventory", [["reserve", "Availability & reservation"], ["backorder", "Backorders"], ["reorder", "Reorder suggestions"], ["licenceMl", "Licence usage ML: anomalies → reclaim requests", X], ["match3", "3-way invoice match: line level, partial invoices, payment hold", X], ["receipts", "Partial deliveries with asset tags; invoices checked against what arrived", X], ["tds", "TDS kept with each booked invoice (net payable); MSME 45-day deadlines", X]])}
+    ${card("pen", "Contract", [["templates", "Templates & versions"], ["esign", "E-signature, sent automatically"], ["renewals", "Renewals from notice deadline"], ["clauseModel", "Legal-BERT clause extraction (CUAD), rules as fallback", X], ["obligations", "Obligations after signing: SLA credits, seat limits, reminders", X]])}
+    ${card("alert", "Risk analysis", [["riskModel", "Deterministic 100-point scorecard + hard overrides (sanctions, GSTIN, bank)"], ["riskBeforeSign", "Clearance gate before signing: not cleared needs an acknowledgement"], ["riskHistory", "Delivery history, evidence, disputes, decisions; every score replayable"], ["sanctions", "Sanctions screening: consolidated lists, fuzzy match", X], ["redteam", "Red team: 25 profiles pass (incl. the team's Caspian, SSPL and ADDA vendors); a sanctioned vendor can't be accepted or signed", X], ["scorecard", "Vendor scorecard: on-time, invoice accuracy, RFQ replies, SLA breaches", X]])}
+  </div>
+  <div class="life">
+    <span class="step">${icon("approve")}Approved</span><span class="arr">→</span>
+    <span class="step">${icon("pen")}Signed</span><span class="arr">→</span>
+    <span class="step">${icon("package")}Ordered</span><span class="arr">→</span>
+    <span class="step">${icon("boxes")}Received (in one or more deliveries)</span><span class="arr">→</span>
+    <span class="step">${icon("receipt")}Invoice matched</span>${mark(S.lifecycle)}
+  </div>
+  <div class="bar">${icon("sliders")}Business rules — edited live, applied by every agent ${mark(S.ruleEngine)}</div></section>
+  ${down("approval · contract · risk · reminder · budget · obligation · RFQ · delivery · GST events")}
+  <section class="sec notify"><h2>${icon("bell")}Notifications</h2><div class="grid" style="--n:3">
+    ${tile("mail", "Email", "notify", "A template per event")}
+    ${tile("bell", "Event-driven alerts", "notify", "Approvals, signatures, risk, renewals; in-app bell counts unread")}
+    ${tile("list", "Digests & summaries", "notify", "Order status summaries")}
+  </div></section>
+  ${down()}
+  <section class="sec shared"><h2>${icon("db")}Shared data & platform services</h2><div class="grid" style="--n:7">
+    ${tile("db", "PostgreSQL", "platform")}
+    ${tile("bolt", "Redis", "platform")}
+    ${tile("folder", "MinIO", "platform")}
+    ${tile("sliders", "Rule engine", "ruleEngine")}
+    ${tile("list", "Audit log", "platform")}
+    ${tile("clock", "Temporal", "platform")}
+    ${card("activity", "Monitoring", [["platform", "Metrics · logs"], ["tracing", "Request tracing: one id across every service's logs", X]])}
+  </div>
+  <div class="grid" style="--n:1;margin-top:8px">
+    ${tile("chat", "Assistant", "assistant", "Answers from the platform's own records (RAG over contracts, documents, rules, requests, vendors), cited, within each user's access; local LLM via Ollama", X)}
+  </div></section>`;
+
+
+// ── Deliverables progress (add-ons excluded) — update with TODO.md ──────
+// Counted: the basic requirements (main flow above), what the 29 Aug
+// mentor feedback asked for (R0), and the November submission work (R3).
+// Not counted: extended-scope lines (★, highlighted in the chart), optional R2 features, and the November
+// submission work (FR-25…28: CI, fresh-clone rehearsal, security, final docs —
+// tracked in TODO.md R3); this bar should reach 100 % before the evaluation.
+// ok = 1, part = ½, plan = 0.
+const DELIVERABLES = [
+  { group: "Basic requirements", color: "var(--ok)", items: [
+    ["Document intake: portal, API, folder, email", "ok"], ["Virus scan & storage", "ok"], ["Preprocessing & OCR", "ok"],
+    ["Classification incl. non-PO & other", "ok"], ["Extraction & validation", "ok"], ["Confidence & manual review", "ok"],
+    ["Vendor matching & onboarding", "ok"], ["Bank-detail dual control", "ok"], ["Approval rules & routing", "ok"],
+    ["Reminders & escalation", "ok"], ["Inventory, backorders, reorder", "ok"], ["Contract templates & e-signature", "ok"],
+    ["Renewals from notice deadline", "ok"], ["Vendor risk model", "ok"], ["Risk shown before signing", "ok"],
+    ["Risk from delivery & compliance", "ok"], ["Notifications", "ok"], ["Business-rules engine", "ok"],
+  ]},
+  { group: "Mentor feedback", color: "var(--agent)", items: [
+    ["FR-01 Auto-send after approval", "ok"], ["FR-02 Renewals from notice deadline", "ok"], ["FR-03 Reminders for pending actions", "ok"],
+    ["FR-04 Risk analysis documented", "part"], ["FR-05 Demo script", "ok"], ["FR-06 Persistent Kafka monitoring", "ok"],
+    ["FR-07 Searchable logs", "ok"], ["FR-08 Model routing & fallback", "ok"], ["FR-09 Business rules validated", "ok"],
+    ["FR-10 Notification coverage", "ok"], ["FR-11 Layout accuracy", "ok"], ["FR-12 Presentation", "ok"],
+    ["FR-13 Clause model", "ok"], ["FR-14 Sanctions screening", "ok"], ["FR-29 Trained classifier", "ok"],
+    ["FR-31 Notification retry + DLQ", "ok"], ["FR-32 Licence model tuned", "ok"],
+  ]},
+  { group: "Final checklist", color: "var(--notify)", items: [
+    ["Input / Processed / Failed folders", "ok"], ["Notifications at every approval stage", "ok"],
+    ["Templates edited in the Control Panel", "ok"], ["Contract + e-signature by email", "ok"],
+    ["E-signature tracking with PDFs", "ok"], ["Extracted fields, confidence, validation", "ok"],
+    ["Control Panel sections", "ok"], ["Architecture & functional flow diagrams", "ok"],
+    ["Presentation slides", "ok"], ["Standard documentation", "ok"], ["MkDocs site published", "part"],
+  ]},
+];
+const W = { ok: 1, part: 0.5, plan: 0 };
+const sum = (items) => items.reduce((a, [, st]) => a + W[st], 0);
+const total = DELIVERABLES.reduce((a, g) => a + g.items.length, 0);
+const done = DELIVERABLES.reduce((a, g) => a + sum(g.items), 0);
+const pct = Math.round((done / total) * 100);
+const fmt = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
+document.getElementById("progress").innerHTML = `
+  <div class="top"><div><b>${pct}%</b> of deliverables done</div><span>${fmt(done)} of ${total} · partly done counts ½ · add-ons and November submission work not counted</span></div>
+  <div class="track" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="Deliverables done">
+    ${DELIVERABLES.map((g) => `<div style="width:${(sum(g.items) / total) * 100}%;background:${g.color}" title="${g.group}: ${fmt(sum(g.items))} / ${g.items.length}"></div>`).join("")}
+  </div>
+  <div class="keys">${DELIVERABLES.map((g) => `<span><i style="background:${g.color}"></i>${g.group} <b>${fmt(sum(g.items))} / ${g.items.length}</b></span>`).join("")}</div>
+  <details><summary>What counts</summary><ul>${DELIVERABLES.flatMap((g) => g.items.map(([t, st]) => `<li>${mark(st)}<span>${t}</span></li>`)).join("")}</ul></details>`;
+
+
+</script>
+</body>
+</html>
+</template>
+<template id="page-risk">
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vendor Risk</title><meta name="description" content="Vendor risk scorecard, clearance, red team and evaluation">
+<style>
+:root { --bg:#f4f6f9; --panel:#fff; --ink:#172033; --muted:#5d6879; --line:#d6dce5; --accent:#2563c9; --ok:#1d8a4a; --bad:#c2412d; --warn:#a46200; --plan:#8b95a3; }
+:root[data-theme="dark"] { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#2a333f; --accent:#7aa7f2; --ok:#4cc27f; --bad:#f07a62; --warn:#e0a53c; --plan:#7d8796; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#2a333f; --accent:#7aa7f2; --ok:#4cc27f; --bad:#f07a62; --warn:#e0a53c; --plan:#7d8796; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+.page { max-width:1080px; margin:0 auto; padding:24px 16px 56px; }
+header.top { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px; }
+h1 { margin:0 0 4px; font-size:24px; } h2 { font-size:19px; margin:30px 0 8px; } h3 { font-size:16px; margin:20px 0 6px; }
+a { color:var(--accent); } p { margin:8px 0; }
+.lead { color:var(--muted); margin:0 0 6px; max-width:760px; }
+.muted { color:var(--muted); font-size:13px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:12px 0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin:12px 0; }
+.stat { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+.stat b { display:block; font-size:24px; } .stat span { color:var(--muted); font-size:13px; }
+.toc { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+.toc a { background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:4px 12px; text-decoration:none; color:var(--ink); font-size:13px; }
+.tblwrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--panel); margin:10px 0; }
+table { border-collapse:collapse; width:100%; font-size:13.5px; }
+th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+tr:last-child td { border-bottom:0; }
+th { color:var(--muted); font-weight:600; font-size:12.5px; white-space:nowrap; }
+code { font:12.5px ui-monospace,Menlo,monospace; background:color-mix(in srgb,var(--line) 35%,transparent); padding:1px 4px; border-radius:4px; }
+pre { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; overflow-x:auto; font:12.5px/1.5 ui-monospace,Menlo,monospace; }
+pre code { background:none; padding:0; }
+.pill { display:inline-block; font-size:11.5px; font-weight:700; border:1px solid; border-radius:999px; padding:0 8px; white-space:nowrap; }
+.g { color:var(--ok); } .r { color:var(--bad); } .w { color:var(--warn); } .n { color:var(--plan); }
+ul { margin:6px 0; padding-left:20px; } li { margin:3px 0; }
+blockquote { margin:10px 0; padding:8px 14px; border-left:3px solid var(--accent); background:var(--panel); border-radius:0 8px 8px 0; }
+
+.bar { display:flex; height:46px; border-radius:12px; overflow:hidden; margin:12px 0 8px; }
+.bar > div { display:flex; flex-direction:column; justify-content:center; padding:0 10px; color:#fff; font-size:12px; line-height:1.2; min-width:0; white-space:nowrap; overflow:hidden; }
+.bar b { font-size:15px; }
+.groups { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:8px; }
+.groups div { border-top:3px solid var(--c); background:var(--panel); border-radius:8px; padding:8px 10px; font-size:12.5px; color:var(--muted); }
+.groups div b { display:block; color:var(--ink); font-size:13px; }
+.scale { position:relative; display:grid; grid-template-columns:25fr 25fr 50fr; height:34px; border-radius:10px; overflow:hidden; margin:14px 0 6px; font-weight:700; font-size:13px; }
+.scale span { display:flex; align-items:center; padding-left:12px; color:#fff; }
+.ticks { display:grid; grid-template-columns:25fr 25fr 50fr; font-size:12px; color:var(--muted); }
+.over { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+.over div { flex:1 1 220px; background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:10px; padding:10px 12px; }
+.over code { font-weight:700; }
+.steps5 { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:10px; counter-reset:n; margin:12px 0; }
+.steps5 div { position:relative; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:30px 12px 12px; font-size:13px; }
+.steps5 div::before { counter-increment:n; content:counter(n); position:absolute; top:10px; left:12px; width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--panel); display:grid; place-items:center; font-size:12px; font-weight:700; }
+.steps5 div b { display:block; margin-bottom:3px; }
+.dots { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+.dots span { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; font-size:12px; font-weight:700; color:var(--panel); background:var(--ok); }
+.dots span.team { background:var(--accent); }
+details.more { margin:10px 0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
+details.more summary { cursor:pointer; font-weight:600; }
+.stat { border-top:3px solid var(--c, var(--accent)); }
+@media (max-width:760px) { .groups, .steps5 { grid-template-columns:1fr 1fr; } .bar > div span { display:none; } }
+@media (max-width:640px) { body { font-size:14px; } th, td { padding:7px 8px; } }
+</style></head>
+<body><div class="page">
+
+<header class="top"><div><h1>Vendor risk</h1>
+</div>
+<span class="muted">Updated 23 Oct 2026</span></header>
+<div class="grid">
+  <div class="stat" style="--c:var(--ok)"><b>25 / 25</b><span>red-team profiles as expected</span></div>
+  <div class="stat" style="--c:var(--accent)"><b>0.738</b><span>ROC-AUC of the ruleset (ceiling 0.739)</span></div>
+  <div class="stat" style="--c:var(--plan)"><b>0.715</b><span>ROC-AUC of the retired Random Forest</span></div>
+  <div class="stat" style="--c:var(--warn)"><b>5</b><span>controls fixed after the red team</span></div>
+</div>
+<nav class="toc"><a href="#how">How a vendor is rated</a><a href="#clearance">Clearance</a><a href="#redteam">Red team</a><a href="#findings">What the red team found</a><a href="#team-vendors">The team's test vendors</a><a href="#evaluation">Evaluation</a><a href="#merge-review">Merge review (G1–G11)</a><a href="#retired">Retired ML model</a><a href="#limits">Limits</a><a href="#rerun">Re-run</a></nav>
+
+<h2 id="how">How a vendor is rated</h2>
+<p>A fixed <b>100-point ruleset</b>: every check gives integer points, the same inputs always give the same score, and every score can be replayed.</p>
+<div class="bar" role="img" aria-label="100 points: identity 39, performance 35, cyber 17, company 6, reputation 3">
+  <div style="flex:39;background:#2563c9"><b>39</b><span>Identity</span></div>
+  <div style="flex:35;background:#d9730d"><b>35</b><span>Performance</span></div>
+  <div style="flex:17;background:#7a3fa3"><b>17</b><span>Cyber</span></div>
+  <div style="flex:6;background:#0f7f86"><b>6</b></div>
+  <div style="flex:3;background:#d1336b"><b>3</b></div>
+</div>
+<div class="groups">
+  <div style="--c:#2563c9"><b>Identity · 39</b>GST 20 · sanctions 10 · bank 5 · country 4</div>
+  <div style="--c:#d9730d"><b>Performance · 35</b>on-time 15 · feedback 12 · incidents 8</div>
+  <div style="--c:#7a3fa3"><b>Cyber · 17</b>TLS 6 · certification 4 · breaches 4 · DMARC 3</div>
+  <div style="--c:#0f7f86"><b>Company · 6</b>financial rating 4 · age 2</div>
+  <div style="--c:#d1336b"><b>Reputation · 3</b>adverse media 3</div>
+</div>
+<div class="scale"><span style="background:#1d8a4a">Low</span><span style="background:#b7791f">Medium</span><span style="background:#c2412d">High</span></div>
+<div class="ticks"><span>0–24</span><span>25–49</span><span>50–100</span></div>
+<p><b>Hard overrides</b> make a vendor High whatever the points:</p>
+<div class="over">
+  <div style="--c:var(--bad)"><code>R-SAN-01</code> sanctions match<br><span class="pill r">never by a decision</span></div>
+  <div style="--c:var(--bad)"><code>R-JUR-01</code> prohibited country<br><span class="pill r">never by a decision</span></div>
+  <div style="--c:var(--warn)"><code>R-GST-01/02/03</code> GSTIN cancelled, suspended, not found<br><span class="pill w">remediable</span> or accepted for ≤ 30 days</div>
+</div>
+<p>Missing data is never counted as safe: a vendor whose checks aren't done is <b>Unrated</b>, never Low.</p>
+
+<h2 id="clearance">Clearance: may this vendor be used?</h2>
+<p>One decision (<code>clearance.py</code>) for <code>/clearance</code> and for contract signing, checked in this order:</p>
+<div class="steps5">
+  <div><b>A score?</b>None: not cleared</div>
+  <div><b>Sanctions / country</b>Never cleared; signing blocked</div>
+  <div><b>The score</b>Other overrides, Unrated or High block (petty purchases ≤ ₹50,000 excepted)</div>
+  <div><b>Human decision</b>Reject blocks; approvals count only while still Low/Medium</div>
+  <div><b>Vendor status</b>Must be active</div>
+</div>
+<p>Signing asks for an acknowledgement exactly when clearance says <i>not cleared</i>.</p>
+
+<h2 id="redteam">Red team: 25 of 25 as expected</h2>
+<p>Each profile is an attempt to get a risky vendor through, or a check that a safe one isn't blocked for the wrong reason. Expected outcomes were written from the ruleset before running; the profiles go through the real engine and clearance code (<code>ml/redteam_scorecard.py</code>, run by <code>tests/test_risk_redteam.py</code> on every test run and by demo scenario 6).</p>
+<div class="dots" role="img" aria-label="25 of 25 profiles as expected"><span class="" title="Clean, established vendor">✓</span><span class="" title="Sanctions match behind a perfect record">✓</span><span class="" title="Sanctions match, admin accepts the risk">✓</span><span class="" title="Prohibited country">✓</span><span class="" title="Cancelled GSTIN">✓</span><span class="" title="Cancelled GSTIN, admin accepts the risk for 20 days">✓</span><span class="" title="Brand-new vendor, nothing checked">✓</span><span class="" title="Only identity checked">✓</span><span class="" title="Stale sanctions check">✓</span><span class="" title="Country of incorporation missing">✓</span><span class="" title="Petty vendor, small purchase, checks incomplete">✓</span><span class="" title="Petty vendor with a possible sanctions match">✓</span><span class="" title="Petty vendor, purchase just over the limit">✓</span><span class="" title="Poor performer">✓</span><span class="" title="Poor performer with weak finances and recent breaches">✓</span><span class="" title="Approved when Low, now High">✓</span><span class="" title="Approved with a condition now overdue">✓</span><span class="" title="Rejected by a reviewer">✓</span><span class="" title="New supplier with no order history">✓</span><span class="" title="Adverse media only">✓</span><span class="" title="Offboarded vendor with a clean score">✓</span><span class="" title="Vendor still onboarding">✓</span><span class="team" title="Caspian Petrochem Trading LLC (IR, Bank Melli)">✓</span><span class="team" title="SSPL Solutions Private Limited (sanctions override)">✓</span><span class="team" title="3Five8 Technologies / ADDA (historical breach reported)">✓</span></div>
+<p class="muted">Green: attacks and controls. Blue: the team's three test vendors (23 Oct).</p>
+<blockquote>The Agent document's own red-team list is in the team's Drive and was never added to the repository. These profiles cover what that document requires of the risk agent: hard overrides decide alone, missing data is never safe, no false Low, every score explainable and replayable.</blockquote>
+<details class="more"><summary>All 25 profiles</summary><div class="tblwrap"><table><thead><tr><th>Profile and attack</th><th>Score</th><th>Clearance</th><th>Expected</th><th></th></tr></thead><tbody><tr><td><b>Clean, established vendor</b><br><span class='muted'>control: nothing wrong</span></td><td>Low · 0 pts<br><span class='muted'>assessed</span></td><td><span class="pill g">cleared</span><br><span class='muted'>assessed_low</span></td><td class='muted'>final band Low, rating status assessed, cleared True</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Sanctions match behind a perfect record</b><br><span class='muted'>excellent delivery and finances to outweigh a sanctions hit</span></td><td>High · 10 pts<br><span class='muted'>assessed · R-SAN-01</span></td><td><span class="pill r">blocked</span><br><span class='muted'>override_R-SAN-01</span></td><td class='muted'>final band High, override R-SAN-01, cleared False</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Sanctions match, admin accepts the risk</b><br><span class='muted'>an admin&#x27;s time-boxed &#x27;accept risk&#x27; to clear a sanctioned vendor</span></td><td>High · 10 pts<br><span class='muted'>assessed · R-SAN-01</span></td><td><span class="pill r">blocked</span><br><span class='muted'>override_R-SAN-01</span></td><td class='muted'>final band High, override R-SAN-01, cleared False, reason override_R-SAN-01</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Prohibited country</b><br><span class='muted'>clean paperwork from a prohibited jurisdiction</span></td><td>High · 4 pts<br><span class='muted'>assessed · R-JUR-01</span></td><td><span class="pill r">blocked</span><br><span class='muted'>override_R-JUR-01</span></td><td class='muted'>final band High, override R-JUR-01, cleared False</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Cancelled GSTIN</b><br><span class='muted'>invoice from a deregistered entity with a good history</span></td><td>High · 20 pts<br><span class='muted'>assessed · R-GST-01</span></td><td><span class="pill r">blocked</span><br><span class='muted'>override_R-GST-01</span></td><td class='muted'>final band High, override R-GST-01, cleared False</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Cancelled GSTIN, admin accepts the risk for 20 days</b><br><span class='muted'>remediable override: a documented, time-boxed acceptance is allowed</span></td><td>High · 20 pts<br><span class='muted'>assessed · R-GST-01</span></td><td><span class="pill g">cleared</span><br><span class='muted'>risk_accepted_until_2026-11-10</span></td><td class='muted'>final band High, cleared True, reason risk_accepted_until_</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Brand-new vendor, nothing checked</b><br><span class='muted'>no data at all, hoping for a default Low</span></td><td>Unrated · 0 pts<br><span class='muted'>not_rated</span></td><td><span class="pill r">blocked</span><br><span class='muted'>vendor_not_rated</span></td><td class='muted'>final band Unrated, rating status not_rated, cleared False</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Only identity checked</b><br><span class='muted'>partial checks, 0 points, hoping to show as Low</span></td><td>Unrated · 0 pts<br><span class='muted'>provisional</span></td><td><span class="pill r">blocked</span><br><span class='muted'>rating_provisional</span></td><td class='muted'>final band Unrated, rating status provisional, cleared False, reason rating_provisional</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Stale sanctions check</b><br><span class='muted'>a clear sanctions result from three days ago (valid for one)</span></td><td>Unrated · 0 pts<br><span class='muted'>provisional</span></td><td><span class="pill r">blocked</span><br><span class='muted'>rating_provisional</span></td><td class='muted'>final band Unrated, rating status provisional, cleared False</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Country of incorporation missing</b><br><span class='muted'>leave the country blank to skip jurisdiction rules</span></td><td>Unrated · 0 pts<br><span class='muted'>provisional</span></td><td><span class="pill r">blocked</span><br><span class='muted'>rating_provisional</span></td><td class='muted'>final band Unrated, rating status provisional, cleared False</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Petty vendor, small purchase, checks incomplete</b><br><span class='muted'>control: the petty exception for a small purchase</span></td><td>Unrated · 0 pts<br><span class='muted'>provisional</span></td><td><span class="pill g">cleared</span><br><span class='muted'>cleared_under_petty_exception</span></td><td class='muted'>final band Unrated, cleared True, reason cleared_under_petty_exception</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Petty vendor with a possible sanctions match</b><br><span class='muted'>use the petty exception while a sanctions match awaits review</span></td><td>Unrated · 5 pts<br><span class='muted'>provisional</span></td><td><span class="pill r">blocked</span><br><span class='muted'>rating_provisional</span></td><td class='muted'>cleared False, reason rating_provisional</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Petty vendor, purchase just over the limit</b><br><span class='muted'>split-free purchase above the petty limit</span></td><td>Unrated · 0 pts<br><span class='muted'>provisional</span></td><td><span class="pill r">blocked</span><br><span class='muted'>rating_provisional</span></td><td class='muted'>cleared False, reason rating_provisional</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Poor performer</b><br><span class='muted'>late, badly rated, frequent incidents, otherwise compliant</span></td><td>Medium · 35 pts<br><span class='muted'>assessed</span></td><td><span class="pill g">cleared</span><br><span class='muted'>assessed_medium</span></td><td class='muted'>final band Medium, points 35, rating status assessed, cleared True</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Poor performer with weak finances and recent breaches</b><br><span class='muted'>many medium problems, no single override</span></td><td>High · 53 pts<br><span class='muted'>assessed</span></td><td><span class="pill r">blocked</span><br><span class='muted'>high_risk_band</span></td><td class='muted'>final band High, points 53, cleared False, reason high_risk_band</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Approved when Low, now High</b><br><span class='muted'>an old approval keeping a vendor cleared after it got worse</span></td><td>High · 53 pts<br><span class='muted'>assessed</span></td><td><span class="pill r">blocked</span><br><span class='muted'>high_risk_band, approval_ineligible</span></td><td class='muted'>final band High, cleared False, reason approval_ineligible</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Approved with a condition now overdue</b><br><span class='muted'>ignore the condition attached to an approval</span></td><td>Medium · 35 pts<br><span class='muted'>assessed</span></td><td><span class="pill r">blocked</span><br><span class='muted'>condition_overdue</span></td><td class='muted'>final band Medium, cleared False, reason condition_overdue</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Rejected by a reviewer</b><br><span class='muted'>a Low score after a person rejected the vendor</span></td><td>Low · 0 pts<br><span class='muted'>assessed</span></td><td><span class="pill r">blocked</span><br><span class='muted'>decision_rejected</span></td><td class='muted'>final band Low, cleared False, reason decision_rejected</td><td><span class="pill g">✓</span></td></tr><tr><td><b>New supplier with no order history</b><br><span class='muted'>control: missing history must not count against it</span></td><td>Low · 0 pts<br><span class='muted'>assessed</span></td><td><span class="pill g">cleared</span><br><span class='muted'>assessed_low</span></td><td class='muted'>final band Low, points 0, rating status assessed, cleared True</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Adverse media only</b><br><span class='muted'>a single detect-only finding can&#x27;t make a vendor High</span></td><td>Low · 3 pts<br><span class='muted'>assessed</span></td><td><span class="pill g">cleared</span><br><span class='muted'>assessed_low</span></td><td class='muted'>final band Low, points 3, cleared True</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Offboarded vendor with a clean score</b><br><span class='muted'>buy from a vendor that was offboarded</span></td><td>Low · 0 pts<br><span class='muted'>assessed</span></td><td><span class="pill r">blocked</span><br><span class='muted'>vendor_status_offboarded_not_active</span></td><td class='muted'>final band Low, cleared False, reason vendor_status_offboarded_not_active</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Vendor still onboarding</b><br><span class='muted'>buy before activation</span></td><td>Low · 0 pts<br><span class='muted'>assessed</span></td><td><span class="pill r">blocked</span><br><span class='muted'>vendor_status_onboarding_not_active</span></td><td class='muted'>cleared False, reason vendor_status_onboarding_not_active</td><td><span class="pill g">✓</span></td></tr><tr><td><b>Caspian Petrochem Trading LLC (IR, Bank Melli)</b><br><span class='muted'>sanctioned vendor in a prohibited country; short-circuit skips GST and every external check</span></td><td>High · 14 pts<br><span class='muted'>provisional · R-SAN-01, R-JUR-01</span></td><td><span class="pill r">blocked</span><br><span class='muted'>override_R-SAN-01, override_R-JUR-01, vendor_status_onboarding_not_active</span></td><td class='muted'>points 14, points band Low, final band High, overrides R-SAN-01 + R-JUR-01, cleared False, reason override_R-SAN-01</td><td><span class="pill g">✓</span></td></tr><tr><td><b>SSPL Solutions Private Limited (sanctions override)</b><br><span class='muted'>Indian GSTIN and CIN on file, bank and web unverified; a confirmed sanctions match</span></td><td>High · 10 pts<br><span class='muted'>provisional · R-SAN-01</span></td><td><span class="pill r">blocked</span><br><span class='muted'>override_R-SAN-01, vendor_status_onboarding_not_active</span></td><td class='muted'>points 10, points band Low, final band High, overrides R-SAN-01, cleared False, reason override_R-SAN-01</td><td><span class="pill g">✓</span></td></tr><tr><td><b>3Five8 Technologies / ADDA (historical breach reported)</b><br><span class='muted'>Critical vendor with GST, bank and sanctions pending; a reported breach not yet matched to the entity</span></td><td>Unrated · 0 pts<br><span class='muted'>provisional</span></td><td><span class="pill r">blocked</span><br><span class='muted'>rating_provisional, vendor_status_onboarding_not_active</span></td><td class='muted'>points 0, final band Unrated, rating status provisional, cleared False, breach not scored until verified</td><td><span class="pill g">✓</span></td></tr></tbody></table></div></details>
+
+<h2 id="findings">What the red team found (and is now fixed)</h2>
+<div class="tblwrap"><table><thead><tr><th>#</th><th>Finding</th><th>Fix</th><th>Test</th></tr></thead><tbody>
+<tr><td>1</td><td>An admin's <i>accept risk</i> cleared a <b>sanctioned</b> vendor</td><td>Refused when recorded (400 <code>non_remediable_override</code>); ignored by the gate</td><td><code>test_accept_risk_on_a_sanctions_match_is_refused</code>, profile 3</td></tr>
+<tr><td>2</td><td>An acknowledgement let anyone <b>sign</b> with a sanctioned vendor</td><td>Signing refused (409 <code>vendor_blocked</code>); the signing dialog says why</td><td><code>test_sanctioned_vendor_cannot_be_signed_even_with_acknowledgement</code></td></tr>
+<tr><td>3</td><td>An approval kept a vendor cleared after its score turned <b>High</b></td><td>Approvals only count while the current score is assessed Low/Medium</td><td>profile “Approved when Low, now High”</td></tr>
+<tr><td>4</td><td>The petty exception cleared a vendor whose <b>possible sanctions match</b> awaited review; and it never applied at all (it checked tier “low”, the tier is called “petty”)</td><td>Pending sanctions review blocks it; tier name fixed</td><td>profiles “Petty vendor…”</td></tr>
+<tr><td>5</td><td>A vendor with <b>no country</b> of incorporation was rated assessed Low; scoring never passed the country to the engine</td><td>Missing country keeps the rating provisional; the country is passed</td><td>profile “Country of incorporation missing”</td></tr></tbody></table></div>
+<p class="muted">Each fix was reverted once to check its test fails.</p>
+
+<h2 id="team-vendors">The team's test vendors (23 Oct 2026)</h2>
+<p>Three vendor profiles from the team, added as the last three red-team rows above and onboarded in the running stack. The red-team rows use the tier and the checks as the profiles describe them; the live rows are what the stack did with the same vendors.</p>
+<div class="tblwrap"><table><thead><tr><th>Vendor</th><th>Profile expects</th><th>Red team (engine + clearance)</th><th>Live stack</th></tr></thead><tbody>
+<tr><td><b>Caspian Petrochem Trading LLC</b><br><span class="muted">IR, tier High, Bank Melli (MELIIRTHXXX)</span></td><td>Sanctions 10 + jurisdiction 4 = 14 pts, points band Low, final High, not cleared; Phases 1 and 2 skipped, no HTTP calls</td><td><span class="pill g">as expected</span> 14 pts · Low → High · R-SAN-01 + R-JUR-01 · blocked; collector test: Phases 1 and 2 not run, no HTTP client opened</td><td><span class="pill w">High, blocked</span> 4 pts · R-JUR-01 only: the name isn't on the sanctions list, and the bank isn't screened (onboarding has no SWIFT field). Phases 1 and 2 ran</td></tr>
+<tr><td><b>SSPL Solutions Private Limited</b><br><span class="muted">IN, tier Critical, GSTIN 26ABLCS7218R1ZG</span></td><td>10 pts, points band Low, final High, sanctions override, not cleared</td><td><span class="pill g">as expected</span> 10 pts · Low → High · R-SAN-01 · blocked</td><td><span class="pill g">as expected</span> the real sanctions list matches the name: 10 pts · R-SAN-01 · High · not cleared. Phases 1 and 2 still ran</td></tr>
+<tr><td><b>3Five8 Technologies (ADDA, adda.io)</b><br><span class="muted">IN, tier Critical, historical breach reported</span></td><td>No breach points until the record and the entity match are verified; GST, bank, sanctions pending</td><td><span class="pill g">as expected</span> 0 pts · Unrated · provisional · blocked; breach not scored</td><td><span class="pill g">blocked</span> 0 pts · Unrated · provisional · not cleared</td></tr>
+</tbody></table></div>
+<p><b>Found and fixed:</b> the breach check never looked anything up. It recorded “0 breaches, HTTP 200 from Have I Been Pwned” for every vendor, so ADDA would have shown “no breach listed”. It now records <i>not checked</i> (<code>collect_breach</code>; test <code>test_unchecked_breach_history_is_not_reported_as_clean</code>, which fails on the old code).</p>
+<p><b>Found, not fixed yet (needs a decision):</b></p>
+<ul>
+<li><b>The fast-fail never runs for onboarded vendors.</b> It only applies to vendors that aren't <i>active</i>, and onboarding makes a vendor active straight away. Caspian and SSPL went through the GST and external checks.</li>
+<li><b>Most external checks crash.</b> GST and adverse media import a function that doesn't exist (<code>is_live_verification_enabled</code>). The Phase 2 checks run in parallel on one database session and fail with “Session is already flushing”. They are recorded as <i>not checked (deadline exceeded)</i>, so nothing is wrongly cleared, but the reason shown is wrong.</li>
+<li><b>Website and e-mail checks don't look anything up either.</b> With a domain on file they record TLS grade A and DMARC “reject”. They are required checks for High and Critical vendors, so fixing them leaves more vendors provisional.</li>
+<li><b>Tier can't be set.</b> Live scoring always uses the spend tier (here <i>moderate</i>); the inherent tier (High, Critical) is never passed in.</li>
+<li><b>Bank sanctions.</b> Only the vendor name is screened; a SWIFT/BIC can't be recorded or screened.</li>
+</ul>
+
+<h2 id="evaluation">Evaluation on synthetic incident data</h2>
+<p>The 400 test vendors the retired model was evaluated on, scored by the ruleset (<code>ml/evaluate_scorecard.py</code>). Their six features become scorecard checks; identity checks are clear (the data has none).</p>
+<div class="tblwrap"><table><thead><tr><th>Model</th><th>ROC-AUC</th></tr></thead><tbody>
+<tr><td><b>Deterministic ruleset (shipped)</b></td><td><b>0.738</b></td></tr>
+<tr><td>Random Forest (retired)</td><td>0.715</td></tr>
+<tr><td>Ceiling: the rule that made the labels</td><td>0.739</td></tr></tbody></table></div>
+<div class="tblwrap"><table><thead><tr><th>Band</th><th>Vendors</th><th>Incidents</th><th>Incident rate</th></tr></thead><tbody><tr><td>Low</td><td>360</td><td>53</td><td>14.7%</td></tr><tr><td>Medium</td><td>40</td><td>19</td><td>47.5%</td></tr><tr><td>High</td><td>0</td><td>0</td><td>—</td></tr></tbody></table></div>
+<p>The ruleset ranks vendors almost exactly as well as the labels allow, and Medium vendors had about three times the incident rate of Low ones. No test vendor reaches High on points alone: the dataset has no identity findings, so High comes from overrides. The labels are synthetic (a weighted rule plus noise); this measures agreement with that rule, not real-world prediction.</p>
+
+<details class="more" id="merge-review"><summary>Merge review (21 Oct 2026)</summary>
+<p>Merging Niraj's deterministic scorecard (<code>updated_risk</code>) needed fifteen fixes (F1–F15: duplicate migrations, a module/package clash, a migration that stopped the service, unseeded rules, silent alerts, 43 TypeScript errors, two endpoints that always failed, a broken e-mail template, a page that crashed the app). Eleven items were left for decision; their state now:</p>
+<div class="tblwrap"><table><thead><tr><th>#</th><th>Item</th><th>Status</th></tr></thead><tbody>
+<tr><td>G1</td><td>Signing and <code>/clearance</code> disagreed (decisions and vendor status ignored at signing)</td><td><span class="pill g">fixed</span> one clearance function for both</td></tr>
+<tr><td>G2</td><td>Budget routing read <code>band</code>; Unrated never got a finance step</td><td><span class="pill g">rule</span> <code>approval.unrated_vendor_requires_finance</code> (off by default: nearly every demo vendor is Unrated); band read from <code>final_band</code></td></tr>
+<tr><td>G3</td><td>Almost every vendor provisional / Unrated</td><td><span class="pill g">partly fixed</span> the country was never passed to the engine (fixed); external sources being unreachable remains (limits)</td></tr>
+<tr><td>G4</td><td>Weekly PSI drift workflow still scheduled against the archived model</td><td><span class="pill g">fixed</span> removed; the worker ends the old schedule; PSI rules marked retired</td></tr>
+<tr><td>G5</td><td>Access: a non-existent <code>procurement</code> role; ruleset reads and weekly report open to all</td><td><span class="pill g">fixed</span> role removed; rulesets and report staff-only. Requesters may still add evidence (held for review) and raise disputes, by design</td></tr>
+<tr><td>G6</td><td><code>risk.score.updated</code> published after the commit, not via the outbox</td><td><span class="pill g">fixed</span> through the outbox</td></tr>
+<tr><td>G7</td><td>Clearance listed non-deciding reasons</td><td><span class="pill g">fixed</span></td></tr>
+<tr><td>G8</td><td>Activation trigger raises unless cleared</td><td><span class="pill n">by design</span> any activation flow must call clearance first</td></tr>
+<tr><td>G9</td><td>Eight unread rule keys in the removed migration</td><td><span class="pill n">no action</span> not seeded, values fixed in the ruleset</td></tr>
+<tr><td>G10</td><td>No evaluation of the shipped ruleset</td><td><span class="pill g">done</span> <a href="#evaluation">above</a></td></tr>
+<tr><td>G11</td><td>Narrative said “Result Low” for Unrated; two different ruleset versions shown</td><td><span class="pill g">fixed</span></td></tr></tbody></table></div>
+
+</details>
+
+<details class="more" id="retired"><summary>Retired ML model (for the record)</summary>
+<p>The first risk model was a Random Forest on six features over 2,000 synthetic vendors: ROC-AUC 0.715 (ceiling 0.739), incident rate Low 6.5 % / Medium 20 % / High 40 %, 12/12 of its own red-team profiles. It was replaced because a procurement decision must be explained and replayed exactly, and a fixed ruleset does that; its code is kept in <code>services/contract-risk-agent/ml/archive/</code> and its numbers in <code>docs/results/risk-model.json</code>.</p>
+
+</details>
+
+<h2 id="limits">Limits</h2>
+<ul>
+<li>External sources (GST registry, TLS grading, DMARC, breach and media feeds) aren't connected in this stack. GST, breach and media are recorded as not checked, but website and e-mail still record fixed “good” results (see <a href="#team-vendors">the team's test vendors</a>).</li>
+<li>The evaluation uses synthetic labels; there are no real incident outcomes yet.</li>
+<li>The red team covers the rules as documented; it can't prove the collectors read real sources correctly.</li>
+<li>Turning <code>approval.unrated_vendor_requires_finance</code> on routes most purchases to finance until vendors are fully assessed.</li></ul>
+
+<h2 id="rerun">Re-run</h2>
+<pre><code>./scripts/test-service.sh contract-risk-agent          # includes the red team and the evaluation
+docker run --rm -e APP_ENV=development -v "$PWD/services/contract-risk-agent:/app" -v "$PWD/shared:/app/shared" \
+  -v "$PWD/data:/app/data:ro" -v "$PWD/docs:/docs" -w /app --entrypoint python \
+  procurementautomation-contract-risk-agent ml/redteam_scorecard.py      # or ml/evaluate_scorecard.py
+python tests/e2e/risk_flow.py                           # live: scorecard, clearance, decisions, signing
+python tests/e2e/demo_scenarios.py 6                    # the red-team demo scenario</code></pre>
+
+<p class="muted" style="margin-top:36px">All project pages: <a href="index.html">docs index</a></p>
+</div><script>try{const t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script></body></html>
+</template>
+<template id="page-slides">
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slides</title>
+<style>
+:root { --bg:#f4f6f9; --panel:#fff; --ink:#172033; --muted:#5d6879; --line:#e1e6ee;
+  --blue:#2563c9; --orange:#d9730d; --green:#1d8a4a; --purple:#7a3fa3; --pink:#d1336b; --navy:#14213d; }
+:root[data-theme="dark"] { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#252e3a;
+  --blue:#7aa7f2; --orange:#f2a250; --green:#4cc27f; --purple:#b98ae0; --pink:#f07aa0; --navy:#0b1426; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#252e3a;
+  --blue:#7aa7f2; --orange:#f2a250; --green:#4cc27f; --purple:#b98ae0; --pink:#f07aa0; --navy:#0b1426; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+.page { max-width:1180px; margin:0 auto; padding:28px 16px 56px; }
+svg.i { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+h1 { margin:0; font-size:24px; }
+.open { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:10px; font-weight:600; color:#fff;
+  background:linear-gradient(120deg, var(--blue), var(--purple)); text-decoration:none; }
+.part { --c:var(--blue); margin-top:26px; }
+.part h2 { display:flex; align-items:center; gap:10px; font-size:15px; margin:0 0 12px; }
+.part h2 .n { width:26px; height:26px; border-radius:8px; display:grid; place-items:center; font-size:13px; color:var(--panel); background:var(--c); }
+.grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; }
+.slide { margin:0; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.thumb { aspect-ratio:16 / 9; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; padding:12px 14px; position:relative;
+  background:color-mix(in srgb, var(--c) 10%, var(--panel)); border-bottom:3px solid var(--c); color:var(--c); }
+.thumb img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top left; }
+.thumb img.fit { object-fit:contain; object-position:center; background:#fff; padding:6px; }
+.thumb.dark { background:var(--navy); color:#f5f6f2; border-bottom-color:var(--navy); }
+.thumb .k { font-size:11.5px; font-weight:700; letter-spacing:.04em; opacity:.85; }
+.thumb .big { font-size:26px; font-weight:700; line-height:1.1; }
+.thumb svg.i { width:30px; height:30px; position:absolute; top:12px; left:14px; }
+.slide figcaption { display:flex; gap:8px; padding:9px 12px 11px; font-size:13px; }
+.slide figcaption b { color:var(--c); }
+@media (max-width:900px) { .grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+@media (max-width:520px) { .grid { grid-template-columns:1fr; } }
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="alert" viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5h.01"/></symbol>
+  <symbol id="bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+  <symbol id="layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+  <symbol id="play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z"/></symbol>
+  <symbol id="rocket" viewBox="0 0 24 24"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M9 15l-3-3 4-6c3-4 8-4 11-4 0 3 0 8-4 11l-6 4z"/><circle cx="15" cy="9" r="1.5"/></symbol>
+</defs></svg>
+
+<div class="page">
+  <header>
+    <h1>Final review deck</h1>
+    <a class="open" href="https://claude.ai/artifact/8nH3XPvkRpejh6Cq1xDeSW" target="_blank" rel="noopener"><svg class="i"><use href="#screen"/></svg>Open the deck</a>
+  </header>
+
+  <section class="part" style="--c:var(--blue)">
+    <h2><span class="n">1</span>The problem and the solution</h2>
+    <div class="grid">
+      <figure class="slide"><div class="thumb dark"><span class="k">FINAL PROJECT REVIEW</span><span class="big">Agentic AI Procurement</span></div><figcaption><b>1</b>Cover</figcaption></figure>
+      <figure class="slide"><div class="thumb"><svg class="i"><use href="#alert"/></svg><span class="big">Manual hand-offs</span></div><figcaption><b>2</b>The business problem</figcaption></figure>
+      <figure class="slide"><div class="thumb"><svg class="i"><use href="#bulb"/></svg><span class="big">Five agents</span></div><figcaption><b>3</b>Proposed solution</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="part" style="--c:var(--purple)">
+    <h2><span class="n">2</span>How it is built</h2>
+    <div class="grid">
+      <figure class="slide"><div class="thumb"><img class="fit" src="assets/architecture.png" alt="System architecture diagram"></div><figcaption><b>4</b>System architecture</figcaption></figure>
+      <figure class="slide"><div class="thumb"><img class="fit" src="assets/functional-flow.png" alt="Functional flow diagram"></div><figcaption><b>5</b>Functional flow: five stages</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="part" style="--c:var(--orange)">
+    <h2><span class="n">3</span>The workflow, checklist item by item</h2>
+    <div class="grid">
+      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/02-documents.png" alt="Control Panel documents"></div><figcaption><b>6</b>Input, Processed, Failed</figcaption></figure>
+      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/06-extraction.png" alt="Extracted fields with confidence"></div><figcaption><b>7</b>Every field and its confidence</figcaption></figure>
+      <figure class="slide"><div class="thumb"><img src="showcase/approval/01-approval-queue.png" alt="Approval queue"></div><figcaption><b>8</b>Approval notifications</figcaption></figure>
+      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/04-templates.png" alt="Template editor"></div><figcaption><b>9</b>Editable email templates</figcaption></figure>
+      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/05-esignatures.png" alt="Contracts and e-signatures"></div><figcaption><b>10</b>Approval to signed PDF</figcaption></figure>
+      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/01-overview.png" alt="Control Panel overview"></div><figcaption><b>11</b>Control Panel</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="part" style="--c:var(--green)">
+    <h2><span class="n">4</span>Stack, results, demo, next steps</h2>
+    <div class="grid">
+      <figure class="slide"><div class="thumb"><svg class="i"><use href="#layers"/></svg><span class="big">Open-source stack</span></div><figcaption><b>12</b>Technology stack</figcaption></figure>
+      <figure class="slide"><div class="thumb dark" style="background:#1f4b8f"><span class="k">RESULTS</span><span class="big">1,276 tests · 71/71</span></div><figcaption><b>13</b>Results</figcaption></figure>
+      <figure class="slide"><div class="thumb"><svg class="i"><use href="#play"/></svg><span class="big">Live demo</span></div><figcaption><b>14</b>One quote, end to end</figcaption></figure>
+      <figure class="slide"><div class="thumb"><svg class="i"><use href="#rocket"/></svg><span class="big">Limits · next</span></div><figcaption><b>15</b>Limitations and next steps</figcaption></figure>
+      <figure class="slide"><div class="thumb dark"><span class="big">Thank you</span></div><figcaption><b>16</b>Questions</figcaption></figure>
+    </div>
+  </section>
+</div>
+</body></html>
+</template>
+<script>
+const DASH = "present";
+const DASHES = {"team": {"file": "index.html", "title": "Team workspace", "home": "home"}, "present": {"file": "presentation.html", "title": "Presentation", "home": "status"}};
+const ALL = [{"id": "home", "file": "index", "label": "Overview", "dash": "team"}, {"id": "showcase", "file": "showcase", "label": "Showcase", "dash": "team"}, {"id": "demo-script", "file": "demo-script", "label": "Demo script", "dash": "team"}, {"id": "research", "file": "research", "label": "Research", "dash": "team"}, {"id": "code", "file": "codebase-guide", "label": "Codebase guide", "dash": "team"}, {"id": "deploy", "file": "deployment", "label": "Deployment", "dash": "team"}, {"id": "market", "file": "competitive-analysis", "label": "Competitors", "dash": "team"}, {"id": "status", "file": "project-flow", "label": "Project status", "dash": "present"}, {"id": "risk", "file": "risk-model", "label": "Vendor risk", "dash": "present"}, {"id": "slides", "file": "slides", "label": "Slides", "dash": "present"}];
+const ALIASES = {"demo-5min": ["showcase", "five"], "status/research": ["research", ""]};
+const PAGES = ALL.filter((p) => p.dash === DASH);
+const BY_FILE = Object.fromEntries(ALL.map((p) => [p.file, p.id]));
+const frames = {};
+// Runs inside every page's frame: links to other pages switch tabs, and
+// "#anchor" links stay in the frame (a srcdoc frame resolves "#x" against
+// the dashboard's address, which would load the whole dashboard into it).
+const LINKS = "<scr" + "ipt>(" + function () {
+  document.addEventListener("click", function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target.closest && e.target.closest("a[href]");
+    if (!a) return;
+    var href = a.getAttribute("href");
+    if (href.charAt(0) === "#") {
+      e.preventDefault();
+      var id = href.slice(1);
+      if (!id) return;
+      if (location.hash.slice(1) !== id) { location.hash = id; return; }
+      var el = document.getElementById(decodeURIComponent(id));
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    var m = href.match(/^(?:\.\/)?([a-z0-9-]+)\.html(?:#(.*))?$/);
+    if (m && parent.routeLink && parent.routeLink(m[1], m[2] || "")) { e.preventDefault(); return; }
+    if (!/^(javascript:|mailto:)/.test(href) && !a.target) a.target = "_blank";
+  });
+  window.addEventListener("hashchange", function () { parent.pageHash(location.hash.slice(1)); });
+} + ")();</scr" + "ipt>";
+
+function savedTheme() { try { return localStorage.getItem("theme"); } catch (e) { return null; } }
+function isDark() {
+  const t = document.documentElement.getAttribute("data-theme");
+  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function setTheme(t) {
+  try { if (t) localStorage.setItem("theme", t); } catch (e) {}
+  const theme = t || savedTheme();
+  const apply = (doc) => { if (doc && doc.documentElement && theme) doc.documentElement.setAttribute("data-theme", theme); };
+  apply(document);
+  Object.values(frames).forEach((f) => apply(f.contentDocument));
+  document.querySelector("#theme use").setAttribute("href", isDark() ? "#i-sun" : "#i-moon");
+}
+
+function resolve(id, sub) {
+  const head = (sub || "").split("/")[0];
+  if (ALIASES[id + "/" + head]) { const [i, s] = ALIASES[id + "/" + head]; return [i, s || sub.split("/").slice(1).join("/")]; }
+  if (ALIASES[id]) { const [i, s] = ALIASES[id]; return [i, sub || s]; }
+  return [id, sub || ""];
+}
+function go(id, sub) {
+  [id, sub] = resolve(id, sub);
+  const page = ALL.find((p) => p.id === id);
+  if (!page) { openPage(DASHES[DASH].home, ""); return; }
+  if (page.dash !== DASH) { location.href = DASHES[page.dash].file + "#" + id + (sub ? "/" + sub : ""); return; }
+  openPage(id, sub);
+}
+function routeLink(stem, hash) {
+  const dash = Object.keys(DASHES).find((k) => DASHES[k].file === stem + ".html");
+  if (dash) {
+    if (!hash) { go(DASHES[dash].home, ""); return true; }
+    const [id, ...rest] = hash.split("/");
+    go(id, rest.join("/"));
+    return true;
+  }
+  if (BY_FILE[stem] || ALIASES[stem]) { go(BY_FILE[stem] || stem, hash); return true; }
+  return false;
+}
+
+let current = null;
+function openPage(id, sub, fromHash) {
+  if (!PAGES.some((p) => p.id === id)) id = DASHES[DASH].home;
+  const page = PAGES.find((p) => p.id === id);
+  if (!frames[id]) {
+    const f = document.createElement("iframe");
+    f.title = page.label;
+    f.srcdoc = "<!doctype html>" + document.getElementById("page-" + id).innerHTML + LINKS;
+    f.addEventListener("load", () => { setTheme(); if (f.dataset.sub) jump(f, f.dataset.sub); });
+    document.getElementById("main").appendChild(f);
+    frames[id] = f;
+  }
+  Object.entries(frames).forEach(([k, f]) => { f.hidden = k !== id; });
+  document.querySelectorAll("nav a").forEach((a) => a.setAttribute("aria-current", a.dataset.id === id ? "page" : "false"));
+  const f = frames[id];
+  if (sub) { f.dataset.sub = sub; if (f.contentDocument && f.contentDocument.readyState === "complete") jump(f, sub); }
+  current = id;
+  document.title = page.label + " · " + DASHES[DASH].title;
+  if (!fromHash) history.replaceState(null, "", "#" + id + (sub ? "/" + sub : ""));
+}
+function jump(f, sub) {
+  delete f.dataset.sub;
+  try { f.contentWindow.location.hash = sub; } catch (e) {}
+  const el = f.contentDocument && f.contentDocument.getElementById(decodeURIComponent(sub));
+  if (el) el.scrollIntoView();
+}
+function pageHash(sub) { history.replaceState(null, "", "#" + current + (sub ? "/" + sub : "")); }
+function fromLocation() {
+  const [id, ...rest] = location.hash.slice(1).split("/");
+  const [rid, rsub] = resolve(id || DASHES[DASH].home, rest.join("/"));
+  const page = ALL.find((p) => p.id === rid);
+  if (page && page.dash !== DASH) { go(rid, rsub); return; }
+  openPage(rid, rsub, rid === id && rsub === rest.join("/"));  // an old id: show the new one in the address bar
+}
+
+(function main() {
+  // Opened inside another dashboard's frame (an old link): let that dashboard show the page instead.
+  if (window.parent !== window) {
+    try {
+      if (window.parent.go) { const [id, ...rest] = location.hash.slice(1).split("/"); window.parent.go(id || DASHES[DASH].home, rest.join("/")); return; }
+    } catch (e) {}
+  }
+  document.querySelectorAll("nav a").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openPage(a.dataset.id, ""); }));
+  document.querySelectorAll(".mode a").forEach((a) => a.addEventListener("click", (e) => {
+    if (a.dataset.dash === DASH) { e.preventDefault(); openPage(DASHES[DASH].home, ""); }
+  }));
+  document.getElementById("theme").addEventListener("click", () => setTheme(isDark() ? "light" : "dark"));
+  const slim = (on) => { document.body.classList.toggle("slim", on); try { localStorage.setItem("dash-slim", on ? "1" : ""); } catch (e) {} };
+  document.getElementById("slim").addEventListener("click", () => slim(!document.body.classList.contains("slim")));
+  try { if (localStorage.getItem("dash-slim")) document.body.classList.add("slim"); } catch (e) {}
+  window.addEventListener("hashchange", fromLocation);
+  setTheme();
+  fromLocation();
+})();
+</script>
+</body></html>

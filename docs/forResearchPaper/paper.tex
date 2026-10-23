@@ -1,0 +1,690 @@
+% =====================================================================
+% DRAFT 2 (23 Oct 2026) -- IEEE conference format (IEEEtran)
+%
+% Every number is traced to docs/results/selective.json (generator 1.0,
+% seed 7, commit a091d11), rendered as docs/results/selective.md. The
+% plan and hypotheses are in docs/RESEARCH_PAPER_PLAN.md and
+% docs/RESEARCH_GAP_ANALYSIS.md. Items still open are marked \todo{...}
+% (red). Remove all \todo marks before submission.
+%
+% Compile:  pdflatex paper.tex && pdflatex paper.tex   (or: tectonic paper.tex)
+%
+% REFERENCES: see the comment above each \bibitem.
+%   VERIFIED-GA = metadata verified on 16 Oct 2026 for the research gap
+%                 analysis (Crossref / DataCite / arXiv API / publisher page).
+%   VERIFIED-D1 = checked against a web source on 23 Oct 2026 for draft 1.
+%   CARRIED     = copied from the project report; not re-verified.
+%   Re-run the literature search within four weeks of submission
+%   (RESEARCH_PAPER_PLAN.md 9.9): this area moved fast in 2026.
+% =====================================================================
+\documentclass[conference]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+\usepackage{url}
+
+\newcommand{\todo}[1]{\textbf{\textcolor{red}{[TODO: #1]}}}
+\newcommand{\sysB}{\textsf{B0}}
+\newcommand{\sysBtwo}{\textsf{B2}}
+\newcommand{\sysBone}{\textsf{B1}}
+\newcommand{\sysP}{\textsf{P}}
+\newcommand{\sysFC}{\textsf{FC}}
+\newcommand{\sysPdup}{\textsf{P+dup}}
+
+\begin{document}
+
+% Title 3 of RESEARCH_PAPER_PLAN.md 9.1, the one the plan recommends for a
+% mixed result. The project report keeps "Agentic AI Procurement Solution".
+\title{Measuring the Value of Enterprise Records in\\
+Risk-Controlled Invoice Automation}
+
+\author{\IEEEauthorblockN{Anjali Dinesh More, Vaidehi Jagdeep Sankaye, Niraj Ravindra Sawant, Anooj Shete, and Jyoti More}
+\IEEEauthorblockA{Department of Computer Engineering\\
+Fr. Conceicao Rodrigues Institute of Technology, Vashi, Navi Mumbai, India}}
+
+\maketitle
+
+% ---------------------------------------------------------------------
+\begin{abstract}
+Many procure-to-pay systems post an invoice without human review once its
+extraction confidence passes a fixed threshold. The error rate such a threshold
+lets through is seldom measured. It is also unclear whether checks against the
+organization's own records (vendor master, open purchase orders, earlier
+invoices) would let more invoices skip review at the same error rate. We study
+both questions on a seeded synthetic procure-to-pay world: 100 vendors, 1{,}649
+purchase orders and 3{,}000 invoices, of which 29.8\% carry one injected business
+error. Invoices are rendered as text PDFs or as scans of three quality levels and
+read with the extraction code of a deployed platform. We compare the platform's
+confidence rule, a rule that accepts when every record check passes, and
+risk-controlled gates that pick their threshold with Learn-then-Test, using
+document evidence alone or document and record evidence, over 20
+vendor-disjoint splits. The deployed rule accepts 41.2\% of invoices and 6.8\%
+of those are wrong. Record evidence improves ranking (AUROC 0.724 to 0.947 with
+gradient boosting), but no pre-specified gate certifies more than 1.7\% of
+invoices at error budgets of 1\%, 2\% or 5\%, so our pre-registered hypothesis
+of a 5-point coverage gain is not supported. Most errors among the top-ranked
+invoices are resubmissions under a new invoice number, which the production
+duplicate rule misses. A duplicate check that ignores the number, defined after
+this diagnosis, certifies 12.1\% and 35.4\% of invoices at the 2\% and 5\%
+budgets. All data are synthetic and come from one generator, and the post hoc
+result needs replication.
+\end{abstract}
+
+\begin{IEEEkeywords}
+selective prediction, risk control, Learn-then-Test, invoice processing,
+procure-to-pay, straight-through processing
+\end{IEEEkeywords}
+
+% ---------------------------------------------------------------------
+\section{Introduction}
+An automated procure-to-pay (P2P) pipeline reads each incoming invoice, links it
+to a vendor and a purchase order (PO), and then either posts it or sends it to a
+person. Posting without review is a \emph{selective prediction} decision: the
+system trades coverage, the share of documents handled automatically, against
+the error rate among the documents it accepts~\cite{elyaniv2010,geifman2017}.
+Work on document extraction usually reports field accuracy on benchmarks such as
+SROIE~\cite{huang2019sroie}, or the results of layout-aware models such as
+LayoutLMv3~\cite{huang2022layoutlmv3}. A posting gate is judged differently. What
+counts is how many accepted invoices are wrong, and an invoice can be wrong even
+when every field was read correctly: it may be a resubmission, carry changed bank
+details, or bill more than was ordered.
+
+Learn-then-Test (LTT)~\cite{angelopoulos2025ltt} chooses a threshold so that the
+error rate among accepted items stays below a target with high probability.
+Recent work applies this kind of guarantee to straight-through processing of
+financial documents~\cite{jin2026plv,rombach2026}, but scores each document, and
+usually each field, on what the document itself contains. Commercial P2P tools
+do match invoices against vendor masters and POs~\cite{rossum2026,sapariba2026},
+with tolerances set by hand and no published error rates.
+
+This paper starts from the review gate of a procurement platform we
+built~\cite{more2026report}. It accepts an invoice when a weighted extraction
+confidence is at least 0.8 and no review flag is raised. We ask:
+\begin{itemize}
+\item \textbf{RQ1.} What error rate does this fixed rule admit on an invoice
+stream that contains business errors?
+\item \textbf{RQ2.} Does evidence from the organization's records let a
+risk-controlled gate accept more invoices at the same error budget? Our
+pre-registered hypothesis (H1) was a gain of at least 5 percentage points over a
+document-only gate at $\alpha=2\%$.
+\item \textbf{RQ3.} Is it better to control risk for the whole document or to
+combine one gate per field?
+\item \textbf{RQ4.} How much of the ranking signal survives when the records
+are out of date?
+\end{itemize}
+
+The contributions are empirical. We do not propose a new risk-control method or
+a new extractor. (1)~We measure the error rate of the deployed rule, and of a
+rule that trusts every record check, on a P2P benchmark with known ground truth.
+(2)~We compare risk-controlled gates with and without record evidence over
+vendor-disjoint splits, with an ablation per check and a stale-records test.
+(3)~We explain why no pre-specified gate certifies a useful share, and report a
+post hoc fix together with what it needs before it can be trusted.
+
+Section~II reviews related work and Section~III states the problem. Section~IV
+describes the gates and the benchmark, Section~V the protocol, and Section~VI
+the results. Limitations follow in Section~VII.
+
+% ---------------------------------------------------------------------
+\section{Related Work}
+\subsection{Selective prediction and risk control}
+Selective classification lets a model abstain to lower its risk. El-Yaniv and
+Wiener describe the resulting risk--coverage trade-off for noise-free
+models~\cite{elyaniv2010}, and Geifman and El-Yaniv build a selective classifier
+on top of a trained network so that a chosen risk level holds with high
+probability~\cite{geifman2017}. LTT treats the choice of a low-dimensional
+parameter, such as a threshold, as a multiple-testing problem and gives
+finite-sample guarantees for any underlying model~\cite{angelopoulos2025ltt};
+conformal risk control does the same for the expected value of a monotone
+loss~\cite{angelopoulos2024crc}. In both, the guarantee holds whatever the
+quality of the score. The coverage obtained does not: it depends on how well the
+score separates correct from incorrect items, which is what RQ2 varies.
+
+Learning to defer models the human who receives rejected
+items~\cite{madras2018,mozannar2020}. We treat review as a fixed, error-free
+fallback and list this as a limitation. Raw confidence scores of neural networks
+are often miscalibrated~\cite{guo2017}, and the platform's field confidences are
+hand-set constants, which is one reason to learn a probability model on labeled
+data before thresholding it. LTT also assumes that calibration and deployment
+data are exchangeable. Weighted conformal prediction relaxes this under
+covariate shift when the likelihood ratio is known or can be
+estimated~\cite{tibshirani2019}; we do not apply it (Section~VII).
+
+\subsection{Document extraction and its benchmarks}
+Layout-aware pretrained models read business documents
+well~\cite{huang2022layoutlmv3}, and OCR and conversion engines such as
+PaddleOCR and Docling are widely used in practice~\cite{cui2025paddleocr,auer2024docling}.
+The benchmarks measure reading. SROIE covers receipts~\cite{huang2019sroie};
+DocILE~\cite{simsa2023docile} and FATURA~\cite{limam2023fatura} cover invoices.
+None of them ships the purchase orders, vendor master or payment history an
+invoice belongs to, so none can say whether posting it was right. Krieger
+\emph{et al.} show that extractors degrade on rarely seen suppliers~\cite{krieger2023},
+which bears on gates evaluated on unseen vendors.
+
+\subsection{Confidence for straight-through processing}
+HYCEDIS scores extracted key--value pairs with a conformal predictor and an
+anomaly detector~\cite{nguyen2022hycedis}. Rombach and Mehdiyev build
+entity-level conformal prediction sets for receipts and propose to accept
+singletons~\cite{rombach2026}. ConfBench measures how well vision--language
+models' confidence tracks extraction accuracy under document
+degradation~\cite{roy2026confbench}. The closest work is Jin
+\emph{et al.}~\cite{jin2026plv}: they fuse perception, layout and validation
+features with gradient boosting and set per-field thresholds with LTT on DocILE,
+FATURA and VRDU. Their validators are document-internal (formats, checksums,
+arithmetic, a second model), they report that these add little signal on
+invoices, and their decisions are per field.
+
+\subsection{Procurement practice and the gap}
+Reviews of AI in procurement find most deployments in the P2P
+cycle~\cite{guida2023,spreitzenbarth2024}, and three-way matching against POs
+and receipts is standard in commercial tools~\cite{rossum2026,sapariba2026}.
+Within the literature we searched, no study (i)~measures the error admitted by a
+confidence-threshold gate on invoices with business errors, or (ii)~tests
+whether evidence from enterprise records changes what a risk-controlled gate can
+certify, at the level of the whole document. Practice already uses these checks
+as hard rules, so the idea of matching is not new; what has not been measured is
+its value inside a gate with an error guarantee.
+
+% ---------------------------------------------------------------------
+\section{Problem Formulation}
+Each invoice $i$ has document evidence $D_i$ (extracted fields, field
+confidences, text quality, classification confidence, internal consistency
+checks), record evidence $E_i$ (results of checks against the vendor master,
+open POs and earlier invoices), and a label $Y_i\in\{0,1\}$. We set $Y_i=1$ if
+and only if the vendor, total, currency and invoice number were read correctly
+\emph{and} no business error was injected. A gate is a score $s(D,E)\in[0,1]$
+and a threshold $\lambda$; the invoice is accepted without review iff
+$s\ge\lambda$. Coverage and selective risk are
+\begin{align}
+\Phi(\lambda) &= \Pr\!\left[s(D,E)\ge\lambda\right],\\
+\mathcal{R}(\lambda) &= \Pr\!\left[Y=0 \,\middle|\, s(D,E)\ge\lambda\right].
+\end{align}
+For an error budget $\alpha$ and a confidence parameter $\delta$, we want the
+threshold with the largest coverage such that
+\begin{equation}
+\Pr\!\left[\mathcal{R}(\hat\lambda)\le\alpha\right]\ \ge\ 1-\delta,
+\label{eq:rc}
+\end{equation}
+where the probability is over the calibration sample. LTT tests the null
+hypotheses $H_\lambda:\mathcal{R}(\lambda)>\alpha$ on a grid
+$\lambda_1>\lambda_2>\dots>\lambda_K$ ordered from strict to loose. With $n$
+calibration invoices accepted at $\lambda_k$ and $k$ of them wrong, the p-value
+is the binomial tail $p_k=\Pr[\mathrm{Bin}(n,\alpha)\le k]$. Fixed-sequence
+testing rejects $H_{\lambda_1},H_{\lambda_2},\dots$ while $p_k\le\delta$ and stops
+at the first failure; this controls the family-wise error at $\delta$, so the
+loosest rejected threshold satisfies Eq.~\eqref{eq:rc}~\cite{angelopoulos2025ltt}.
+If $H_{\lambda_1}$ is not rejected, nothing is accepted. Even with no errors,
+rejection needs $n\ge\log\delta/\log(1-\alpha)$ accepted calibration invoices:
+230 at $\alpha=1\%$, 114 at 2\% and 45 at 5\% for $\delta=0.1$. This floor
+matters in Section~VI.
+
+% ---------------------------------------------------------------------
+\section{Methodology}
+\subsection{Deployed rule and extraction}
+In the study, text PDFs are read with a text-layer parser and scans with
+PaddleOCR using the platform's settings and line parsing~\cite{cui2025paddleocr};
+an ML classifier assigns the document type and regular expressions extract the
+fields. (The live pipeline also routes scanned PDFs through
+Docling~\cite{auer2024docling} and cross-checks fields with LayoutLMv3; neither
+path is part of this study.) Each field $f$ has a confidence $c_f\in[0,1]$,
+discounted by the quality $q\in[0,1]$ of the text it was read from. The
+document score is a weighted mean:
+\begin{equation}
+s_f = c_f\,q,\quad
+S=\frac{\sum_{f\in F} w_f\, s_f}{\sum_{f\in F} w_f},\quad
+\text{review if } S<\theta=0.8,
+\label{eq:conf}
+\end{equation}
+with $w_f$ = 0.30 (total), 0.20 (vendor name), 0.15 (classification), 0.15
+(document number), 0.10 (date) and 0.10 (line items, left out when none are
+found)~\cite{more2026report}. The deployed rule also forces review when the
+vendor name is missing or resembles but does not match a known vendor, when the
+document is not recognized as an invoice, when the PO match fails, when a
+duplicate is found, or when bank details differ from the master. Confidence and
+these flags together form baseline \sysB.
+
+\subsection{Synthetic procure-to-pay world}
+A seeded generator builds a vendor master of 100 vendors, each with a GSTIN
+(Indian tax identifier), bank details and a currency (15\% of vendors invoice in USD).
+Invoice volume follows a Zipf-like weight $1/(1+i)^{0.8}$ over vendors, so a few
+vendors send most invoices; the largest sends 350 of the 3{,}000. The generator
+then issues 1{,}649 POs and 3{,}000 invoices against them
+(Table~\ref{tab:data}). Each invoice carries at most one injected business error
+of eight types, listed with their counts in Table~\ref{tab:data}. A resubmitted
+duplicate copies an earlier invoice of the same vendor, moves its date by one to
+three days, and always takes the vendor's next invoice number. Invoices are
+rendered as text PDFs or as clean, mildly degraded or heavily degraded scans.
+Ground truth is known by construction.
+
+\begin{table}[t]
+\caption{Synthetic benchmark (generator 1.0, seed 7)}
+\label{tab:data}
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+Item & Value \\
+\midrule
+Vendors / purchase orders / invoices & 100 / 1{,}649 / 3{,}000 \\
+Invoices with an injected error & 895 (29.8\%) \\
+\quad duplicate (renumbered resubmission) & 147 \\
+\quad unit price above the PO & 145 \\
+\quad changed bank details & 117 \\
+\quad quantity above the PO's remainder & 109 \\
+\quad total $\neq$ subtotal + tax & 109 \\
+\quad look-alike vendor name & 95 \\
+\quad another vendor's PO cited & 88 \\
+\quad wrong or invalid GSTIN & 85 \\
+Fields read correctly & 84.3\% \\
+Correct invoices ($Y=1$) & 59.9\% \\
+\midrule
+Visual: share / fields read / correct & \\
+\quad text PDF & 55.1 / 100 / 72.3\% \\
+\quad clean scan & 25.5 / 91.2 / 63.0\% \\
+\quad mild scan & 11.5 / 51.7 / 34.7\% \\
+\quad heavy scan & 7.9 / 0.0 / 0.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+So 40.1\% of invoices are incorrect: 29.8 points from injected errors and 10.3
+points from misread fields alone. Heavy scans are never read correctly, which
+makes them easy to reject; the mild scans are where reading errors are hard to
+spot.
+
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners=1pt, align=center, font=\scriptsize,
+              minimum height=8mm, text width=24mm, inner sep=2pt},
+  arr/.style={-{Stealth[length=1.6mm]}, thick},
+  node distance=5mm and 6mm]
+\node[box] (gen) {Seeded generator:\\vendors, POs, invoices\\+ injected errors};
+\node[box, right=of gen] (ren) {Render: text PDF\\or scan (clean,\\mild, heavy)};
+\node[box, right=of ren] (ext) {Platform\\extraction and\\record checks};
+\node[box, below=of ext] (feat) {Evidence:\\document $D$,\\records $E$};
+\node[box, left=of feat] (gate) {Gates:\\B0, B2 (rules)\\B1($D$), P($D,E$), FC};
+\node[box, left=of gate] (eval) {LTT threshold on\\calibration vendors;\\coverage, risk on\\test vendors};
+\draw[arr] (gen) -- (ren);
+\draw[arr] (ren) -- (ext);
+\draw[arr] (ext) -- (feat);
+\draw[arr] (feat) -- (gate);
+\draw[arr] (gate) -- (eval);
+\end{tikzpicture}}
+\caption{Evaluation pipeline. Training, calibration and test sets contain
+different vendors; the procedure is repeated over 20 random splits.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Record checks}
+The checks reuse the platform's rules. Vendor matching compares the normalized
+name with the master by fuzzy token ratio; a score of 88 or more is a match and
+70--87 a look-alike. The three-way match compares the invoice's lines with the
+vendor's open POs and holds the invoice when a unit price or the remaining
+balance is exceeded by more than 1\%. Bank details, GSTIN and currency are
+compared with the master. Two invoices $i,j$ of the same vendor are duplicates
+when
+\begin{equation}
+|a_i-a_j|\le 0.02\,a_j \ \wedge\ |d_i-d_j|\le 7\ \text{days}\ \wedge\
+\mathrm{sim}(n_i,n_j)\ge 0.85,
+\label{eq:dup}
+\end{equation}
+where $a$ is the amount, $d$ the date, $n$ the invoice number and $\mathrm{sim}$
+a string-similarity ratio. All three limits are configurable business
+rules~\cite{more2026report}. The exploratory check of Section~VI-D drops the
+last condition, which equals setting that rule to zero. The checks add about
+1~ms per invoice.
+
+\subsection{Gate systems}
+We compare five systems (Fig.~\ref{fig:pipeline}):
+\begin{itemize}
+\item \sysB: the deployed rule of Section~IV-A.
+\item \sysBtwo: accept when every record check passes (vendor matched and not a
+look-alike, PO matched, no duplicate, and bank details, GSTIN and currency agree
+with the master where present). It ignores extraction confidence.
+\item \sysBone: a probability model of $\Pr[Y=1]$ on 19 document features,
+thresholded with LTT.
+\item \sysP: the same on the document features plus 16 record features (vendor,
+PO, duplicate, bank, GSTIN, currency, vendor history).
+\item \sysFC: one LTT gate per payment-critical component (vendor, total,
+currency, number, business error), each at $\alpha/5$ so that a union bound gives
+document-level risk $\alpha$; an invoice is accepted when all five accept (RQ3).
+\end{itemize}
+The probability model is either a standardized logistic regression or histogram
+gradient boosting (scikit-learn~\cite{pedregosa2011}; 300 iterations, learning
+rate 0.05, 15 leaves, L2 penalty 1.0). \sysFC{} uses logistic regression.
+
+% ---------------------------------------------------------------------
+\section{Experimental Setup}
+Each of 20 random splits assigns vendors 50/25/25 to training, calibration and
+test, so test vendors are never seen before. The model is fitted on training
+vendors. Candidate thresholds come from training-score quantiles at 40 coverage
+levels, starting where a rejection is possible (Section~III); LTT then picks one
+on the calibration vendors with $\delta=0.1$. The plan fixed
+$\alpha\in\{1\%,2\%,5\%\}$; we added $\alpha=10\%$ after nothing passed at 5\%,
+and use it only for the ablation and the stale-records test. For each system we
+report means over splits of coverage and risk on the test vendors, the
+\emph{violation rate} (share of splits with test risk above $\alpha$, which
+should be at most $\delta$), AUROC and the area under the risk--coverage curve
+(AURC), and the value in INR of wrongly accepted invoices. Coverage differences
+between systems get a paired percentile bootstrap 95\% CI over splits. A gate
+that accepts nothing has risk shown as a dash.
+
+For RQ4 we make a share of the records stale (0--40\%): those vendors' bank
+details change and their GSTIN goes missing, and the same share of POs is never
+entered. Everything runs from one script that writes all figures to a results
+file, with the generator version, seed and code commit recorded
+\todo{add repository link or data-availability statement}.
+
+% ---------------------------------------------------------------------
+\section{Results and Discussion}
+\begin{table}[t]
+\caption{Review gates on 3{,}000 synthetic invoices, means over 20
+vendor-disjoint splits. Cov.: share of test invoices accepted without review;
+Risk: share of accepted invoices that are wrong.}
+\label{tab:main}
+\centering
+\setlength{\tabcolsep}{2.5pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+ & \multicolumn{2}{c}{$\alpha=2\%$} & \multicolumn{2}{c}{$\alpha=5\%$} & & \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+System & Cov. & Risk & Cov. & Risk & AUROC & AURC \\
+\midrule
+\sysB: deployed rule & 41.2\% & 6.8\% & 41.2\% & 6.8\% & --- & --- \\
+\sysBtwo: all record checks & 58.9\% & 12.8\% & 58.9\% & 12.8\% & --- & --- \\
+\sysBone: document only & 0.0\% & --- & 0.0\% & --- & 0.724 & 0.269 \\
+\sysP: document + records & 0.0\% & --- & 1.7\% & 0.2\% & 0.947 & 0.124 \\
+\sysFC: per component & 0.0\% & --- & 0.0\% & --- & --- & --- \\
+\midrule
+\sysPdup$^{\dagger}$ & 12.1\% & 0.3\% & 35.4\% & 2.3\% & 0.971 & 0.106 \\
+\bottomrule
+\end{tabular}}
+\\[2pt]
+{\footnotesize \sysBone, \sysP{} and \sysPdup{} use gradient boosting. With
+logistic regression the AUROCs are 0.741, 0.938 and 0.954, \sysP{} accepts
+nothing, and \sysPdup{} covers 2.0\% and 7.9\%. At $\alpha=1\%$ every gate
+accepts nothing. \sysB{} and \sysBtwo{} are fixed rules: they violate the 2\%
+budget in all splits and the 5\% budget in 90\% (\sysB) and 100\% (\sysBtwo) of
+splits. $^{\dagger}$Defined post hoc (Section~VI-D); violation rate 5\% at
+$\alpha=2\%$ and 10\% at $\alpha=5\%$.}
+\end{table}
+
+Table~\ref{tab:main} gives the main results.
+
+\subsection{RQ1: the deployed rule admits 6.8\% errors}
+\sysB{} accepts 41.2\% of invoices ($\pm$1.2 points across splits), and 6.8\%
+of those are wrong, so about 2.8\% of all invoices would be paid in error. The
+wrongly accepted invoices are worth INR 15.5 million (154.6 lakh) per test set on average.
+Trusting the record checks alone (\sysBtwo) covers more, 58.9\%, at almost twice
+the risk (12.8\%, INR 40.1 million). \sysB{} already raises most of these
+checks as review flags, so its errors are invoices that pass the flags as they
+are configured, not only errors that confidence cannot see. Neither rule meets a
+2\% or 5\% budget. \sysB{} does meet a 10\% budget in every split (its highest
+split risk is 8.6\%). A breakdown of \sysB's accepted
+errors by injected type would show which checks let them through
+\todo{run the failure breakdown for \sysB{} and \sysBtwo}.
+
+\subsection{RQ2: record evidence ranks better but certifies little}
+Record evidence raises AUROC from 0.724 to 0.947 with gradient boosting and from
+0.741 to 0.938 with logistic regression, and halves AURC (0.269 to 0.124). The
+PO match carries most of this. Removing it lowers the logistic AUROC from 0.938
+to 0.831; removing bank details, the duplicate check or the GSTIN check gives
+0.897, 0.919 and 0.921, while vendor matching, currency and history change it
+by at most 0.002. The three-way match runs only for a matched vendor, so the PO
+features already carry most of what vendor matching adds.
+
+Better ranking did not become coverage at the planned budgets. \sysP{}
+certifies nothing at 1\% and 2\% and 1.7\% at 5\% (risk 0.2\%, no violations);
+\sysBone{} certifies nothing. The paired gain of \sysP{} over \sysBone{} is
+$+0.0$ points at $\alpha=2\%$ and $+1.7$ points (95\% CI $[0.0,5.1]$) at 5\%,
+so H1 is not supported. The gain appears only at the looser 10\% budget, which
+was not in the plan: \sysP{} then covers 19.5\% at 2.7\% risk and 5\% violations,
+a gain of $+19.5$ points (CI $[8.4,31.6]$) over \sysBone.
+
+\subsection{Why the gates certify little}
+Among the invoices \sysP{} ranks highest, about 5\% are still wrong. With the
+floor of Section~III, a 2\% budget needs at least 114 accepted calibration
+invoices with almost no errors, and an error rate of 5\% at the top of the
+ranking makes that impossible; LTT therefore accepts nothing. Inspecting these
+invoices showed that most were renumbered resubmissions. The duplicate rule of
+Eq.~\eqref{eq:dup} needs the two invoice numbers to be at least 85\% similar,
+which a new number often is not, and the PO still has quantity left, so the
+three-way match passes too. The rest were mostly overbilled invoices whose
+scanned line items were misread, which hides the excess from the three-way
+match. The limit lies in one check, not in the probability model.
+
+\subsection{Exploratory: a number-independent duplicate check}
+Adding a feature for the duplicate check without its number condition gives
+\sysPdup. With gradient boosting it certifies 12.1\% of invoices at
+$\alpha=2\%$ (risk 0.3\%) and 35.4\% at 5\% (risk 2.3\%), with AUROC 0.971 and
+violation rates of 5\% and 10\%. With 20 splits, a 10\% violation rate has a
+standard error of about 0.07 ($\sqrt{0.1\cdot0.9/20}$), which is consistent
+with $\delta=0.1$ but cannot confirm it. At 10\% the violation rate rises to
+20\%, above $\delta$. The gate was defined after we saw the diagnosis, on the
+same seed, and the generator gives every duplicate a new number. It is a
+hypothesis for a new seed and for external data, not a result. Its remaining
+errors at $\alpha=10\%$ are mostly arithmetic errors and overbilled prices on
+clean scans, and correct invoices whose total was misread on mild scans.
+
+\subsection{RQ3 and RQ4}
+\sysFC{} accepts nothing at any budget. Each component gate runs at $\alpha/5$,
+which raises the floor of Section~III to 575 accepted calibration invoices at a
+2\% budget and 230 at 5\%, each with almost no errors for that component. The study
+therefore says nothing for or against document-level control yet.
+
+With stale records, the AUROC of \sysP{} falls steadily, from 0.938 to 0.898,
+0.880, 0.863 and 0.838 as 5, 10, 20 and 40\% of the records go stale (logistic,
+$\alpha=10\%$). It stays above the document-only 0.741 at every level. Coverage
+is near zero at all levels, so the effect of stale records on coverage remains
+unmeasured.
+
+% ---------------------------------------------------------------------
+\section{Limitations}
+The invoices, records and error rates come from one seeded generator, and no
+real or public invoice data was used; absolute coverage and risk will not
+transfer to another organization. The generator also decides how detectable each
+error is. Every injected duplicate carries a new number, so the gain from the
+number-independent check partly reflects that design choice. The planned
+external-validity run on public invoices with derived records has not been done.
+
+The \sysPdup{} gate was chosen after inspecting results and has been run on one
+seed only.
+
+Vendors are assigned to calibration and test at random, but invoices of one
+vendor are not independent, and the binomial test of Section~III treats them as
+if they were. With one vendor sending 350 of 3{,}000 invoices, the effective
+calibration size is smaller than the count and varies across splits, which may
+explain violation rates above $\delta$. No correction for this, such as
+cluster-aware bounds or weighted calibration~\cite{tibshirani2019}, was applied.
+
+The study covers 100 vendors, so each calibration set holds 25 of them and the
+bounds are wide; it also uses a single $\delta$. Reviewers are treated as free
+and always right, unlike in learning-to-defer formulations~\cite{mozannar2020}.
+Results depend on one extraction stack, and the Docling and LayoutLMv3 paths of
+the live pipeline were not exercised. Finally, the literature search ran in
+October 2026 through web search and Crossref, not through subscription indexes,
+and this area moved quickly in 2026.
+
+% ---------------------------------------------------------------------
+\section{Conclusion}
+On a synthetic P2P benchmark, a hand-set confidence rule accepted 41.2\% of
+invoices with 6.8\% of them wrong, above both budgets we planned to certify.
+Record evidence improved the ranking of invoices substantially, mostly through
+the PO match, but no pre-specified risk-controlled gate certified more than
+1.7\% of invoices at budgets of 5\% or less, and the pre-registered gain was not
+found. The bottleneck was one rule: resubmitted invoices with a new number pass
+the duplicate check. A check that ignores the number certified 12.1\% and 35.4\%
+at the 2\% and 5\% budgets, but it was found by looking at the results.
+
+Next we will repeat the study on new generator seeds and on public invoices
+(DocILE or FATURA) with derived records, vary the share of renumbered
+resubmissions, use cluster-aware bounds for vendor-grouped data, give \sysFC{}
+enough calibration data to answer RQ3, and model reviewer error and cost.
+
+% ---------------------------------------------------------------------
+% Reference order = order of first citation in the text.
+\begin{thebibliography}{30}
+
+% VERIFIED-D1
+\bibitem{elyaniv2010}
+R. El-Yaniv and Y. Wiener, ``On the foundations of noise-free selective
+classification,'' \emph{J. Mach. Learn. Res.}, vol. 11, pp. 1605--1641, 2010.
+
+% VERIFIED-D1 (arXiv:1705.08500)
+\bibitem{geifman2017}
+Y. Geifman and R. El-Yaniv, ``Selective classification for deep neural
+networks,'' in \emph{Advances in Neural Information Processing Systems 30}, 2017,
+pp. 4878--4887.
+
+% VERIFIED-GA (ICDAR 2019 proceedings)
+\bibitem{huang2019sroie}
+Z. Huang, K. Chen, J. He, X. Bai, D. Karatzas, S. Lu, and C. V. Jawahar,
+``ICDAR2019 competition on scanned receipt OCR and information extraction,''
+in \emph{Proc. Int. Conf. Document Analysis and Recognition (ICDAR)}, 2019,
+pp. 1516--1520, doi:10.1109/ICDAR.2019.00244.
+
+% VERIFIED-GA
+\bibitem{huang2022layoutlmv3}
+Y. Huang, T. Lv, L. Cui, Y. Lu, and F. Wei, ``LayoutLMv3: Pre-training for
+document AI with unified text and image masking,'' in \emph{Proc. 30th ACM Int.
+Conf. Multimedia}, 2022, pp. 4083--4091, doi:10.1145/3503161.3548112.
+
+% VERIFIED-GA (vol. 19)
+\bibitem{angelopoulos2025ltt}
+A. N. Angelopoulos, S. Bates, E. J. Cand\`es, M. I. Jordan, and L. Lei, ``Learn
+then test: Calibrating predictive algorithms to achieve risk control,''
+\emph{Ann. Appl. Statist.}, vol. 19, pp. 1641--1662, 2025,
+doi:10.1214/24-AOAS1998.
+
+% VERIFIED-GA (preprint; check for a published version before submission)
+\bibitem{jin2026plv}
+Y. Jin, Y. Wang, Y. Han, C. Y. S. Kwan, W. Song \emph{et al.}, ``Perception,
+layout, and validation: Calibrated confidence for reliable straight-through
+processing of financial documents,'' arXiv:2609.20110, 2026.
+
+% VERIFIED-GA
+\bibitem{rombach2026}
+A. Rombach and N. Mehdiyev, ``Beyond accuracy: Understanding model confidence in
+key information extraction with conformal prediction,'' \emph{Int. J. Document
+Analysis and Recognition}, vol. 29, no. 2, pp. 551--563, 2026,
+doi:10.1007/s10032-026-00572-y.
+
+% VERIFIED-GA (product documentation, accessed 16 Oct 2026)
+\bibitem{rossum2026}
+Rossum, ``Automation rules overview'' and ``Master Data Hub,'' product
+documentation. [Online]. Available:
+\url{https://knowledge-base.rossum.ai/docs/automation-rules-overview}, accessed
+Oct. 16, 2026.
+
+% VERIFIED-GA (product documentation, accessed 16 Oct 2026)
+\bibitem{sapariba2026}
+SAP, ``Understanding invoice reconciliation,'' SAP Ariba procurement overview,
+SAP Learning. [Online]. Available:
+\url{https://learning.sap.com/courses/sap-ariba-procurement-overview-1/understanding-invoice-reconciliation-1},
+accessed Oct. 16, 2026.
+
+% Authors' own unpublished project report (the source of the deployed gate)
+\bibitem{more2026report}
+A. D. More, V. J. Sankaye, N. R. Sawant, and A. Shete, ``Agentic AI procurement
+solution,'' B.E. project report, Dept. Comput. Eng., Fr. C. Rodrigues Inst.
+Technol., Univ. Mumbai, 2026, unpublished.
+
+% VERIFIED-GA (ICLR 2024)
+\bibitem{angelopoulos2024crc}
+A. N. Angelopoulos, S. Bates, A. Fisch, L. Lei, and T. Schuster, ``Conformal risk
+control,'' in \emph{Proc. Int. Conf. Learning Representations (ICLR)}, 2024.
+
+% VERIFIED-D1 (arXiv:1711.06664)
+\bibitem{madras2018}
+D. Madras, T. Pitassi, and R. Zemel, ``Predict responsibly: Improving fairness
+and accuracy by learning to defer,'' in \emph{Advances in Neural Information
+Processing Systems 31}, 2018, pp. 6147--6157.
+
+% VERIFIED-GA (PMLR 119)
+\bibitem{mozannar2020}
+H. Mozannar and D. Sontag, ``Consistent estimators for learning to defer to an
+expert,'' in \emph{Proc. 37th Int. Conf. Machine Learning}, PMLR vol. 119, 2020,
+pp. 7076--7087.
+
+% VERIFIED-D1
+\bibitem{guo2017}
+C. Guo, G. Pleiss, Y. Sun, and K. Q. Weinberger, ``On calibration of modern
+neural networks,'' in \emph{Proc. 34th Int. Conf. Machine Learning}, PMLR vol.
+70, 2017, pp. 1321--1330.
+
+% VERIFIED-D1 (arXiv:1904.06019)
+\bibitem{tibshirani2019}
+R. J. Tibshirani, R. F. Barber, E. J. Cand\`es, and A. Ramdas, ``Conformal
+prediction under covariate shift,'' in \emph{Advances in Neural Information
+Processing Systems 32}, 2019, pp. 2530--2540.
+
+% CARRIED from project report
+\bibitem{cui2025paddleocr}
+C. Cui \emph{et al.}, ``PaddleOCR 3.0 technical report,'' arXiv:2507.05595, 2025.
+
+% VERIFIED-GA
+\bibitem{auer2024docling}
+C. Auer, M. Lysak, A. Nassar, M. Dolfi, N. Livathinos \emph{et al.}, ``Docling
+technical report,'' arXiv:2408.09869, 2024.
+
+% VERIFIED-GA (arXiv:2302.05658; proceedings DOI not verified)
+\bibitem{simsa2023docile}
+\v{S}. \v{S}imsa, M. \v{S}ulc, M. U\v{r}i\v{c}\'a\v{r}, Y. Patel, A. Hamdi
+\emph{et al.}, ``DocILE benchmark for document information localization and
+extraction,'' in \emph{Proc. Int. Conf. Document Analysis and Recognition
+(ICDAR)}, 2023.
+
+% VERIFIED-GA (preprint; dataset on Zenodo)
+\bibitem{limam2023fatura}
+M. Limam, M. Dhiaf, and Y. Kessentini, ``FATURA: A multi-layout invoice image
+dataset for document analysis and understanding,'' arXiv:2311.11856, 2023.
+
+% VERIFIED-GA
+\bibitem{krieger2023}
+F. Krieger, P. Drews, and B. Funk, ``Automated invoice processing: Machine
+learning-based information extraction for long tail suppliers,''
+\emph{Intelligent Systems with Applications}, vol. 20, art. 200285, 2023,
+doi:10.1016/j.iswa.2023.200285.
+
+% VERIFIED-GA (preprint; KDD 2021 Document Intelligence workshop)
+\bibitem{nguyen2022hycedis}
+B.-S. Nguyen, Q.-B. Tran, T.-A. Nguyen Dang, D. Nguyen, and H. Le, ``HYCEDIS:
+HYbrid Confidence Engine for Deep Document Intelligence System,''
+arXiv:2206.02628, 2022.
+
+% VERIFIED-GA (preprint)
+\bibitem{roy2026confbench}
+P. Roy, S. Martin, M. Rostami, S. Romo, R. Xue \emph{et al.}, ``Can you trust the
+confidence? ConfBench for vision-language models on document extraction,''
+arXiv:2608.01792, 2026.
+
+% VERIFIED-GA
+\bibitem{guida2023}
+M. Guida, F. Caniato, A. Moretto, and S. Ronchi, ``The role of artificial
+intelligence in the procurement process: State of the art and research agenda,''
+\emph{J. Purchasing and Supply Management}, vol. 29, art. 100823, 2023,
+doi:10.1016/j.pursup.2023.100823.
+
+% VERIFIED-GA
+\bibitem{spreitzenbarth2024}
+J. M. Spreitzenbarth, C. Bode, and H. Stuckenschmidt, ``Artificial intelligence
+and machine learning in purchasing and supply management: A mixed-methods review
+of the state-of-the-art in literature and practice,'' \emph{J. Purchasing and
+Supply Management}, vol. 30, art. 100896, 2024,
+doi:10.1016/j.pursup.2024.100896.
+
+% CARRIED from project report
+\bibitem{pedregosa2011}
+F. Pedregosa \emph{et al.}, ``Scikit-learn: Machine learning in Python,''
+\emph{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+
+\end{thebibliography}
+
+\end{document}

@@ -10,16 +10,23 @@ short checklist; `docs/RESEARCH_GAP_ANALYSIS.md` and
 `docs/RESEARCH_PAPER_PLAN.md` hold the research direction (RS-xx tasks);
 `git log` is what changed.
 
-**Everything a person reads is one file: `docs/index.html`**, a dashboard of
-tabs (Overview, Project status, Showcase, 5-minute demo, Demo script, Vendor
-risk, Codebase guide, Deployment, Competitors). Each tab is a whole page kept
-in a `<template id="page-ID">` and rendered in its own frame, so pages keep
-their own CSS/JS. Edit a page with `python scripts/docs_dashboard.py extract
-<id> > f.html`, change it, then `put <id> f.html` (ids: home, status,
-showcase, demo-5min, demo-script, risk, code, deploy, market). Links between
-pages may use a page's former file name (the tab's old `<name>.html`, with
-an anchor) or `index.html#tab/anchor`; both switch tabs. Outside the dashboard link to
-`docs/index.html#<tab>`. Don't add new `.html` files to `docs/` (a test
+**Everything a person reads is in two dashboard files**, one shell (left
+sidebar with a Team / Present switch): `docs/index.html` for the team
+(Overview, Showcase with the 5-minute demo as its first tab, Demo script,
+Research, Codebase guide, Deployment, Competitors) and
+`docs/presentation.html` for presenting (Project status, Vendor risk,
+Slides). Each tab is a whole page kept in a `<template id="page-ID">` and
+rendered in its own frame, so pages keep their own CSS/JS. Edit a page with
+`python scripts/docs_dashboard.py extract <id> > f.html`, change it, then
+`put <id> f.html` (ids: home, showcase, demo-script, research, code, deploy,
+market, status, risk, slides); `put` writes the right file. Links between
+pages may use a page's former file name (the tab's old `<name>.html`),
+`index.html#tab/anchor` or `presentation.html#tab/anchor`; they switch tabs,
+across the two files if needed, and old ids redirect (`#demo-5min`,
+`#status/research`; `ALIASES` in the script). In-page `#anchor` links stay
+in their frame (a srcdoc frame would otherwise load the dashboard into
+itself). Outside the dashboards link to `docs/index.html#<tab>` (it forwards
+presentation tabs). Don't add other `.html` files to `docs/` (a test
 fails): add a tab in `scripts/docs_dashboard.py` instead.
 `tests/e2e/demo_scenarios.py` writes the Demo script tab;
 `tests/e2e/showcase_screens.py` retakes the Showcase screenshots.
@@ -91,7 +98,7 @@ docker compose up -d --build <svc> && docker compose restart nginx   # after cha
 python tests/e2e/showcase_screens.py      # retake docs/showcase screenshots (fails loudly if a step breaks); `cpanel` = Control Panel
 pip install -r requirements-docs.txt && mkdocs serve   # docs site (Python 3.9-3.13; watchdog has no 3.15 wheel)
 python tests/e2e/demo_scenarios.py        # the eight demo scenarios (core, risk red team, GST, assistant), checked live → docs/index.html#demo-script
-python tests/e2e/demo_5min.py             # the 5-minute demo (docs/index.html#demo-5min) rehearsed + recorded → docs/demo/backup-recording.webm
+python tests/e2e/demo_5min.py             # the 5-minute demo (docs/index.html#showcase/five) rehearsed + recorded → docs/demo/backup-recording.webm
 ./scripts/reset-demo.sh                   # back up, clear the data volumes, rebuild realistic demo data (~3 min)
 ./scripts/backup.sh / restore.sh <stamp>  # Postgres + MinIO backup into .run/backups/; restore backs up first (docs/index.html#deploy)
 ```
