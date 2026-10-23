@@ -78,7 +78,7 @@ async def find_or_create_vendor(db: AsyncSession, raw_vendor_name: str, session_
         id=str(uuid.uuid4()),
         name=raw_vendor_name.strip() if raw_vendor_name else "Unknown Vendor",
         normalized_name=normalized,
-        status="active",
+        status="onboarding",
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )

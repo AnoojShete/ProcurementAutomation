@@ -34,10 +34,16 @@ _ACCOUNT = re.compile(r"^[0-9]{9,18}$")
 LOOKALIKE_MIN = 70
 
 
+_SWIFT = re.compile(r"^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$")
+
 @dataclass
 class VendorProfile:
     name: str
     country: Optional[str] = None
+    inherent_tier: Optional[str] = None
+    swift_bic: Optional[str] = None
+    bank_name: Optional[str] = None
+    website: Optional[str] = None
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     address: Optional[str] = None
@@ -68,6 +74,10 @@ def normalise(p: VendorProfile) -> VendorProfile:
     return VendorProfile(
         name=(p.name or "").strip(),
         country=_clean(p.country.upper() if p.country else None),
+        inherent_tier=_clean(p.inherent_tier.lower() if p.inherent_tier else None),
+        swift_bic=_clean(p.swift_bic.upper().replace(" ", "") if p.swift_bic else None),
+        bank_name=_clean(p.bank_name),
+        website=_clean(p.website),
         contact_email=_clean(p.contact_email.lower() if p.contact_email else None),
         contact_phone=_clean(p.contact_phone),
         address=_clean(p.address),
@@ -104,19 +114,25 @@ def check_fields(p: VendorProfile) -> ProfileCheck:
     else:
         c.warnings.append({"code": "no_gstin", "field": "gstin",
                            "message": "No GSTIN: only allowed for unregistered or foreign vendors."})
-    bank = [p.bank_account_number, p.routing_code]
-    if any(bank) and not all(bank):
-        c.errors.append({"field": "routing_code" if p.bank_account_number else "bank_account_number",
-                         "message": "Give both the account number and the IFSC, or neither."})
-    if p.bank_account_number and not _ACCOUNT.match(p.bank_account_number):
-        c.errors.append({"field": "bank_account_number", "message": "Account number must be 9–18 digits."})
+    if p.inherent_tier and p.inherent_tier not in ("low", "moderate", "high", "critical"):
+        c.errors.append({"field": "inherent_tier", "message": "Inherent tier must be one of: low, moderate, high, critical."})
 
-    # Foreign vendors: SWIFT/IBAN, Indian IFSC format check does not apply (B4)
+    if p.swift_bic and not _SWIFT.match(p.swift_bic):
+        c.errors.append({"field": "swift_bic", "message": "SWIFT/BIC must be a valid 8 or 11 character ISO 9362 code."})
+
+    # Foreign vendors: SWIFT/IBAN, Indian IFSC format check does not apply (B4 / 9D)
     if p.country and p.country != "IN":
-        pass
+        if p.bank_account_number and not (p.routing_code or p.swift_bic):
+            c.errors.append({"field": "swift_bic", "message": "Provide a SWIFT/BIC code or routing code for foreign bank accounts."})
     else:
+        bank = [p.bank_account_number, p.routing_code]
+        if any(bank) and not all(bank):
+            c.errors.append({"field": "routing_code" if p.bank_account_number else "bank_account_number",
+                             "message": "Give both the account number and the IFSC, or neither."})
         if p.routing_code and not _IFSC.match(p.routing_code):
             c.errors.append({"field": "routing_code", "message": "IFSC must look like HDFC0001234 (4 letters, 0, 6 characters)."})
+    if p.bank_account_number and not _ACCOUNT.match(p.bank_account_number):
+        c.errors.append({"field": "bank_account_number", "message": "Account number must be 9–18 digits."})
     return c
 
 
@@ -180,8 +196,12 @@ async def onboard_vendor(db, kafka_producer, profile: VendorProfile, onboarded_b
         return None, check, missing
     now = datetime.now(timezone.utc)
     vendor = Vendor(
-        id=str(uuid.uuid4()), name=p.name, normalized_name=normalize_vendor_name(p.name), status="active",
+        id=str(uuid.uuid4()), name=p.name, normalized_name=normalize_vendor_name(p.name), status="onboarding",
         country=p.country,
+        inherent_tier=p.inherent_tier,
+        swift_bic=p.swift_bic,
+        bank_name=p.bank_name,
+        website=p.website,
         contact_email=p.contact_email, contact_phone=p.contact_phone, address=p.address, category=p.category,
         gstin=p.gstin, gstin_verification_status="format_valid" if p.gstin else "unverified",
         ifsc_verification_status=check.ifsc_status,

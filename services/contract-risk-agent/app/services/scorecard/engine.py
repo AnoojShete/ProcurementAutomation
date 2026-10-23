@@ -13,8 +13,16 @@ from app.services.scorecard.evaluator import (
     render_template,
 )
 
-TIER_ORDER = {"low": 1, "moderate": 2, "high": 3, "critical": 4}
-SPEND_TO_TIER = {"petty": "low", "standard": "moderate", "strategic": "high"}
+TIER_ORDER = {"low": 0, "moderate": 1, "high": 2, "critical": 3}
+SPEND_TO_TIER = {
+    "petty": "low",
+    "standard": "moderate",
+    "strategic": "high",
+    "low": "low",
+    "moderate": "moderate",
+    "high": "high",
+    "critical": "critical",
+}
 
 
 def determine_band(points: int, bands: Dict[str, int]) -> str:
@@ -31,11 +39,14 @@ def determine_band(points: int, bands: Dict[str, int]) -> str:
 def calculate_effective_tier(
     spend_tier: Optional[str], inherent_tier: Optional[str]
 ) -> Tuple[str, List[Dict[str, str]]]:
-    """Calculates effective_tier: stricter of inherent tier and spend tier mapped.
+    """Calculates effective_tier = max(inherent_tier, spend_tier) using strictness rank:
+    low (0) < moderate (1) < high (2) < critical (3).
+    Only flags inherent_profile_missing if vendor.inherent_tier is None.
     Returns (effective_tier, provisional_reasons).
     """
     provisional_reasons = []
-    mapped_spend = SPEND_TO_TIER.get((spend_tier or "").lower(), "moderate")
+    raw_spend = (spend_tier or "").lower()
+    mapped_spend = SPEND_TO_TIER.get(raw_spend, "moderate")
 
     if not inherent_tier:
         provisional_reasons.append({
@@ -49,8 +60,8 @@ def calculate_effective_tier(
     if inh not in TIER_ORDER:
         inh = "moderate"
 
-    order_spend = TIER_ORDER.get(mapped_spend, 2)
-    order_inh = TIER_ORDER.get(inh, 2)
+    order_spend = TIER_ORDER.get(mapped_spend, 1)
+    order_inh = TIER_ORDER.get(inh, 1)
 
     stricter = inh if order_inh >= order_spend else mapped_spend
     return stricter, provisional_reasons

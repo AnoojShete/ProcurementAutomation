@@ -96,3 +96,35 @@ def test_bank_details_go_to_two_person_verification(monkeypatch):
     assert kwargs["new_bank_account"] == "000123456789" and kwargs["source"] == "onboarding"
     assert kwargs["submitted_by"] == "fin@x"
     db.commit.assert_awaited()
+
+
+def test_onboarded_vendor_has_status_onboarding(monkeypatch):
+    monkeypatch.setattr("app.services.vendor_payment_service.submit_payment_change", AsyncMock())
+    monkeypatch.setattr(vo, "write_audit_log", AsyncMock())
+    db = _db()
+    vendor, check, missing = run(vo.onboard_vendor(
+        db, None,
+        _profile(inherent_tier="critical", swift_bic="CHASUS33XXX", bank_name="JPMorgan", website="https://acme.com"),
+        "fin@x", set(), None
+    ))
+    assert vendor is not None
+    assert vendor.status == "onboarding"
+    assert vendor.inherent_tier == "critical"
+    assert vendor.swift_bic == "CHASUS33XXX"
+    assert vendor.bank_name == "JPMorgan"
+    assert vendor.website == "https://acme.com"
+
+
+def test_foreign_vendor_with_swift_bic():
+    # Valid foreign SWIFT passes without IFSC
+    check_valid = vo.check_fields(vo.normalise(_profile(
+        country="US", gstin=None, routing_code=None, swift_bic="CHASUS33XXX", bank_account_number="1234567890"
+    )))
+    assert check_valid.ok
+
+    # Malformed SWIFT is rejected
+    check_bad_swift = vo.check_fields(vo.normalise(_profile(
+        country="US", gstin=None, routing_code=None, swift_bic="SHORT", bank_account_number="1234567890"
+    )))
+    assert not check_bad_swift.ok
+    assert any("SWIFT/BIC must be a valid" in e["message"] for e in check_bad_swift.errors)

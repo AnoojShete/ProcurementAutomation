@@ -384,6 +384,10 @@ export interface VendorSummary {
   id: string;
   name: string;
   status: string;
+  inherent_tier?: string | null;
+  swift_bic?: string | null;
+  bank_name?: string | null;
+  website?: string | null;
   portal_access_revoked: boolean;
   risk_band: RiskBand | null;
   risk_score: number | null;

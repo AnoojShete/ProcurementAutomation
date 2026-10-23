@@ -71,7 +71,11 @@ class Vendor(Base):
     contact_phone: Mapped[Optional[str]] = mapped_column(String(50))
     address: Mapped[Optional[str]] = mapped_column(Text)
     category: Mapped[Optional[str]] = mapped_column(String(100))
-    status: Mapped[str] = mapped_column(String(20), default="active")
+    status: Mapped[str] = mapped_column(String(20), default="onboarding")
+    inherent_tier: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    swift_bic: Mapped[Optional[str]] = mapped_column(String(11), nullable=True)
+    bank_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    website: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 

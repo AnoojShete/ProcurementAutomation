@@ -20,6 +20,10 @@ import type {
 export interface VendorProfileInput {
   name: string;
   country?: string;
+  inherent_tier?: "low" | "moderate" | "high" | "critical" | string;
+  swift_bic?: string;
+  bank_name?: string;
+  website?: string;
   contact_email?: string;
   contact_phone?: string;
   address?: string;
@@ -121,6 +125,8 @@ export const vendorsApi = {
   /** Phase 3c: on-time, invoice accuracy, RFQ response rate, SLA breaches. */
   scorecard: (vendorId: string) => api.get<VendorScorecard>(`/vendors/${vendorId}/scorecard`),
   recomputeRisk: (vendorId: string) => api.post<VendorRisk>(`/vendors/${vendorId}/risk/recompute`),
+  update: (vendorId: string, partial: Partial<VendorProfileInput>) =>
+    api.patch<VendorSummary>(`/vendors/${vendorId}`, partial),
   offboard: (vendorId: string, offboarded_by: string, reason: string) =>
     api.post<OffboardResult>(`/vendors/${vendorId}/offboard`, { offboarded_by, reason }),
   paymentChanges: (vendorId: string) => api.get<VendorPaymentChange[]>(`/vendors/${vendorId}/payment-changes`),

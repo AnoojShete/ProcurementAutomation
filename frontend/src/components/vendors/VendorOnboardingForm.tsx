@@ -5,16 +5,39 @@ import { ApiError } from "@/api/client";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 
-const FIELDS: { key: keyof VendorProfileInput; label: string; placeholder?: string; wide?: boolean }[] = [
+interface FormField {
+  key: keyof VendorProfileInput;
+  label: string;
+  placeholder?: string;
+  wide?: boolean;
+  isSelect?: boolean;
+  options?: { value: string; label: string }[];
+}
+
+const FIELDS: FormField[] = [
   { key: "name", label: "Legal name *", placeholder: "Acme Cloud Pvt Ltd", wide: true },
   { key: "country", label: "Country (ISO alpha-2) *", placeholder: "e.g. IN, US, GB, DE" },
+  {
+    key: "inherent_tier",
+    label: "Inherent Risk Tier",
+    isSelect: true,
+    options: [
+      { value: "low", label: "Low (standard commodities, non-critical)" },
+      { value: "moderate", label: "Moderate (standard suppliers, default)" },
+      { value: "high", label: "High (elevated exposure, essential service)" },
+      { value: "critical", label: "Critical (vital operational dependency)" },
+    ],
+  },
+  { key: "website", label: "Website / Domain", placeholder: "e.g. tcs.com, https://company.com" },
   { key: "contact_email", label: "Contact email", placeholder: "accounts@vendor.com" },
   { key: "contact_phone", label: "Contact phone", placeholder: "+91 98765 43210" },
   { key: "address", label: "Address", wide: true },
   { key: "category", label: "Category", placeholder: "Software, hardware, services…" },
-  { key: "gstin", label: "GSTIN", placeholder: "27AAPFU0939F1ZV" },
+  { key: "gstin", label: "GSTIN (Indian vendors)", placeholder: "27AAPFU0939F1ZV" },
+  { key: "bank_name", label: "Bank Name", placeholder: "e.g. HDFC Bank, JPMorgan Chase" },
   { key: "bank_account_number", label: "Bank account number" },
-  { key: "routing_code", label: "IFSC", placeholder: "HDFC0001234" },
+  { key: "routing_code", label: "IFSC (Domestic - India)", placeholder: "HDFC0001234" },
+  { key: "swift_bic", label: "SWIFT / BIC (Foreign accounts)", placeholder: "e.g. CHASUS33XXX" },
   { key: "payment_beneficiary_name", label: "Beneficiary name", wide: true },
 ];
 
@@ -33,12 +56,14 @@ export function VendorOnboardingForm({
   onClose: () => void;
   onOnboarded: (vendorId: string) => void;
 }) {
-  const [profile, setProfile] = useState<VendorProfileInput>({ name: "" });
+  const [profile, setProfile] = useState<VendorProfileInput>({ name: "", inherent_tier: "moderate" });
   const [check, setCheck] = useState<ProfileCheck | null>(null);
   const [confirmed, setConfirmed] = useState<string[]>([]);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState<"check" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const isForeign = !!profile.country && profile.country.trim().toUpperCase() !== "IN";
 
   const set = (key: keyof VendorProfileInput, value: string) => {
     setProfile((p) => ({ ...p, [key]: value }));
@@ -97,20 +122,40 @@ export function VendorOnboardingForm({
       }
     >
       <div className="grid grid-cols-2 gap-3">
-        {FIELDS.map((f) => (
-          <label key={f.key} className={f.wide ? "col-span-2" : ""}>
-            <span className="mb-1 block text-xs font-medium text-slate-600">{f.label}</span>
-            <input
-              className="field"
-              value={(profile[f.key] as string | undefined) ?? ""}
-              placeholder={f.placeholder}
-              onChange={(e) => set(f.key, e.target.value)}
-            />
-            {errorFor(f.key).map((e) => (
-              <span key={e.message} className="mt-1 block text-xs text-danger-600">{e.message}</span>
-            ))}
-          </label>
-        ))}
+        {FIELDS.map((f) => {
+          const isHighlight = isForeign && (f.key === "swift_bic" || f.key === "bank_name");
+          return (
+            <label key={f.key} className={`${f.wide ? "col-span-2" : ""} ${isHighlight ? "rounded-lg border border-brand-500/30 bg-brand-50/20 p-1.5" : ""}`}>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-600">{f.label}</span>
+                {isHighlight && <span className="text-[10px] font-semibold text-brand-600">Foreign Account</span>}
+              </div>
+              {f.isSelect ? (
+                <select
+                  className="field"
+                  value={(profile[f.key] as string | undefined) ?? "moderate"}
+                  onChange={(e) => set(f.key, e.target.value)}
+                >
+                  {(f.options ?? []).map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="field"
+                  value={(profile[f.key] as string | undefined) ?? ""}
+                  placeholder={f.placeholder}
+                  onChange={(e) => set(f.key, e.target.value)}
+                />
+              )}
+              {errorFor(f.key).map((e) => (
+                <span key={e.message} className="mt-1 block text-xs text-danger-600">{e.message}</span>
+              ))}
+            </label>
+          );
+        })}
       </div>
       <p className="mt-3 text-xs text-slate-500">
         Bank details are not used until a second person verifies them by phone (Controls → Payment protection).
