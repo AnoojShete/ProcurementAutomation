@@ -48,6 +48,8 @@
       
     
     
+      <link rel="stylesheet" href="stylesheets/extra.css">
+    
     <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -86,7 +88,9 @@
     
       
 
-<header class="md-header" data-md-component="header">
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="." title="IT Procurement Intelligence Platform" class="md-header__button md-logo" aria-label="IT Procurement Intelligence Platform" data-md-component="logo">
       
@@ -200,14 +204,8 @@
     
   </nav>
   
-</header>
     
-    <div class="md-container" data-md-component="container">
       
-      
-        
-          
-            
 <nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
   <div class="md-grid">
     <ul class="md-tabs__list">
@@ -311,7 +309,13 @@
     </ul>
   </div>
 </nav>
-          
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
         
       
       <main class="md-main" data-md-component="main">
@@ -1175,13 +1179,24 @@
   
 
 
+<div class="hero">
 <h1 id="it-procurement-intelligence-platform">IT Procurement Intelligence Platform<a class="headerlink" href="#it-procurement-intelligence-platform" title="Permanent link">&para;</a></h1>
-<p><strong>Buying software and hardware for a company, automated end to end</strong>: from a
-vendor's quote landing in a folder to a signed contract and a matched
-invoice. AI reads the documents; people step in only where a decision is
-needed.</p>
+<p><strong>Buying software and hardware for a company, automated end to end</strong> — from a vendor's quote landing in a folder to a signed contract and a matched invoice. AI reads the documents; people step in only where a decision is needed.</p>
+<p><a class="md-button md-button--primary" href="overview/architecture/">Explore Architecture</a>
+<a class="md-button" href="overview/functional-workflow/">Functional Workflow</a>
+<a class="md-button" href="control-panel/">Admin Control Panel</a></p>
+</div>
+<div class="stat-grid">
+  <div class="stat"><b>5</b><span>Cooperating Agents</span></div>
+  <div class="stat"><b>1,276</b><span>Automated Tests</span></div>
+  <div class="stat"><b>100</b><span>Risk Scorecard Points</span></div>
+  <div class="stat"><b>22</b><span>Docker Services</span></div>
+</div>
+
+<blockquote>
 <p>Student team project, Fractal Analytics 2026–27: Anjali, Vaidehi, Niraj, Anooj.</p>
-<p><img alt="System architecture" src="assets/architecture.png" /></p>
+</blockquote>
+<p><img alt="System architecture" class="diagram" src="assets/architecture.png" /></p>
 <h2 id="the-flow-in-one-line">The flow in one line<a class="headerlink" href="#the-flow-in-one-line" title="Permanent link">&para;</a></h2>
 <p>Document in (upload, email or the <code>./inbox/input</code> folder) → read, classified and
 validated → purchase request → approval by spend tier → contract generated →
@@ -1311,7 +1326,7 @@ watch it on <strong>Control Panel</strong>.</p>
     </div>
     
     
-    <script id="__config" type="application/json">{"base": ".", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.footer", "navigation.indexes", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": ".", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.footer", "navigation.indexes", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
       <script src="assets/javascripts/bundle.525ec568.min.js"></script>
