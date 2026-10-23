@@ -1,0 +1,221 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1090" viewBox="0 0 1920 1090" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker><marker id="arrs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker></defs>
+<rect width="1920" height="1090" fill="#ffffff"/>
+<text x="30" y="36" font-size="20" font-weight="bold" fill="#1f2937" text-anchor="start">IT Procurement Intelligence Platform — system architecture</text>
+<text x="30" y="58" font-size="12.5" font-weight="normal" fill="#4b5563" text-anchor="start">Docker Compose deployment · verified against the repository (branch anjali, October 2026)</text>
+<rect x="290" y="82" width="940" height="74" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1.4"/>
+<text x="304" y="104" font-size="14" font-weight="bold" fill="#1f2937" text-anchor="start">Web browser (and API clients) — React 18 + TypeScript SPA (Vite, Tailwind)</text>
+<text x="304" y="124" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">Roles: requester · approver · finance · admin  (role-specific navigation; RoleGuard is UX only)</text>
+<text x="304" y="139.5" font-size="11.5" font-weight="normal" fill="#4b5563" text-anchor="start">Access token (JWT) in memory · refresh token in httpOnly cookie + CSRF header</text>
+<rect x="1260" y="82" width="290" height="74" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1.4"/>
+<text x="1274" y="104" font-size="14" font-weight="bold" fill="#1f2937" text-anchor="start">E-sign provider callback</text>
+<text x="1274" y="124" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">POST /api/webhooks/esign</text>
+<text x="1274" y="139.5" font-size="11.5" font-weight="normal" fill="#4b5563" text-anchor="start">HMAC-SHA256, replay-protected</text>
+<rect x="290" y="196" width="1260" height="58" rx="8" fill="#ecfdf5" stroke="#047857" stroke-width="1.4"/>
+<text x="304" y="219" font-size="14" font-weight="bold" fill="#1f2937" text-anchor="start">nginx API gateway  :8080  (only public port)</text>
+<text x="304" y="239" font-size="11.5" font-weight="normal" fill="#4b5563" text-anchor="start">Serves the built SPA · /api/&lt;prefix&gt; → service · rate limits on auth endpoints · CSP &amp; security headers · 25 MB body cap · sets X-Correlation-ID</text>
+<path d="M 700 156 L 700 194" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="708" y="180" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">HTTP: REST/JSON, Bearer JWT</text>
+<path d="M 1400 156 L 1400 194" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="1408" y="180" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">HTTP POST</text>
+<rect x="280" y="300" width="1280" height="248" rx="10" fill="none" stroke="#1d4ed8" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="480" y="294" font-size="11" font-weight="bold" fill="#1d4ed8" text-anchor="start">APPLICATION SERVICES (FastAPI, Python 3.11) — each also listed with its gateway routes</text>
+<path d="M 330 254 L 330 298" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="338" y="276" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">reverse proxy /api/*</text>
+<rect x="290" y="342" width="190" height="196" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.4"/>
+<text x="300" y="361" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">document-vendor-agent</text>
+<text x="300" y="377" font-size="11" font-weight="bold" fill="#1d4ed8" text-anchor="start">:8001  + worker</text>
+<line x1="298" y1="385" x2="472" y2="385" stroke="#bfdbfe"/>
+<text x="300" y="402" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Upload → ClamAV scan → MinIO</text>
+<text x="300" y="416.6" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">OCR: pdfplumber · Docling ·</text>
+<text x="300" y="431.20000000000005" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">  PaddleOCR · LayoutLMv3 check</text>
+<text x="300" y="445.80000000000007" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">Classifier: TF-IDF + LogReg</text>
+<text x="300" y="460.4000000000001" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Preprocess scans · review queue</text>
+<text x="300" y="475.0000000000001" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Fields · FX→INR · duplicates</text>
+<text x="300" y="489.60000000000014" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Vendor match · bank dual control</text>
+<text x="300" y="504.20000000000016" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">/api/documents · /api/admin ·</text>
+<text x="300" y="518.8000000000002" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">/api/vendors/(onboard, payment…)</text>
+<rect x="504" y="342" width="190" height="196" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.4"/>
+<text x="514" y="361" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">approval-inventory-agent</text>
+<text x="514" y="377" font-size="11" font-weight="bold" fill="#1d4ed8" text-anchor="start">:8002  + Temporal worker</text>
+<line x1="512" y1="385" x2="686" y2="385" stroke="#bfdbfe"/>
+<text x="514" y="402" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Requests · spend tiers · SLA</text>
+<text x="514" y="416.6" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Authority &amp; separation of duties</text>
+<text x="514" y="431.20000000000005" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Inventory · backorders · reorder</text>
+<text x="514" y="445.80000000000007" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Invoice ledger (3-way match)</text>
+<text x="514" y="460.4000000000001" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">Licence anomaly: IsolationForest</text>
+<text x="514" y="475.0000000000001" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">  + SHAP reasons</text>
+<text x="514" y="489.60000000000014" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">/api/requests · inventory · licenses</text>
+<text x="514" y="504.20000000000016" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">authority · invoices · ops · orders</text>
+<text x="514" y="518.8000000000002" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">inbox · /email-action/*</text>
+<rect x="718" y="342" width="190" height="196" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.4"/>
+<text x="728" y="361" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">chatbot-agent</text>
+<text x="728" y="377" font-size="11" font-weight="bold" fill="#1d4ed8" text-anchor="start">:8006</text>
+<line x1="726" y1="385" x2="900" y2="385" stroke="#bfdbfe"/>
+<text x="728" y="402" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Assistant chat (RAG)</text>
+<text x="728" y="416.6" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">LLM via Ollama + embeddings</text>
+<text x="728" y="431.20000000000005" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">  in pgvector, kept current</text>
+<text x="728" y="445.80000000000007" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Access checked per chunk</text>
+<text x="728" y="460.4000000000001" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">  for the signed-in user</text>
+<text x="728" y="475.0000000000001" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">/api/chat</text>
+<rect x="932" y="342" width="190" height="196" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.4"/>
+<text x="942" y="361" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">contract-risk-agent</text>
+<text x="942" y="377" font-size="11" font-weight="bold" fill="#1d4ed8" text-anchor="start">:8003  + Temporal worker</text>
+<line x1="940" y1="385" x2="1114" y2="385" stroke="#bfdbfe"/>
+<text x="942" y="402" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Contracts (Jinja2 → text, PDF)</text>
+<text x="942" y="416.6" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Built-in e-sign, SHA-256 seal</text>
+<text x="942" y="431.20000000000005" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">Clauses: Legal-BERT (CUAD),</text>
+<text x="942" y="445.80000000000007" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">  regex fallback</text>
+<text x="942" y="460.4000000000001" font-size="11" font-weight="normal" fill="#6d28d9" text-anchor="start">Vendor risk: RandomForest</text>
+<text x="942" y="475.0000000000001" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">  + hard overrides, sanctions</text>
+<text x="942" y="489.60000000000014" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Renewal &amp; drift (PSI) workflows</text>
+<text x="942" y="504.20000000000016" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">/api/contracts · /api/vendors/*</text>
+<text x="942" y="518.8000000000002" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">/api/webhooks</text>
+<rect x="1146" y="342" width="190" height="196" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.4"/>
+<text x="1156" y="361" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">notification-agent</text>
+<text x="1156" y="377" font-size="11" font-weight="bold" fill="#1d4ed8" text-anchor="start">:8004</text>
+<line x1="1154" y1="385" x2="1328" y2="385" stroke="#bfdbfe"/>
+<text x="1156" y="402" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Consumes 17 event topics</text>
+<text x="1156" y="416.6" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Urgent vs digest routing</text>
+<text x="1156" y="431.20000000000005" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Jinja2 templates, editable</text>
+<text x="1156" y="445.80000000000007" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">  in the Control Panel</text>
+<text x="1156" y="460.4000000000001" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">Sends to Mailpit (dev)</text>
+<text x="1156" y="475.0000000000001" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">/api/notifications</text>
+<rect x="1360" y="342" width="190" height="196" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.4"/>
+<text x="1370" y="361" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">auth-service</text>
+<text x="1370" y="377" font-size="11" font-weight="bold" fill="#1d4ed8" text-anchor="start">:8005</text>
+<line x1="1368" y1="385" x2="1542" y2="385" stroke="#bfdbfe"/>
+<text x="1370" y="402" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Sign-up · login · JWT (HS256)</text>
+<text x="1370" y="416.6" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">argon2id · lockout · CSRF</text>
+<text x="1370" y="431.20000000000005" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Users &amp; roles (admin)</text>
+<text x="1370" y="445.80000000000007" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">Business-rules engine</text>
+<text x="1370" y="460.4000000000001" font-size="11" font-weight="normal" fill="#1f2937" text-anchor="start">  (47 rules, edited live)</text>
+<text x="1370" y="475.0000000000001" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">Serves GET /internal/business-</text>
+<text x="1370" y="489.60000000000014" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">rules to every agent (5-min cache)</text>
+<text x="1370" y="504.20000000000016" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">/api/auth · /api/admin/business-rules</text>
+<path d="M 480 434 L 502 434" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<circle cx="494" cy="418" r="8.5" fill="#ffffff" stroke="#6b7280" stroke-width="1.2"/>
+<text x="494" y="422" font-size="11" font-weight="bold" fill="#1f2937" text-anchor="middle">1</text>
+<path d="M 718 434 L 696 434" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<circle cx="708" cy="418" r="8.5" fill="#ffffff" stroke="#6b7280" stroke-width="1.2"/>
+<text x="708" y="422" font-size="11" font-weight="bold" fill="#1f2937" text-anchor="middle">2</text>
+<path d="M 908 434 L 930 434" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<circle cx="922" cy="418" r="8.5" fill="#ffffff" stroke="#6b7280" stroke-width="1.2"/>
+<text x="922" y="422" font-size="11" font-weight="bold" fill="#1f2937" text-anchor="middle">3</text>
+<path d="M 1241 342 L 1241 322 L 624 322 L 624 340" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+<text x="638" y="316" font-size="11" font-weight="normal" fill="#4b5563" text-anchor="start">4  HTTP POST /internal/email-actions/mint (X-Internal-Service-Token)</text>
+<rect x="723" y="566" width="180" height="52" rx="8" fill="#f5f3ff" stroke="#6d28d9" stroke-width="1.4"/>
+<text x="733" y="586" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">Temporal  :7233</text>
+<text x="733" y="604" font-size="10.8" font-weight="normal" fill="#4b5563" text-anchor="start">durable workflows &amp; timers</text>
+<path d="M 664 538 L 664 592 L 721 592" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)" marker-start="url(#arrs)"/>
+<path d="M 962 538 L 962 592 L 905 592" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)" marker-start="url(#arrs)"/>
+<text x="683" y="634" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="start">gRPC: start/signal workflows; workers poll task queues</text>
+<rect x="290" y="664" width="1260" height="80" rx="8" fill="#f5f3ff" stroke="#6d28d9" stroke-width="1.4"/>
+<text x="304" y="686" font-size="13.5" font-weight="bold" fill="#1f2937" text-anchor="start">Event backbone — Kafka API (Redpanda) · 23 topics · per-service SASL/SCRAM logins and ACLs</text>
+<text x="304" y="706" font-size="10.8" font-weight="normal" fill="#4b5563" text-anchor="start">document.ingested (6 partitions) → worker · document.classified, vendor.matched → approval, contract, notification · approval.requested/decided → contract, notification, document</text>
+<text x="304" y="721" font-size="10.8" font-weight="normal" fill="#4b5563" text-anchor="start">contract.generated/signed → approval, notification · invoice.matched → approval · risk.score.updated, contract.renewal.due, license.usage.updated, vendor.* → notification · business_rule.updated → agents</text>
+<path d="M 330 540 L 330 662" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)" marker-start="url(#arrs)"/>
+<path d="M 536 540 L 536 662" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)" marker-start="url(#arrs)"/>
+<path d="M 1092 540 L 1092 662" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)" marker-start="url(#arrs)"/>
+<path d="M 1196 664 L 1196 540" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M 1455 538 L 1455 662" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="336" y="578" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="start">outbox ↓ / deliver() ↑</text>
+<text x="290" y="790" font-size="11" font-weight="bold" fill="#b45309" text-anchor="start">DATA LAYER</text>
+<rect x="290" y="800" width="380" height="96" rx="8" fill="#fffbeb" stroke="#b45309" stroke-width="1.4"/>
+<text x="302" y="821" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">PostgreSQL 16 + pgvector — one shared database</text>
+<text x="302" y="841" font-size="10.8" font-weight="normal" fill="#1f2937" text-anchor="start">Business tables · audit_log · auth_users · business_rules</text>
+<text x="302" y="856" font-size="10.8" font-weight="normal" fill="#1f2937" text-anchor="start">event_outbox/inbox/dlq · event_log · Temporal&#x27;s store</text>
+<text x="302" y="871" font-size="10.8" font-weight="normal" fill="#4b5563" text-anchor="start">Each service migrates its own tables</text>
+<rect x="683" y="800" width="270" height="96" rx="8" fill="#fffbeb" stroke="#b45309" stroke-width="1.4"/>
+<text x="695" y="821" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">Redis 7</text>
+<text x="695" y="841" font-size="10.8" font-weight="normal" fill="#1f2937" text-anchor="start">Idempotency-Key responses (24 h)</text>
+<text x="695" y="856" font-size="10.8" font-weight="normal" fill="#1f2937" text-anchor="start">Inventory reservation locks</text>
+<text x="695" y="871" font-size="10.8" font-weight="normal" fill="#4b5563" text-anchor="start">No persistence (cache only)</text>
+<rect x="966" y="800" width="270" height="96" rx="8" fill="#fffbeb" stroke="#b45309" stroke-width="1.4"/>
+<text x="978" y="821" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">MinIO (S3 API)</text>
+<text x="978" y="841" font-size="10.8" font-weight="normal" fill="#1f2937" text-anchor="start">Bucket documents/&lt;id&gt;/&lt;file&gt;</text>
+<text x="978" y="856" font-size="10.8" font-weight="normal" fill="#1f2937" text-anchor="start">Original uploads</text>
+<text x="978" y="871" font-size="10.8" font-weight="normal" fill="#4b5563" text-anchor="start">document-vendor-agent only</text>
+<rect x="1249" y="800" width="301" height="96" rx="8" fill="#fffbeb" stroke="#b45309" stroke-width="1.4"/>
+<text x="1261" y="821" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">Models &amp; ML tracking</text>
+<text x="1261" y="841" font-size="10.8" font-weight="normal" fill="#6d28d9" text-anchor="start">Artifacts trained at image build</text>
+<text x="1261" y="856" font-size="10.8" font-weight="normal" fill="#6d28d9" text-anchor="start">hf-cache: LayoutLMv3, Legal-BERT</text>
+<text x="1261" y="871" font-size="10.8" font-weight="normal" fill="#4b5563" text-anchor="start">Sanctions index volume · MLflow :5050</text>
+<path d="M 280 520 L 262 520 L 262 848 L 288 848" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="252" y="700" font-size="11" fill="#4b5563" text-anchor="middle" transform="rotate(-90 252 700)">SQL (SQLAlchemy async) — all six services</text>
+<text x="30" y="336" font-size="11" font-weight="bold" fill="#475569" text-anchor="start">DOCUMENT INPUTS</text>
+<rect x="30" y="346" width="210" height="62" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1.4"/>
+<text x="40" y="366" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">Drop folder ./inbox/input</text>
+<text x="40" y="384" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">polled every 3 s by the worker;</text>
+<text x="40" y="398" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">→ processed/ or failed/ (+ reason)</text>
+<rect x="30" y="424" width="210" height="62" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1.4"/>
+<text x="40" y="444" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">Intake mailbox</text>
+<text x="40" y="462" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">POP3/IMAP, read-only, every 30 s</text>
+<text x="40" y="476" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">(Mailpit in development)</text>
+<path d="M 240 377 L 288 377" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<path d="M 240 455 L 288 455" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="246" y="371" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="start">files</text>
+<text x="246" y="449" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="start">mail</text>
+<text x="1600" y="286" font-size="11" font-weight="bold" fill="#6b7280" text-anchor="start">SUPPORTING &amp; EXTERNAL SERVICES</text>
+<rect x="1600" y="296" width="290" height="448" rx="8" fill="#f9fafb" stroke="#6b7280" stroke-width="1.4"/>
+<text x="1612" y="322" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">ClamAV (clamd :3310)</text>
+<text x="1612" y="338" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">INSTREAM scan of every upload; fails closed</text>
+<text x="1612" y="353" font-size="10.6" font-weight="normal" fill="#1d4ed8" text-anchor="start">used by: document-vendor</text>
+<text x="1612" y="382" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">Mailpit / SMTP</text>
+<text x="1612" y="398" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">outgoing mail (dev | smtp) · POP3 intake</text>
+<text x="1612" y="413" font-size="10.6" font-weight="normal" fill="#1d4ed8" text-anchor="start">used by: auth, notification, doc worker</text>
+<text x="1612" y="442" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">Ollama LLM (host :11434)</text>
+<text x="1612" y="458" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">llama3.2 answers · nomic-embed-text</text>
+<text x="1612" y="473" font-size="10.6" font-weight="normal" fill="#1d4ed8" text-anchor="start">used by: chatbot</text>
+<text x="1612" y="502" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">Frankfurter (ECB rates)</text>
+<text x="1612" y="518" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">currency → INR, rate stored once</text>
+<text x="1612" y="533" font-size="10.6" font-weight="normal" fill="#1d4ed8" text-anchor="start">used by: document-vendor</text>
+<text x="1612" y="562" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">Razorpay IFSC · gstincheck.co.in</text>
+<text x="1612" y="578" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">bank code lookup · GSTIN (quota-gated)</text>
+<text x="1612" y="593" font-size="10.6" font-weight="normal" fill="#1d4ed8" text-anchor="start">used by: document-vendor</text>
+<text x="1612" y="622" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">HaveIBeenPwned range API</text>
+<text x="1612" y="638" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">breached-password check (k-anonymity)</text>
+<text x="1612" y="653" font-size="10.6" font-weight="normal" fill="#1d4ed8" text-anchor="start">used by: auth</text>
+<text x="1612" y="682" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">OpenSanctions list</text>
+<text x="1612" y="698" font-size="10.6" font-weight="normal" fill="#4b5563" text-anchor="start">downloaded on demand, refreshed daily</text>
+<text x="1612" y="713" font-size="10.6" font-weight="normal" fill="#1d4ed8" text-anchor="start">used by: contract-risk</text>
+<path d="M 1560 340 L 1598 340" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="1563" y="333" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="start">HTTP</text>
+<rect x="1600" y="800" width="290" height="96" rx="8" fill="#f9fafb" stroke="#6b7280" stroke-width="1.4"/>
+<text x="1612" y="821" font-size="12.5" font-weight="bold" fill="#1f2937" text-anchor="start">Observability</text>
+<text x="1612" y="841" font-size="10.6" font-weight="normal" fill="#1f2937" text-anchor="start">Prometheus ← /metrics, kafka-exporter</text>
+<text x="1612" y="856" font-size="10.6" font-weight="normal" fill="#1f2937" text-anchor="start">Promtail → Loki → Grafana (logs by</text>
+<text x="1612" y="871" font-size="10.6" font-weight="normal" fill="#1f2937" text-anchor="start">  correlation id) · Temporal UI :8088</text>
+<path d="M 1560 520 L 1578 520 L 1578 848 L 1598 848" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+<text x="1570" y="660" font-size="10.5" fill="#4b5563" text-anchor="middle" transform="rotate(-90 1570 660)">metrics scrape · container logs</text>
+<line x1="30" y1="916" x2="1890" y2="916" stroke="#e5e7eb"/>
+<text x="30" y="934" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">Service-to-service calls (synchronous HTTP inside the Docker network)</text>
+<circle cx="42" cy="954" r="8.5" fill="#ffffff" stroke="#6b7280" stroke-width="1.2"/>
+<text x="42" y="958" font-size="11" font-weight="bold" fill="#1f2937" text-anchor="middle">1</text>
+<text x="58" y="958" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">document-vendor worker → approval-inventory: POST /invoices/match (books the invoice; service JWT)</text>
+<circle cx="42" cy="976" r="8.5" fill="#ffffff" stroke="#6b7280" stroke-width="1.2"/>
+<text x="42" y="980" font-size="11" font-weight="bold" fill="#1f2937" text-anchor="middle">2</text>
+<text x="58" y="980" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">chatbot → approval-inventory: GET /orders/summary/latest, /requests, /licenses/anomaly-summary</text>
+<circle cx="42" cy="998" r="8.5" fill="#ffffff" stroke="#6b7280" stroke-width="1.2"/>
+<text x="42" y="1002" font-size="11" font-weight="bold" fill="#1f2937" text-anchor="middle">3</text>
+<text x="58" y="1002" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">chatbot → contract-risk: GET /vendors/, /vendors/{id}/risk  (2 and 3 use a JWT minted for the user)</text>
+<circle cx="42" cy="1020" r="8.5" fill="#ffffff" stroke="#6b7280" stroke-width="1.2"/>
+<text x="42" y="1024" font-size="11" font-weight="bold" fill="#1f2937" text-anchor="middle">4</text>
+<text x="58" y="1024" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">notification → approval-inventory: mint a single-use email-approval link</text>
+<text x="1100" y="934" font-size="12" font-weight="bold" fill="#1f2937" text-anchor="start">Key</text>
+<rect x="1100" y="948" width="22" height="14" rx="3" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.3"/>
+<text x="1130" y="959" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">Application service</text>
+<rect x="1330" y="948" width="22" height="14" rx="3" fill="#f5f3ff" stroke="#6d28d9" stroke-width="1.3"/>
+<text x="1360" y="959" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">Messaging / orchestration</text>
+<rect x="1100" y="970" width="22" height="14" rx="3" fill="#fffbeb" stroke="#b45309" stroke-width="1.3"/>
+<text x="1130" y="981" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">Data store</text>
+<rect x="1330" y="970" width="22" height="14" rx="3" fill="#f9fafb" stroke="#6b7280" stroke-width="1.3"/>
+<text x="1360" y="981" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">Supporting, external, observability</text>
+<rect x="1100" y="992" width="22" height="14" rx="3" fill="#ecfdf5" stroke="#047857" stroke-width="1.3"/>
+<text x="1130" y="1003" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">Gateway</text>
+<rect x="1330" y="992" width="22" height="14" rx="3" fill="#f1f5f9" stroke="#475569" stroke-width="1.3"/>
+<text x="1360" y="1003" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">Client / input</text>
+<text x="1100" y="1025" font-size="11.5" font-weight="normal" fill="#6d28d9" text-anchor="start">Purple text = AI/ML component</text>
+<line x1="1330" y1="1021" x2="1362" y2="1021" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+<text x="1370" y="1025" font-size="11.5" font-weight="normal" fill="#1f2937" text-anchor="start">dashed = token-authenticated or telemetry</text>
+</svg>
