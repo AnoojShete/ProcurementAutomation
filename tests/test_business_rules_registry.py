@@ -20,7 +20,7 @@ def _read(path):
 def seeded_keys():
     keys = set()
     for f in glob.glob(os.path.join(ROOT, "services/auth-service/migrations/versions/*.py")):
-        src = open(f).read()
+        src = open(f, encoding='utf-8', errors='ignore').read()
         keys |= set(re.findall(r'"rule_key":\s*"([^"]+)"', src))
         keys |= set(re.findall(r"VALUES \(gen_random_uuid\(\), \"?\s*'([a-z_]+\.[a-z_]+)'", src))
         keys |= set(re.findall(r"^\s*\"?'([a-z_]+\.[a-z_]+)', '", src, re.M))
@@ -31,9 +31,9 @@ def seeded_keys():
 def code_keys():
     keys = {}
     for f in glob.glob(os.path.join(ROOT, "services/*/app/**/*.py"), recursive=True):
-        for k in re.findall(r'get_rule\(\s*["\']([a-z_]+\.[a-z_]+)["\']', open(f).read()):
+        for k in re.findall(r'get_rule\(\s*["\']([a-z_]+\.[a-z_]+)["\']', open(f, encoding='utf-8', errors='ignore').read()):
             keys.setdefault(k, f)
-        for k in re.findall(r'_hours\(\s*"([a-z_]+\.[a-z_]+)"', open(f).read()):
+        for k in re.findall(r'_hours\(\s*"([a-z_]+\.[a-z_]+)"', open(f, encoding='utf-8', errors='ignore').read()):
             keys.setdefault(k, f)
     return keys
 
@@ -48,7 +48,7 @@ def doc_sections():
 def behaviour_tests():
     names = set()
     for f in glob.glob(os.path.join(ROOT, "services/*/tests/test_rules_wiring.py")):
-        names |= set(re.findall(r"^def (test_[a-z0-9_]+)\(", open(f).read(), re.M))
+        names |= set(re.findall(r"^def (test_[a-z0-9_]+)\(", open(f, encoding='utf-8', errors='ignore').read(), re.M))
     return names
 
 

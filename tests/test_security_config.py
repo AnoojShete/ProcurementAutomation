@@ -63,14 +63,14 @@ def test_rules_engine_secret_refused_in_production():
 def test_every_service_reading_rules_gets_the_rules_secret():
     # Only auth-service used to get it: with a real secret every other
     # service got 403 and silently ran on the code defaults.
-    doc = yaml.safe_load((ROOT / "docker-compose.override.yml").read_text())
+    doc = yaml.safe_load((ROOT / "docker-compose.override.yml").read_text(encoding='utf-8', errors='ignore'))
     missing = []
     for svc, spec in doc["services"].items():
         # Workers run their service's image: "${COMPOSE_PROJECT_NAME}-<service>".
         image = (spec or {}).get("image", "")
         source = svc if (ROOT / "services" / svc).is_dir() else image.split("}-", 1)[-1]
         app = ROOT / "services" / source / "app"
-        if app.is_dir() and any("rules_engine" in f.read_text() for f in app.rglob("*.py")):
+        if app.is_dir() and any("rules_engine" in f.read_text(encoding='utf-8', errors='ignore') for f in app.rglob("*.py")):
             if "RULES_ENGINE_INTERNAL_SECRET" not in (spec.get("environment") or {}):
                 missing.append(svc)
     assert missing == []
@@ -81,7 +81,7 @@ def test_only_the_gateway_is_published_on_all_interfaces():
     # of their own on those ports — reachable only from the host.
     exposed = []
     for name in ("docker-compose.yml", "docker-compose.override.yml"):
-        doc = yaml.safe_load((ROOT / name).read_text())
+        doc = yaml.safe_load((ROOT / name).read_text(encoding='utf-8', errors='ignore'))
         for svc, spec in (doc.get("services") or {}).items():
             for port in (spec or {}).get("ports", []) or []:
                 if not str(port).startswith("127.0.0.1:"):
@@ -110,7 +110,7 @@ async def test_idempotency_keys_are_per_user():
 
 
 def test_nginx_rate_limits_credentials_and_sets_csp():
-    conf = (ROOT / "infra/nginx/nginx.conf").read_text()
+    conf = (ROOT / "infra/nginx/nginx.conf").read_text(encoding='utf-8', errors='ignore')
     limited = {}
     for names, zone in re.findall(r"location ~ \^/api/auth/\(([a-z|-]+)\)\$ \{\s*limit_req zone=(\w+)", conf):
         for name in names.split("|"):
@@ -129,7 +129,7 @@ def test_nginx_rate_limits_credentials_and_sets_csp():
 def test_stateful_stores_keep_data_on_named_volumes():
     """Recreating a container (image update, `up --build`) must not lose
     data. Redis is the exception on purpose: only an idempotency cache."""
-    doc = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    doc = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding='utf-8', errors='ignore'))
     expected = {
         "postgres": "/var/lib/postgresql/data",
         "minio": "/data",
@@ -145,7 +145,7 @@ def test_stateful_stores_keep_data_on_named_volumes():
 def test_nginx_unknown_api_path_is_json_404_not_the_spa():
     """An /api/ path no service owns must not fall through to `location /`
     (index.html with a 200, which made typo'd endpoints look like success)."""
-    conf = (ROOT / "infra/nginx/nginx.conf").read_text()
+    conf = (ROOT / "infra/nginx/nginx.conf").read_text(encoding='utf-8', errors='ignore')
     block = re.search(r"location /api/ \{(.*?)\}", conf, re.S)
     assert block, "no catch-all `location /api/` block"
     assert "default_type application/json" in block.group(1)

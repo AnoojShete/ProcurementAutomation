@@ -19,3 +19,12 @@ test:
 
 e2e:
 	./tests/e2e/run.sh
+
+docs-serve:
+	mkdocs serve
+
+docs-build:
+	mkdocs build --strict
+
+docs-deploy:
+	mkdocs gh-deploy
