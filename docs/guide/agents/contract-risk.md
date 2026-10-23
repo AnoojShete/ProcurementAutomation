@@ -47,7 +47,7 @@ deadlines, and decide whether a vendor may be signed at all.
 | Measure | Result | Source |
 |---|---|---|
 | Clause extraction on 102 CUAD contracts | F1 0.85 / 0.80 / 0.91 (renewal, notice, expiry) vs rules 0.50 / 0.19 / 0.02 | `docs/results/clauses.md` |
-| Risk ruleset vs old random forest | ROC-AUC 0.738 vs 0.715; 22 red-team profiles all handled | `docs/index.html#risk` |
+| Risk ruleset vs old random forest | ROC-AUC 0.738 vs 0.715; 25 red-team profiles all handled | `docs/index.html#risk` |
 | Tests | 321 unit/integration tests; `risk_flow.py` 49/49; `obligation_flow.py` | `scripts/test-service.sh` |
 
 ![Contract with vendor risk before signing](../showcase/contract/01-contract-risk.png)

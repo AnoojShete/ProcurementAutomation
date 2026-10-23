@@ -79,7 +79,7 @@ dead-letter queue instead of losing them.
 | | |
 |---|---|
 | **Document AI** | A sample scanned invoice went from **0.50 → 0.93** confidence after reading table rows by position and cross-checking totals |
-| **Risk you can audit** | A deterministic 100-point vendor scorecard: every point traces to a check and its source, hard overrides (sanctions, cancelled GSTIN) force High, a vendor with checks missing is never shown as Low, and any past score replays exactly. A red team of 22 attack profiles passes; the ruleset ranks synthetic incidents with ROC-AUC 0.738 (the retired ML model: 0.715) |
+| **Risk you can audit** | A deterministic 100-point vendor scorecard: every point traces to a check and its source, hard overrides (sanctions, cancelled GSTIN) force High, a vendor with checks missing is never shown as Low, and any past score replays exactly. A red team of 25 profiles passes; the ruleset ranks synthetic incidents with ROC-AUC 0.738 (the retired ML model: 0.715) |
 | **Contract clauses** | Legal-BERT on 102 held-out, lawyer-annotated contracts: F1 **0.85 / 0.80 / 0.91** for renewal, notice and expiry clauses vs **0.50 / 0.19 / 0.02** for the regex rules it replaced (kept as fallback) |
 | **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; vendors are screened against 25,000 sanctioned companies; invoices are held until bank details are verified |
 | **Separation of duties** | Nobody — not even an admin — approves their own request |

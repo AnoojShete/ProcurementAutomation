@@ -215,55 +215,32 @@ async def collect_email(
 async def collect_breach(
     db: AsyncSession, vendor: Vendor, now: datetime
 ) -> Tuple[Any, Any]:
-    """Collects breach disclosure history from Have I Been Pwned catalogue."""
+    """Breach disclosure history. No live Have I Been Pwned lookup is wired
+    in, so this records "not checked" rather than a clean result: a reported
+    breach (e.g. ADDA / adda.io) must not be shown as "no breach listed"
+    before someone has verified the record and the entity match."""
     domain = derive_vendor_domain(vendor)
     provider = "Have I Been Pwned (HIBP)"
-
-    # Check evidence register for accepted breach remediation
-    ev_row = (await db.execute(
-        select(VendorEvidence).where(
-            VendorEvidence.vendor_id == vendor.id,
-            VendorEvidence.evidence_type == "breach_remediation",
-            VendorEvidence.status == "accepted",
-        )
-    )).scalars().first()
-    remediation_accepted = ev_row is not None
-
-    count_5y = 0
-    latest_date = "—"
-    latest_within_12m = False
-    breach_names = []
-
-    fields = {
-        "breach.source_reachable": True,
-        "breach.domain": domain or "None",
-        "breach.count_5y": count_5y,
-        "breach.latest_date": latest_date,
-        "breach.latest_within_12m": latest_within_12m,
-        "breach.remediation_accepted": remediation_accepted,
-        "breach.names": breach_names,
-    }
+    detail = "No live breach lookup in this deployment; verify any reported breach and its entity match by hand."
+    fields = {"breach.source_reachable": False, "breach.domain": domain or "None"}
 
     raw = await record_raw_response(
         db=db,
         vendor_id=vendor.id,
         signal_key="breach",
         provider=provider,
-        request_method="GET",
-        request_url=f"https://haveibeenpwned.com/api/v3/breaches?domain={domain}",
-        body=fields,
+        request_method="NONE",
+        body={"skip_reason": "no_live_source", "detail": detail, "domain": domain},
         source_id="hibp_api",
-        response_status=200,
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200"},
+        {"label": "Status", "value": "not_checked"},
         {"label": "Domain", "value": domain or "None"},
-        {"label": "Breaches (5y)", "value": str(count_5y)},
-        {"label": "Remediation Accepted", "value": "Yes" if remediation_accepted else "No"},
+        {"label": "Detail", "value": detail},
     ]
 
     obs = await record_observation(
@@ -272,11 +249,12 @@ async def collect_breach(
         signal_key="breach",
         source_name="Breach History",
         provider=provider,
-        status="ok",
+        status="not_checked",
         facts=facts,
         fields=fields,
+        skip_reason="no_live_source",
         raw_response_id=raw.id,
-        ttl_days=7,
+        ttl_days=1,
         fetched_at=now,
     )
     return obs, raw

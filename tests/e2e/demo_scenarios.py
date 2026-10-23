@@ -618,9 +618,9 @@ s6.steps = [
          "Approval & Inventory → Contract & Risk", "approval.decided, contract.generated",
          "The Vendor risk panel says <b>signing is blocked</b>; signing is refused even with the acknowledgement.",
          s6_sign, ("finance", lambda c: f"/app/contracts/{c['s6_contract']}", "text=Vendor risk")),
-    Step("(Presenter's terminal) <code>docker run … contract-risk-agent ml/redteam_scorecard.py</code>: 22 attack profiles through the real scorecard and clearance code.",
+    Step("(Presenter's terminal) <code>docker run … contract-risk-agent ml/redteam_scorecard.py</code>: 25 profiles (22 attacks and the team's three test vendors) through the real scorecard and clearance code.",
          "Contract & Risk (offline)", "—",
-         "<b>22/22 profiles as expected</b>: sanctions behind a perfect record, accept-risk on a sanctions match, missing data shown as Low, stale checks, petty-purchase abuse, old approvals… (table in <a href=\"index.html#risk\">index.html#risk</a>).",
+         "<b>25/25 profiles as expected</b>: sanctions behind a perfect record, accept-risk on a sanctions match, missing data shown as Low, stale checks, petty-purchase abuse, old approvals, and the team's Caspian Petrochem (Iran, 14 pts, High), SSPL Solutions (sanctions, 10 pts, High) and ADDA (breach not scored until verified) (table in <a href=\"index.html#risk\">index.html#risk</a>).",
          s6_redteam, None),
 ]
 

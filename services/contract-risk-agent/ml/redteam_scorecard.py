@@ -57,6 +57,8 @@ POOR_PERFORMANCE = {
     "feedback": {"fbk.count_12m": 8, "fbk.mean_12m": 1.5},                    # 12
     "incidents": {"inc.history_available": True, "inc.count_24m": 3},         # 8
 }
+# Checks collector_manager skips after a non-remediable override (Phases 1 and 2).
+SHORT_CIRCUITED = ["gst", "web", "email", "breach", "certification", "financial", "adverse_media"]
 ACCEPT_RISK = {"decision": "accept_risk", "expires_at": (NOW + timedelta(days=20)).isoformat()}
 
 
@@ -151,6 +153,30 @@ PROFILES = [
      "expected": {"final_band": "Low", "cleared": False, "reason": "vendor_status_offboarded_not_active"}},
     {"name": "Vendor still onboarding", "attack": "buy before activation", "status": "onboarding",
      "observations": obs(), "expected": {"cleared": False, "reason": "vendor_status_onboarding_not_active"}},
+    # Team-supplied cases (Oct 23). External checks a short-circuit skipped are
+    # recorded as not_checked, the way collector_manager records them.
+    {"name": "Caspian Petrochem Trading LLC (IR, Bank Melli)",
+     "attack": "sanctioned vendor in a prohibited country; short-circuit skips GST and every external check",
+     "country": "IR", "inherent_tier": "high", "status": "onboarding",
+     "observations": {"sanctions": {"sanctions.status": "match"},
+                      "jurisdiction": {"country.prohibited": True, "country.is_domestic": False}},
+     "skipped": SHORT_CIRCUITED,
+     "expected": {"points": 14, "points_band": "Low", "final_band": "High", "override": ["R-SAN-01", "R-JUR-01"],
+                  "cleared": False, "reason": "override_R-SAN-01"}},
+    {"name": "SSPL Solutions Private Limited (sanctions override)",
+     "attack": "Indian GSTIN and CIN on file, bank and web unverified; a confirmed sanctions match",
+     "inherent_tier": "critical", "status": "onboarding",
+     "observations": {"sanctions": {"sanctions.status": "match"}, "jurisdiction": {"country.is_domestic": True}},
+     "skipped": SHORT_CIRCUITED,
+     "expected": {"points": 10, "points_band": "Low", "final_band": "High", "override": ["R-SAN-01"],
+                  "cleared": False, "reason": "override_R-SAN-01"}},
+    {"name": "3Five8 Technologies / ADDA (historical breach reported)",
+     "attack": "Critical vendor with GST, bank and sanctions pending; a reported breach not yet matched to the entity",
+     "inherent_tier": "critical", "status": "onboarding",
+     "observations": {"jurisdiction": {"country.is_domestic": True}, "bank": {"bank.status": "pending"}},
+     "skipped": ["breach"],
+     "expected": {"points": 0, "final_band": "Unrated", "rating_status": "provisional", "cleared": False,
+                  "unscored": ["breach"]}},
 ]
 
 
@@ -162,7 +188,9 @@ def run_profile(p: dict) -> dict:
               "fetched_at": (NOW - timedelta(days=stale.get(key, 0))).isoformat()}
         for key, fields in p["observations"].items()
     }
-    context = {"name": p["name"], "spend_tier": p.get("tier", "standard"), "inherent_tier": None,
+    for key in p.get("skipped", []):
+        observations[key] = {"signal_key": key, "status": "not_checked", "fields": {}, "fetched_at": NOW.isoformat()}
+    context = {"name": p["name"], "spend_tier": p.get("tier", "standard"), "inherent_tier": p.get("inherent_tier"),
                "country": p.get("country", "IN")}
     result = evaluate_risk(ruleset, observations, NOW, vendor_context=context)
     non_remediable = {r["rule_id"] for r in result["rule_results"] if r.get("override_band") and not r["remediable"]}
@@ -178,16 +206,21 @@ def run_profile(p: dict) -> dict:
     gate = clearance.decide(view, decision, purpose=p.get("purpose", "purchase"), spend_amount=p.get("spend"),
                             vendor_tier=p.get("tier", "standard"), vendor_status=p.get("status", "active"),
                             petty_threshold=PETTY_THRESHOLD, now=NOW)
-    got = {"final_band": result["final_band"], "points": result["total_points"],
+    got = {"final_band": result["final_band"], "points": result["total_points"], "points_band": result["points_band"],
            "rating_status": result["rating_status"], "overrides": result["override_rule_ids"],
-           "cleared": gate["cleared"], "reasons": gate["reasons"]}
+           "cleared": gate["cleared"], "reasons": gate["reasons"],
+           "scored": {r["signal_key"]: r["status"] for r in result["rule_results"] if r["status"].startswith("assessed")}}
     exp = p["expected"]
     problems = []
-    for key in ("final_band", "points", "rating_status", "cleared"):
+    for key in ("final_band", "points", "points_band", "rating_status", "cleared"):
         if key in exp and exp[key] != got[key]:
             problems.append(f"{key}: expected {exp[key]}, got {got[key]}")
-    if "override" in exp and exp["override"] not in got["overrides"]:
-        problems.append(f"override {exp['override']} not triggered ({got['overrides']})")
+    for rule in ([exp["override"]] if isinstance(exp.get("override"), str) else exp.get("override", [])):
+        if rule not in got["overrides"]:
+            problems.append(f"override {rule} not triggered ({got['overrides']})")
+    for key in exp.get("unscored", []):
+        if key in got["scored"]:
+            problems.append(f"{key} was scored ({got['scored'][key]}) before it was verified")
     if "reason" in exp and not any(r.startswith(exp["reason"]) for r in got["reasons"]):
         problems.append(f"reason {exp['reason']} missing ({got['reasons']})")
     return {"name": p["name"], "attack": p["attack"], "expected": exp, "got": got, "passed": not problems,

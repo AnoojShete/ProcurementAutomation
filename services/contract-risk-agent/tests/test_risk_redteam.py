@@ -162,3 +162,77 @@ async def test_remediable_override_can_still_be_signed_with_acknowledgement():
             patch("app.services.risk_service.latest_risk_score", AsyncMock(return_value=row)):
         risk = await contract_service.signing_risk(AsyncMock(), "v1")
     assert risk["acknowledgement_required"] and not risk["signing_blocked"]
+
+
+# ── team-supplied cases (Oct 23) through the collectors ─────────────────────
+
+def _team_vendor(name, country, email):
+    return SimpleNamespace(id="v-team", name=name, country=country, contact_email=email, status="onboarding")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("vendor,fired", [
+    (_team_vendor("Caspian Petrochem Trading LLC", "IR", "export@caspian-petrochem.ir"),
+     {"sanctions.status": "match", "country.prohibited": True}),
+    (_team_vendor("SSPL SOLUTIONS PRIVATE LIMITED", "IN", None), {"sanctions.status": "match"}),
+], ids=["caspian", "sspl"])
+async def test_non_remediable_override_skips_phases_1_and_2(vendor, fired):
+    """Phase 0 fast-fail: a sanctions match or prohibited country stops GST
+    (Phase 1) and the external checks (Phase 2); no HTTP request is made."""
+    from app.services.collectors import collector_manager as cm
+
+    def phase0(key):
+        async def fn(db, v, now, **_):
+            fields = {"sanctions": {"sanctions.status": fired["sanctions.status"]},
+                      "jurisdiction": {"country.prohibited": fired.get("country.prohibited", False)}}.get(key, {})
+            return SimpleNamespace(signal_key=key, status="ok", fields=fields), None
+        return fn
+
+    def must_not_run(key):
+        return AsyncMock(side_effect=AssertionError(f"{key} ran after a non-remediable override"))
+
+    later = ("gst", "web", "email", "breach", "certification", "financial", "adverse_media")
+    patches = [patch.object(cm, f"collect_{k}", phase0(k)) for k in
+               ("sanctions", "jurisdiction", "bank", "company_age", "delivery_sla", "feedback", "incidents")]
+    patches += [patch.object(cm, f"collect_{k}", must_not_run(k)) for k in later]
+    skipped = AsyncMock(side_effect=lambda **kw: SimpleNamespace(signal_key=kw["signal_key"], status="not_checked",
+                                                                 skip_reason=kw["skip_reason"]))
+    patches += [patch.object(cm, "_record_skipped_signal", skipped),
+                patch("httpx.AsyncClient", side_effect=AssertionError("external HTTP call")),
+                patch("httpx.Client", side_effect=AssertionError("external HTTP call"))]
+    for p in patches:
+        p.start()
+    try:
+        obs = await cm.collect_all_signals(MagicMock(), vendor, now=rt.NOW)
+    finally:
+        for p in patches:
+            p.stop()
+    assert {k for k, o in obs.items() if o.status == "not_checked"} == set(later)
+    assert {o.skip_reason for k, o in obs.items() if k in later} == {"skipped_nonremediable_override"}
+
+
+@pytest.mark.asyncio
+async def test_unchecked_breach_history_is_not_reported_as_clean():
+    """ADDA (adda.io, legal name 3Five8 Technologies): a breach was reported.
+    With no live lookup the collector must say "not checked", never "no
+    breach listed", until the record and the entity match are verified."""
+    from app.services.collectors import cyber_collectors as cc
+    from app.services.scorecard.default_ruleset import get_default_ruleset
+    from app.services.scorecard.engine import evaluate_risk
+    recorded = {}
+
+    async def observation(**kw):
+        recorded.update(kw)
+        return SimpleNamespace(**kw)
+
+    vendor = _team_vendor("3Five8 Technologies Pvt. Ltd.", "IN", "support@adda.io")
+    db = AsyncMock()
+    with patch.object(cc, "record_raw_response", AsyncMock(return_value=SimpleNamespace(id="raw"))), \
+            patch.object(cc, "record_observation", observation):
+        obs, _ = await cc.collect_breach(db, vendor, rt.NOW)
+    assert recorded["fields"]["breach.domain"] == "adda.io"
+    assert recorded["status"] == "not_checked"
+    result = evaluate_risk(get_default_ruleset(), {"breach": obs}, rt.NOW,
+                           vendor_context={"name": vendor.name, "inherent_tier": "critical", "country": "IN"})
+    breach = next(r for r in result["rule_results"] if r["signal_key"] == "breach")
+    assert breach["status"] == "not_assessed" and breach["points"] == 0

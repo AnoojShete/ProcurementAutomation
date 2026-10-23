@@ -796,7 +796,7 @@ account. Evidence, disputes, a remediation plan and what-if simulation are on th
 page (`/app/vendors/{id}/risk`); admins manage rulesets (draft, validate, dry-run, activate) under
 Business Rules, and a weekly monitoring report replaces PSI drift monitoring (retired; the worker
 ends the old schedule). The earlier random forest is archived in `ml/archive/`. The red-team set
-(`ml/redteam_scorecard.py`, 22 profiles through the real engine and clearance, run by
+(`ml/redteam_scorecard.py`, 25 profiles through the real engine and clearance, run by
 `tests/test_risk_redteam.py`) and the ruleset's evaluation on the forest's test split
 (`ml/evaluate_scorecard.py`, ROC-AUC 0.738 vs 0.715) are written up in `docs/index.html#risk`, with
 the merge review (G1–G11, all closed or decided). Rule `approval.unrated_vendor_requires_finance`
