@@ -88,7 +88,7 @@ dead-letter queue instead of losing them.
 | **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
 | **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
 | **One Control Panel** | Admins see the Input / Processed / Failed folders and every file's stage, the live event log, approval queues, every contract as *Pending E-Signature* or *E-Signature Complete* with its PDFs, and edit every notification email without a code change |
-| **Tested** | 1,261 unit tests across six services plus end-to-end runs through the gateway (invoice lifecycle **71/71**, GST **44/44**, risk **49/49**, assistant **20/20**, demo **28/28**) |
+| **Tested** | 1,276 unit tests across six services plus end-to-end runs through the gateway (invoice lifecycle **71/71**, GST **44/44**, risk **49/49**, assistant **20/20**, demo **28/28**) |
 
 ## Vendor Risk & Clearance Architecture (Prompt 9C)
 

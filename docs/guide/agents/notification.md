@@ -28,6 +28,7 @@ administrator edits in the Control Panel; keep a log and an in-app feed.
 |---|---|
 | Approval needed (each level) | The people assigned to that approval level |
 | SLA reminder | The approvers of the waiting level (signer, finance or reviewers for other reminders) |
+| SLA missed, escalated | The next level's approvers, told it was escalated |
 | Approval outcome | The requester |
 | Contract sent for signature | The signer, with a signing link |
 | Contract generated / signed | The requester; the vendor's contact when signed |
@@ -42,7 +43,7 @@ off is logged as *skipped*.
 
 ## 4. Results and evaluation
 
-- 116 tests: every template renders with its event's documented payload,
+- 125 tests: every template renders with its event's documented payload,
   recipients per event, editing and sandboxing, digest routing.
 - Live check: an edited template with an extra recipient was received by both
   addresses in Mailpit; restoring the default brought the built-in back.

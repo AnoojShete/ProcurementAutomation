@@ -3,6 +3,10 @@ Subject: Action required: approve {{ amount }} {{ currency }} {{ request_type }}
 
 Hello,
 
+{% if escalated_from is defined and escalated_from %}
+This request was escalated to you: the {{ escalated_from }} approval was not given within its SLA.
+
+{% endif %}
 A purchase request has been submitted and is awaiting your review:
 
   Request ID:    {{ request_id }}

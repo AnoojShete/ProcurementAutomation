@@ -229,6 +229,17 @@ work (editable templates, approvers resolved to real people, next-level and remi
 emails), built on 21 Oct at the user's request. Recipients without an assigned person are still placeholder
 role addresses.
 
+### Company SMTP server (Email Settings)
+
+Since 22 Oct admins can set the company's own SMTP server in the app
+(**Email Settings**, sidebar and Control Panel; `/api/smtp` →
+notification-agent `app/api/smtp_settings.py`, with a test-send). The password
+is stored encrypted with AES-256-GCM (`shared/security/encryption.py`) using
+`SMTP_ENCRYPTION_SECRET`. **Open issue:** compose doesn't pass that variable to
+notification-agent, so the default key in the source is used, and production
+mode doesn't refuse it. Set it before a shared deployment and re-save the
+password.
+
 ### Real email with Gmail
 
 1. Turn on 2-Step Verification on the Google account, then create an app
@@ -349,7 +360,7 @@ the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit
 
 | Command | What | Result |
 |---|---|---|
-| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 21: 1,261 passed (contract-risk 321, approval-inventory 275, document-vendor 373, notification 116, auth 110, chatbot 66) |
+| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 23: 1,276 passed (contract-risk 322, approval-inventory 275, document-vendor 373, notification 125, auth 115, chatbot 66). After a `requirements.txt` change, rebuild the service image first or its suite fails to import |
 | root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | Oct 19: 144 + 14 passed, 4 skipped (the chatbot's live script) |
 | `make e2e` | Bash flow through the gateway: login, ClamAV reject/accept, request → approve → contract → signed webhook → risk → email → business-rule change | 17/17 (Oct 19) |
 | `python tests/e2e/auth_flows.py` | Sign-up → email → confirm → login → change password → logout → forgot/reset, expired / reused links, lockout, enumeration, rate limit (reads Mailpit) | 42/42 |
@@ -1103,7 +1114,9 @@ Failures are retried and dead-lettered since FR-31.
 
 Since 21 Oct: approval emails go to the people assigned to the level in
 `approver_assignments` (placeholder only when nobody is assigned), the next
-level is asked when one level approves, `reminder.due` is emailed, the signer
+level is asked when one level approves or the workflow escalates past a missed SLA
+(the workflow's `sla_breach_escalation` notice is turned into an approval request
+to the next level, 23 Oct), `reminder.due` is emailed, the signer
 gets `contract_ready_for_signature` with a signing link, and the vendor's
 contact gets `contract_signed_vendor`. Every template is editable in the
 Control Panel (Notifications).

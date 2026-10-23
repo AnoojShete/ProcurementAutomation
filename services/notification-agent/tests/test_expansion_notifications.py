@@ -224,3 +224,30 @@ def test_vendor_is_told_when_the_contract_is_signed():
         ("contract_signed", "asha@acme.test"), ("contract_signed_vendor", "sales@acme-ltd.test")]
     subject, body = render_template("contract_signed_vendor", sent[1]["context"])
     assert subject == "Contract signed: Acme Ltd" and "c-1" in body
+
+
+def test_sla_escalation_asks_the_next_level_not_the_missed_one():
+    """The workflow's escalation notice names the level that missed its SLA
+    (template sla_breach_escalation, no built-in): the next level's people
+    get an approval request saying it was escalated."""
+    row = type("Row", (), {"requested_by": "asha@acme.test", "department": "IT", "currency": "INR",
+                           "request_type": "hardware", "spend_tier": "manager+finance", "sla_deadline": None})()
+    session = AsyncMock()
+    session.__aenter__.return_value = session
+    session.execute.return_value = type("R", (), {"first": lambda self: row})()
+    sent = []
+
+    async def notify(db, **kw):
+        sent.append(kw)
+    payload = {"recipient": "dept_manager", "channel": "email", "template_name": "sla_breach_escalation",
+               "template_context": {"request_id": "r-1", "decision_level": "level_1_dept_manager"},
+               "priority": "urgent", "related_entity_id": "r-1"}
+    with patch.object(consumer.dispatcher, "notify", notify), _no_action_link(), \
+         patch.object(consumer.directory, "approval_chain", AsyncMock(return_value=(["dept_manager", "finance_head"], 90000.0))), \
+         patch.object(consumer.directory, "approvers_for_level", AsyncMock(return_value=["cfo@acme.test"])), \
+         patch.object(consumer, "async_session_factory", return_value=session):
+        run(consumer.dispatch("notification.send", {"event_type": "notification.send", "payload": payload}))
+    assert [(s["template_name"], s["recipient"]) for s in sent] == [("approval_requested", "cfo@acme.test")]
+    _, body = render_template("approval_requested", {**APPROVAL_REQUESTED, **sent[0]["context"], "action_url": None,
+                                                      "portal_url": "http://x/app/requests/r-1"})
+    assert "escalated to you: the dept_manager approval" in body

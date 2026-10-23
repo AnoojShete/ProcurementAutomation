@@ -231,6 +231,12 @@ in `docs/readmeforme.md` (Research experiment).
   `notification_templates` overrides `app/templates/<name>.j2`; render through
   `template_store.render`, never `templating.render_template` directly in new
   dispatch code, or admin edits are ignored.
+- **After a `requirements.txt` change, rebuild that service's image**
+  (`docker compose up -d --build <svc>`): `test-service.sh` runs the existing
+  image with the source mounted, so a new dependency makes its suite fail to import.
+- **SLA escalation**: the approval workflow sends `notification.send` with
+  template `sla_breach_escalation` naming the missed level; notification-agent
+  turns it into an approval request to the next level (`_ask_next_level`).
 - **Contracts** are generated only after the final approval level
   (`is_final_approval` in contract-risk-agent's consumer): `approval.decided`
   is published once per level.

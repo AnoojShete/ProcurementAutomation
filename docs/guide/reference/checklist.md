@@ -1,7 +1,8 @@
 # Final checklist
 
 Where each item of the *Project Deliverables and Implementation Checklist*
-is implemented, and how it was checked (21 Oct 2026).
+is implemented, and how it was checked (21 Oct 2026; re-checked 23 Oct, see
+[Checklist status](checklist-status.md)).
 
 ## A. End-to-end workflow
 
@@ -11,7 +12,7 @@ is implemented, and how it was checked (21 Oct 2026).
 | A1 Folder watcher feeding Kafka | Worker polls every 3 s; each file becomes `document.ingested` | `test_drop_folder.py` |
 | A1 Failure reasons and logs | `<file>.error.txt` (file, time, document id, reason); worker log; Control Panel → Documents | `TestSettle` |
 | A1 Processing status per document | Control Panel → Documents (stage per file); document page | Screenshot `cpanel/02-documents.png` |
-| **A2** Notifications at every approval stage | Each level's approvers asked (real people from the approval authority); SLA reminders; outcome to the requester; signer asked; vendor told when signed | `test_expansion_notifications.py`; live two-level request: finance emailed after the manager approved |
+| **A2** Notifications at every approval stage | Each level's approvers asked (real people from the approval authority); SLA reminders; on escalation the next level is asked; outcome to the requester; signer asked; vendor told when signed | `test_expansion_notifications.py`; live two-level request: finance emailed after the manager approved |
 | **A3** Templates managed in the Control Panel | Control Panel → Notifications: create, view, edit, preview, turn off, restore | `test_template_store.py`; live edit received in Mailpit by signer and copy recipient |
 | A3 Subject, body, recipient, placeholders | All four editable; placeholders checked on save | same |
 | **A4** Contract generated after approval | After the **final** approval level, from the template and the approved data | `TestContractOnlyAfterFinalApproval`; live two-level request |
@@ -45,4 +46,4 @@ is implemented, and how it was checked (21 Oct 2026).
 | 7 | Functional flow diagram | Done |
 | 8 | Presentation slides | Done (team to rehearse) |
 | 9 | Standardised documentation | Done |
-| 10 | MkDocs documentation site | Done; GitHub Pages publishing needs the repository owner |
+| 10 | MkDocs documentation site | Partially done: builds cleanly; GitHub Pages not published yet (repository owner) |

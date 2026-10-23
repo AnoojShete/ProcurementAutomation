@@ -32,5 +32,5 @@ the decisions that matter: approvals, signatures and anything the system is
 unsure about. Failures are visible (the Failed folder, failed events, the
 validation result of every stage), every step is audited, and an
 administrator runs it from one Control Panel. It is a working, tested
-prototype (1,261 automated service tests, end-to-end suites through the
+prototype (1,276 automated service tests, end-to-end suites through the
 gateway) that runs on one machine with Docker Compose.

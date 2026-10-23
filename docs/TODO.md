@@ -265,6 +265,9 @@ explanations, LLM agent orchestration.
 
 ## A.6 Immediate next actions
 
+0. **SMTP-1** — pass `SMTP_ENCRYPTION_SECRET` to notification-agent in compose
+   (and refuse the default in production); re-save the SMTP password after.
+   Needs the SMTP feature's author: existing saved passwords stop decrypting.
 0. **CHK-1 follow-ups (owner)** — share the slide deck with the team; publish
    the MkDocs site (Actions → Docs → Run workflow with deploy, then Settings →
    Pages → `gh-pages`); `./scripts/reset-demo.sh` before the review (the
@@ -1315,6 +1318,16 @@ before any other roadmap item.
   template), `mkdocs build --strict` clean, `.github/workflows/docs.yml`
   (build on push; Pages deploy only on manual run).
 - Suites Oct 21: services 1,261 passed; root 165 + 14; invoice_lifecycle 71/71; typecheck clean.
+- **Oct 23 re-check** against `main` (after the SMTP-settings / email-change /
+  requester-contract commits): all items done except **F** (site not published).
+  Fixed: SLA escalation emailed the level that missed its SLA (placeholder,
+  generic subject) and never asked the next level — now the next level's
+  approvers get an approval request saying it was escalated (test fails with
+  the fix removed). Found: notification-agent image predated `cryptography`
+  (rebuilt). **Open (SEC):** `SMTP_ENCRYPTION_SECRET` not passed by compose →
+  stored SMTP passwords use the public default key. Suites: services 1,276;
+  root 165 + 14; typecheck and `mkdocs build --strict` clean. Status table:
+  `docs/guide/reference/checklist-status.md`.
 
 ### UX-1 — UI pass (Oct 18)
 

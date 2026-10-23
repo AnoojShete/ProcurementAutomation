@@ -226,10 +226,11 @@ async def _handle_approval_requested(db, payload: dict):
     await _send_approval_request(db, payload, level, step_index)
 
 
-async def _ask_next_level(db, payload: dict) -> None:
+async def _ask_next_level(db, payload: dict, escalated: bool = False) -> None:
     """approval.decided is published per level; after an approval with
-    levels left, the next level's approvers are asked to decide."""
-    if payload.get("decision") != "approved":
+    levels left, the next level's approvers are asked to decide. Also used
+    when a level misses its SLA and the workflow escalates (escalated=True)."""
+    if payload.get("decision") != "approved" and not escalated:
         return
     chain, amount = await directory.approval_chain(db, payload.get("request_id"))
     level = str(payload.get("decision_level") or "")  # "level_<n>_<approver level>"
@@ -250,6 +251,7 @@ async def _ask_next_level(db, payload: dict) -> None:
         "amount": amount, "currency": row.currency or "INR", "request_type": row.request_type,
         "spend_tier": row.spend_tier, "sla_deadline": _when(row.sla_deadline.isoformat()) if row.sla_deadline else "",
         "approval_chain": chain, "step_index": next_index,
+        "escalated_from": chain[next_index - 1] if escalated else "",
     }, chain[next_index], next_index)
 
 
@@ -393,6 +395,14 @@ async def _handle_notification_send(db, payload: dict):
     # `template_name`/`context` variables generic_fallback.j2 expects.
     requested_template = payload.get("template_name")
     template_context = payload.get("template_context") or {}
+
+    if requested_template == "sla_breach_escalation":
+        # The approval workflow escalated past a level that missed its SLA
+        # (its notification names that level, not a person): ask the next
+        # level's people to decide, as after an approval.
+        await _ask_next_level(db, {"request_id": template_context.get("request_id"),
+                                   "decision_level": template_context.get("decision_level")}, escalated=True)
+        return
 
     if requested_template and await template_store.exists(db, requested_template):
         template_name = requested_template

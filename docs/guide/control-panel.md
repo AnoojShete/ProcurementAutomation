@@ -12,6 +12,7 @@ link opens one directly: `/app/control-panel?section=<key>`.
 | Approvals (`approvals`) | Every request waiting for a decision, with its spend tier and SLA countdown | Open a request at its Approval step to decide |
 | Notifications (`notifications`) | Every email template; recent notifications with status | **Create, edit, preview, turn off or restore** a template; add copy recipients |
 | Contracts and e-signatures (`esign`) | Every contract with **Unsigned contract PDF / Signed contract PDF** links and **Pending E-Signature / E-Signature Complete** status | Download either PDF; open a contract to sign or send it |
+| Email Settings (`email`) | Company SMTP server (password stored encrypted) | Set up and test sending from your own domain |
 | Storage (`storage`) | MinIO bucket, object count, latest files | Check storage without the MinIO console |
 | Administration (`admin`) | Links to System Health, Users, Controls, Business Rules, Audit | Manage users, rules and authority |
 

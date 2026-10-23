@@ -26,6 +26,14 @@ Thresholds and behaviour live in **Business Rules** (admin), not in code. Exampl
 | `document.image_preprocessing` | Deskew and upscale images before OCR |
 | `license.anomaly_*` | Licence anomaly thresholds |
 
+## Company SMTP server (no restart)
+
+Admins set the company's own SMTP server under **Email Settings** (sidebar or
+Control Panel → Email Settings; API `/api/smtp`). The password is stored
+encrypted (AES-256-GCM) with a key derived from `SMTP_ENCRYPTION_SECRET`.
+**Note:** compose doesn't pass that variable to notification-agent yet, so the
+built-in default key is used; set it before any shared deployment.
+
 ## Notification templates (no restart)
 
 Control Panel → Notifications. See [Control Panel](../control-panel.md#notification-templates).
