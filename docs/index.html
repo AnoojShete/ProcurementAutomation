@@ -573,7 +573,7 @@ const DELIVERABLES = [
   ]},
   { group: "Mentor feedback", color: "var(--agent)", items: [
     ["FR-01 Auto-send after approval", "ok"], ["FR-02 Renewals from notice deadline", "ok"], ["FR-03 Reminders for pending actions", "ok"],
-    ["FR-04 Risk analysis documented", "part"], ["FR-05 Demo script", "part"], ["FR-06 Persistent Kafka monitoring", "ok"],
+    ["FR-04 Risk analysis documented", "part"], ["FR-05 Demo script", "ok"], ["FR-06 Persistent Kafka monitoring", "ok"],
     ["FR-07 Searchable logs", "ok"], ["FR-08 Model routing & fallback", "ok"], ["FR-09 Business rules validated", "ok"],
     ["FR-10 Notification coverage", "ok"], ["FR-11 Layout accuracy", "ok"], ["FR-12 Presentation", "ok"],
     ["FR-13 Clause model", "ok"], ["FR-14 Sanctions screening", "ok"], ["FR-29 Trained classifier", "ok"],
@@ -974,7 +974,7 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
       <tr><td>Application logs you can search</td><td><span class="pill g">done</span></td><td>Grafana → Logs: one correlation id across services (FR-07)</td></tr>
       <tr><td>Risk analysis documented and evaluated</td><td><span class="pill g">done</span></td><td><a href="risk-model.html">risk-model.html</a>: red team 25/25 against the real scorecard and clearance (five controls fixed; the team's Caspian, SSPL and ADDA vendors added Oct 23), ruleset evaluated (ROC-AUC 0.738) (FR-04, BR-7)</td></tr>
       <tr><td>Document layout accuracy</td><td><span class="pill g">done</span></td><td><code>docs/results/extraction.md</code>: preprocessing helps clean/rotated scans, not noisy ones (FR-11, BR-2)</td></tr>
-      <tr><td>Demo script, presentation</td><td><span class="pill a">mostly</span></td><td>This page with real screenshots; results index and deck outline in <code>docs/results/</code> (FR-12 done). A teammate still has to run it on fresh data (FR-05)</td></tr>
+      <tr><td>Demo script, presentation</td><td><span class="pill g">done</span></td><td>This page with real screenshots; eight scenarios checked live 28/28 (23 Oct), 5-minute cut 6/6 with a backup recording; results index and deck outline in <code>docs/results/</code> (FR-05, FR-12 done). Still to do: a teammate rehearses it after <code>./scripts/reset-demo.sh</code></td></tr>
       <tr><td>Model routing &amp; fallback, shown on demand</td><td><span class="pill g">done</span></td><td>Force-fallback rule → System Health routing log (FR-08)</td></tr>
       <tr><td>Business rules validated</td><td><span class="pill g">done</span></td><td><code>docs/business-rules.md</code>: 59 rules, a behaviour test for each enforced one (FR-09)</td></tr>
       <tr><td>Notification coverage</td><td><span class="pill g">done</span></td><td><code>docs/readmeforme.md#appendix-c-notification-coverage-audit-fr-10</code>; gaps handed over (FR-10)</td></tr>
