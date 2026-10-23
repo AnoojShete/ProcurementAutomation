@@ -153,14 +153,18 @@ def test_approval_request_goes_to_the_people_holding_the_level():
     levels = {"dept_manager": ["boss@acme.test", "deputy@acme.test"]}
     with _no_action_link():
         sent = _calls("approval.requested", APPROVAL_REQUESTED, approvers_for_level=lambda db, l, a=None: levels.get(l, []))
-    assert [s["recipient"] for s in sent] == ["boss@acme.test", "deputy@acme.test"]
-    assert sent[0]["context"]["portal_url"].endswith("/app/requests/r-1?step=approval")
+    approver_sent = [s for s in sent if s["template_name"] == "approval_requested"]
+    assert [s["recipient"] for s in approver_sent] == ["boss@acme.test", "deputy@acme.test"]
+    assert approver_sent[0]["context"]["portal_url"].endswith("/app/requests/r-1?step=approval")
+    user_sent = [s for s in sent if s["template_name"] == "request_submitted"]
+    assert [s["recipient"] for s in user_sent] == ["asha@acme.test"]
 
 
 def test_approval_request_without_assigned_people_keeps_the_level_mailbox():
     with _no_action_link():
         sent = _calls("approval.requested", APPROVAL_REQUESTED, approvers_for_level=[])
-    assert [s["recipient"] for s in sent] == ["dept_manager@users.procurement.local"]
+    approver_sent = [s for s in sent if s["template_name"] == "approval_requested"]
+    assert [s["recipient"] for s in approver_sent] == ["dept_manager@users.procurement.local"]
 
 
 def test_approval_at_one_level_asks_the_next_level():
@@ -180,6 +184,7 @@ def test_approval_at_one_level_asks_the_next_level():
          patch.object(consumer.directory, "requester_for_request_id", AsyncMock(return_value="asha@acme.test")), \
          patch.object(consumer.directory, "approval_chain", AsyncMock(return_value=(["dept_manager", "finance_head"], 90000.0))), \
          patch.object(consumer.directory, "approvers_for_level", AsyncMock(return_value=["cfo@acme.test"])), \
+         patch.object(consumer.directory, "vendor_for_request", AsyncMock(return_value=None)), \
          patch.object(consumer, "async_session_factory", return_value=session):
         run(consumer.dispatch("approval.decided", {"event_type": "approval.decided", "payload": decided}))
     assert [(s["template_name"], s["recipient"]) for s in sent] == [
@@ -192,8 +197,22 @@ def test_last_approval_or_a_rejection_asks_nobody_else(decision, level):
     decided = {"request_id": "r-1", "decision": decision, "decided_by": "x@acme.test", "decision_level": level,
                "escalated": False, "decided_at": "2026-10-21T10:00:00Z", "comments": None}
     sent = _calls("approval.decided", decided, requester_for_request_id="asha@acme.test",
-                  approval_chain=(["dept_manager", "finance_head"], 90000.0))
+                  approval_chain=(["dept_manager", "finance_head"], 90000.0),
+                  vendor_for_request=None)
     assert [s["template_name"] for s in sent] == ["approval_decided"]
+
+
+def test_vendor_is_told_when_approval_is_decided_final_or_rejected():
+    decided = {"request_id": "r-1", "decision": "rejected", "decided_by": "boss@acme.test",
+               "decision_level": "level_1_dept_manager", "escalated": False,
+               "decided_at": "2026-10-21T10:00:00Z", "comments": "Budget limits exceeded"}
+    sent = _calls("approval.decided", decided, requester_for_request_id="asha@acme.test",
+                  approval_chain=(["dept_manager"], 90000.0),
+                  vendor_for_request="v-1", vendor_name="Acme Ltd", vendor_contact="sales@acme-ltd.test")
+    assert [(s["template_name"], s["recipient"]) for s in sent] == [
+        ("approval_decided", "asha@acme.test"), ("approval_decided_vendor", "sales@acme-ltd.test")]
+    subject, body = render_template("approval_decided_vendor", sent[1]["context"])
+    assert "r-1: rejected" in subject and "Acme Ltd" in body and "Budget limits exceeded" in body
 
 
 def test_sla_reminder_goes_to_the_approvers_with_a_link():

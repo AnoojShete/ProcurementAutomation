@@ -1,0 +1,17 @@
+Subject: Request {{ request_id }} submitted for approval ({{ amount }} {{ currency }})
+---
+Hello,
+
+Your purchase request has been submitted and is currently awaiting review:
+
+  Request ID:    {{ request_id }}
+  Type:          {{ request_type }}
+  Amount:        {{ amount }} {{ currency }}
+  Department:    {{ department }}
+  Spend tier:    {{ spend_tier }}
+  SLA deadline:  {{ sla_deadline }}
+
+You can track your request status in the portal:
+  {{ portal_url if (portal_url is defined and portal_url) else "http://localhost:8080/app/requests" }}
+
+— IT Procurement Platform

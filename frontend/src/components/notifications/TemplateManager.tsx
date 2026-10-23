@@ -17,6 +17,17 @@ import { cn } from "@/lib/cn";
 
 const NEW = "__new__";
 
+const COMMON_SUGGESTED_PLACEHOLDERS = [
+  "request_id",
+  "amount",
+  "currency",
+  "requested_by",
+  "department",
+  "vendor_name",
+  "decision",
+  "portal_url",
+];
+
 function message(e: unknown) {
   return e instanceof ApiError ? e.message : "Couldn't reach the notification service.";
 }
@@ -120,29 +131,59 @@ function TemplateEditor({
   const [name, setName] = useState("");
   const [subject, setSubject] = useState(template?.subject ?? "");
   const [body, setBody] = useState(template?.body ?? "");
+  const [recipient, setRecipient] = useState(template?.configured_recipient ?? "");
   const [recipients, setRecipients] = useState((template?.extra_recipients ?? []).join(", "));
   const [enabled, setEnabled] = useState(template?.enabled ?? true);
   const [description, setDescription] = useState(template?.description ?? "");
   const [busy, setBusy] = useState<"save" | "reset" | "preview" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ subject: string; body: string } | null>(null);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [preview, setPreview] = useState<{ subject: string; body: string; recipient?: string | null } | null>(null);
+  const [activeField, setActiveField] = useState<"subject" | "body" | "recipient">("body");
 
-  const placeholders = template?.placeholders ?? [];
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const recipientRef = useRef<HTMLInputElement>(null);
+
+  const availablePlaceholders =
+    template?.placeholders && template.placeholders.length > 0
+      ? template.placeholders
+      : COMMON_SUGGESTED_PLACEHOLDERS;
   const extra = recipients.split(/[,;]/).map((r) => r.trim()).filter(Boolean);
 
   const insert = (p: string) => {
-    const el = bodyRef.current;
     const token = `{{ ${p} }}`;
-    if (!el) return setBody((b) => b + token);
-    const start = el.selectionStart ?? body.length;
-    const end = el.selectionEnd ?? body.length;
-    setBody(body.slice(0, start) + token + body.slice(end));
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start + token.length, start + token.length);
-    });
+    if (activeField === "subject") {
+      const el = subjectRef.current;
+      if (!el) return setSubject((s) => s + " " + token);
+      const start = el.selectionStart ?? subject.length;
+      const end = el.selectionEnd ?? subject.length;
+      setSubject(subject.slice(0, start) + token + subject.slice(end));
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(start + token.length, start + token.length);
+      });
+    } else if (activeField === "recipient") {
+      const el = recipientRef.current;
+      if (!el) return setRecipient((r) => r + token);
+      const start = el.selectionStart ?? recipient.length;
+      const end = el.selectionEnd ?? recipient.length;
+      setRecipient(recipient.slice(0, start) + token + recipient.slice(end));
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(start + token.length, start + token.length);
+      });
+    } else {
+      const el = bodyRef.current;
+      if (!el) return setBody((b) => b + token);
+      const start = el.selectionStart ?? body.length;
+      const end = el.selectionEnd ?? body.length;
+      setBody(body.slice(0, start) + token + body.slice(end));
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(start + token.length, start + token.length);
+      });
+    }
   };
 
   const run = async (kind: "save" | "reset" | "preview", fn: () => Promise<void>) => {
@@ -160,13 +201,20 @@ function TemplateEditor({
 
   const save = () =>
     run("save", async () => {
-      const input = { subject, body, description, extra_recipients: extra, enabled };
+      const input = {
+        subject,
+        body,
+        description,
+        recipient: recipient.trim() || undefined,
+        extra_recipients: extra,
+        enabled,
+      };
       if (creating) {
         const { data } = await notificationsApi.createTemplate({ ...input, name: name.trim() });
         onSaved(data.name);
       } else if (template) {
         await notificationsApi.updateTemplate(template.name, input);
-        setNotice("Saved. The next email uses this text.");
+        setNotice("Saved. The next email uses this configuration.");
         onSaved(template.name);
       }
     });
@@ -181,9 +229,16 @@ function TemplateEditor({
 
   const showPreview = () =>
     run("preview", async () => {
-      const { data } = await notificationsApi.previewTemplate(template?.name ?? "generic_fallback", subject, body);
+      const { data } = await notificationsApi.previewTemplate(
+        template?.name ?? "generic_fallback",
+        subject,
+        body,
+        recipient.trim() || undefined,
+      );
       setPreview(data);
     });
+
+  const defaultAudience = template?.default?.recipient || template?.recipient || "Routed event recipient";
 
   return (
     <div>
@@ -223,7 +278,29 @@ function TemplateEditor({
         )}
         <label className="flex flex-col gap-1 text-13 text-ink-2">
           Subject
-          <input className="field" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          <input
+            ref={subjectRef}
+            className="field"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            onFocus={() => setActiveField("subject")}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-13 text-ink-2">
+          Recipient (Target)
+          <input
+            ref={recipientRef}
+            className="field font-mono text-13"
+            value={recipient}
+            onChange={(e) => setRecipient(e.target.value)}
+            onFocus={() => setActiveField("recipient")}
+            placeholder={creating ? "e.g. {{ requested_by }} or ops@company.com" : `Default: ${defaultAudience}`}
+          />
+          <span className="text-ink-3">
+            {creating
+              ? "Specify a target email address or dynamic placeholder (e.g. {{ requested_by }})."
+              : `Leave blank to use the default audience (${defaultAudience}), or specify an override address/placeholder.`}
+          </span>
         </label>
         <label className="flex flex-col gap-1 text-13 text-ink-2">
           Message body
@@ -232,21 +309,23 @@ function TemplateEditor({
             className="field h-72 py-2 font-mono text-13 leading-relaxed sm:h-72"
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            onFocus={() => setActiveField("body")}
             spellCheck={false}
           />
         </label>
-        {placeholders.length > 0 && (
+        {availablePlaceholders.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <span className="text-13 text-ink-2">
-              Placeholders {template?.placeholders_fixed ? "this email can use" : "in this template"} (click to insert)
+              Dynamic placeholders (click to insert into {activeField}):
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {placeholders.map((p) => (
+              {availablePlaceholders.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => insert(p)}
                   className="rounded-sm border border-rule bg-sheet-sunk px-1.5 py-0.5 font-mono text-13 text-ink-2 hover:border-rule-strong hover:text-ink"
+                  title={`Insert {{ ${p} }} into ${activeField}`}
                 >
                   {`{{ ${p} }}`}
                 </button>
@@ -255,7 +334,7 @@ function TemplateEditor({
           </div>
         )}
         <label className="flex flex-col gap-1 text-13 text-ink-2">
-          Also send a copy to
+          Also send a copy to (CC)
           <input
             className="field"
             value={recipients}
@@ -263,7 +342,7 @@ function TemplateEditor({
             placeholder="audit@company.com, cfo@company.com"
           />
           <span className="text-ink-3">
-            Comma-separated. {creating ? "The sender names the main recipient." : `The main recipient is ${template?.recipient?.toLowerCase()}.`}
+            Comma-separated email addresses that receive a copy.
           </span>
         </label>
         <label className="flex items-center gap-2 text-sm text-ink">
@@ -296,6 +375,12 @@ function TemplateEditor({
 
         {preview && (
           <div className="rounded border border-rule bg-paper">
+            {preview.recipient && (
+              <div className="border-b border-rule px-4 py-2 text-13">
+                <span className="text-ink-3">To: </span>
+                <span className="font-mono text-ink">{preview.recipient}</span>
+              </div>
+            )}
             <div className="border-b border-rule px-4 py-2 text-13">
               <span className="text-ink-3">Subject: </span>
               <span className="font-medium text-ink">{preview.subject}</span>

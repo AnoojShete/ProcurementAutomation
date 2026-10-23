@@ -199,3 +199,9 @@ async def vendor_for_contract(db: AsyncSession, contract_id: Optional[str]) -> O
     if not contract_id:
         return None
     return await _scalar(db, "SELECT vendor_id::text FROM contracts WHERE id = CAST(:c AS uuid)", {"c": contract_id})
+
+
+async def vendor_for_request(db: AsyncSession, request_id: Optional[str]) -> Optional[str]:
+    if not request_id:
+        return None
+    return await _scalar(db, "SELECT vendor_id::text FROM purchase_requests WHERE id = CAST(:r AS uuid)", {"r": request_id})

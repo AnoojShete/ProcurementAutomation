@@ -1,0 +1,20 @@
+Subject: Update on purchase request {{ request_id }}: {{ decision }}
+---
+Hello {{ vendor_name }},
+
+This is an automated update regarding purchase request {{ request_id }}.
+
+  Request ID:      {{ request_id }}
+  Status:          {{ decision }}
+  Decided at:      {{ decided_at }}
+{% if comments %}
+  Comments:        {{ comments }}
+{% endif %}
+
+{% if decision == 'approved' %}
+Our procurement team will follow up shortly regarding contract preparation or purchase order issuance.
+{% else %}
+Thank you for your quotation. Unfortunately this purchase request was not approved at this time.
+{% endif %}
+
+— IT Procurement Platform

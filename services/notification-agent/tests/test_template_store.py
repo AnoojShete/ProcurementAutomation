@@ -34,7 +34,7 @@ def run(coro):
 
 def _row(**kw):
     base = dict(name="approval_requested", description="", subject="S", body="B", extra_recipients="",
-                enabled=True, is_custom=False, updated_by="admin@acme.test", updated_at=None)
+                enabled=True, is_custom=False, updated_by="admin@acme.test", updated_at=None, recipient=None)
     return SimpleNamespace(**(base | kw))
 
 
@@ -49,6 +49,7 @@ class TestBuiltins:
     def test_every_builtin_splits_into_subject_and_body(self):
         names = template_store.builtin_names()
         assert "approval_requested" in names and "contract_signed" in names
+        assert "approval_decided_vendor" in names and "request_submitted" in names
         for name in names:
             subject, body = template_store.builtin_source(name)
             assert subject and body and not subject.lower().startswith("subject:")
@@ -80,7 +81,7 @@ class TestValidate:
 
     def test_custom_template_may_use_any_placeholder(self):
         template_store.validate("quarterly_review", "Review for {{ vendor_name }}", "{{ anything }}", [],
-                                creating=True)
+                                recipient="{{ contact_email }}", creating=True)
 
     def test_multi_line_subject_is_refused(self):
         with pytest.raises(TemplateValidationError, match="one line"):
@@ -94,11 +95,12 @@ class TestRender:
 
     def test_override_wins(self):
         row = _row(subject="Please approve {{ request_id }}", body="Amount {{ amount }} {{ currency }}",
-                   extra_recipients="audit@acme.test, cfo@acme.test")
+                   extra_recipients="audit@acme.test, cfo@acme.test", recipient="{{ requested_by }}")
         email = run(template_store.render(_db(row), "approval_requested", APPROVAL))
         assert email.subject == "Please approve PR-1"
         assert email.body == "Amount 1200 INR"
         assert email.extra_recipients == ["audit@acme.test", "cfo@acme.test"]
+        assert email.recipient == "asha@acme.test"
 
     def test_broken_override_falls_back_to_the_builtin(self):
         row = _row(subject="Approve {{ missing_field }}")
@@ -129,6 +131,11 @@ class TestDispatcher:
         send, record = self._notify(template_store.Rendered("S", "B", ["audit@acme.test"], True))
         assert [c.args[0] for c in send.await_args_list] == ["boss@acme.test", "audit@acme.test"]
         assert [c.kwargs["status"] for c in record.await_args_list] == ["sent", "sent"]
+
+    def test_configured_recipient_overrides_routed_recipient(self):
+        send, record = self._notify(template_store.Rendered("S", "B", [], True, recipient="cfo@acme.test"))
+        assert [c.args[0] for c in send.await_args_list] == ["cfo@acme.test"]
+        assert [c.kwargs["status"] for c in record.await_args_list] == ["sent"]
 
     def test_turned_off_template_is_logged_not_sent(self):
         send, record = self._notify(template_store.Rendered("", "", [], False))
@@ -182,7 +189,14 @@ class TestApi:
     def test_preview_fills_sample_values(self):
         r = _client("admin").post("/notifications/templates/approval_requested/preview",
                                   json={"subject": "Approve {{ request_id }}", "body": "{{ amount }}"})
-        assert r.json()["data"] == {"subject": "Approve [request_id]", "body": "[amount]"}
+        d = r.json()["data"]
+        assert d["subject"] == "Approve [request_id]" and d["body"] == "[amount]"
+
+    def test_preview_fills_recipient(self):
+        r = _client("admin").post("/notifications/templates/approval_requested/preview",
+                                  json={"subject": "Approve", "body": "B", "recipient": "{{ requested_by }}"})
+        d = r.json()["data"]
+        assert d["recipient"] == "[requested_by]"
 
     def test_unknown_template_is_404(self):
         assert _client("admin").get("/notifications/templates/nope").status_code == 404
