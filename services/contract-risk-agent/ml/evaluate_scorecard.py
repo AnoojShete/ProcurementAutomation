@@ -71,7 +71,12 @@ def observations(row) -> dict:
 
 
 def evaluate() -> dict:
-    df = pd.read_csv(OUT_CSV) if os.path.exists(OUT_CSV) else build_dataset()
+    if os.path.exists(OUT_CSV):
+        df = pd.read_csv(OUT_CSV)
+        if len(df) < 2000:
+            df = build_dataset()
+    else:
+        df = build_dataset()
     _, X_test, _, y_test = split(df)
     ruleset = get_default_ruleset()
     points, bands = [], []
@@ -106,7 +111,7 @@ def main():
     if os.path.isdir(os.path.dirname(out)):
         with open(out, "w") as f:
             json.dump(result, f, indent=2)
-        print("→ docs/results/risk-scorecard-eval.json")
+        print("-> docs/results/risk-scorecard-eval.json")
 
 
 if __name__ == "__main__":
