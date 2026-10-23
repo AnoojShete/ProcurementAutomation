@@ -68,6 +68,10 @@ class TestListScoping:
         _client("requester").get("/contracts/")
         assert svc.list.await_args.kwargs["requested_by"] == "alice@acme.test"
 
+    def test_filter_by_purchase_request_id(self, svc):
+        _client("requester").get("/contracts/?purchase_request_id=pr-123")
+        assert svc.list.await_args.kwargs["purchase_request_id"] == "pr-123"
+
     def test_requester_renewals_are_scoped_too(self, svc):
         _client("requester").get("/contracts/renewals-due?within_days=30")
         assert svc.renewals.await_args.kwargs["requested_by"] == "alice@acme.test"

@@ -128,7 +128,38 @@ async def load_assignments(db, level: Optional[str] = None) -> list[Assignment]:
         q += " AND level = :level"
         params["level"] = level
     rows = (await db.execute(text(q), params)).all()
-    return [Assignment(r.level, r.user_email, float(r.max_amount) if r.max_amount is not None else None) for r in rows]
+    assignments = [Assignment(r.level, r.user_email, float(r.max_amount) if r.max_amount is not None else None) for r in rows]
+
+    # Seamless fallback: Ensure active users from auth_users with matching roles
+    # (approver -> dept_manager, finance -> finance_head, admin -> both) are
+    # recognized if not explicitly deactivated.
+    try:
+        user_rows = (await db.execute(text("SELECT email, role FROM auth_users WHERE is_active"))).all()
+        deact_rows = (await db.execute(text("SELECT lower(user_email), level FROM approver_assignments WHERE NOT active"))).all()
+        deactivated = {(r[0], r[1]) for r in deact_rows}
+        existing_keys = {(_norm(a.user_email), a.level) for a in assignments}
+
+        for u in user_rows:
+            u_email = _norm(u.email)
+            u_role = u.role
+            levels_for_role = []
+            if u_role == "approver":
+                levels_for_role = ["dept_manager"]
+            elif u_role == "finance":
+                levels_for_role = ["finance_head"]
+            elif u_role == "admin":
+                levels_for_role = ["dept_manager", "finance_head"]
+
+            for lvl in levels_for_role:
+                if level and lvl != level:
+                    continue
+                if (u_email, lvl) not in existing_keys and (u_email, lvl) not in deactivated:
+                    assignments.append(Assignment(lvl, u_email, None))
+                    existing_keys.add((u_email, lvl))
+    except Exception:
+        pass
+
+    return assignments
 
 
 async def load_delegations(db, level: Optional[str] = None) -> list[Delegation]:

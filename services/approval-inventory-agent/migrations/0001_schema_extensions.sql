@@ -171,7 +171,10 @@ INSERT INTO approver_assignments (id, level, user_email, max_amount, created_by)
   ('a0000000-0000-4000-8000-000000000001', 'dept_manager', 'approver@demo.example.com', NULL, 'seed'),
   ('a0000000-0000-4000-8000-000000000002', 'finance_head', 'finance@demo.example.com', NULL, 'seed'),
   ('a0000000-0000-4000-8000-000000000003', 'dept_manager', 'admin@demo.example.com', NULL, 'seed'),
-  ('a0000000-0000-4000-8000-000000000004', 'finance_head', 'admin@demo.example.com', NULL, 'seed')
+  ('a0000000-0000-4000-8000-000000000004', 'finance_head', 'admin@demo.example.com', NULL, 'seed'),
+  ('a0000000-0000-4000-8000-000000000005', 'dept_manager', 'v89714260@gmail.com', NULL, 'seed'),
+  ('a0000000-0000-4000-8000-000000000006', 'finance_head', 'nirajsawant761@gmail.com', NULL, 'seed'),
+  ('a0000000-0000-4000-8000-000000000007', 'dept_manager', 'approver2@demo.example.com', NULL, 'seed')
 ON CONFLICT (level, user_email) DO NOTHING
 ;
 

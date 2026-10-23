@@ -29,7 +29,10 @@ export const contractsApi = {
   /** Admin: every contract's e-signature state with its PDF links. */
   esignDocuments: (status?: string) =>
     api.get<EsignDocument[]>(`/contracts/esign/documents?limit=200${status ? `&status=${status}` : ""}`),
-  list: (limit = 200) => api.get<Contract[]>(`/contracts/?limit=${limit}`),
+  list: (limit = 200, purchase_request_id?: string) =>
+    api.get<Contract[]>(
+      `/contracts/?limit=${limit}${purchase_request_id ? `&purchase_request_id=${encodeURIComponent(purchase_request_id)}` : ""}`,
+    ),
   get: (id: string) => api.get<Contract>(`/contracts/${id}`),
   renewalsDue: (withinDays = 60) => api.get<Contract[]>(`/contracts/renewals-due?within_days=${withinDays}`),
   generate: (purchase_request_id: string, template_name: ContractTemplate) =>

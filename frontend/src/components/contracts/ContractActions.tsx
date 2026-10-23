@@ -169,17 +169,31 @@ export function ContractActions({
   return (
     <div className="flex flex-col gap-2">
       <div className={wrap}>
-        <Button
-          variant="secondary"
-          icon={<Download className="size-4" />}
-          loading={downloading === "document"}
-          onClick={() => download("document")}
-        >
-          {contract.status === "signed" ? "Original PDF" : "Download PDF"}
-        </Button>
-        {contract.status === "signed" && (
-          <Button icon={<FileCheck2 className="size-4" />} loading={downloading === "signed"} onClick={() => download("signed")}>
-            Download signed copy
+        {contract.status === "signed" ? (
+          <>
+            <Button
+              icon={<Download className="size-4" />}
+              loading={downloading === "signed"}
+              onClick={() => download("signed")}
+            >
+              Download signed copy
+            </Button>
+            <Button
+              variant="secondary"
+              loading={downloading === "document"}
+              onClick={() => download("document")}
+            >
+              Original PDF (unsigned)
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="secondary"
+            icon={<Download className="size-4" />}
+            loading={downloading === "document"}
+            onClick={() => download("document")}
+          >
+            Download PDF
           </Button>
         )}
         {contract.status === "signed" && certificate && (

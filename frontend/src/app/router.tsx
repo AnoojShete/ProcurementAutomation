@@ -1,283 +1,283 @@
-import { lazy, Suspense } from "react";
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
-import { ProtectedRoute } from "./ProtectedRoute";
-import { RoleGuard } from "./RoleGuard";
-import { AppShell } from "@/layouts/AppShell";
-import { LoginPage } from "@/pages/LoginPage";
-import { SignUpPage } from "@/pages/auth/SignUpPage";
-import { VerifyEmailPage } from "@/pages/auth/VerifyEmailPage";
-import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
-import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
-import { NotFoundPage } from "@/pages/NotFoundPage";
-
-const ControlsPage = lazy(() => import("@/pages/admin/ControlsPage").then((m) => ({ default: m.ControlsPage })));
-const DashboardPage = lazy(() => import("@/pages/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })));
-const RequestsListPage = lazy(() => import("@/pages/requests/RequestsListPage").then((m) => ({ default: m.RequestsListPage })));
-const NewRequestWizardPage = lazy(() => import("@/pages/requests/NewRequestWizardPage").then((m) => ({ default: m.NewRequestWizardPage })));
-const RequestDetailPage = lazy(() => import("@/pages/requests/RequestDetailPage").then((m) => ({ default: m.RequestDetailPage })));
-const DocumentsListPage = lazy(() => import("@/pages/documents/DocumentsListPage").then((m) => ({ default: m.DocumentsListPage })));
-const DocumentDetailPage = lazy(() => import("@/pages/documents/DocumentDetailPage").then((m) => ({ default: m.DocumentDetailPage })));
-const VendorsListPage = lazy(() => import("@/pages/vendors/VendorsListPage").then((m) => ({ default: m.VendorsListPage })));
-const VendorDetailPage = lazy(() => import("@/pages/vendors/VendorDetailPage").then((m) => ({ default: m.VendorDetailPage })));
-const VendorRiskScorecardPage = lazy(() => import("@/pages/vendors/VendorRiskScorecardPage").then((m) => ({ default: m.VendorRiskScorecardPage })));
-const ApprovalInboxPage = lazy(() => import("@/pages/approvals/ApprovalInboxPage").then((m) => ({ default: m.ApprovalInboxPage })));
-const InventoryPage = lazy(() => import("@/pages/inventory/InventoryPage").then((m) => ({ default: m.InventoryPage })));
-const LicensesListPage = lazy(() => import("@/pages/licenses/LicensesListPage").then((m) => ({ default: m.LicensesListPage })));
-const LicenseDetailPage = lazy(() => import("@/pages/licenses/LicenseDetailPage").then((m) => ({ default: m.LicenseDetailPage })));
-
-const ContractsListPage = lazy(() => import("@/pages/contracts/ContractsListPage").then((m) => ({ default: m.ContractsListPage })));
-const ContractDetailPage = lazy(() => import("@/pages/contracts/ContractDetailPage").then((m) => ({ default: m.ContractDetailPage })));
-const RiskDashboardPage = lazy(() => import("@/pages/risk/RiskDashboardPage").then((m) => ({ default: m.RiskDashboardPage })));
-const NotificationsPage = lazy(() => import("@/pages/notifications/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
-const SpendAnalysisPage = lazy(() => import("@/pages/finance/SpendAnalysisPage").then((m) => ({ default: m.SpendAnalysisPage })));
-const BudgetsPage = lazy(() => import("@/pages/finance/BudgetsPage").then((m) => ({ default: m.BudgetsPage })));
-const GstPage = lazy(() => import("@/pages/finance/GstPage").then((m) => ({ default: m.GstPage })));
-const BudgetDetailPage = lazy(() => import("@/pages/finance/BudgetDetailPage").then((m) => ({ default: m.BudgetDetailPage })));
-const CatalogPage = lazy(() => import("@/pages/sourcing/CatalogPage").then((m) => ({ default: m.CatalogPage })));
-const RfqListPage = lazy(() => import("@/pages/sourcing/RfqListPage").then((m) => ({ default: m.RfqListPage })));
-const RfqDetailPage = lazy(() => import("@/pages/sourcing/RfqDetailPage").then((m) => ({ default: m.RfqDetailPage })));
-const AuditActivityPage = lazy(() => import("@/pages/admin/AuditActivityPage").then((m) => ({ default: m.AuditActivityPage })));
-const ControlPanelPage = lazy(() => import("@/pages/admin/ControlPanelPage").then((m) => ({ default: m.ControlPanelPage })));
-const SystemHealthPage = lazy(() => import("@/pages/admin/SystemHealthPage").then((m) => ({ default: m.SystemHealthPage })));
-const SystemPage = lazy(() => import("@/pages/admin/SystemPage").then((m) => ({ default: m.SystemPage })));
-const UserProfilePage = lazy(() => import("@/pages/admin/UserProfilePage").then((m) => ({ default: m.UserProfilePage })));
-const UsersPage = lazy(() => import("@/pages/admin/UsersPage").then((m) => ({ default: m.UsersPage })));
-const AccountPage = lazy(() => import("@/pages/account/AccountPage").then((m) => ({ default: m.AccountPage })));
-const BusinessRulesPage = lazy(() => import("@/pages/admin/BusinessRulesPage").then((m) => ({ default: m.BusinessRulesPage })));
-const EmailSettingsPage = lazy(() => import("@/pages/admin/EmailSettingsPage").then((m) => ({ default: m.EmailSettingsPage })));
-
-function Loading() {
-  return (
-    <div className="flex h-64 items-center justify-center">
-      <div className="size-6 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" />
-    </div>
-  );
-}
-
-function withSuspense(el: React.ReactNode) {
-  return <Suspense fallback={<Loading />}>{el}</Suspense>;
-}
-
-const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/app" replace /> },
-  { path: "/login", element: <LoginPage /> },
-  // Signed-out account pages. The email links point at the last three.
-  { path: "/signup", element: <SignUpPage /> },
-  { path: "/verify-email", element: <VerifyEmailPage /> },
-  { path: "/forgot-password", element: <ForgotPasswordPage /> },
-  { path: "/reset-password", element: <ResetPasswordPage /> },
-  {
-    path: "/app",
-    element: (
-      <ProtectedRoute>
-        <AppShell />
-      </ProtectedRoute>
-    ),
-    children: [
-      { index: true, element: withSuspense(<DashboardPage />) },
-      { path: "requests", element: withSuspense(<RequestsListPage />) },
-      {
-        path: "requests/new",
-        element: withSuspense(
-          <RoleGuard allow={["requester", "admin"]}>
-            <NewRequestWizardPage />
-          </RoleGuard>,
-        ),
-      },
-      { path: "requests/:id", element: withSuspense(<RequestDetailPage />) },
-      { path: "documents", element: withSuspense(<DocumentsListPage />) },
-      { path: "documents/:id", element: withSuspense(<DocumentDetailPage />) },
-      { path: "vendors", element: withSuspense(<VendorsListPage />) },
-      { path: "vendors/:id", element: withSuspense(<VendorDetailPage />) },
-      { path: "vendors/:id/risk", element: withSuspense(<VendorRiskScorecardPage />) },
-      {
-        path: "approvals",
-        element: withSuspense(
-          <RoleGuard allow={["approver", "finance", "admin"]}>
-            <ApprovalInboxPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "inventory",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <InventoryPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "licenses",
-        element: withSuspense(
-          <RoleGuard allow={["admin", "finance", "approver"]}>
-            <LicensesListPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "licenses/:id",
-        element: withSuspense(
-          <RoleGuard allow={["admin", "finance", "approver"]}>
-            <LicenseDetailPage />
-          </RoleGuard>,
-        ),
-      },
-
-      {
-        path: "contracts",
-        element: withSuspense(
-          <RoleGuard allow={["finance", "admin", "approver"]}>
-            <ContractsListPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "contracts/:id",
-        element: withSuspense(
-          <RoleGuard allow={["finance", "admin", "approver"]}>
-            <ContractDetailPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "risk",
-        element: withSuspense(
-          <RoleGuard allow={["finance", "admin"]}>
-            <RiskDashboardPage />
-          </RoleGuard>,
-        ),
-      },
-      { path: "notifications", element: withSuspense(<NotificationsPage />) },
-      { path: "account", element: withSuspense(<AccountPage />) },
-      {
-        path: "system",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <SystemPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "users",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <UsersPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "users/:id",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <UserProfilePage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "budgets",
-        element: withSuspense(
-          <RoleGuard allow={["approver", "finance", "admin"]}>
-            <BudgetsPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "budgets/:id",
-        element: withSuspense(
-          <RoleGuard allow={["approver", "finance", "admin"]}>
-            <BudgetDetailPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "gst",
-        element: withSuspense(
-          <RoleGuard allow={["approver", "finance", "admin"]}>
-            <GstPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "catalog",
-        element: withSuspense(<CatalogPage />),
-      },
-      {
-        path: "sourcing",
-        element: withSuspense(
-          <RoleGuard allow={["approver", "finance", "admin"]}>
-            <RfqListPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "sourcing/:id",
-        element: withSuspense(
-          <RoleGuard allow={["approver", "finance", "admin"]}>
-            <RfqDetailPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "spend",
-        element: withSuspense(
-          <RoleGuard allow={["finance", "admin"]}>
-            <SpendAnalysisPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "audit",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <AuditActivityPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "control-panel",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <ControlPanelPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "system-health",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <SystemHealthPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "controls",
-        element: withSuspense(
-          <RoleGuard allow={["finance", "admin"]}>
-            <ControlsPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "business-rules",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <BusinessRulesPage />
-          </RoleGuard>,
-        ),
-      },
-      {
-        path: "email-settings",
-        element: withSuspense(
-          <RoleGuard allow={["admin"]}>
-            <EmailSettingsPage />
-          </RoleGuard>,
-        ),
-      },
-    ],
-  },
-  { path: "*", element: <NotFoundPage /> },
-]);
-
-export function AppRouter() {
-  return <RouterProvider router={router} />;
-}
+import { lazy, Suspense } from "react";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
+import { ProtectedRoute } from "./ProtectedRoute";
+import { RoleGuard } from "./RoleGuard";
+import { AppShell } from "@/layouts/AppShell";
+import { LoginPage } from "@/pages/LoginPage";
+import { SignUpPage } from "@/pages/auth/SignUpPage";
+import { VerifyEmailPage } from "@/pages/auth/VerifyEmailPage";
+import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
+import { NotFoundPage } from "@/pages/NotFoundPage";
+
+const ControlsPage = lazy(() => import("@/pages/admin/ControlsPage").then((m) => ({ default: m.ControlsPage })));
+const DashboardPage = lazy(() => import("@/pages/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const RequestsListPage = lazy(() => import("@/pages/requests/RequestsListPage").then((m) => ({ default: m.RequestsListPage })));
+const NewRequestWizardPage = lazy(() => import("@/pages/requests/NewRequestWizardPage").then((m) => ({ default: m.NewRequestWizardPage })));
+const RequestDetailPage = lazy(() => import("@/pages/requests/RequestDetailPage").then((m) => ({ default: m.RequestDetailPage })));
+const DocumentsListPage = lazy(() => import("@/pages/documents/DocumentsListPage").then((m) => ({ default: m.DocumentsListPage })));
+const DocumentDetailPage = lazy(() => import("@/pages/documents/DocumentDetailPage").then((m) => ({ default: m.DocumentDetailPage })));
+const VendorsListPage = lazy(() => import("@/pages/vendors/VendorsListPage").then((m) => ({ default: m.VendorsListPage })));
+const VendorDetailPage = lazy(() => import("@/pages/vendors/VendorDetailPage").then((m) => ({ default: m.VendorDetailPage })));
+const VendorRiskScorecardPage = lazy(() => import("@/pages/vendors/VendorRiskScorecardPage").then((m) => ({ default: m.VendorRiskScorecardPage })));
+const ApprovalInboxPage = lazy(() => import("@/pages/approvals/ApprovalInboxPage").then((m) => ({ default: m.ApprovalInboxPage })));
+const InventoryPage = lazy(() => import("@/pages/inventory/InventoryPage").then((m) => ({ default: m.InventoryPage })));
+const LicensesListPage = lazy(() => import("@/pages/licenses/LicensesListPage").then((m) => ({ default: m.LicensesListPage })));
+const LicenseDetailPage = lazy(() => import("@/pages/licenses/LicenseDetailPage").then((m) => ({ default: m.LicenseDetailPage })));
+
+const ContractsListPage = lazy(() => import("@/pages/contracts/ContractsListPage").then((m) => ({ default: m.ContractsListPage })));
+const ContractDetailPage = lazy(() => import("@/pages/contracts/ContractDetailPage").then((m) => ({ default: m.ContractDetailPage })));
+const RiskDashboardPage = lazy(() => import("@/pages/risk/RiskDashboardPage").then((m) => ({ default: m.RiskDashboardPage })));
+const NotificationsPage = lazy(() => import("@/pages/notifications/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
+const SpendAnalysisPage = lazy(() => import("@/pages/finance/SpendAnalysisPage").then((m) => ({ default: m.SpendAnalysisPage })));
+const BudgetsPage = lazy(() => import("@/pages/finance/BudgetsPage").then((m) => ({ default: m.BudgetsPage })));
+const GstPage = lazy(() => import("@/pages/finance/GstPage").then((m) => ({ default: m.GstPage })));
+const BudgetDetailPage = lazy(() => import("@/pages/finance/BudgetDetailPage").then((m) => ({ default: m.BudgetDetailPage })));
+const CatalogPage = lazy(() => import("@/pages/sourcing/CatalogPage").then((m) => ({ default: m.CatalogPage })));
+const RfqListPage = lazy(() => import("@/pages/sourcing/RfqListPage").then((m) => ({ default: m.RfqListPage })));
+const RfqDetailPage = lazy(() => import("@/pages/sourcing/RfqDetailPage").then((m) => ({ default: m.RfqDetailPage })));
+const AuditActivityPage = lazy(() => import("@/pages/admin/AuditActivityPage").then((m) => ({ default: m.AuditActivityPage })));
+const ControlPanelPage = lazy(() => import("@/pages/admin/ControlPanelPage").then((m) => ({ default: m.ControlPanelPage })));
+const SystemHealthPage = lazy(() => import("@/pages/admin/SystemHealthPage").then((m) => ({ default: m.SystemHealthPage })));
+const SystemPage = lazy(() => import("@/pages/admin/SystemPage").then((m) => ({ default: m.SystemPage })));
+const UserProfilePage = lazy(() => import("@/pages/admin/UserProfilePage").then((m) => ({ default: m.UserProfilePage })));
+const UsersPage = lazy(() => import("@/pages/admin/UsersPage").then((m) => ({ default: m.UsersPage })));
+const AccountPage = lazy(() => import("@/pages/account/AccountPage").then((m) => ({ default: m.AccountPage })));
+const BusinessRulesPage = lazy(() => import("@/pages/admin/BusinessRulesPage").then((m) => ({ default: m.BusinessRulesPage })));
+const EmailSettingsPage = lazy(() => import("@/pages/admin/EmailSettingsPage").then((m) => ({ default: m.EmailSettingsPage })));
+
+function Loading() {
+  return (
+    <div className="flex h-64 items-center justify-center">
+      <div className="size-6 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" />
+    </div>
+  );
+}
+
+function withSuspense(el: React.ReactNode) {
+  return <Suspense fallback={<Loading />}>{el}</Suspense>;
+}
+
+const router = createBrowserRouter([
+  { path: "/", element: <Navigate to="/app" replace /> },
+  { path: "/login", element: <LoginPage /> },
+  // Signed-out account pages. The email links point at the last three.
+  { path: "/signup", element: <SignUpPage /> },
+  { path: "/verify-email", element: <VerifyEmailPage /> },
+  { path: "/forgot-password", element: <ForgotPasswordPage /> },
+  { path: "/reset-password", element: <ResetPasswordPage /> },
+  {
+    path: "/app",
+    element: (
+      <ProtectedRoute>
+        <AppShell />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: withSuspense(<DashboardPage />) },
+      { path: "requests", element: withSuspense(<RequestsListPage />) },
+      {
+        path: "requests/new",
+        element: withSuspense(
+          <RoleGuard allow={["requester", "admin"]}>
+            <NewRequestWizardPage />
+          </RoleGuard>,
+        ),
+      },
+      { path: "requests/:id", element: withSuspense(<RequestDetailPage />) },
+      { path: "documents", element: withSuspense(<DocumentsListPage />) },
+      { path: "documents/:id", element: withSuspense(<DocumentDetailPage />) },
+      { path: "vendors", element: withSuspense(<VendorsListPage />) },
+      { path: "vendors/:id", element: withSuspense(<VendorDetailPage />) },
+      { path: "vendors/:id/risk", element: withSuspense(<VendorRiskScorecardPage />) },
+      {
+        path: "approvals",
+        element: withSuspense(
+          <RoleGuard allow={["approver", "finance", "admin"]}>
+            <ApprovalInboxPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "inventory",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <InventoryPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "licenses",
+        element: withSuspense(
+          <RoleGuard allow={["admin", "finance", "approver"]}>
+            <LicensesListPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "licenses/:id",
+        element: withSuspense(
+          <RoleGuard allow={["admin", "finance", "approver"]}>
+            <LicenseDetailPage />
+          </RoleGuard>,
+        ),
+      },
+
+      {
+        path: "contracts",
+        element: withSuspense(
+          <RoleGuard allow={["finance", "admin", "approver", "requester"]}>
+            <ContractsListPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "contracts/:id",
+        element: withSuspense(
+          <RoleGuard allow={["finance", "admin", "approver", "requester"]}>
+            <ContractDetailPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "risk",
+        element: withSuspense(
+          <RoleGuard allow={["finance", "admin"]}>
+            <RiskDashboardPage />
+          </RoleGuard>,
+        ),
+      },
+      { path: "notifications", element: withSuspense(<NotificationsPage />) },
+      { path: "account", element: withSuspense(<AccountPage />) },
+      {
+        path: "system",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <SystemPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "users",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <UsersPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "users/:id",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <UserProfilePage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "budgets",
+        element: withSuspense(
+          <RoleGuard allow={["approver", "finance", "admin"]}>
+            <BudgetsPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "budgets/:id",
+        element: withSuspense(
+          <RoleGuard allow={["approver", "finance", "admin"]}>
+            <BudgetDetailPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "gst",
+        element: withSuspense(
+          <RoleGuard allow={["approver", "finance", "admin"]}>
+            <GstPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "catalog",
+        element: withSuspense(<CatalogPage />),
+      },
+      {
+        path: "sourcing",
+        element: withSuspense(
+          <RoleGuard allow={["approver", "finance", "admin"]}>
+            <RfqListPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "sourcing/:id",
+        element: withSuspense(
+          <RoleGuard allow={["approver", "finance", "admin"]}>
+            <RfqDetailPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "spend",
+        element: withSuspense(
+          <RoleGuard allow={["finance", "admin"]}>
+            <SpendAnalysisPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "audit",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <AuditActivityPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "control-panel",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <ControlPanelPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "system-health",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <SystemHealthPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "controls",
+        element: withSuspense(
+          <RoleGuard allow={["finance", "admin"]}>
+            <ControlsPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "business-rules",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <BusinessRulesPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "email-settings",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <EmailSettingsPage />
+          </RoleGuard>,
+        ),
+      },
+    ],
+  },
+  { path: "*", element: <NotFoundPage /> },
+]);
+
+export function AppRouter() {
+  return <RouterProvider router={router} />;
+}

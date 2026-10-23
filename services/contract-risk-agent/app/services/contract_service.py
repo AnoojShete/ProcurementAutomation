@@ -610,7 +610,7 @@ def _owned_by(stmt, requested_by: Optional[str]):
     if requested_by is None:
         return stmt
     return stmt.join(PurchaseRequest, Contract.purchase_request_id == PurchaseRequest.id).where(
-        func.lower(PurchaseRequest.requested_by) == requested_by.lower()
+        func.lower(func.trim(PurchaseRequest.requested_by)) == requested_by.strip().lower()
     )
 
 
@@ -619,12 +619,19 @@ async def is_requester_of(db: AsyncSession, contract: Contract, email: str) -> b
     if contract.purchase_request_id is None:
         return False
     pr = await db.get(PurchaseRequest, contract.purchase_request_id)
-    return pr is not None and (pr.requested_by or "").lower() == email.lower()
+    return pr is not None and (pr.requested_by or "").strip().lower() == email.strip().lower()
 
 
-async def list_contracts(db: AsyncSession, limit: int = 100, requested_by: Optional[str] = None) -> list[Contract]:
+async def list_contracts(
+    db: AsyncSession,
+    limit: int = 100,
+    requested_by: Optional[str] = None,
+    purchase_request_id: Optional[str] = None,
+) -> list[Contract]:
     """Most-recently-generated first — backs the tracking dashboard."""
     stmt = _owned_by(select(Contract), requested_by)
+    if purchase_request_id:
+        stmt = stmt.where(Contract.purchase_request_id == purchase_request_id)
     result = await db.execute(stmt.order_by(Contract.generated_at.desc().nulls_last()).limit(limit))
     return list(result.scalars().all())
 

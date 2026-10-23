@@ -52,8 +52,11 @@ export function RequestDetailPage() {
       .finally(() => setVendorRiskLoading(false));
   }, [request?.vendor_id]);
 
-  const { data: contracts, reload: reloadContracts } = useApi(() => contractsApi.list(200), []);
-  const linkedContract = contracts?.find((c) => c.purchase_request_id === request?.id) ?? null;
+  const { data: contracts, reload: reloadContracts } = useApi(
+    () => (request?.id ? contractsApi.list(200, request.id) : contractsApi.list(200)),
+    [request?.id],
+  );
+  const linkedContract = contracts?.find((c) => c.purchase_request_id === request?.id) ?? contracts?.[0] ?? null;
   // The list endpoint omits the certificate; the contract itself has it.
   const { data: contract, reload: reloadContract } = useApi(
     () => (linkedContract ? contractsApi.get(linkedContract.id) : Promise.resolve({ data: null })),

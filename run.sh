@@ -108,10 +108,9 @@ has_changes() {
   local stamp="$STAMPS/$1"
   [ -f "$stamp" ] || return 0
   # shellcheck disable=SC2046
-  [ -n "$(find $(source_dirs "$1") -type f -newer "$stamp" \
-      -not -path '*/node_modules/*' -not -path 'frontend/dist/*' \
+  [ -n "$(find $(source_dirs "$1") -path '*/node_modules' -prune -o -path 'frontend/dist' -prune -o -type f -newer "$stamp" \
       -not -path '*/tests/*' -not -path '*/__pycache__/*' -not -path '*/.pytest_cache/*' \
-      -not -name '*.pyc' -not -name '.DS_Store' 2>/dev/null | head -n 1)" ]
+      -not -name '*.pyc' -not -name '.DS_Store' -print 2>/dev/null | head -n 1)" ]
 }
 image_exists() { docker image inspect "$PROJECT_NAME-$1" >/dev/null 2>&1; }
 

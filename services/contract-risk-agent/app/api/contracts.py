@@ -302,11 +302,17 @@ async def sign_contract_simulated(contract_id: str, request: Request, db: AsyncS
 
 
 @router.get("/", response_model=DataResponse)
-async def list_contracts(limit: int = Query(100, ge=1, le=1000), db: AsyncSession = Depends(get_db),
-                         user: CurrentUser = Depends(get_current_user)):
+async def list_contracts(
+    purchase_request_id: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """Contracts, most recent first — backs the tracking dashboard.
     Requesters see only contracts on their own requests."""
-    contracts = await contract_service.list_contracts(db, limit=limit, requested_by=_owner_filter(user))
+    contracts = await contract_service.list_contracts(
+        db, limit=limit, requested_by=_owner_filter(user), purchase_request_id=purchase_request_id
+    )
     return DataResponse(data=[_serialize(c) for c in contracts], meta={"count": len(contracts)})
 
 
