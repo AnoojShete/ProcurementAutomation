@@ -20,6 +20,7 @@ export interface EsignDocument {
   provider: string | null;
   signed_at: string | null;
   signed_by: string | null;
+  esign_provider_ref?: string | null;
   unsigned_pdf: string;
   signed_pdf: string | null;
   certificate: string | null;

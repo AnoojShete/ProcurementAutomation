@@ -15,7 +15,7 @@ export function Modal({
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -52,6 +52,7 @@ export function Modal({
           size === "sm" && "max-w-sm",
           size === "md" && "max-w-lg",
           size === "lg" && "max-w-2xl",
+          size === "xl" && "max-w-5xl",
         )}
       >
         <div className="flex items-center justify-between border-b border-rule px-5 py-3">
