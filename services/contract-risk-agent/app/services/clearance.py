@@ -99,7 +99,10 @@ def decide(score: Optional[ScoreView], decision: Optional[DecisionView], *, purp
         elif score.rating_status == "not_rated":
             blocking.append("vendor_not_rated")
         elif score.rating_status == "provisional":
+            # Prompt 10 Section 6.2: petty exception requires effective_tier 'low', no overrides, and amount <= vendor.petty_tier_max_amount
+            is_effective_low = (getattr(score, "effective_tier", None) or "low").lower() == "low"
             petty = (purpose != "activation" and (vendor_tier or "").lower() == PETTY_TIER
+                     and is_effective_low and not overrides
                      and spend_amount is not None and spend_amount <= petty_threshold
                      and not _sanctions_pending(score))
             if petty:
@@ -197,5 +200,5 @@ async def evaluate(db, vendor_id: str, purpose: str = "purchase", spend_amount: 
         return None
     return decide(score, decision, purpose=purpose, spend_amount=spend_amount,
                   vendor_tier=getattr(vendor, "vendor_tier", None), vendor_status=getattr(vendor, "status", None),
-                  petty_threshold=float(get_rule("risk.petty_threshold", fallback=50000.0)),
+                  petty_threshold=float(get_rule("vendor.petty_tier_max_amount", fallback=get_rule("risk.petty_threshold", fallback=50000.0))),
                   now=now or datetime.now(timezone.utc))

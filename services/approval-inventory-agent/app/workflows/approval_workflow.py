@@ -23,16 +23,10 @@ SLA_REMINDER_PATCH = "approval-sla-reminders"
 class ApprovalSignal:
     decision: str  # approved or rejected
     decided_by: str
-    # Temporal's payload converter checks the annotation strictly — `str`
-    # with a `None` default fails to decode a signal sent without
-    # comments, since None doesn't match `str`.
     comments: Optional[str] = None
-    # The approval level (index into the chain) this decision was
-    # authorised for. A decision that arrives when the workflow has moved
-    # on — a double-click, or two approvers at once — must not be applied
-    # to the next level, or one person could approve two levels. None for
-    # signals sent before this field existed (still honoured).
     level_index: Optional[int] = None
+    channel: Optional[str] = "portal"
+    bulk_batch_id: Optional[str] = None
 
 
 def signal_applies(signal: "ApprovalSignal", level_index: int) -> bool:
@@ -281,17 +275,17 @@ class ApprovalWorkflow:
                 await self._handle_rejection(request_id, signal, decision_level)
                 return {"request_id": request_id, "status": "rejected"}
             
-            # Approved at this level — record and advance to next
+            # Approved at this level – record and advance to next
             await workflow.execute_activity(
                 record_approval_decision,
                 args=[request_id, "approved", signal.decided_by, decision_level,
-                      False, signal.comments],
+                      False, signal.comments, signal.channel or "portal", signal.bulk_batch_id],
                 start_to_close_timeout=timedelta(seconds=10)
             )
             await workflow.execute_activity(
                 publish_approval_decided_event,
                 args=[request_id, "approved", signal.decided_by, decision_level,
-                      False, signal.comments],
+                      False, signal.comments, signal.channel or "portal", signal.bulk_batch_id],
                 start_to_close_timeout=timedelta(seconds=10)
             )
         

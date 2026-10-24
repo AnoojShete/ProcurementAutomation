@@ -116,7 +116,8 @@ class KafkaEventProducer:
 
     async def publish_approval_decided(
         self, request_id, decision, decided_by, decision_level,
-        escalated, comments, decided_at=None, decision_channel="portal"
+        escalated, comments, decided_at=None, decision_channel="portal",
+        bulk_batch_id=None
     ):
         """Publish an approval.decided event."""
         if decided_at is None:
@@ -130,6 +131,7 @@ class KafkaEventProducer:
             decided_at=decided_at,
             comments=comments,
             decision_channel=decision_channel,
+            bulk_batch_id=bulk_batch_id,
         )
         event = build_event(TOPIC_APPROVAL_DECIDED, self.service_name, payload)
         await self.publish(TOPIC_APPROVAL_DECIDED, event)

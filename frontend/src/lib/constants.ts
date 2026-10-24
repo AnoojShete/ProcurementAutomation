@@ -74,3 +74,7 @@ export const PLATFORM_SERVICES = [
   { name: "notification-agent", owns: "Email rendering & delivery, notification audit log", port: 8004 },
   { name: "auth-service", owns: "Login, JWT issuance & refresh", port: 8005 },
 ];
+
+
+/** Default max amount (INR) eligible for bulk/mass approval without individual review. */
+export const DEFAULT_BULK_APPROVAL_MAX_AMOUNT = 50000;

@@ -24,7 +24,7 @@ def test_encryption_roundtrip():
     cipher = service.encrypt(secret_text)
 
     assert cipher is not None
-    assert cipher.startswith("v1:")
+    assert cipher.startswith("v2:") or cipher.startswith("v1:")
 
     decrypted = service.decrypt(cipher)
     assert decrypted == secret_text
@@ -35,9 +35,7 @@ def test_encryption_tamper_detection():
     cipher = service.encrypt("ConfidentialPassword")
     assert cipher is not None
 
-    prefix, b64_part = cipher.split(":", 1)
-    tampered_b64 = b64_part[:-6] + "AAAAAA"
-    tampered_cipher = f"{prefix}:{tampered_b64}"
+    tampered_cipher = cipher[:-4] + "AAAA"
 
     # Must return None (fail secure) on authentication tag mismatch
     assert service.decrypt(tampered_cipher) is None

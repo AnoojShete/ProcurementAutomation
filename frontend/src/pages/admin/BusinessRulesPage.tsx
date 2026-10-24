@@ -394,7 +394,15 @@ export function BusinessRulesPage() {
                 </span>
               </div>
 
-              {currentCategoryRules.length === 0 ? (
+              {activeTab === "approval" && (
+          <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50/50 p-3 text-xs text-brand-900">
+            <p className="font-medium">
+              Requests above the bulk limit must be approved one by one in the application. Changes apply immediately, including to links already emailed.
+            </p>
+          </div>
+        )}
+
+        {currentCategoryRules.length === 0 ? (
                 <p className="py-8 text-center text-sm text-slate-500">No matching rules found in this category.</p>
               ) : (
                 <div className="grid grid-cols-1 gap-4">

@@ -85,18 +85,32 @@ async def collect_web(
     is_demo = any(domain.endswith(ext) for ext in DEMO_DOMAINS)
     live_enabled = await is_live_verification_enabled(db)
 
-    # Defaults for demo/fallback
-    ssl_grade = "A"
-    cert_valid = True
-    cert_days_left = 180
-    hsts = True
-    cert_issuer = "DigiCert Global Root G2"
-    cert_problem = "None"
-    tls_version = "TLSv1.3"
-    web_reachable = True
-
-    if not is_demo:
-        probe_succeeded = False
+    if is_demo:
+        # Prompt 10 section 6.1: simulated pass values permitted ONLY for demo domains
+        ssl_grade = "A"
+        cert_valid = True
+        cert_days_left = 180
+        hsts = True
+        cert_issuer = "DigiCert Global Root G2"
+        cert_problem = "None"
+        tls_version = "TLSv1.3"
+        web_reachable = True
+        obs_status = "ok"
+        confidence = "simulated"
+    elif not live_enabled:
+        # Live verification disabled: do not invent pass grades
+        ssl_grade = None
+        cert_valid = False
+        cert_days_left = None
+        hsts = False
+        cert_issuer = "—"
+        cert_problem = "Live verification disabled"
+        tls_version = "—"
+        web_reachable = False
+        obs_status = "not_checked"
+        confidence = "unverified"
+    else:
+        confidence = "live"
         try:
             # 1. Dual-probe: direct SSL handshake for accurate TLS version & peercert
             ctx = ssl.create_default_context()
@@ -111,6 +125,9 @@ async def collect_web(
             writer.close()
             await writer.wait_closed()
 
+            cert_days_left = None
+            cert_valid = False
+            cert_problem = "None"
             if not_after_str:
                 try:
                     expiry = datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
@@ -122,6 +139,7 @@ async def collect_web(
                     logger.debug("Failed parsing cert expiry %s: %s", not_after_str, ex)
 
             # Extract issuer name
+            cert_issuer = "—"
             issuer_tuples = peercert.get("issuer", ())
             for rdn in issuer_tuples:
                 for k, v in rdn:
@@ -149,24 +167,18 @@ async def collect_web(
                 ssl_grade = "C"
 
             web_reachable = True
-            probe_succeeded = True
+            obs_status = "ok"
         except Exception as e:
             logger.info("Live TLS probe for %s failed (%s)", domain, e)
-            if not live_enabled:
-                # Demo safe mode fallback for offline/sandbox environments
-                probe_succeeded = True
-                ssl_grade = "A"
-                cert_valid = True
-                cert_days_left = 180
-                hsts = True
-                cert_issuer = "DigiCert Global Root G2"
-                cert_problem = "None"
-                web_reachable = True
-            else:
-                web_reachable = False
-                ssl_grade = None
-                cert_valid = False
-                cert_problem = f"Connection failed: {e}"
+            web_reachable = False
+            ssl_grade = None
+            cert_valid = False
+            cert_days_left = None
+            hsts = False
+            cert_issuer = "—"
+            cert_problem = f"Connection failed: {e}"
+            tls_version = "—"
+            obs_status = "error"
 
     fields = {
         "web.reachable": web_reachable,
@@ -176,6 +188,7 @@ async def collect_web(
         "web.hsts": hsts,
         "web.cert_issuer": cert_issuer,
         "web.cert_problem": cert_problem,
+        "web.confidence": confidence,
     }
 
     raw = await record_raw_response(
@@ -187,19 +200,20 @@ async def collect_web(
         request_url=f"https://{domain}",
         body=fields,
         source_id="tls_probe",
-        response_status=200 if web_reachable else 502,
+        response_status=200 if web_reachable else (404 if obs_status == "not_checked" else 502),
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200" if web_reachable else "502"},
+        {"label": "HTTP status", "value": "200" if web_reachable else ("not_checked" if obs_status == "not_checked" else "502")},
         {"label": "Domain", "value": domain},
         {"label": "TLS Version", "value": tls_version if web_reachable else "—"},
         {"label": "SSL Labs Grade", "value": ssl_grade if ssl_grade else "N/A"},
-        {"label": "TLS Certificate", "value": "Valid" if cert_valid else "Invalid"},
+        {"label": "TLS Certificate", "value": "Valid" if cert_valid else ("Not Checked" if obs_status == "not_checked" else "Invalid")},
         {"label": "HSTS Enforced", "value": "Yes" if hsts else "No"},
+        {"label": "Confidence", "value": confidence},
     ]
 
     obs = await record_observation(
@@ -208,7 +222,7 @@ async def collect_web(
         signal_key="web",
         source_name="Web & TLS Security",
         provider=provider,
-        status="ok" if web_reachable else "error",
+        status=obs_status,
         facts=facts,
         fields=fields,
         raw_response_id=raw.id,
@@ -265,15 +279,28 @@ async def collect_email(
     is_demo = any(domain.endswith(ext) for ext in DEMO_DOMAINS)
     live_enabled = await is_live_verification_enabled(db)
 
-    has_mx = True
-    dmarc_policy = "reject"
-    spf_present = True
-
-    if not is_demo:
+    if is_demo:
+        # Prompt 10 section 6.1: simulated pass values permitted ONLY for demo domains
+        has_mx = True
+        dmarc_policy = "reject"
+        spf_present = True
+        obs_status = "ok"
+        confidence = "simulated"
+    elif not live_enabled:
+        # Live verification disabled: record not_checked and do not invent reject policy
+        has_mx = False
+        dmarc_policy = "missing"
+        spf_present = False
+        obs_status = "not_checked"
+        confidence = "unverified"
+    else:
+        confidence = "live"
+        obs_status = "ok"
         resolver = dns.resolver.Resolver()
         resolver.lifetime = 4.0
 
         # 1. Query MX records
+        has_mx = False
         try:
             mx_records = await asyncio.to_thread(resolver.resolve, domain, "MX")
             has_mx = len(mx_records) > 0
@@ -307,16 +334,14 @@ async def collect_email(
         except Exception:
             dmarc_policy = "missing"
 
-        # Fallback for demo environments if DNS lookups failed and live verification is disabled
-        if not live_enabled and not has_mx and not spf_present and dmarc_policy == "missing":
-            has_mx = True
-            spf_present = True
-            dmarc_policy = "reject"
+        if not has_mx and not spf_present and dmarc_policy == "missing":
+            obs_status = "error"
 
     fields = {
         "email.has_mx": has_mx,
         "email.dmarc_policy": dmarc_policy,
         "email.spf_present": spf_present,
+        "email.confidence": confidence,
     }
 
     raw = await record_raw_response(
@@ -328,18 +353,19 @@ async def collect_email(
         request_url=f"dns://_dmarc.{domain}",
         body=fields,
         source_id="dns_dmarc",
-        response_status=200,
+        response_status=200 if obs_status == "ok" else (404 if obs_status == "not_checked" else 502),
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200"},
+        {"label": "HTTP status", "value": "200" if obs_status == "ok" else ("not_checked" if obs_status == "not_checked" else "502")},
         {"label": "Domain", "value": domain},
         {"label": "DMARC Policy", "value": dmarc_policy.upper()},
         {"label": "SPF Record", "value": "Present" if spf_present else "Missing"},
         {"label": "MX Records", "value": "Present" if has_mx else "Missing"},
+        {"label": "Confidence", "value": confidence},
     ]
 
     obs = await record_observation(
@@ -348,7 +374,7 @@ async def collect_email(
         signal_key="email",
         source_name="Email Security",
         provider=provider,
-        status="ok",
+        status=obs_status,
         facts=facts,
         fields=fields,
         raw_response_id=raw.id,

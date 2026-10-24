@@ -12,6 +12,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ReorderSettings } from "@/components/inventory/ReorderSettings";
+import { PlaceReorderModal } from "@/components/inventory/PlaceReorderModal";
+import { Button } from "@/components/ui/Button";
+import { InlineSuccess } from "@/components/ui/ErrorState";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatPercent, titleCase } from "@/lib/format";
 import type { InventoryItem, LicenseItem } from "@/types/api";
@@ -22,6 +26,8 @@ export function InventoryPage() {
   const { data: requests } = useApi(() => requestsApi.list(200), []);
   const [tab, setTab] = useState<"hardware" | "licenses">("hardware");
   const [editing, setEditing] = useState<InventoryItem | null>(null);
+  const [reorderingItem, setReorderingItem] = useState<InventoryItem | null>(null);
+  const [createdRequestId, setCreatedRequestId] = useState<string | null>(null);
   const { user } = useAuth();
   const canEdit = ["finance", "admin"].includes(user?.role ?? "");
 
@@ -135,6 +141,15 @@ export function InventoryPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {createdRequestId && (
+        <div className="flex items-center justify-between rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <span>Purchase request <strong>PR-{createdRequestId.slice(0, 8)}</strong> successfully placed for reorder!</span>
+          <Link to={`/app/requests/${createdRequestId}`} className="font-semibold text-emerald-800 hover:underline">
+            View Request →
+          </Link>
+        </div>
+      )}
+
       <LedgerStrip cols={4} label="Inventory figures">
         <MetricCard label="Available Units" value={totals.available} icon={PackageCheck} tone="success" onClick={() => { setTab("hardware"); jumpTo("stock"); }} />
         <MetricCard label="Reserved Units" value={totals.reserved} icon={Boxes} tone="brand" onClick={() => { setTab("hardware"); jumpTo("stock"); }} />
@@ -154,7 +169,16 @@ export function InventoryPage() {
                   </p>
                   <p className="text-xs text-slate-600">{i.reorder!.explanation}</p>
                 </div>
-                <Badge tone="warning">Order {i.reorder!.suggested_quantity}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge tone="warning">Order {i.reorder!.suggested_quantity}</Badge>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setReorderingItem(i)}
+                  >
+                    Place Order Request
+                  </Button>
+                </div>
               </div>
             ))}
           </CardBody>
@@ -186,6 +210,19 @@ export function InventoryPage() {
 
       {editing && (
         <ReorderSettings item={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />
+      )}
+
+      {reorderingItem && (
+        <PlaceReorderModal
+          item={reorderingItem}
+          open={!!reorderingItem}
+          onClose={() => setReorderingItem(null)}
+          onSuccess={(newId) => {
+            setReorderingItem(null);
+            setCreatedRequestId(newId);
+            reload();
+          }}
+        />
       )}
 
       {backorderedRequests.length > 0 && (

@@ -86,6 +86,10 @@ class Contract(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     # Migration 0008: when the obligation sweep read this (signed) contract.
     obligations_extracted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    signature_method: Mapped[Optional[str]] = mapped_column(String(50), default="manual")
+    approval_channel: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    bulk_batch_id: Mapped[Optional[str]] = mapped_column(Uuid, nullable=True)
+    mandate_id: Mapped[Optional[str]] = mapped_column(Uuid, nullable=True)
 
 
 class ContractObligation(Base):
@@ -423,3 +427,37 @@ class SanctionsScreening(Base):
     justification: Mapped[Optional[str]] = mapped_column(Text)
 
 
+
+
+class SigningMandate(Base):
+    """Standing finance signing mandate for automatic contract execution (Prompt 10 Section 2.1)."""
+    __tablename__ = "signing_mandates"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    scope: Mapped[str] = mapped_column(String(50), default="bulk_approved_contracts", nullable=False)
+    max_amount_per_contract: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    mandate_text_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    mandate_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    accepted_ip: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    accepted_user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+
+
+class VendorInherentTierHistory(Base):
+    """Audit history of inherent tier adjustments (Prompt 10 Section 6.4)."""
+    __tablename__ = "vendor_inherent_tier_history"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id", ondelete="CASCADE"), nullable=False)
+    old_tier: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    new_tier: Mapped[str] = mapped_column(String(50), nullable=False)
+    justification: Mapped[str] = mapped_column(Text, nullable=False)
+    changed_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

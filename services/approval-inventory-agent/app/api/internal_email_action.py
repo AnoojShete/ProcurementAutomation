@@ -73,3 +73,45 @@ async def mint_email_action(
             "expires_at": expires_at.isoformat(),
         }
     }
+
+
+class MintBatchTokenRequest(BaseModel):
+    approver_id: str
+    request_ids: list[str] = Field(..., min_length=1)
+
+
+@router.post("/mint-batch", response_model=dict)
+async def mint_email_batch(
+    payload: MintBatchTokenRequest,
+    x_internal_service_token: Optional[str] = Header(None, alias="X-Internal-Service-Token"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mints an email batch token for bulk digest approvals (Prompt 10 Section 1.5)."""
+    expected_token = get_internal_token()
+    if not x_internal_service_token or not hmac.compare_digest(x_internal_service_token, expected_token):
+        logger.warning("Rejected /internal/email-actions/mint-batch with invalid/missing token")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: invalid or missing internal service token",
+        )
+
+    from app.services.email_action_token_service import mint_batch_action_token
+    try:
+        raw_token, expires_at, action_url = await mint_batch_action_token(
+            db,
+            approver_id=payload.approver_id,
+            request_ids=payload.request_ids,
+        )
+    except Exception as e:
+        logger.warning(f"Batch minting refused: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return {
+        "data": {
+            "batch_url": action_url,
+            "expires_at": expires_at.isoformat(),
+        }
+    }

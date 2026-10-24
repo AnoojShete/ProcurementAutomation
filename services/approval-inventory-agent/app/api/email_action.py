@@ -382,3 +382,167 @@ async def decide_email_action(
         status_code=200,
         icon="✅",
     )
+
+
+@router.get("/batch/{token}", response_class=HTMLResponse)
+async def get_email_batch_page(
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Server-rendered batch review page for email digest approval (Prompt 10 Section 1.5).
+
+    GET NEVER changes state. Repeat three times yields identical output.
+    """
+    token_h = hash_token(token)
+    from app.models import EmailBatchToken
+    stmt = select(EmailBatchToken).where(EmailBatchToken.token_hash == token_h)
+    res = await db.execute(stmt)
+    batch_tok = res.scalar_one_or_none()
+
+    if not batch_tok:
+        return _render_status("Invalid Token", "This batch approval link is invalid or malformed.", 404, icon="⚠️")
+    if batch_tok.revoked_at:
+        return _render_status("Link Revoked", f"This approval link was revoked ({batch_tok.revoked_reason or 'security policy'}).", 410, icon="🛑")
+    if batch_tok.used_at:
+        return _render_status("Already Used", "This bulk approval link has already been used.", 410, icon="ℹ️")
+
+    now = datetime.now(timezone.utc)
+    if batch_tok.expires_at <= now:
+        return _render_status("Link Expired", "This bulk approval link has expired.", 410, icon="⏱️")
+
+    hours_left = max(0, int((batch_tok.expires_at - now).total_seconds() / 3600))
+
+    # Evaluate eligibility for all items in snapshot
+    from app.services.bulk_service import bulk_eligibility
+    items_data = []
+    eligible_count = 0
+    eligible_total = 0.0
+    auto_sign_applicable = False
+
+    auto_sign_enabled = get_rule("contract.auto_sign_enabled", fallback=False)
+
+    for req_id in batch_tok.request_ids:
+        req = await db.get(PurchaseRequest, req_id)
+        if not req:
+            continue
+        v_name = "Unknown Vendor"
+        if req.vendor_id:
+            v = await db.get(Vendor, req.vendor_id)
+            if v:
+                v_name = v.name
+
+        eligible, codes, labels = await bulk_eligibility(
+            db, req, batch_tok.approver_id, "finance" if "finance" in batch_tok.approver_id.lower() else "approver", now
+        )
+        amt = float(req.amount or 0)
+        reason = labels[0] if labels else ""
+        if eligible:
+            eligible_count += 1
+            eligible_total += amt
+            chain = req.approval_chain or []
+            if auto_sign_enabled and req.current_approver_index + 1 >= len(chain):
+                auto_sign_applicable = True
+
+        items_data.append({
+            "id": req.id,
+            "short_id": req.id[:8].upper(),
+            "requester": req.requested_by,
+            "vendor_name": v_name,
+            "amount": amt,
+            "amount_formatted": f"{amt:,.2f}",
+            "eligible": eligible,
+            "reason": reason,
+        })
+
+    template = jinja_env.get_template("batch_page.html")
+    html = template.render(
+        raw_token=token,
+        approver_id=batch_tok.approver_id,
+        hours_left=hours_left,
+        items=items_data,
+        eligible_count=eligible_count,
+        eligible_total_formatted=f"{eligible_total:,.2f}",
+        auto_sign_applicable=auto_sign_applicable,
+    )
+    return HTMLResponse(content=html, headers=SECURITY_HEADERS)
+
+
+@router.post("/batch/{token}/decide", response_class=HTMLResponse)
+async def post_email_batch_decide(
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Atomically executes bulk decisions from email batch token (Prompt 10 Section 1.5)."""
+    token_h = hash_token(token)
+    from app.models import EmailBatchToken
+    now = datetime.now(timezone.utc)
+
+    # 1. Lock token row
+    stmt = select(EmailBatchToken).where(EmailBatchToken.token_hash == token_h).with_for_update()
+    res = await db.execute(stmt)
+    tok_row = res.scalar_one_or_none()
+
+    if not tok_row:
+        return _render_status("Invalid Token", "This batch approval link is invalid.", 404, icon="⚠️")
+    if tok_row.revoked_at:
+        return _render_status("Link Revoked", f"This link was revoked ({tok_row.revoked_reason or 'security policy'}).", 410, icon="🛑")
+    if tok_row.used_at:
+        return _render_status("Already Used", "This bulk approval link has already been used.", 410, icon="ℹ️")
+    if tok_row.expires_at <= now:
+        return _render_status("Link Expired", "This bulk approval link has expired.", 410, icon="⏱️")
+
+    # 2. Parse form data
+    form_data = await request.form()
+    selected_ids = form_data.getlist("selected_ids")
+    ack_auto_sign = form_data.get("acknowledged_auto_sign") in ("on", "true", "True", True)
+
+    # 3. Snapshot restriction: items outside snapshot cannot be approved
+    allowed_snapshot = set(tok_row.request_ids or [])
+    clean_ids = [rid for rid in selected_ids if rid in allowed_snapshot]
+
+    if not clean_ids:
+        return _render_status("No Items Selected", "Please select at least one eligible item to approve.", 400, icon="⚠️")
+
+    # 4. Mark token used immediately to prevent concurrent POSTs
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown").split(",")[0].strip()
+    user_agent = request.headers.get("user-agent", "unknown")
+    tok_row.used_at = now
+    tok_row.used_ip = client_ip
+    tok_row.used_user_agent = user_agent
+    await db.commit()
+
+    # 5. Execute bulk decision
+    from app.services.bulk_service import execute_bulk_decision
+    producer = request.app.state.kafka_producer
+    approver_role = "finance" if "finance" in tok_row.approver_id.lower() else "approver"
+
+    try:
+        result = await execute_bulk_decision(
+            db=db,
+            producer=producer,
+            approver_id=tok_row.approver_id,
+            approver_role=approver_role,
+            request_ids=clean_ids,
+            idempotency_key=f"email-batch-{tok_row.id}",
+            channel="email",
+            email_batch_token_id=tok_row.id,
+            comment="Bulk approved via email digest",
+            acknowledged_auto_sign=ack_auto_sign,
+            ip=client_ip,
+            user_agent=user_agent,
+        )
+    except Exception as e:
+        logger.error(f"Error executing email bulk decision: {e}", exc_info=True)
+        return _render_status("Bulk Decision Error", f"An error occurred while executing the batch: {e}", 500, icon="❌")
+
+    count_app = result.get("count_approved", 0)
+    total_amt = result.get("total_approved_amount", 0.0)
+
+    return _render_status(
+        title="Batch Approved Successfully",
+        message=f"You successfully approved {count_app} request(s) totaling INR {total_amt:,.2f} via email. A confirmation email has been dispatched to {tok_row.approver_id}.",
+        status_code=200,
+        icon="✅",
+    )

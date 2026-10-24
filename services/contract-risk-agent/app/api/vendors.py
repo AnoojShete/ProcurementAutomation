@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import (
+    VendorInherentTierHistory,
     AuditLog,
     RiskRuleset,
     RiskScore,
@@ -902,6 +903,7 @@ async def clear_sanctions_flag(
 
 class VendorUpdateFields(BaseModel):
     inherent_tier: Optional[str] = None
+    justification: Optional[str] = None
     website: Optional[str] = None
     swift_bic: Optional[str] = None
     bank_name: Optional[str] = None
@@ -909,8 +911,13 @@ class VendorUpdateFields(BaseModel):
 
 @router.patch("/{vendor_id}", response_model=DataResponse,
               dependencies=[Depends(require_role("finance", "admin"))])
-async def update_vendor_fields(vendor_id: str, body: VendorUpdateFields, db: AsyncSession = Depends(get_db)):
-    """Updates editable vendor attributes (inherent_tier, website, swift_bic, bank_name)."""
+async def update_vendor_fields(
+    vendor_id: str,
+    body: VendorUpdateFields,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Updates editable vendor attributes (inherent_tier, website, swift_bic, bank_name). Prompt 10 Section 6.4."""
     vendor = await db.get(Vendor, vendor_id)
     if not vendor:
         raise HTTPException(status_code=404, detail="vendor not found")
@@ -918,7 +925,21 @@ async def update_vendor_fields(vendor_id: str, body: VendorUpdateFields, db: Asy
         val = body.inherent_tier.lower().strip()
         if val not in ("low", "moderate", "high", "critical"):
             raise HTTPException(status_code=400, detail="inherent_tier must be low, moderate, high, or critical")
-        vendor.inherent_tier = val
+        if val != getattr(vendor, "inherent_tier", None):
+            if not body.justification or not body.justification.strip():
+                raise HTTPException(status_code=400, detail="A justification is required when setting or changing inherent_tier.")
+            old_val = getattr(vendor, "inherent_tier", None)
+            vendor.inherent_tier = val
+            hist = VendorInherentTierHistory(
+                id=str(uuid.uuid4()),
+                vendor_id=vendor.id,
+                old_tier=old_val,
+                new_tier=val,
+                justification=body.justification.strip(),
+                changed_by=user.email,
+                created_at=datetime.now(timezone.utc),
+            )
+            db.add(hist)
     if body.website is not None:
         vendor.website = body.website.strip() or None
     if body.swift_bic is not None:

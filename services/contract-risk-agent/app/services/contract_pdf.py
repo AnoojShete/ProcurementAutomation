@@ -71,6 +71,11 @@ class ContractPdfInput:
     audit_trail: list[AuditEntry] = field(default_factory=list)
     signature_image: Optional[str] = None
     signer_designation: Optional[str] = None
+    signature_method: Optional[str] = None
+    approval_channel: Optional[str] = None
+    bulk_batch_id: Optional[str] = None
+    mandate_id: Optional[str] = None
+    mandate_text_hash: Optional[str] = None
 
 
 def _decode_signature_image(data_url: Optional[str], width: float = 48 * mm, height: float = 14 * mm) -> Optional[RLImage]:
@@ -208,6 +213,25 @@ def _signature_block(c: ContractPdfInput, st: dict, width: float) -> Table:
                 st["small"],
             )
         )
+        # Prompt 10 Section 2.3: Channel label & auto-signed mandate label
+        if c.approval_channel:
+            channel_label = "Approved through email link" if c.approval_channel == "email" else "Approved in the application"
+            left_sub.append(
+                Paragraph(
+                    f"<font size='8' color='#59636e'>{escape(channel_label)}</font>",
+                    st["small"],
+                )
+            )
+        if c.signature_method == "auto_mandate" or c.mandate_id:
+            mandate_short = str(c.mandate_id)[:8] if c.mandate_id else "—"
+            batch_short = str(c.bulk_batch_id)[:8] if c.bulk_batch_id else ""
+            batch_txt = f" (batch {escape(batch_short)})" if batch_short else ""
+            left_sub.append(
+                Paragraph(
+                    f"<font size='8' color='#59636e'>Approved and signed under signing mandate {escape(mandate_short)}{batch_txt}</font>",
+                    st["small"],
+                )
+            )
     else:
         left_sig = Spacer(1, 26)
         left_sub = [Paragraph("Signature", st["small"])]
@@ -292,10 +316,34 @@ def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False) 
             ("Signature provider", provider),
             ("Provider reference", c.esign_provider_ref or "—"),
         ])
+        if c.approval_channel:
+            channel_label = "Approved through email link" if c.approval_channel == "email" else "Approved in the application"
+            cert_rows.append(("Approval channel", channel_label))
+
+        is_auto_mandate = c.signature_method == "auto_mandate" or bool(c.mandate_id)
+        if is_auto_mandate:
+            mandate_short = str(c.mandate_id)[:8] if c.mandate_id else "—"
+            batch_short = str(c.bulk_batch_id)[:8] if c.bulk_batch_id else "—"
+            cert_rows.extend([
+                ("Signing method", "Automatic under signing mandate"),
+                ("Mandate ID", str(c.mandate_id or "—")),
+                ("Mandate short ID", mandate_short),
+                ("Mandate text SHA-256", str(c.mandate_text_hash or "—")),
+                ("Approval batch ID", str(c.bulk_batch_id or "—")),
+            ])
+
         story.append(_kv_table(
             cert_rows,
-            st, 40 * mm, mono_keys=frozenset({"Contract ID", "Agreement SHA-256", "Provider reference"}),
+            st, 40 * mm, mono_keys=frozenset({"Contract ID", "Agreement SHA-256", "Provider reference", "Mandate ID", "Mandate text SHA-256", "Approval batch ID"}),
         ))
+        if is_auto_mandate:
+            story += [
+                Spacer(1, 6),
+                Paragraph(
+                    "<b>Disclaimer:</b> Signature applied automatically under a standing mandate; not individually reviewed at signing.",
+                    st["small"],
+                ),
+            ]
         if c.signature_image:
             cert_img = _decode_signature_image(c.signature_image, width=48 * mm, height=14 * mm)
             if cert_img:

@@ -10,6 +10,7 @@ Handles:
 """
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -71,11 +72,27 @@ class ApprovalService:
         last_chain = tiers[-1].get("required_roles") if "required_roles" in tiers[-1] else tiers[-1].get("approval_chain", [])
         return last_name, list(last_chain)
 
-    async def list_requests(self, limit: int = 100, requested_by: str | None = None) -> list[PurchaseRequest]:
-        """Purchase requests (all, or only `requested_by`'s), most recently
-        created first — backs the tracking dashboard."""
+    async def list_requests(
+        self, limit: int = 100, requested_by: str | None = None, requested_by_user_id: str | None = None
+    ) -> list[PurchaseRequest]:
+        """Purchase requests (all, or only `requested_by` / `requested_by_user_id`'s),
+        most recently created first — backs the tracking dashboard."""
         stmt = select(PurchaseRequest).options(selectinload(PurchaseRequest.approval_history))
-        if requested_by is not None:
+        if requested_by_user_id is not None:
+            from sqlalchemy import or_, func, and_
+            if requested_by is not None:
+                stmt = stmt.where(
+                    or_(
+                        PurchaseRequest.requested_by_user_id == requested_by_user_id,
+                        and_(
+                            PurchaseRequest.requested_by_user_id.is_(None),
+                            func.lower(PurchaseRequest.requested_by) == requested_by.lower()
+                        )
+                    )
+                )
+            else:
+                stmt = stmt.where(PurchaseRequest.requested_by_user_id == requested_by_user_id)
+        elif requested_by is not None:
             from sqlalchemy import func
             stmt = stmt.where(func.lower(PurchaseRequest.requested_by) == requested_by.lower())
         stmt = stmt.order_by(PurchaseRequest.created_at.desc().nulls_last()).limit(limit)
@@ -242,6 +259,9 @@ class ApprovalService:
                           else ({"routing": routing} if routing else None)),
             sourcing_flags=sourcing_flags or None,
             rfq_id=rfq_id,
+            source=getattr(data, "source", "manual") or "manual",
+            source_ref=getattr(data, "source_ref", None),
+            requested_by_user_id=getattr(data, "requested_by_user_id", None),
             comments=(f"Backordered: no stock; {data.comments}" if data.comments else "Backordered: no stock")
             if nothing_in_stock else data.comments,
             status="backordered" if nothing_in_stock else "pending_approval",
@@ -249,6 +269,21 @@ class ApprovalService:
             updated_at=now,
         )
         self.db.add(req)
+        # Audit every creation
+        audit_creation = AuditLog(
+            id=str(uuid.uuid4()),
+            entity_type="purchase_request",
+            entity_id=req_id,
+            action="request_created",
+            performed_by=data.requested_by or "system",
+            details={
+                "source": getattr(data, "source", "manual") or "manual",
+                "source_ref": getattr(data, "source_ref", None),
+                "amount": float(data.amount),
+                "department": data.department,
+            },
+        )
+        self.db.add(audit_creation)
         # Events go through the outbox in the same transaction as the change
         # they announce (shared/eventing/outbox.py), so a Kafka outage or a
         # crash after commit can't lose them; the relay retries until sent.
@@ -358,7 +393,8 @@ class ApprovalService:
 
     async def process_decision(
         self, request_id: str, decision: str, action: ApprovalAction,
-        channel: str = "portal", actor_role: str = "approver"
+        channel: str = "portal", actor_role: str = "approver",
+        bulk_batch_id: Optional[str] = None
     ) -> PurchaseRequest:
         """Process an approve/reject decision from an approver (portal or email action).
         
@@ -419,13 +455,14 @@ class ApprovalService:
                     # Authority was checked for this level only.
                     "level_index": idx,
                     "channel": channel,
+                    "bulk_batch_id": bulk_batch_id,
                 },
             )
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to signal Temporal workflow: {e}")
             # Fallback: process directly without Temporal
-            await self._process_decision_direct(req, decision, action, channel=channel)
+            await self._process_decision_direct(req, decision, action, channel=channel, bulk_batch_id=bulk_batch_id)
 
         # 3. Prompt 8 A6: Revoke email action tokens on decision
         from app.services.email_action_token_service import revoke_tokens
@@ -438,7 +475,7 @@ class ApprovalService:
 
     async def _process_decision_direct(
         self, req: PurchaseRequest, decision: str, action: ApprovalAction,
-        channel: str = "portal"
+        channel: str = "portal", bulk_batch_id: Optional[str] = None
     ):
         """Fallback: process a decision directly without Temporal.
         
@@ -485,6 +522,7 @@ class ApprovalService:
                 "level": decision_level,
                 "escalated": False,
                 "channel": channel,
+                "bulk_batch_id": bulk_batch_id,
             },
         )
         self.db.add(audit)
@@ -494,7 +532,8 @@ class ApprovalService:
         if outbox is not None:
             await outbox.publish_approval_decided(
                 req.id, decision, action.decided_by, decision_level,
-                False, action.comments, now, decision_channel=channel
+                False, action.comments, now, decision_channel=channel,
+                bulk_batch_id=bulk_batch_id
             )
         await self.db.commit()
 

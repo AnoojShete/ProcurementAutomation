@@ -114,6 +114,7 @@ class PurchaseRequest(Base):
     vendor_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("vendors.id"))
     request_type: Mapped[str] = mapped_column(String(20), nullable=False)
     requested_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    requested_by_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     department: Mapped[str] = mapped_column(String(255), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="INR")
@@ -137,6 +138,8 @@ class PurchaseRequest(Base):
     # threshold with no RFQ or catalog price"), and the RFQ it was awarded from.
     sourcing_flags: Mapped[Optional[list]] = mapped_column(JSON)
     rfq_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("rfq_events.id"))
+    source: Mapped[Optional[str]] = mapped_column(String(50), default="manual")
+    source_ref: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     @property
     def is_over_budget(self) -> bool:
@@ -386,4 +389,64 @@ class EmailActionToken(Base):
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
+    purchase_request: Mapped["PurchaseRequest"] = relationship("PurchaseRequest")
+
+
+class EmailBatchToken(Base):
+    """Batch action token for bulk email digest approvals (Prompt 10 Section 1.5)."""
+    __tablename__ = "email_batch_tokens"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False, index=True)
+    approver_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    request_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    used_ip: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    used_user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+
+class ApprovalBatch(Base):
+    """A recorded batch of bulk approvals (Prompt 10 Section 1.3)."""
+    __tablename__ = "approval_batches"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    approver_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    approver_role: Mapped[str] = mapped_column(String(50), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), default="portal", nullable=False)
+    email_batch_token_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("email_batch_tokens.id", ondelete="SET NULL"), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    requested_ids: Mapped[list] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="executing", nullable=False)
+    count_requested: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    count_approved: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    count_skipped: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_approved_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0, nullable=False)
+    rules_snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    ip: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    acknowledged_auto_sign: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    items: Mapped[list["ApprovalBatchItem"]] = relationship("ApprovalBatchItem", back_populates="batch", cascade="all, delete-orphan")
+
+
+class ApprovalBatchItem(Base):
+    """An individual item inside an approval batch (Prompt 10 Section 1.3)."""
+    __tablename__ = "approval_batch_items"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    batch_id: Mapped[str] = mapped_column(Uuid, ForeignKey("approval_batches.id", ondelete="CASCADE"), nullable=False)
+    request_id: Mapped[str] = mapped_column(Uuid, ForeignKey("purchase_requests.id", ondelete="CASCADE"), nullable=False)
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    result: Mapped[str] = mapped_column(String(20), nullable=False)  # approved, skipped, failed
+    reason_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    decision_id: Mapped[Optional[str]] = mapped_column(Uuid, nullable=True)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    batch: Mapped["ApprovalBatch"] = relationship("ApprovalBatch", back_populates="items")
     purchase_request: Mapped["PurchaseRequest"] = relationship("PurchaseRequest")

@@ -165,6 +165,66 @@ export function RequestDetailPage() {
       : []),
   ];
 
+  const nextAction = useMemo(() => {
+    if (!request) return null;
+
+    if (request.status === "pending_approval") {
+      return {
+        title: "Next Action: Approval Decision",
+        subtitle: `Stage ${Math.min(request.current_approver_index + 1, (request.approval_chain ?? []).length)} of ${(request.approval_chain ?? []).length}: Waiting for ${request.approval_chain?.[request.current_approver_index] ? titleCase(request.approval_chain[request.current_approver_index]) : "Approver"}`, 
+        badge: <StatusBadge status={request.status} />,
+        content: (
+          <div className="flex flex-col gap-4">
+            <ApprovalChainVisual request={request} />
+            <ApprovalActions request={request} onDecided={refresh} />
+          </div>
+        ),
+      };
+    }
+
+    if (request.status === "approved") {
+      if (shownContract && shownContract.status !== "signed") {
+        return {
+          title: "Next Action: Sign Contract",
+          subtitle: `Contract generated (${titleCase(shownContract.template_used)}). Review and execute digital signature.`,
+          badge: <ContractStatusBadge status={shownContract.status} />,
+          content: (
+            <div className="flex flex-col gap-3">
+              <ContractActions contract={shownContract} request={request} onChanged={refresh} autoOpen={params.get("action") === "sign" ? "sign" : undefined} />
+            </div>
+          ),
+        };
+      }
+      if (!shownContract) {
+        return {
+          title: "Next Action: Generate Contract",
+          subtitle: "Purchase request is fully approved. Generate the legal agreement to proceed.",
+          badge: <span className="rounded bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 border border-brand-200">Ready for Contract</span>,
+          content: (
+            <div className="flex flex-col gap-3">
+              <ContractActions contract={null} request={request} onChanged={refresh} />
+            </div>
+          ),
+        };
+      }
+    }
+
+    if (request.status === "ordered" || request.status === "partially_received") {
+      return {
+        title: "Next Action: Confirm Delivery / Receipt",
+        subtitle: "Items have been ordered. Record deliveries as goods and licenses arrive.",
+        badge: <StatusBadge status={request.status} />,
+        content: (
+          <div className="flex flex-col gap-3">
+            <ApprovalActions request={request} onDecided={refresh} />
+          </div>
+        ),
+      };
+    }
+
+    return null;
+  }, [request, shownContract, params, refresh]);
+
   const chain = request.approval_chain ?? [];
   const approvalFigure =
     request.status === "rejected"
@@ -183,6 +243,18 @@ export function RequestDetailPage() {
         status={<StatusBadge status={request.status} />}
         meta={<span>Submitted by <PersonName email={request.requested_by} /> on {formatDate(request.created_at)}</span>}
       />
+
+      {/* Topmost Next Action Panel */}
+      {nextAction && (
+        <Card className="border-accent/40 bg-sheet shadow-sm ring-1 ring-accent/20 animate-fade-in">
+          <CardHeader
+            title={nextAction.title}
+            subtitle={nextAction.subtitle}
+            action={nextAction.badge}
+          />
+          <CardBody>{nextAction.content}</CardBody>
+        </Card>
+      )}
 
       <LedgerStrip cols={4} label="Request figures">
         <MetricCard label="Amount" value={formatCurrency(request.amount, request.currency ?? "INR")} />

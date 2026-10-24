@@ -2,18 +2,18 @@
  * Colours are bare RGB channels so Tailwind's `/50` opacity modifiers work.
  * Every text pair here measures ≥ 5 : 1 on sheet and paper. */
 :root {
-  /* surfaces */
-  --paper: 244 246 242;          /* #F4F6F2 app background */
-  --sheet: 255 255 255;          /* #FFFFFF sections, tables, forms */
-  --sheet-sunk: 238 242 236;     /* #EEF2EC table header, hover, code */
-  --rule: 206 216 207;           /* #CED8CF hairlines (decorative) */
-  --rule-mid: 176 188 179;       /* #B0BCB3 slightly stronger hairline */
-  --rule-strong: 127 141 131;    /* #7F8D83 input borders (3.48 : 1) */
+  /* surfaces - Prompt 10 Section 5.1 Ivory White Palette */
+  --paper: 250 247 240;          /* #FAF7F0 app background */
+  --sheet: 255 254 250;          /* #FFFEFA surface (sections, tables, cards) */
+  --sheet-sunk: 244 240 230;     /* #F4F0E6 surface-alt (table headers, sunken panels) */
+  --rule: 230 224 210;           /* #E6E0D2 border (hairlines, dividers) */
+  --rule-mid: 204 198 184;       /* slightly stronger border */
+  --rule-strong: 140 134 120;    /* input borders */
 
-  /* text */
-  --ink: 24 33 28;               /* #18211C primary */
-  --ink-2: 70 82 74;             /* #46524A secondary, labels */
-  --ink-3: 92 104 96;            /* #5C6860 captions, timestamps */
+  /* text - Prompt 10 Section 5.1 Neutrals */
+  --ink: 31 36 48;               /* #1F2430 primary text */
+  --ink-2: 94 100 114;           /* #5E6472 muted text, secondary labels */
+  --ink-3: 110 116 130;          /* captions, timestamps (WCAG AA compliant) */
 
   /* roles */
   --accent: 31 75 143;           /* #1F4B8F ink blue: actions, links, focus */
@@ -102,11 +102,11 @@
  * built from light-theme tokens (ink background, soft role colours as
  * text), so it keeps those values when the page goes dark. */
 :root[data-theme="dark"] .keep-light-tokens {
-  --ink: 24 33 28;
-  --ink-2: 70 82 74;
-  --ink-3: 92 104 96;
-  --rule: 206 216 207;
-  --rule-mid: 176 188 179;
+  --ink: 28 27 26;
+  --ink-2: 78 75 70;
+  --ink-3: 114 110 104;
+  --rule: 228 225 218;
+  --rule-mid: 204 200 192;
   --accent-soft: 197 212 235;
   --done-soft: 182 217 193;
   --attention-soft: 240 214 150;

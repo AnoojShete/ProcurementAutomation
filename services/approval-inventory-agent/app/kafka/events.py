@@ -36,10 +36,11 @@ def build_approval_requested_payload(
 
 def build_approval_decided_payload(
     request_id, decision, decided_by, decision_level,
-    escalated, decided_at, comments=None, decision_channel="portal"
+    escalated, decided_at, comments=None, decision_channel="portal",
+    bulk_batch_id=None
 ) -> dict:
     """Build payload for approval.decided event."""
-    return {
+    payload = {
         "request_id": str(request_id),
         "decision": decision,
         "decided_by": decided_by,
@@ -49,6 +50,9 @@ def build_approval_decided_payload(
         "comments": comments,
         "decision_channel": decision_channel,
     }
+    if bulk_batch_id:
+        payload["bulk_batch_id"] = str(bulk_batch_id)
+    return payload
 
 
 def build_license_usage_updated_payload(

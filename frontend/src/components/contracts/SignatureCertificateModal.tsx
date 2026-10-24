@@ -87,13 +87,34 @@ export function SignatureCertificateModal({
             </div>
           )}
           <div>
-            <span className="text-slate-400">Legal Framework</span>
-            <p className="font-medium text-slate-800">ESIGN Act & UETA</p>
+            <span className="text-slate-400">Record Type</span>
+            <p className="font-medium text-slate-800">Internal Authorisation Record</p>
           </div>
           <div>
             <span className="text-slate-400">Contract ID</span>
             <p className="font-mono font-medium text-slate-700 truncate">{contract.id.slice(0, 12)}...</p>
           </div>
+          {(contract.signature_method === "auto_mandate" || contract.mandate_id || certificate?.signing_method) && (
+            <div className="col-span-2 rounded border border-emerald-200 bg-emerald-50/70 p-2.5">
+              <span className="text-xs text-slate-500 font-medium">Approval & Signing Channel</span>
+              <p className="font-semibold text-emerald-950">
+                {contract.approval_channel === "email" ? "Approved through email link" : "Approved in the application"}
+                {contract.mandate_id && ` · Mandate #${contract.mandate_id.slice(0, 8)}`}
+                {contract.bulk_batch_id && ` (Batch #${contract.bulk_batch_id.slice(0, 8)})`}
+              </p>
+              <p className="mt-1 text-xs text-emerald-800 font-medium">
+                Signature applied automatically under a standing mandate; not individually reviewed at signing.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Disclaimer Notice */}
+        <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+          <p className="font-medium text-amber-950">Notice</p>
+          <p className="mt-0.5 text-amber-800">
+            This is an internal authorisation record with a sealed PDF. Whether a counterparty or regulator accepts it as a legally valid electronic signature must be confirmed with legal or finance.
+          </p>
         </div>
 
         {/* Signature Preview if Available */}

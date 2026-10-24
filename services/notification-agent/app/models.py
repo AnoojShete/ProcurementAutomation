@@ -81,6 +81,15 @@ class PurchaseRequestRef(Base):
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
     requested_by: Mapped[Optional[str]] = mapped_column(String(255))
+    requested_by_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+
+class UserRef(Base):
+    __tablename__ = "users"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    email: Mapped[str] = mapped_column(String(255))
 
 
 class ContractRef(Base):

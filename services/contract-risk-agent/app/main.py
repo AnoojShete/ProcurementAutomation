@@ -13,7 +13,7 @@ from app.database import async_session_factory, init_db, get_db
 from shared.eventing import kafka_sender, run_relay
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
-from app.api import health, contracts, vendors, webhooks, ops, obligations, rulesets
+from app.api import health, contracts, vendors, webhooks, ops, obligations, rulesets, mandates
 from app.services.docusign_client import run_status_poller
 from app.services.reminder_sweep import run_reminder_sweeps
 from app.models import AuditLog
@@ -107,6 +107,9 @@ app.include_router(ops.router, prefix="/contracts/ops", tags=["Operations"])
 # Phase 2 obligations, also before contracts.router (same reason as above).
 app.include_router(
     obligations.router, prefix="/contracts", tags=["Contract Obligations"], dependencies=[Depends(get_current_user)]
+)
+app.include_router(
+    mandates.router, prefix="", dependencies=[Depends(get_current_user)]
 )
 app.include_router(
     contracts.router, prefix="/contracts", tags=["Contracts"], dependencies=[Depends(get_current_user)]

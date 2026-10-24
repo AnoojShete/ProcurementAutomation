@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Optional
+from typing import Optional, List, Dict, Any, Tuple
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -13,6 +13,7 @@ from app.schemas import (
 from app.config import settings
 from app.schemas import CreatePurchaseRequest, ApprovalAction, PurchaseRequestResponse, DataResponse, ErrorResponse, ErrorDetail
 from app.services.approval_service import ApprovalService
+from app.models import PurchaseRequest
 from shared.auth import CurrentUser, get_current_user, require_role
 
 # Roles that work across everyone's requests; "service" is the internal
@@ -57,11 +58,16 @@ async def create_request(
     request: Request,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     approval_svc: ApprovalService = Depends(get_approval_service),
-    user: CurrentUser = Depends(require_role("requester", "admin")),
+    user: CurrentUser = Depends(require_role("requester", "approver", "finance", "admin")),
 ):
-    # Identity comes from the JWT, never the body — otherwise any requester
-    # could file requests (and pass SoD checks) as someone else.
-    data = data.model_copy(update={"requested_by": user.email})
+    if data.source == "reorder_suggestion":
+        allowed_roles = get_rule("reorder.create_request_roles", fallback=["requester", "approver", "finance", "admin"])
+        if user.role.lower() not in [r.lower() for r in allowed_roles]:
+            raise HTTPException(status_code=403, detail=f"Role '{user.role}' is not allowed to create requests from reorder suggestions")
+    elif user.role not in ("requester", "admin"):
+        raise HTTPException(status_code=403, detail="Forbidden: only Requesters and Admins can create general purchase requests")
+
+    data = data.model_copy(update={"requested_by": user.email, "requested_by_user_id": str(user.id) if user.id else None})
     if idempotency_key:
         cached = await get_cached_response(request.app.state.redis, settings.service_name, idempotency_key, scope=user.id)
         if cached is not None:
@@ -82,6 +88,121 @@ async def create_request(
         await store_response(request.app.state.redis, settings.service_name, idempotency_key, result.model_dump(mode="json"), scope=user.id)
     return result
 
+
+
+class BulkDecisionPayload(BaseModel):
+    request_ids: List[str] = Field(..., min_length=1)
+    idempotency_key: str = Field(..., min_length=1)
+    comment: Optional[str] = None
+    acknowledged_auto_sign: bool = False
+
+
+async def compute_next_action(db: AsyncSession, req: PurchaseRequest, user: CurrentUser) -> Optional[dict]:
+    """Computes server-side next action (Prompt 10 Section 3.1)."""
+    role = (user.role or "").lower()
+    email = (user.email or "").lower()
+    req_user = (req.requested_by or "").lower()
+
+    if req.status == "pending_approval":
+        from app.services.approval_authority import check_request_authority
+        auth = await check_request_authority(db, req, user.email, "approved")
+        if auth.allowed:
+            return {
+                "key": "approve",
+                "label": "Approve",
+                "enabled": True,
+                "disabled_reason": None,
+                "method": "POST",
+                "target": f"/api/v1/requests/{req.id}/approve",
+            }
+        elif auth.reason_code == "vendor_blocked":
+            return {
+                "key": "approve",
+                "label": "Approve",
+                "enabled": False,
+                "disabled_reason": auth.reason_message or "Vendor not cleared",
+                "method": "POST",
+                "target": f"/api/v1/requests/{req.id}/approve",
+            }
+
+    elif req.status == "approved":
+        from app.models import Contract
+        stmt = select(Contract).where(Contract.purchase_request_id == req.id).limit(1)
+        res = await db.execute(stmt)
+        contract = res.scalar_one_or_none()
+        if not contract:
+            if role in ("finance", "admin", "approver"):
+                return {
+                    "key": "generate_contract",
+                    "label": "Generate Contract",
+                    "enabled": True,
+                    "disabled_reason": None,
+                    "method": "POST",
+                    "target": "/api/v1/contracts/generate",
+                }
+        else:
+            if contract.status == "draft":
+                if role in ("finance", "admin"):
+                    return {
+                        "key": "sign_now",
+                        "label": "Sign Now",
+                        "enabled": True,
+                        "disabled_reason": None,
+                        "method": "POST",
+                        "target": f"/api/v1/contracts/{contract.id}/sign",
+                    }
+                else:
+                    return {
+                        "key": "send_for_signature",
+                        "label": "Send for Signature",
+                        "enabled": True,
+                        "disabled_reason": None,
+                        "method": "POST",
+                        "target": f"/api/v1/contracts/{contract.id}/send",
+                    }
+            elif contract.status == "pending_signature":
+                return {
+                    "key": "sign_now",
+                    "label": "Sign Now",
+                    "enabled": True,
+                    "disabled_reason": None,
+                    "method": "POST",
+                    "target": f"/api/v1/contracts/{contract.id}/sign",
+                }
+            elif contract.status == "signed":
+                return {
+                    "key": "mark_received",
+                    "label": "Mark as Received",
+                    "enabled": True,
+                    "disabled_reason": None,
+                    "method": "POST",
+                    "target": f"/api/v1/requests/{req.id}/receive",
+                }
+
+    elif req.status in ("ordered", "partially_received"):
+        return {
+            "key": "mark_received",
+            "label": "Receive Goods",
+            "enabled": True,
+            "disabled_reason": None,
+            "method": "POST",
+            "target": f"/api/v1/requests/{req.id}/receive",
+        }
+
+    elif req.status == "rejected":
+        if email == req_user or (req.requested_by_user_id and str(user.id) == req.requested_by_user_id):
+            return {
+                "key": "resubmit",
+                "label": "Resubmit",
+                "enabled": True,
+                "disabled_reason": None,
+                "method": "POST",
+                "target": f"/api/v1/requests/{req.id}/resubmit",
+            }
+
+    return None
+
+
 @router.get("/", response_model=DataResponse)
 async def list_requests(
     limit: int = Query(100, ge=1, le=1000),
@@ -91,10 +212,23 @@ async def list_requests(
     """Purchase requests, most recent first — backs the tracking dashboard.
     Requesters see only their own; approvers/finance/admin see all."""
     owner = None if user.role in STAFF_ROLES else user.email
-    reqs = await approval_svc.list_requests(limit=limit, requested_by=owner)
+    owner_id = None if user.role in STAFF_ROLES else (str(user.id) if user.id else None)
+    reqs = await approval_svc.list_requests(limit=limit, requested_by=owner, requested_by_user_id=owner_id)
+    from app.services.bulk_service import bulk_eligibility
+
+    data = []
+    for r in reqs:
+        resp = PurchaseRequestResponse.model_validate(r)
+        if r.status == "pending_approval" and user.role in ("approver", "finance", "admin"):
+            eligible, codes, labels = await bulk_eligibility(approval_svc.db, r, user.email, user.role)
+            resp.bulk_eligible = eligible
+            resp.bulk_ineligible_reasons = labels
+        resp.next_action = await compute_next_action(approval_svc.db, r, user)
+        data.append(resp)
+
     return DataResponse(
-        data=[PurchaseRequestResponse.model_validate(r) for r in reqs],
-        meta={"count": len(reqs)},
+        data=data,
+        meta={"count": len(data)},
     )
 
 
@@ -138,9 +272,20 @@ async def get_request(
 ):
     req = await approval_svc.get_request_with_history(request_id)
     # Someone else's request looks exactly like a missing one to a requester.
-    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+    is_owner = False
+    if req:
+        req_uid = getattr(req, "requested_by_user_id", None)
+        req_by = getattr(req, "requested_by", None)
+        if req_uid and user.id:
+            is_owner = (str(req_uid) == str(user.id))
+        elif not req_uid and req_by and user.email:
+            is_owner = (req_by.strip().lower() == user.email.strip().lower())
+
+    if not req or (user.role not in STAFF_ROLES and not is_owner):
         return _error("NOT_FOUND", f"Request {request_id} not found", 404)
-    return DataResponse(data=PurchaseRequestResponse.model_validate(req))
+    resp = PurchaseRequestResponse.model_validate(req)
+    resp.next_action = await compute_next_action(approval_svc.db, req, user)
+    return DataResponse(data=resp)
 
 
 @router.get("/{request_id}/budget", response_model=DataResponse)
@@ -154,7 +299,16 @@ async def get_request_budget(
     if (bad := _malformed_id(request_id)) is not None:
         return bad
     req = await approval_svc.get_request_with_history(request_id)
-    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+    is_owner = False
+    if req:
+        req_uid = getattr(req, "requested_by_user_id", None)
+        req_by = getattr(req, "requested_by", None)
+        if req_uid and user.id:
+            is_owner = (str(req_uid) == str(user.id))
+        elif not req_uid and req_by and user.email:
+            is_owner = (req_by.strip().lower() == user.email.strip().lower())
+
+    if not req or (user.role not in STAFF_ROLES and not is_owner):
         return _error("NOT_FOUND", f"Request {request_id} not found", 404)
     from app.models import Budget
     from app.services import budget_service
@@ -183,7 +337,8 @@ async def approve_request(
         return bad
     action = action.model_copy(update={"decided_by": user.email})
     try:
-        req = await approval_svc.process_decision(request_id, "approved", action)
+        channel = getattr(action, "channel", None) or "portal"
+        req = await approval_svc.process_decision(request_id, "approved", action, channel=channel, actor_role=user.role)
         return DataResponse(data=PurchaseRequestResponse.model_validate(req))
     except AuthorityError as e:
         return _error(e.decision.code, str(e), 403)
@@ -205,7 +360,16 @@ async def receive_request(
     from app.kafka.consumer import NotReceivable
     from app.services.receipt_service import ReceiptError, receive_all
     req = await approval_svc.get_request_with_history(request_id)
-    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+    is_owner = False
+    if req:
+        req_uid = getattr(req, "requested_by_user_id", None)
+        req_by = getattr(req, "requested_by", None)
+        if req_uid and user.id:
+            is_owner = (str(req_uid) == str(user.id))
+        elif not req_uid and req_by and user.email:
+            is_owner = (req_by.strip().lower() == user.email.strip().lower())
+
+    if not req or (user.role not in STAFF_ROLES and not is_owner):
         return _error("NOT_FOUND", f"Request {request_id} not found", 404)
     try:
         await receive_all(approval_svc.db, req, user.email, approval_svc.producer)
@@ -241,7 +405,16 @@ async def list_receipts(request_id: str, approval_svc: ApprovalService = Depends
     if (bad := _malformed_id(request_id)) is not None:
         return bad
     req = await approval_svc.get_request_with_history(request_id)
-    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+    is_owner = False
+    if req:
+        req_uid = getattr(req, "requested_by_user_id", None)
+        req_by = getattr(req, "requested_by", None)
+        if req_uid and user.id:
+            is_owner = (str(req_uid) == str(user.id))
+        elif not req_uid and req_by and user.email:
+            is_owner = (req_by.strip().lower() == user.email.strip().lower())
+
+    if not req or (user.role not in STAFF_ROLES and not is_owner):
         return _error("NOT_FOUND", f"Request {request_id} not found", 404)
     receipts = await receipt_service.receipts_for(approval_svc.db, request_id)
     received = receipt_service.total_received(receipts)
@@ -262,7 +435,16 @@ async def record_receipt(request_id: str, data: ReceiptIn, approval_svc: Approva
     if (bad := _malformed_id(request_id)) is not None:
         return bad
     req = await approval_svc.get_request_with_history(request_id)
-    if not req or (user.role not in STAFF_ROLES and req.requested_by.lower() != user.email.lower()):
+    is_owner = False
+    if req:
+        req_uid = getattr(req, "requested_by_user_id", None)
+        req_by = getattr(req, "requested_by", None)
+        if req_uid and user.id:
+            is_owner = (str(req_uid) == str(user.id))
+        elif not req_uid and req_by and user.email:
+            is_owner = (req_by.strip().lower() == user.email.strip().lower())
+
+    if not req or (user.role not in STAFF_ROLES and not is_owner):
         return _error("NOT_FOUND", f"Request {request_id} not found", 404)
     try:
         receipt, outcome = await record(approval_svc.db, req, [l.model_dump() for l in data.lines], user.email,
@@ -313,3 +495,32 @@ async def decline_reclaim(
     except Exception:
         logger.exception("decline_reclaim failed")
         return _error("INTERNAL_ERROR", "Failed to decline reclaim", 500)
+
+
+@router.post("/bulk-decision", response_model=DataResponse)
+async def bulk_decision_endpoint(
+    payload: BulkDecisionPayload,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_role("approver", "finance", "admin")),
+):
+    """Executes bulk approval decisions (Prompt 10 Section 1.4)."""
+    from app.services.bulk_service import execute_bulk_decision
+    producer = request.app.state.kafka_producer
+    client_ip = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "unknown")
+
+    result = await execute_bulk_decision(
+        db=db,
+        producer=producer,
+        approver_id=user.email,
+        approver_role=user.role,
+        request_ids=payload.request_ids,
+        idempotency_key=payload.idempotency_key,
+        channel="portal",
+        comment=payload.comment,
+        acknowledged_auto_sign=payload.acknowledged_auto_sign,
+        ip=client_ip,
+        user_agent=user_agent,
+    )
+    return DataResponse(data=result)

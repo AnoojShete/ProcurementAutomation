@@ -29,6 +29,7 @@ const ContractsListPage = lazy(() => import("@/pages/contracts/ContractsListPage
 const ContractDetailPage = lazy(() => import("@/pages/contracts/ContractDetailPage").then((m) => ({ default: m.ContractDetailPage })));
 const RiskDashboardPage = lazy(() => import("@/pages/risk/RiskDashboardPage").then((m) => ({ default: m.RiskDashboardPage })));
 const NotificationsPage = lazy(() => import("@/pages/notifications/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
+const SigningAuthorityPage = lazy(() => import("@/pages/finance/SigningAuthorityPage").then((m) => ({ default: m.SigningAuthorityPage })));
 const SpendAnalysisPage = lazy(() => import("@/pages/finance/SpendAnalysisPage").then((m) => ({ default: m.SpendAnalysisPage })));
 const BudgetsPage = lazy(() => import("@/pages/finance/BudgetsPage").then((m) => ({ default: m.BudgetsPage })));
 const GstPage = lazy(() => import("@/pages/finance/GstPage").then((m) => ({ default: m.GstPage })));
@@ -147,7 +148,15 @@ const router = createBrowserRouter([
           </RoleGuard>,
         ),
       },
-      { path: "notifications", element: withSuspense(<NotificationsPage />) },
+            {
+        path: "signing-authority",
+        element: withSuspense(
+          <RoleGuard allow={["finance", "admin"]}>
+            <SigningAuthorityPage />
+          </RoleGuard>,
+        ),
+      },
+{ path: "notifications", element: withSuspense(<NotificationsPage />) },
       { path: "account", element: withSuspense(<AccountPage />) },
       {
         path: "system",
