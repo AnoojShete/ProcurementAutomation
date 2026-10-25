@@ -8,6 +8,7 @@ Enforces:
 - Versioned activation requiring justification, passing validation, and dry run
 """
 import copy
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -29,6 +30,8 @@ from app.services.scorecard.validator import validate_ruleset
 from shared.auth import CurrentUser, get_current_user, require_role
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 class SaveDraftRequest(BaseModel):

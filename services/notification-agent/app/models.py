@@ -85,7 +85,7 @@ class PurchaseRequestRef(Base):
 
 
 class UserRef(Base):
-    __tablename__ = "users"
+    __tablename__ = "auth_users"  # auth-service's accounts table
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)

@@ -314,6 +314,9 @@ const S = {
   eventLog: "ok", emailApprove: "ok", sod: "ok", licenceMl: "ok", assistant: "ok", clauseModel: "ok", sanctions: "ok",
   // Feature expansion (docs/feature-expansion-plan.md), Phases 1–4
   budgets: "ok", obligations: "ok", catalog: "ok", rfq: "ok", receipts: "ok", scorecard: "ok", gst: "ok", tds: "ok", redteam: "ok",
+  // Bulk approvals and signing mandates (24 Oct): partly built until the clearance call is authenticated
+  // (vendor-linked requests are never eligible), the mandate password check is fixed and the digest email exists
+  bulkApprove: "part", mandates: "part",
 };
 // ───────────────────────────────────────────────────────────────────────
 
@@ -373,9 +376,9 @@ document.getElementById("chart").innerHTML = `
   ${down("document.classified · vendor.matched")}
   <section class="sec agent"><h2>${icon("bolt")}Procurement agents</h2><div class="grid" style="--n:5">
     ${card("building", "Vendor intelligence", [["vendorMatch", "Match & de-duplicate"], ["onboarding", "Onboarding & profile checks"], ["bankGuard", "Bank changes need a 2nd person"], ["fraud", "Fraud guard: look-alike vendors, first-seen bank details", X]])}
-    ${card("approve", "Approval", [["rules", "Rules by spend tier"], ["routing", "Routing & escalation"], ["reminders", "Reminders before the deadline"], ["sod", "Separation of duties: nobody approves their own request", X], ["emailApprove", "Approve from email: single-use signed links", X], ["budgets", "Budget check before approval: over budget adds a finance step", X], ["catalog", "IT catalog: agreed prices, optional pre-approval, seat add-ons", X], ["rfq", "RFQs: sealed quotes, weighted comparison, rounds, award", X]])}
+    ${card("approve", "Approval", [["rules", "Rules by spend tier"], ["routing", "Routing & escalation"], ["reminders", "Reminders before the deadline"], ["sod", "Separation of duties: nobody approves their own request", X], ["emailApprove", "Approve from email: single-use signed links", X], ["budgets", "Budget check before approval: over budget adds a finance step", X], ["catalog", "IT catalog: agreed prices, optional pre-approval, seat add-ons", X], ["rfq", "RFQs: sealed quotes, weighted comparison, rounds, award", X], ["bulkApprove", "Bulk approval: tick eligible requests, one confirmation; capped by amount, count and batch total", X]])}
     ${card("boxes", "Inventory", [["reserve", "Availability & reservation"], ["backorder", "Backorders"], ["reorder", "Reorder suggestions"], ["licenceMl", "Licence usage ML: anomalies → reclaim requests", X], ["match3", "3-way invoice match: line level, partial invoices, payment hold", X], ["receipts", "Partial deliveries with asset tags; invoices checked against what arrived", X], ["tds", "TDS kept with each booked invoice (net payable); MSME 45-day deadlines", X]])}
-    ${card("pen", "Contract", [["templates", "Templates & versions"], ["esign", "E-signature, sent automatically"], ["renewals", "Renewals from notice deadline"], ["clauseModel", "Legal-BERT clause extraction (CUAD), rules as fallback", X], ["obligations", "Obligations after signing: SLA credits, seat limits, reminders", X]])}
+    ${card("pen", "Contract", [["templates", "Templates & versions"], ["esign", "E-signature, sent automatically"], ["renewals", "Renewals from notice deadline"], ["clauseModel", "Legal-BERT clause extraction (CUAD), rules as fallback", X], ["obligations", "Obligations after signing: SLA credits, seat limits, reminders", X], ["mandates", "Signing mandate: finance can let small bulk-approved contracts sign themselves, for up to 90 days, revocable", X]])}
     ${card("alert", "Risk analysis", [["riskModel", "Deterministic 100-point scorecard + hard overrides (sanctions, GSTIN, bank)"], ["riskBeforeSign", "Clearance gate before signing: not cleared needs an acknowledgement"], ["riskHistory", "Delivery history, evidence, disputes, decisions; every score replayable"], ["sanctions", "Sanctions screening: consolidated lists, fuzzy match", X], ["redteam", "Red team: 25 profiles pass (incl. the team's Caspian, SSPL and ADDA vendors); a sanctioned vendor can't be accepted or signed", X], ["scorecard", "Vendor scorecard: on-time, invoice accuracy, RFQ replies, SLA breaches", X]])}
   </div>
   <div class="life">
@@ -425,7 +428,7 @@ const DELIVERABLES = [
   ]},
   { group: "Mentor feedback", color: "var(--agent)", items: [
     ["FR-01 Auto-send after approval", "ok"], ["FR-02 Renewals from notice deadline", "ok"], ["FR-03 Reminders for pending actions", "ok"],
-    ["FR-04 Risk analysis documented", "part"], ["FR-05 Demo script", "ok"], ["FR-06 Persistent Kafka monitoring", "ok"],
+    ["FR-04 Risk analysis documented", "ok"], ["FR-05 Demo script", "ok"], ["FR-06 Persistent Kafka monitoring", "ok"],
     ["FR-07 Searchable logs", "ok"], ["FR-08 Model routing & fallback", "ok"], ["FR-09 Business rules validated", "ok"],
     ["FR-10 Notification coverage", "ok"], ["FR-11 Layout accuracy", "ok"], ["FR-12 Presentation", "ok"],
     ["FR-13 Clause model", "ok"], ["FR-14 Sanctions screening", "ok"], ["FR-29 Trained classifier", "ok"],
@@ -436,7 +439,7 @@ const DELIVERABLES = [
     ["Templates edited in the Control Panel", "ok"], ["Contract + e-signature by email", "ok"],
     ["E-signature tracking with PDFs", "ok"], ["Extracted fields, confidence, validation", "ok"],
     ["Control Panel sections", "ok"], ["Architecture & functional flow diagrams", "ok"],
-    ["Presentation slides", "ok"], ["Standard documentation", "ok"], ["MkDocs site published", "part"],
+    ["Presentation slides", "ok"], ["Standard documentation", "ok"], ["MkDocs site published", "ok"],
   ]},
 ];
 const W = { ok: 1, part: 0.5, plan: 0 };
@@ -522,7 +525,7 @@ details.more summary { cursor:pointer; font-weight:600; }
 
 <header class="top"><div><h1>Vendor risk</h1>
 </div>
-<span class="muted">Updated 23 Oct 2026</span></header>
+<span class="muted">Updated 25 Oct 2026</span></header>
 <div class="grid">
   <div class="stat" style="--c:var(--ok)"><b>25 / 25</b><span>red-team profiles as expected</span></div>
   <div class="stat" style="--c:var(--accent)"><b>0.738</b><span>ROC-AUC of the ruleset (ceiling 0.739)</span></div>
@@ -592,14 +595,15 @@ details.more summary { cursor:pointer; font-weight:600; }
 <tr><td><b>3Five8 Technologies (ADDA, adda.io)</b><br><span class="muted">IN, tier Critical, historical breach reported</span></td><td>No breach points until the record and the entity match are verified; GST, bank, sanctions pending</td><td><span class="pill g">as expected</span> 0 pts · Unrated · provisional · blocked; breach not scored</td><td><span class="pill g">blocked</span> 0 pts · Unrated · provisional · not cleared</td></tr>
 </tbody></table></div>
 <p><b>Found and fixed:</b> the breach check never looked anything up. It recorded “0 breaches, HTTP 200 from Have I Been Pwned” for every vendor, so ADDA would have shown “no breach listed”. It now records <i>not checked</i> (<code>collect_breach</code>; test <code>test_unchecked_breach_history_is_not_reported_as_clean</code>, which fails on the old code).</p>
-<p><b>Found, not fixed yet (needs a decision):</b></p>
+<p><b>Found on 23 Oct, fixed on 24 Oct</b> (Niraj, commit <code>abb334c</code>; tests in <code>tests/test_live_hotfixes.py</code>; the red team still passes 25/25 and the contract-risk suite 345 tests on 25 Oct):</p>
 <ul>
-<li><b>The fast-fail never runs for onboarded vendors.</b> It only applies to vendors that aren't <i>active</i>, and onboarding makes a vendor active straight away. Caspian and SSPL went through the GST and external checks.</li>
-<li><b>Most external checks crash.</b> GST and adverse media import a function that doesn't exist (<code>is_live_verification_enabled</code>). The Phase 2 checks run in parallel on one database session and fail with “Session is already flushing”. They are recorded as <i>not checked (deadline exceeded)</i>, so nothing is wrongly cleared, but the reason shown is wrong.</li>
-<li><b>Website and e-mail checks don't look anything up either.</b> With a domain on file they record TLS grade A and DMARC “reject”. They are required checks for High and Critical vendors, so fixing them leaves more vendors provisional.</li>
-<li><b>Tier can't be set.</b> Live scoring always uses the spend tier (here <i>moderate</i>); the inherent tier (High, Critical) is never passed in.</li>
-<li><b>Bank sanctions.</b> Only the vendor name is screened; a SWIFT/BIC can't be recorded or screened.</li>
+<li><b>Fast-fail for onboarded vendors.</b> New vendors now start as <i>onboarding</i>, and a database trigger refuses to make a vendor active until it has a cleared rating, so the sanctions and jurisdiction short-circuit applies to them.</li>
+<li><b>External checks crashing.</b> The missing <code>is_live_verification_enabled</code> is now in <code>shared/live_mode/checker.py</code>, and each Phase 2 check gets its own database session.</li>
+<li><b>Website and e-mail checks.</b> They now open a real TLS connection and look up SPF/DMARC records. Simulated pass values are only used for demo domains (<code>.test</code>, <code>.example</code>, …), and with live checks switched off they record <i>not checked</i>.</li>
+<li><b>Tier.</b> A vendor's inherent tier (low, moderate, high, critical) can be set at onboarding and is used when it is stricter than the spend tier.</li>
+<li><b>Bank sanctions.</b> SWIFT/BIC and bank name can be recorded; the BIC is screened against the sanctions list and prohibited countries.</li>
 </ul>
+<p class="muted">Not re-checked live yet: the three vendors were onboarded before these fixes. Onboard them again on reset data to see the live column match the red-team column.</p>
 
 <h2 id="evaluation">Evaluation on synthetic incident data</h2>
 <p>The 400 test vendors the retired model was evaluated on, scored by the ruleset (<code>ml/evaluate_scorecard.py</code>). Their six features become scorecard checks; identity checks are clear (the data has none).</p>

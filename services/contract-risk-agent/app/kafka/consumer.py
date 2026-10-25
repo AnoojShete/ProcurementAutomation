@@ -7,6 +7,7 @@ column for this service.
 import json
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from aiokafka import AIOKafkaConsumer
 from shared.kafka_security import kafka_auth_kwargs
@@ -18,6 +19,7 @@ from app.services.contract_service import (
 from app.models import Contract, SigningMandate
 from sqlalchemy import select, text
 from shared.eventing import deliver, PermanentEventError
+from shared.rules_engine import get_rule
 from app.services.risk_service import score_vendor
 
 from shared.infra.retry import with_retry

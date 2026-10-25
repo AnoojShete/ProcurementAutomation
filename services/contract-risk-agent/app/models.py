@@ -2,7 +2,7 @@
 (shared/db/init.sql), extended by this service's own Alembic migrations
 under migrations/versions/ (never edit init.sql directly).
 """
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List
 from sqlalchemy import (
     String, Integer, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric

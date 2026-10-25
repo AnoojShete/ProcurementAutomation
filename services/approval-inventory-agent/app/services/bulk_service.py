@@ -112,8 +112,8 @@ async def bulk_eligibility(
         # Check authority (level, spend limit, delegation, segregation of duties)
         auth = await check_request_authority(db, request, approver_id, "approved")
         if not auth.allowed:
-            reason_codes.append(auth.reason_code)
-            reason_labels.append(auth.reason_message or "Not authorised to approve this request")
+            reason_codes.append(auth.code)
+            reason_labels.append(auth.reason or "Not authorised to approve this request")
 
     # 5. Amount & Currency cap
     bulk_max_amount = float(get_rule("approval.bulk_approve_max_amount", fallback=25000.0))

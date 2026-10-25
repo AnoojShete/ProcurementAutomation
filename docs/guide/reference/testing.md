@@ -1,12 +1,13 @@
 # Testing and results
 
-## Automated tests (23 Oct 2026)
+## Automated tests (25 Oct 2026)
 
 | Suite | Command | Result |
 |---|---|---|
-| Service tests (pytest, inside each image) | `./scripts/test-service.sh all` | **1,276 passed**: contract-risk 322, approval-inventory 275, document-vendor 373, notification 125, auth 115, chatbot 66 |
-| Root tests (shared code, config: Kafka ACLs, nginx, lifecycle, docs) | `./scripts/test-root.sh` | 165 + 14 passed, 4 skipped |
+| Service tests (pytest, inside each image) | `./scripts/test-service.sh all` | **1,330 passed**: contract-risk 346, approval-inventory 290, document-vendor 375, notification 138, auth 115, chatbot 66 |
+| Root tests (shared code, config: Kafka ACLs, nginx, lifecycle, docs) | `./scripts/test-root.sh` | 169 + 14 passed, 4 skipped |
 | Whole lifecycle through the gateway | `python tests/e2e/invoice_lifecycle.py` | 71 / 71 |
+| The eight demo scenarios, checked live | `python tests/e2e/demo_scenarios.py` | 28 / 28 |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
 
 Other end-to-end suites: `auth_flows.py`, `budget_flow.py`,

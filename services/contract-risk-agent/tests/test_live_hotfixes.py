@@ -357,3 +357,27 @@ async def test_bank_swift_validation():
     obs3, raw3 = await collect_bank(db, v3, now)
     assert obs3.fields["bank.status"] == "invalid"
     assert obs3.status == "error"
+
+
+@pytest.mark.asyncio
+async def test_parallel_collectors_commit_their_own_sessions():
+    """Each Phase 2 check writes its observation in its own session. Closing
+    that session without a commit rolled the observation back, and saving the
+    score then failed on risk_score_rule_results.observation_id (found 25 Oct:
+    every contract generation and risk recompute returned 500)."""
+    from app.services.collectors import collector_manager as cm
+    obs = SimpleNamespace(fields={})
+    task_db = MagicMock(commit=AsyncMock())
+    factory = MagicMock()
+    factory.return_value.__aenter__ = AsyncMock(return_value=task_db)
+    factory.return_value.__aexit__ = AsyncMock(return_value=False)
+    collect = AsyncMock(return_value=(obs, None))
+    names = ["collect_sanctions", "collect_jurisdiction", "collect_bank", "collect_company_age",
+             "collect_delivery_sla", "collect_feedback", "collect_incidents", "collect_gst",
+             "collect_web", "collect_email", "collect_breach", "collect_certification",
+             "collect_financial", "collect_adverse_media"]
+    with patch("app.database.async_session_factory", factory):
+        with patch.multiple(cm, **{n: collect for n in names}):
+            await collect_all_signals(SimpleNamespace(), SimpleNamespace(id="v-1", status="active"))
+    assert factory.call_count == 6
+    assert task_db.commit.await_count == 6

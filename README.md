@@ -83,12 +83,13 @@ dead-letter queue instead of losing them.
 | **Contract clauses** | Legal-BERT on 102 held-out, lawyer-annotated contracts: F1 **0.85 / 0.80 / 0.91** for renewal, notice and expiry clauses vs **0.50 / 0.19 / 0.02** for the regex rules it replaced (kept as fallback) |
 | **Fraud controls** | Bank-detail changes need a second person; look-alike vendor names are flagged; vendors are screened against 25,000 sanctioned companies; invoices are held until bank details are verified |
 | **Separation of duties** | Nobody — not even an admin — approves their own request |
+| **Bulk approval** | Approvers tick several small, cleared, within-budget requests and approve them in one step, capped by count, amount and batch total; finance can hold a revocable signing mandate so those contracts sign themselves (off by default; an internal authorisation record, not a legal e-signature). Still being finished: requests with a vendor aren't eligible yet |
 | **Spend control** | Budgets per department and quarter checked before approval; RFQs with sealed quotes compared on price, lead time, warranty, support, risk and delivery record |
 | **Indian tax** | Every invoice's GST split, rate and arithmetic checked, its signed e-invoice QR verified offline, imported SaaS put under reverse charge, GSTR-2B reconciled; TDS kept with each booked invoice; MSME 45-day deadlines (rates to be confirmed by a CA) |
 | **Reliable by design** | Long-running steps (approvals, renewals, reminders) are Temporal workflows that survive restarts; failed events are kept and shown, never lost |
 | **Traceable** | One correlation id follows a request through every service's logs and events (Grafana + Loki) |
 | **One Control Panel** | Admins see the Input / Processed / Failed folders and every file's stage, the live event log, approval queues, every contract as *Pending E-Signature* or *E-Signature Complete* with its PDFs, and edit every notification email without a code change |
-| **Tested** | 1,276 unit tests across six services plus end-to-end runs through the gateway (invoice lifecycle **71/71**, GST **44/44**, risk **49/49**, assistant **20/20**, demo **28/28**) |
+| **Tested** | 1,330 unit tests across six services plus end-to-end runs through the gateway (invoice lifecycle **71/71**, GST **44/44**, risk **49/49**, assistant **20/20**, demo **28/28**) |
 
 ## Vendor Risk & Clearance Architecture (Prompt 9C)
 

@@ -43,7 +43,7 @@ off is logged as *skipped*.
 
 ## 4. Results and evaluation
 
-- 125 tests: every template renders with its event's documented payload,
+- 138 tests: every template renders with its event's documented payload,
   recipients per event, editing and sandboxing, digest routing.
 - Live check: an edited template with an extra recipient was received by both
   addresses in Mailpit; restoring the default brought the built-in back.

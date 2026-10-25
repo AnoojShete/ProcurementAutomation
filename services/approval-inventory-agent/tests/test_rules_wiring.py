@@ -386,3 +386,131 @@ def test_msme_warning_days(rule):
     assert msme_due(date(2026, 9, 1), date(2026, 10, 6))["status"] == "ok"        # 10 days left
     rule("msme.warning_days", 14)
     assert msme_due(date(2026, 9, 1), date(2026, 10, 6))["status"] == "due_soon"
+
+
+# ── Bulk approval (Prompt 10) ────────────────────────────────────────────
+
+def _bulk_request(**kw):
+    base = dict(id="r-1", amount=10000, currency="INR", status="pending_approval", request_type="hardware",
+                requested_by="requester@company.com", requested_by_user_id=None, budget_status="within",
+                approval_chain=["dept_manager"], current_approver_index=0, vendor_id=None, document_id=None)
+    return SimpleNamespace(**{**base, **kw})
+
+
+def _bulk_codes(req):
+    from app.services import bulk_service
+    from app.services.approval_authority import AuthorityDecision
+    allowed = AuthorityDecision(allowed=True, code="ok", reason="")
+    with patch.object(bulk_service, "check_request_authority", AsyncMock(return_value=allowed)):
+        return run(bulk_service.bulk_eligibility(AsyncMock(), req, "approver@company.com", "approver"))[1]
+
+
+def test_approval_bulk_approve_enabled(rule):
+    rule("approval.bulk_approve_enabled", True)
+    assert "bulk_disabled" not in _bulk_codes(_bulk_request())
+    rule("approval.bulk_approve_enabled", False)
+    assert "bulk_disabled" in _bulk_codes(_bulk_request())
+
+
+def test_approval_bulk_approve_max_amount(rule):
+    rule("approval.bulk_approve_max_amount", 25000)
+    assert "above_bulk_limit" not in _bulk_codes(_bulk_request(amount=20000))
+    rule("approval.bulk_approve_max_amount", 15000)
+    assert "above_bulk_limit" in _bulk_codes(_bulk_request(amount=20000))
+
+
+def test_approval_bulk_excluded_request_types(rule):
+    rule("approval.bulk_excluded_request_types", [])
+    assert "excluded_request_type" not in _bulk_codes(_bulk_request(request_type="software"))
+    rule("approval.bulk_excluded_request_types", ["software"])
+    assert "excluded_request_type" in _bulk_codes(_bulk_request(request_type="software"))
+
+
+def _bulk_run(request_ids, recent_batches=0, requests=None):
+    """execute_bulk_decision with the database mocked: no earlier batch with
+    this key, `recent_batches` batches in the last hour, and each id loaded
+    from `requests` (eligible, approved through a mocked ApprovalService)."""
+    from app.services import bulk_service
+    first = MagicMock(scalar_one_or_none=MagicMock(return_value=None), scalar=MagicMock(return_value=recent_batches))
+    db = MagicMock(execute=AsyncMock(return_value=first), commit=AsyncMock(), add=MagicMock())
+    item = MagicMock(add=MagicMock(), commit=AsyncMock(), get=AsyncMock(return_value=None))
+    item.execute = AsyncMock(side_effect=lambda stmt: MagicMock(scalar_one_or_none=MagicMock(
+        return_value=(requests or {}).get(item.current))))
+    factory = MagicMock()
+    factory.return_value.__aenter__.return_value = item
+    ids = iter(sorted(request_ids))
+
+    async def enter(*_):
+        item.current = next(ids, None)
+        return item
+    factory.return_value.__aenter__.side_effect = enter
+    with patch.object(bulk_service, "async_session_factory", factory), \
+         patch.object(bulk_service, "bulk_eligibility", AsyncMock(return_value=(True, [], []))), \
+         patch.object(bulk_service, "ApprovalService") as svc:
+        svc.return_value.process_decision = AsyncMock()
+        return run(bulk_service.execute_bulk_decision(
+            db=db, producer=None, approver_id="approver@company.com", approver_role="approver",
+            request_ids=request_ids, idempotency_key="k-1"))
+
+
+def test_approval_bulk_approve_max_items(rule):
+    from fastapi import HTTPException
+    rule("approval.bulk_approve_max_items", 5)
+    assert _bulk_run(["a", "b", "c"])["count_requested"] == 3
+    rule("approval.bulk_approve_max_items", 2)
+    with pytest.raises(HTTPException) as e:
+        _bulk_run(["a", "b", "c"])
+    assert e.value.status_code == 400
+
+
+def test_approval_bulk_actions_per_hour(rule):
+    from fastapi import HTTPException
+    rule("approval.bulk_actions_per_hour", 20)
+    assert _bulk_run(["a"], recent_batches=5)["count_requested"] == 1
+    rule("approval.bulk_actions_per_hour", 5)
+    with pytest.raises(HTTPException) as e:
+        _bulk_run(["a"], recent_batches=5)
+    assert e.value.status_code == 429
+
+
+def test_approval_bulk_approve_max_batch_total(rule):
+    reqs = {"a": _bulk_request(id="a", amount=10000), "b": _bulk_request(id="b", amount=10000)}
+    rule("approval.bulk_approve_max_batch_total", 30000)
+    assert _bulk_run(["a", "b"], requests=reqs)["count_approved"] == 2
+    rule("approval.bulk_approve_max_batch_total", 15000)
+    result = _bulk_run(["a", "b"], requests=reqs)
+    assert result["count_approved"] == 1
+    assert result["items"][1]["reason_code"] == "batch_cap_reached_amount"
+
+
+def test_approval_bulk_email_token_ttl_hours(rule):
+    from app.services.email_action_token_service import mint_batch_action_token
+    db = MagicMock(add=MagicMock(), commit=AsyncMock())
+
+    def hours_valid():
+        _, expires_at, _ = run(mint_batch_action_token(db, "finance@company.com", ["r-1", "r-2"]))
+        return round((expires_at - datetime.now(timezone.utc)).total_seconds() / 3600)
+    rule("approval.bulk_email_token_ttl_hours", 48)
+    assert hours_valid() == 48
+    rule("approval.bulk_email_token_ttl_hours", 6)
+    assert hours_valid() == 6
+
+
+def test_reorder_create_request_roles(rule):
+    from fastapi import HTTPException
+    from app.api.requests import create_request
+
+    class PastRoleCheck(Exception):
+        pass
+
+    def create_as_approver():
+        data = SimpleNamespace(source="reorder_suggestion", model_copy=MagicMock(side_effect=PastRoleCheck))
+        user = SimpleNamespace(role="approver", email="approver@company.com", id="u-1")
+        run(create_request(data=data, request=MagicMock(), idempotency_key=None, approval_svc=MagicMock(), user=user))
+    rule("reorder.create_request_roles", ["requester", "approver"])
+    with pytest.raises(PastRoleCheck):
+        create_as_approver()
+    rule("reorder.create_request_roles", ["requester"])
+    with pytest.raises(HTTPException) as e:
+        create_as_approver()
+    assert e.value.status_code == 403

@@ -235,10 +235,14 @@ Since 22 Oct admins can set the company's own SMTP server in the app
 (**Email Settings**, sidebar and Control Panel; `/api/smtp` →
 notification-agent `app/api/smtp_settings.py`, with a test-send). The password
 is stored encrypted with AES-256-GCM (`shared/security/encryption.py`) using
-`SMTP_ENCRYPTION_SECRET`. **Open issue:** compose doesn't pass that variable to
-notification-agent, so the default key in the source is used, and production
-mode doesn't refuse it. Set it before a shared deployment and re-save the
-password.
+`MASTER_ENCRYPTION_KEY` (or `ENCRYPTION_KEY`, then `SMTP_ENCRYPTION_SECRET`;
+at least 32 bytes). Since 24 Oct a missing or short key stops the service
+outside development, and each new ciphertext gets its own salt (`v2:`; old
+`v1:` values still decrypt). **Open issue:** `encryption.py` reads a missing
+`APP_ENV` as development, while every other service reads it as production,
+so a deployment that forgets `APP_ENV` silently uses the built-in key, which
+is public in the repo. Set `APP_ENV=production` and a real key before a shared
+deployment; compose passes neither to notification-agent today.
 
 ### Real email with Gmail
 
@@ -360,8 +364,8 @@ the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit
 
 | Command | What | Result |
 |---|---|---|
-| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 23: 1,276 passed (contract-risk 322, approval-inventory 275, document-vendor 373, notification 125, auth 115, chatbot 66). After a `requirements.txt` change, rebuild the service image first or its suite fails to import |
-| root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | Oct 19: 144 + 14 passed, 4 skipped (the chatbot's live script) |
+| `./scripts/test-service.sh all` (or `make test`) | Each service's pytest suite inside its image, source mounted | Oct 25: 1,330 passed (contract-risk 346, approval-inventory 290, document-vendor 375, notification 138, auth 115, chatbot 66). After a `requirements.txt` change, rebuild the service image first or its suite fails to import |
+| root tests (command below) | `shared/` code and config checks (Kafka ACLs vs code, nginx rules, lifecycle, outbox, mailer) | Oct 25: 169 + 14 passed, 4 skipped (the chatbot's live script) |
 | `make e2e` | Bash flow through the gateway: login, ClamAV reject/accept, request → approve → contract → signed webhook → risk → email → business-rule change | 17/17 (Oct 19) |
 | `python tests/e2e/auth_flows.py` | Sign-up → email → confirm → login → change password → logout → forgot/reset, expired / reused links, lockout, enumeration, rate limit (reads Mailpit) | 42/42 |
 | `python tests/e2e/invoice_lifecycle.py` | One fresh vendor's quote + invoice through all five agents, no DB shortcuts | 71/71 (Oct 19; adds auto-send after approval, mark-as-received, risk signal coverage) |
@@ -570,6 +574,69 @@ Nothing is paid from the platform: *Paid at the bank*
 Page: `/app/gst` (approver, finance, admin): month figures, invoices with
 their check, 2B reconciliation, MSME deadlines, TDS register, rate tables.
 `python tests/e2e/gst_flow.py` checks every acceptance point (44 checks).
+
+### Bulk approval and signing mandates (24 Oct)
+
+Approvers and finance can tick several requests in the inbox and approve them
+in one step. `services/approval-inventory-agent/app/services/bulk_service.py`
+holds the single eligibility check (`bulk_eligibility`), used by the inbox,
+the batch email page and `POST /api/requests/bulk-decision`. A request is
+eligible only if it is pending at your step and within your authority, isn't
+your own, is in INR and at most `approval.bulk_approve_max_amount`, isn't over
+budget, its type isn't in `approval.bulk_excluded_request_types`, its vendor
+is cleared (fails closed if contract-risk can't be reached) and it has no open
+invoice mismatch. A batch is idempotent per approver and `Idempotency-Key`,
+limited by `approval.bulk_actions_per_hour`, `approval.bulk_approve_max_items`
+and `approval.bulk_approve_max_batch_total`, and each request is decided in its
+own session through `ApprovalService.process_decision`, so authority, audit and
+`approval.decided` are the same as for a single approval. Batches are kept in
+`approval_batches` / `approval_batch_items`; the approver gets a
+`bulk_approval_confirmation` email.
+
+**Signing mandates** (`/app/signing-authority`, finance; contract-risk-agent
+`app/api/mandates.py`, table `signing_mandates`): a finance user re-enters
+their password and accepts a standing mandate with a maximum amount per
+contract, valid for at most `contract.mandate_max_days`. With
+`contract.auto_sign_enabled` on (off by default), when finance gives the final
+approval in bulk or from an email link (`contract.auto_sign_allow_email_channel`)
+and holds an active mandate, the contract-risk consumer signs the contract
+straight away, provided it's within both the mandate and
+`contract.auto_sign_max_amount` and the vendor isn't blocked. The certificate
+names the batch and mandate. A bulk batch that would auto-sign needs an extra
+acknowledgement (422 otherwise). This is an internal authorisation record with
+a sealed PDF, not a legally recognised e-signature.
+
+Also in this change: a next-action bar on request and contract pages
+(`components/ui/NextActionBar.tsx`, server-computed `next_action`), a
+reorder-suggestion drawer that creates a request (`PlaceReorderModal.tsx`,
+roles in `reorder.create_request_roles`), and the ivory palette in
+`styles/tokens.css`.
+
+Known gaps (25 Oct): bulk and email approval call contract-risk's
+`/vendors/{id}/clearance` without credentials and get 401, so a request with
+a vendor is always "vendor not cleared": never bulk-eligible, and an email
+approval sends the approver to the portal (safe, but the feature does nothing
+for those requests until service-to-service auth is decided). The daily digest email that would send an approver one
+batch-approval link isn't built, so `approval.bulk_digest_*` and
+`approval.bulk_email_enabled` have no effect (the batch page and
+`/internal/email-action/mint-batch` exist). The mandate password re-check calls
+`auth-service:8001` (it runs on 8005), so the real password is never checked;
+see docs/index.html (Overview, Needs attention). On 25 Oct `ruff check --select F821` found
+seven undefined names, six of them from this change. The worst was `get_rule`
+in contract-risk's consumer: every final approval failed after its contract
+was generated, so the contract was never sent for signature. The others were
+`get_rule` in `requests.py` (reorder requests) and `email_action.py` (batch
+page), `select` in `requests.py` (next action of an approved request),
+`datetime`/`timezone` in the consumer and `models.py`, and `logger` in
+`rulesets.py` (older). The live run found four more: the parallel risk checks'
+sessions were never committed (every score failed, so contract generation
+returned 500), notification-agent's `UserRef` pointed at a `users` table
+(it's `auth_users`; no approval or contract e-mail was sent), and the approval
+agent's `Contract` stub had no `status` while `bulk_eligibility` read
+`AuthorityDecision.reason_code` (it's `code`), so `GET /requests/` returned
+500 for admin and finance. All are fixed with a test that fails without the
+fix. The unit tests that came with the change mocked these objects, which is
+why they passed.
 
 ### Research experiment (selective automation)
 

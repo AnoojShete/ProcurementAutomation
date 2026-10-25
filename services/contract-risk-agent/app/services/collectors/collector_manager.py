@@ -273,7 +273,11 @@ async def collect_all_signals(
         # Open independent DB session for parallel collector to prevent SQLAlchemy session concurrency
         if async_session_factory is not None and not getattr(db, "_mock_self", None):
             async with async_session_factory() as task_db:
-                return await _safe_collect(fn, task_db, vendor, now, sig_name, **extra_kwargs)
+                obs = await _safe_collect(fn, task_db, vendor, now, sig_name, **extra_kwargs)
+                # Commit, or the observation rolls back when the session closes and
+                # the score's rule results point at rows that don't exist.
+                await task_db.commit()
+                return obs
         else:
             return await _safe_collect(fn, db, vendor, now, sig_name, **extra_kwargs)
 

@@ -1,7 +1,7 @@
 # Checklist status
 
 Review of the *Project Deliverables and Implementation Checklist* against the
-`main` branch, 23 Oct 2026. Where each item lives in the code:
+`main` branch, 23 Oct 2026; re-checked 25 Oct after the Oct 24 merges. Where each item lives in the code:
 [Final checklist](checklist.md).
 
 ## A. End-to-end workflow
@@ -31,7 +31,7 @@ Review of the *Project Deliverables and Implementation Checklist* against the
 | C | Functional flow diagram | Done | `docs/assets/functional-flow.svg`. Too tall for one slide; the deck redraws it as five cards |
 | D | Presentation slides | Done | 16 slides, claude.ai Slides artifact. Private until shared; team still to rehearse |
 | E | Standardised documentation | Done | Follows the Overall Documentation Template v2 and the agent template |
-| F | MkDocs site | Partially done | Builds cleanly; **not yet published to GitHub Pages** (repo owner: Actions → Docs → Run workflow) |
+| F | MkDocs site | Done | Published 23 Oct at <https://anoojshete.github.io/ProcurementAutomation/>; `mkdocs build --strict` clean on 25 Oct. Republish after doc changes (Actions → Docs → Run workflow, tick deploy) |
 
 ## Expected deliverables
 
@@ -40,7 +40,7 @@ Review of the *Project Deliverables and Implementation Checklist* against the
 | 1–7 | Workflow, document lifecycle, notifications, contract/e-sign, Control Panel, both diagrams | Done |
 | 8 | Presentation slides | Done (share and rehearse) |
 | 9 | Standardised documentation | Done |
-| 10 | MkDocs site | Partially done (not published) |
+| 10 | MkDocs site | Done (published; republish after changes) |
 
 ## Issues found in this review
 
@@ -50,11 +50,18 @@ Review of the *Project Deliverables and Implementation Checklist* against the
   rebuild that service.
 - **Escalation emails** went to the level that missed its SLA, as a placeholder
   address, with a generic subject. Fixed (see A2).
-- **SMTP encryption key (needs a decision):** compose doesn't pass
-  `SMTP_ENCRYPTION_SECRET` to notification-agent, so saved company SMTP passwords
-  are encrypted with the default key in `shared/security/encryption.py`, which is
-  public in the repo and not refused in production. Pass a real secret before any
-  shared deployment, then re-save the SMTP password (old ones won't decrypt).
+- **SMTP encryption key (needs a decision):** since 24 Oct a missing key stops
+  the service outside development, but `shared/security/encryption.py` reads a
+  missing `APP_ENV` as development, so it can still fall back to a key that is
+  public in the repo. Set `APP_ENV=production` and `MASTER_ENCRYPTION_KEY`
+  (32+ characters) before any shared deployment, then re-save the SMTP password.
 - **Test data** from these checks is still in the stack (`checklist_*` and
   `recheck_*` files). Run `./scripts/reset-demo.sh` before the review.
-- **Tests (23 Oct):** 1,276 service tests pass, plus 165 + 14 root tests; frontend typecheck and `mkdocs build --strict` are clean.
+- **Re-check after the Oct 24 merges (25 Oct):** the running images predated
+  the bulk-approval change, and once rebuilt the merge broke contract
+  generation and auto-send (missing imports, uncommitted risk-check sessions),
+  approval and contract e-mails (wrong users table) and the request list for
+  admin and finance. All fixed, each with a test that fails without the fix.
+  Still open: bulk and e-mail approval can't check a vendor's clearance (401),
+  and the signing-mandate password check calls the wrong port.
+- **Tests (25 Oct):** 1,330 service tests pass, plus 169 + 14 root tests; invoice lifecycle 71/71 and the demo script 28/28 through the gateway; frontend typecheck and `mkdocs build --strict` are clean.

@@ -280,3 +280,90 @@ def test_risk_raw_retention_months(rule):
     # months are approximated as 30.5 days (collectors/base.compute_retention_date)
     assert _retention(24, rule) == date(2028, 1, 17)
     assert _retention(6, rule) == date(2026, 7, 17)
+
+
+# ── Signing mandates and auto-signing (Prompt 10) ────────────────────────
+
+def _auto_signed(rule, channel="bulk", spend=10000):
+    """Runs the approval.decided handler for a final finance approval of a
+    request whose contract is unsigned, with an active mandate capped at
+    ₹1,00,000; True when the contract was signed under the mandate."""
+    from app.kafka import consumer
+    from app.services import contract_service
+    contract = SimpleNamespace(id="c-1", status="sent", vendor_id="v-1")
+    mandate = SimpleNamespace(id="m-1", max_amount_per_contract=100000, mandate_text_sha256="abc")
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=[
+        MagicMock(scalar_one_or_none=MagicMock(return_value=["dept_manager", "finance"])),
+        MagicMock(scalar_one_or_none=MagicMock(return_value=contract)),
+        MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=mandate)))),
+    ])
+    factory = MagicMock()
+    factory.return_value.__aenter__.return_value = db
+    sign = AsyncMock(return_value=(contract, {}))
+    payload = {"decision": "approved", "request_id": "r-1", "decision_level": "level_2_finance",
+               "decision_channel": channel, "decided_by": "finance@company.com",
+               "bulk_batch_id": "b-1" if channel == "bulk" else None}
+    app = SimpleNamespace(state=SimpleNamespace(kafka_producer=None))
+    with patch.object(consumer, "async_session_factory", factory), \
+         patch.object(consumer, "auto_send_for_signature", AsyncMock(return_value="skipped")), \
+         patch.object(contract_service, "_contract_amount", AsyncMock(return_value=spend)), \
+         patch.object(contract_service, "signing_risk", AsyncMock(return_value={"signing_blocked": False})), \
+         patch.object(contract_service, "sign_contract_digitally", sign):
+        run(consumer._handle_approval_decided(app, payload))
+    return sign.await_count == 1
+
+
+def test_contract_auto_sign_enabled(rule):
+    rule("contract.auto_sign_enabled", True)
+    assert _auto_signed(rule) is True
+    rule("contract.auto_sign_enabled", False)
+    assert _auto_signed(rule) is False
+
+
+def test_contract_auto_sign_allow_email_channel(rule):
+    rule("contract.auto_sign_enabled", True)
+    rule("contract.auto_sign_allow_email_channel", True)
+    assert _auto_signed(rule, channel="email") is True
+    rule("contract.auto_sign_allow_email_channel", False)
+    assert _auto_signed(rule, channel="email") is False
+
+
+def test_contract_auto_sign_max_amount(rule):
+    rule("contract.auto_sign_enabled", True)
+    rule("contract.auto_sign_max_amount", 50000)
+    assert _auto_signed(rule, spend=30000) is True
+    rule("contract.auto_sign_max_amount", 25000)
+    assert _auto_signed(rule, spend=30000) is False
+
+
+def _create_mandate(role="finance", amount=10000, days=30):
+    """POST /mandates up to the password check (auth-service answers 401);
+    returns the status code and message of the refusal."""
+    from fastapi import HTTPException
+    from app.api import mandates
+    body = SimpleNamespace(password="wrong", max_amount_per_contract=amount, validity_days=days)
+    user = SimpleNamespace(role=role, email=f"{role}@company.com")
+    client = MagicMock()
+    client.__aenter__.return_value.post = AsyncMock(return_value=SimpleNamespace(status_code=401))
+    with patch.object(mandates.httpx, "AsyncClient", MagicMock(return_value=client)):
+        try:
+            run(mandates.create_mandate(body=body, request=MagicMock(), db=AsyncMock(), user=user))
+        except HTTPException as e:
+            return e.status_code, str(e.detail)
+    return 201, ""
+
+
+def test_contract_auto_sign_roles(rule):
+    rule("contract.auto_sign_roles", ["finance"])
+    assert _create_mandate(role="finance")[0] == 401       # allowed; stopped at the password
+    rule("contract.auto_sign_roles", ["admin"])
+    assert _create_mandate(role="finance")[0] == 403
+
+
+def test_contract_mandate_max_days(rule):
+    rule("contract.mandate_max_days", 90)
+    assert _create_mandate(days=60)[0] == 401
+    rule("contract.mandate_max_days", 30)
+    status, message = _create_mandate(days=60)
+    assert status == 400 and "Validity" in message

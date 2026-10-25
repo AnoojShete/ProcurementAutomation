@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas import (
@@ -21,6 +22,7 @@ from shared.auth import CurrentUser, get_current_user, require_role
 STAFF_ROLES = frozenset({"approver", "finance", "admin", "service"})
 from app.services.approval_authority import AuthorityError
 from shared.idempotency import get_cached_response, store_response
+from shared.rules_engine import get_rule
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +117,12 @@ async def compute_next_action(db: AsyncSession, req: PurchaseRequest, user: Curr
                 "method": "POST",
                 "target": f"/api/v1/requests/{req.id}/approve",
             }
-        elif auth.reason_code == "vendor_blocked":
+        elif auth.code == "vendor_blocked":
             return {
                 "key": "approve",
                 "label": "Approve",
                 "enabled": False,
-                "disabled_reason": auth.reason_message or "Vendor not cleared",
+                "disabled_reason": auth.reason or "Vendor not cleared",
                 "method": "POST",
                 "target": f"/api/v1/requests/{req.id}/approve",
             }

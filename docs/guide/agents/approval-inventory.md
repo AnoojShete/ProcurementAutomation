@@ -21,8 +21,8 @@ invoice matching.
 |---|---|
 | Components | FastAPI API, Temporal `ApprovalWorkflow` (one per request), Kafka consumers, order monitor, reorder service, invoice ledger |
 | AI models | IsolationForest + SHAP for licence-usage anomalies |
-| Tables | `purchase_requests`, `approval_history`, `approver_assignments`, `approval_delegations`, `budgets`, `inventory`, `licenses`, `license_usage`, `catalog_items`, `rfq_*`, `goods_receipts`, `invoice_matches` |
-| API | `/api/requests`, `/api/inbox/{level}`, `/api/authority`, `/api/budgets`, `/api/inventory`, `/api/licenses`, `/api/catalog`, `/api/rfqs`, `/api/invoices`, `/api/tds`, `/api/orders`, `/api/ops`, `/email-action/*` |
+| Tables | `purchase_requests`, `approval_history`, `approver_assignments`, `approval_delegations`, `budgets`, `inventory`, `licenses`, `license_usage`, `catalog_items`, `rfq_*`, `goods_receipts`, `invoice_matches`, `approval_batches`, `approval_batch_items`, `email_batch_tokens` |
+| API | `/api/requests` (+ `/bulk-decision`), `/api/inbox/{level}`, `/api/authority`, `/api/budgets`, `/api/inventory`, `/api/licenses`, `/api/catalog`, `/api/rfqs`, `/api/invoices`, `/api/tds`, `/api/orders`, `/api/ops`, `/email-action/*` |
 | Communication | Consumes `document.classified`, `contract.signed`, `business_rule.updated`; publishes `approval.requested`, `approval.decided`, `budget.threshold_crossed`, `rfq.*`, `goods.received`, `reminder.due` (through the outbox) |
 | Deployment | API + Temporal worker from one image; Temporal and Redis required |
 
@@ -33,6 +33,12 @@ invoice matching.
 2. **Workflow**: for each level, wait for a decision. Only someone assigned to
    that level, within their limit, and not the requester may decide
    (separation of duties). Decisions come from the app or a single-use email link.
+   **Bulk approval**: an approver can tick several eligible requests (small,
+   INR, within budget, vendor cleared, not their own) and approve them in one
+   step, capped by count, amount and batch total; each is still decided
+   through the same approval function. Not finished: the vendor-clearance
+   lookup isn't authenticated yet, so requests with a vendor are never
+   eligible.
 3. **SLA**: reminders at 50 % and 80 %; on breach, escalate to the next level,
    or reject at the last level.
 4. **After approval**: `approval.decided` for the final level triggers the
@@ -45,7 +51,7 @@ invoice matching.
 | Measure | Result | Source |
 |---|---|---|
 | Licence anomaly model | ROC-AUC 0.954, AP 0.873 on test (vs 0.687 for utilisation alone) | `docs/results/licence-anomaly.md` |
-| Tests | 275 unit/integration tests; `budget_flow.py`, `sourcing_flow.py`, `invoice_lifecycle.py` (71/71) | `scripts/test-service.sh` |
+| Tests | 287 unit/integration tests; `budget_flow.py`, `sourcing_flow.py`, `invoice_lifecycle.py` (71/71) | `scripts/test-service.sh` |
 
 ![Approval queue](../showcase/approval/01-approval-queue.png)
 

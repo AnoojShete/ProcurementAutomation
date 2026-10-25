@@ -51,7 +51,10 @@ Oct 16.
   control; runs on one machine with Docker Compose; `APP_ENV=production`
   refuses default secrets.
 - **Stage (Oct 20, 2026):** all basic requirements built (BR-1…BR-7);
-  R0 done except FR-04 (red-team list) and FR-05 (a teammate's run);
+  R0 done (FR-04 since Oct 21; FR-05's scripts done, a teammate's run left);
+  Oct 24–25: Niraj's live-risk fixes (RISK-4) and bulk approval / signing
+  mandates (BULK-1) merged and checked; the merge broke contract generation
+  and auto-send, fixed Oct 25 (MERGE-3);
   UI pass UX-1 done (dark mode, names, notification feed); the stack runs
   from a fresh clone again (REPRO-1, MinIO image); Oct 19: security
   upgrades (FR-27, mostly), deployment guide + backups (DEP-1), first
@@ -126,6 +129,7 @@ How the pieces interact:
 | Vendor match, onboarding, bank-detail dual control | COMPLETE | `vendor_matching.py`, `vendor_onboarding.py` (BR-4), payment hold | — | — |
 | FX conversion to INR | COMPLETE | `fx.py` (Frankfurter, rate captured once) | — | internet |
 | Approvals, authority, SoD, SLA reminders | COMPLETE | approval workflow (Temporal); stale workflows gone after the Oct 18 reset (OPS-1) | — | — |
+| Bulk approval, signing mandates, next-action bar | PARTIAL | `bulk_service.py` (one eligibility check, caps, idempotent batches), `/api/mandates` + auto-sign in contract-risk's consumer, `NextActionBar.tsx` (Oct 24, Niraj; BULK-1) | Clearance call unauthenticated, so vendor-linked requests are never bulk-eligible (CLEAR-AUTH); batch-approval digest email not sent (DIGEST-1); mandate password re-check broken (MANDATE-1) | — |
 | Inventory, backorders, reorder suggestions | COMPLETE | `inventory_service.py`, `reorder.py` (BR-5) | — | — |
 | Invoice ledger / matching | COMPLETE | `invoice_ledger.py`, `invoice_matches`; TDS and net payable kept per booked invoice (FEAT-4) | — | — |
 | GST and TDS compliance | COMPLETE | `tax_check.py` (stage `tax_agent`), `einvoice.py`, `gstr2b.py`, `tds_service.py`; page `/app/gst` (FEAT-4) | Rates confirmed by a CA; production IRP key | finance lead |
@@ -136,7 +140,7 @@ How the pieces interact:
 | Licence-usage anomaly model | COMPLETE | IsolationForest + SHAP on 360 simulated licences, ROC-AUC 0.95 (FR-32) | Real usage data | — |
 | Notifications | COMPLETE | notification-agent (SMTP / Mailpit), retry + DLQ, health (FR-31), coverage audit (FR-10); in-app feed with per-person read receipts and an unread-only bell (UX-1) | Gaps listed for Anooj (FR-10) | — |
 | Frontend UI | COMPLETE | Ledger design system (`docs/design-direction.md`), dark mode saved per account, names instead of emails, clickable dashboard figures, one admin **System** page (UX-1) | — | — |
-| Demo readiness | COMPLETE (rehearsal left) | `docs/index.html#demo-script` (eight scenarios incl. risk red team, GST, assistant: 28/28 on Oct 21), 5-minute cut `docs/index.html#demo-5min` (6/6) + backup recording, `scripts/reset-demo.sh` (FR-05) | A teammate's run on fresh data | a teammate |
+| Demo readiness | COMPLETE (rehearsal left) | `docs/index.html#demo-script` (eight scenarios incl. risk red team, GST, assistant: 28/28 on Oct 21, again on Oct 25 after the merges), 5-minute cut `docs/index.html#demo-5min` (6/6) + backup recording, `scripts/reset-demo.sh` (FR-05) | A teammate's run on fresh data | a teammate |
 | Email automation, chatbot | PARTIAL | Email automation is Anooj's (Phase 1–3 e-mails built here, NOTIF-1); the assistant was made retrieval-augmented (CHAT-1) and conversational (CHAT-2) at the user's request | — | — |
 | Observability (metrics, logs, correlation id) | COMPLETE | Prometheus, Grafana, Loki (FR-07) | — | — |
 | Failed-events / Kafka log | COMPLETE | Control Panel (FR-06) | — | — |
@@ -225,7 +229,13 @@ evidence for FR/BR items are in Part B under the same ID.
 | CHK-1 | Fractal final checklist (A1–A7, B–F): Input/Processed/Failed folders, approval notifications, editable templates, contract + e-sign by email, e-sign tracking, field-extraction visibility, Control Panel sections, diagrams, slides, standard docs, MkDocs | COMPLETE (Oct 21; see Part B "CHK-1"). Needs the owner: GitHub Pages publishing, sharing the slide deck, team rehearsal | P0 | — | `inbox_watcher.py`, notification-agent `template_store.py` / `api/templates.py` / `consumer.py`, contract-risk `consumer.py` / `api/contracts.py`, `ControlPanelPage.tsx`, `docs/guide/`, `mkdocs.yml` | `docs/guide/reference/checklist.md` all rows checked | Core |
 | RISK-2 | Contract signing gate disagrees with `/clearance` (ignores post-score decisions and vendor status) | COMPLETE (Oct 21, FR-04: one clearance function `clearance.py` for both; a non-remediable override now blocks signing outright) | P1 | — | contract-risk `clearance.py`, `contract_service.signing_risk` | One clearance | Core |
 | RISK-3 | Merge-review G2–G11 (Unrated routing, provisional demo vendors, PSI schedule, access rules, outbox, reasons, narrative) | COMPLETE (Oct 21, FR-04: rule `approval.unrated_vendor_requires_finance` (off; migration 0020), country passed to the engine, PSI removed, `procurement` role removed and rulesets/report staff-only, risk events via the outbox, deciding reasons only, narrative/version fixed. Still true: external sources unreachable here, so live vendors stay provisional — see index.html#risk/limits) | P1 | — | contract-risk, approval-inventory | Each item decided | Core |
-| RISK-4 | Live risk collection doesn't match the red team (found Oct 23 onboarding the team's three test vendors): (a) the Phase 0 fast-fail only runs for non-active vendors and onboarding makes vendors active at once, so Caspian/SSPL still ran GST and external checks; (b) GST and adverse media import `is_live_verification_enabled`, which doesn't exist in `shared/live_mode/checker.py`; (c) Phase 2 checks share one DB session in parallel → "Session is already flushing", recorded as `deadline_exceeded`; (d) web and e-mail collectors record TLS A / DMARC reject without looking; (e) inherent tier never passed (always spend tier); (f) bank SWIFT/BIC can't be recorded or sanctions-screened. Breach collector fixed Oct 23 (records not checked; test) | PENDING (decisions: fast-fail for active vendors? sequential Phase 2 or a session per check? honest web/email leaves more vendors provisional) | P1 | user | contract-risk `collectors/collector_manager.py`, `identity_collectors.py`, `reputation_collectors.py`, `cyber_collectors.py`, `risk_service.py` | Team vendors give the same result live as in the red team | Core |
+| RISK-4 | Live risk collection doesn't match the red team (found Oct 23 onboarding the team's three test vendors): (a) the Phase 0 fast-fail only runs for non-active vendors and onboarding makes vendors active at once, so Caspian/SSPL still ran GST and external checks; (b) GST and adverse media import `is_live_verification_enabled`, which doesn't exist in `shared/live_mode/checker.py`; (c) Phase 2 checks share one DB session in parallel → "Session is already flushing", recorded as `deadline_exceeded`; (d) web and e-mail collectors record TLS A / DMARC reject without looking; (e) inherent tier never passed (always spend tier); (f) bank SWIFT/BIC can't be recorded or sanctions-screened. Breach collector fixed Oct 23 (records not checked; test) | COMPLETE in code (Oct 24, Niraj, `abb334c`: vendors start `onboarding` and a trigger refuses `active` without a cleared rating; `is_live_verification_enabled` added; a session per Phase 2 check; real TLS / SPF / DMARC probes, simulated only for demo domains; inherent tier; SWIFT/BIC screened; `tests/test_live_hotfixes.py`). Oct 25: the per-check sessions were never committed, so every score failed on `risk_score_rule_results_observation_id_fkey` (contract generation and risk recompute 500); fixed with a commit per check + test (MERGE-3). Left: onboard the three team vendors again on reset data | P1 | user | contract-risk `collectors/collector_manager.py`, `identity_collectors.py`, `reputation_collectors.py`, `cyber_collectors.py`, `risk_service.py` | Team vendors give the same result live as in the red team | Core |
+| BULK-1 | Bulk approval, finance signing mandates, next-action bar, reorder drawer, ivory theme (Niraj, `a3b3252`, Oct 24) | COMPLETE with gaps (Oct 25: 17 rules documented in `docs/business-rules.md`, 13 behaviour tests added to `test_rules_wiring.py` (approval 8, contract-risk 5); gaps CLEAR-AUTH, DIGEST-1, MANDATE-1) | P1 | — | approval `bulk_service.py`, `api/email_action.py`; contract-risk `api/mandates.py`, `kafka/consumer.py`; frontend `ApprovalInboxPage.tsx`, `SigningAuthorityPage.tsx`, `NextActionBar.tsx` | Every rule documented and tested; bulk path decides through `process_decision` | Core |
+| MERGE-3 | Crashes from the Oct 24 merges | COMPLETE (Oct 25: `ruff --select F821` found 7 undefined names, 6 from `a3b3252`: `get_rule` in contract-risk's consumer (every final approval failed after generating its contract, so nothing was sent for signature), `get_rule` in `requests.py` (reorder requests) and `email_action.py` (batch page), `select` in `requests.py` (next action of an approved request), `datetime`/`timezone` in the consumer and `models.py`, `logger` in `rulesets.py`; plus the uncommitted collector sessions (RISK-4: every score failed, so contract generation and risk recompute returned 500), notification-agent's `UserRef` mapped to a `users` table that doesn't exist (`auth_users`; the failed lookup aborted the transaction, so no approval or contract e-mail was sent), the approval agent's `Contract` stub without `status` and `bulk_eligibility` / `compute_next_action` reading `reason_code` / `reason_message` where `AuthorityDecision` has `code` / `reason` (both made `GET /requests/` 500 for admin and finance). Each fix has a test that failed before it (`test_rules_wiring.py`, `test_parallel_collectors_commit_their_own_sessions`, `test_user_lookup_reads_auth_services_table`, `test_next_action.py`); Niraj's own tests passed because they mocked these objects. After the fixes: service tests 1,330 passed, root 169 + 14, invoice_lifecycle 71/71, demo_scenarios 28/28, no 5xx on any list or request page for any role) | P0 | — | as listed | `ruff --select F821` clean; e2e passes | Core |
+| CLEAR-AUTH | Bulk approval and email approval ask contract-risk `/vendors/{id}/clearance` without credentials and get 401, so every request with a vendor is "vendor not cleared" (fails closed: bulk-ineligible, email approval needs the portal). Email approvals have been affected since Prompt 9C (Oct 20) | OPEN (Oct 25, confirmed live; needs a decision: accept `X-Internal-Service-Token` on `/clearance`, as approval's `/internal/email-action/*` does, or a short-lived service JWT) | P1 | user + Niraj | approval `bulk_service.py`, `api/email_action.py`; contract-risk `api/vendors.py` | A cleared vendor's small request is bulk-eligible and approvable from email | Core |
+| MANDATE-1 | Mandate password re-check calls `http://auth-service:8001/auth/login`; auth-service listens on 8005 | OPEN (Oct 25: confirmed from inside the container: 8001 refuses the connection, 8005 answers 401. So the real password is never checked: in development three fixed passwords are accepted for any user, in production no mandate can be issued) | P1 | Niraj | contract-risk `api/mandates.py` | A wrong password is refused, the right one accepted, no fixed passwords | Core |
+| DIGEST-1 | Daily batch-approval digest email (one link for an approver's eligible requests) | OPEN (decision: build or drop). The batch page and `/internal/email-action/mint-batch` exist; nothing sends the digest, so `approval.bulk_digest_*` and `approval.bulk_email_enabled` are listed as not enforced | P2 | team | notification-agent, approval `internal_email_action.py` | Digest sent at `approval.bulk_digest_time_ist`, or the rules and page removed | Core |
+| ENC-1 | `shared/security/encryption.py` reads a missing `APP_ENV` as development (every other service reads it as production), so it falls back to a built-in key that is public in the repo | OPEN (Oct 25; replaces SMTP-1: since Oct 24 a missing or short key does stop the service outside development, but only if `APP_ENV` is set) | P1 | before a shared deploy | `shared/security/encryption.py`, compose | Unset `APP_ENV` refuses the built-in key; compose passes `MASTER_ENCRYPTION_KEY` | Core |
 | DUP-1 | Duplicate check misses a resubmitted invoice with a new number: it requires numbers ≥ 85 % similar (rule `vendor.duplicate_invoice_number_fuzzy_threshold`) | PENDING (decision; found Oct 19 by RS-06: most of the errors left among the best-scored invoices) | P1 | user | `duplicate_detection.py`, auth-service rule seed | Same vendor + amount + date window flags review whatever the number, or the trade-off is documented | Core |
 | E2E-1 | `document_pipeline.py`: the `slow_to_parse.pdf` case no longer times out (Docling 2.140 reads it within 120 s), 4 checks fail | PENDING (decision: new fixture, or expect `classified` and rely on the unit test for the limit) | P2 | user | `tests/e2e/document_pipeline.py` | Suite green without weakening the time-limit check | Core |
 | FR-15/16 | PySpark / Kubernetes claims | BLOCKED (decision) | P3 | user | — | Built or removed from docs | Core |
@@ -241,7 +251,7 @@ evidence for FR/BR items are in Part B under the same ID.
 | TEST-1 | Fix pre-existing failing root tests (`test_mailer`; `test_email_action` needs `redis` — Anooj) | COMPLETE (Oct 17: `test-root.sh` 139 passed + 14 passed, 4 skipped = chatbot live script) | P1 | — | Root suite green | Core |
 | FR-26 | Fresh-clone rehearsal on Ubuntu (UTM) | PARTIAL (Oct 18, macOS: from a copy holding only what a clone would (tracked + new unignored files, no `.env`/`dist`/`secrets`), all 6 service images and the frontend build; every third-party image is pullable (MinIO after REPRO-1). Not run as a second stack: Docker's 7.75 GB is mostly used by the live one. Still open: a full run on the VM) | P1 | VM | `docs/results/fresh-clone.md` with times | Core |
 | FR-27 | Security P1s (dependency upgrades etc.) | PARTIAL (Oct 19: FastAPI 0.148 / Starlette 1.9 everywhere, Pillow 12.3, pdfplumber 0.11.10 / pdfminer 20260107, Docling 2.140, accelerate 1.15, cryptography 50, aiosmtplib 5.1, react-router 7.18, vite 6.4; pip-audit 302 → 152 findings, npm high 7 → 5; logout revokes the refresh token; access tokens 15 min; `INTERNAL_SERVICE_TOKEN` refused at its default. Left, each documented in `docs/index.html#deploy` §5: MLflow 2.14 (3.x is a major upgrade), paddlepaddle 2.6 (PaddleOCR 3 rewrite), Tailwind 3's `braces` (build-time only); QA-19 and the smaller QA leftovers) | P1 | — | Part B list closed | Core |
-| FR-28 | Final documentation pass | PARTIAL (Oct 19: test counts, deployment guide, research results, readmeforme, README and CLAUDE.md updated; templates (`docs/forReport/`) still the owner's) | P1 | all | Templates filled | Both |
+| FR-28 | Final documentation pass | PARTIAL (Oct 19: test counts, deployment guide, research results, readmeforme, README and CLAUDE.md updated; Oct 25: dashboards (status 100 %, Overview with Needs attention, risk, codebase guide), business rules, MkDocs pages, checklist status updated for RISK-4 / BULK-1; templates (`docs/forReport/`) still the owner's) | P1 | all | Templates filled | Both |
 
 ### Research (selected contribution — see `RESEARCH_PAPER_PLAN.md`)
 
@@ -266,12 +276,20 @@ explanations, LLM agent orchestration.
 
 ## A.6 Immediate next actions
 
-0. **SMTP-1** — pass `SMTP_ENCRYPTION_SECRET` to notification-agent in compose
-   (and refuse the default in production); re-save the SMTP password after.
-   Needs the SMTP feature's author: existing saved passwords stop decrypting.
-0. **CHK-1 follow-ups (owner)** — share the slide deck with the team; publish
-   the MkDocs site (Actions → Docs → Run workflow with deploy, then Settings →
-   Pages → `gh-pages`); `./scripts/reset-demo.sh` before the review (the
+0. **CLEAR-AUTH (decision)** — pick how approval calls contract-risk's
+   `/clearance` (internal token or service JWT); until then bulk and email
+   approval never apply to requests with a vendor.
+0. **MANDATE-1 (Niraj)** — fix the auth-service port in `api/mandates.py`
+   and drop the fixed development passwords; add a test that a wrong password
+   is refused.
+0. **ENC-1** — before any shared deployment: treat a missing `APP_ENV` as
+   production in `shared/security/encryption.py` and pass
+   `MASTER_ENCRYPTION_KEY` to notification-agent; re-save the SMTP password
+   after.
+0. **CHK-1 follow-ups (owner)** — share the slide deck with the team;
+   republish the MkDocs site (published Oct 23 by Niraj at
+   https://anoojshete.github.io/ProcurementAutomation/, missing everything
+   since: Actions → Docs → Run workflow with deploy); `./scripts/reset-demo.sh` before the review (the
    checklist checks left test data: `checklist_*` files, a ₹42,000 two-level
    request, the Acme contract signed).
 
@@ -289,8 +307,11 @@ explanations, LLM agent orchestration.
 5. **RS** — after DUP-1: re-run with a new seed (`eval_selective.py
    extract --seed 11`), then RS-08 (external validity) and RS-12.
 6. **FR-25 / FR-26** — tests in CI; the fresh-clone run on the Ubuntu VM.
-7. **FR-04, DRIFT-1** — done Oct 21 (index.html#risk).
-8. **RISK-4** — decide the live-collection fixes (index.html#risk/team-vendors).
+7. **FR-04, DRIFT-1** — done Oct 21 (index.html#risk); re-checked Oct 25
+   (red team 25/25, evaluation unchanged on the 2,000-row dataset).
+8. **RISK-4** — fixed in code Oct 24–25; onboard the three team vendors again
+   on reset data and compare with the red team (index.html#risk/team-vendors).
+9. **DIGEST-1** — decide whether to build the batch-approval digest email.
 
 ---
 
@@ -627,6 +648,12 @@ before any other roadmap item.
   the old schedule). Demo scenario 6 shows it live (4/4). Write-up:
   `docs/index.html#risk`. contract-risk 310 passed; risk_flow 49/49;
   invoice_lifecycle 71/71; demo 28/28.
+  *Evidence (Oct 25):* re-checked after Niraj regenerated the dataset
+  (`af14db6`, 2,000 rows): `ml/redteam_scorecard.py` 25/25 and
+  `ml/evaluate_scorecard.py` give the same numbers (ROC-AUC 0.738, Low 14.7 %
+  vs Medium 47.5 % incidents) in the rebuilt image; the write-up, red team,
+  evaluation and tests are all in the repo, so FR-04 is done. Only open:
+  comparing with the Agent doc's own red-team list once someone adds it.
 - [ ] **FR-05 Demo script** (29 Aug, Team A #4: "explain each step, the
   workflow and the expected outcome"). *Do:* `docs/demo-script.md`, one
   table per scenario (in-app request → approval → auto-sent contract →

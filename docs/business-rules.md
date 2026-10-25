@@ -1,13 +1,20 @@
 # Business rules
 
-Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct; 55 after the Phase 2 obligation rules; 59 after the Phase 3 sourcing rules; 63 after merging the deterministic risk scorecard; 70 after the Phase 4 GST and TDS rules; 71 after FR-04) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
+Every rule on the Business Rules page (`/app/business-rules`, admin): what it changes, where the code reads it, and the test that proves changing it changes behaviour. Generated from the live rules table on 16 Oct 2026 (47 rules; 52 after the Phase 1 budget rules of 20 Oct; 55 after the Phase 2 obligation rules; 59 after the Phase 3 sourcing rules; 63 after merging the deterministic risk scorecard; 70 after the Phase 4 GST and TDS rules; 71 after FR-04; 88 after the bulk-approval and signing-mandate rules of 24 Oct) and kept in step by `tests/test_business_rules_registry.py`, which fails if a rule is missing here, if code reads a rule that isn't seeded, or if an enforced rule has no behaviour test.
 
 Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed on `business_rule.updated`); each read has a fallback used when auth-service is unreachable. Tests: `services/<service>/tests/test_rules_wiring.py::test_<rule key with _>` — each sets the rule to two values and checks the behaviour differs.
 
-**Enforced: 61** · **Not enforced: 10** (listed at the end — editing them has no effect until the feature exists).
+**Enforced: 74** · **Not enforced: 14** (listed at the end — editing them has no effect until the feature exists).
 
 | Rule | Default | What it changes | Read in | Test |
 |---|---|---|---|---|
+| `approval.bulk_actions_per_hour` | `20` | Most bulk-approval batches one person may run in an hour (429 after that) | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_actions_per_hour` |
+| `approval.bulk_approve_enabled` | `true` | Allow approving several eligible requests at once from the inbox | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_approve_enabled` |
+| `approval.bulk_approve_max_amount` | `25000` | Requests above this amount (INR) must be approved one by one; must not exceed `approval.email_action_max_amount` | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_approve_max_amount` |
+| `approval.bulk_approve_max_batch_total` | `250000` | Most a single batch may approve in total (INR); requests past it are skipped; must be at least `approval.bulk_approve_max_amount` | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_approve_max_batch_total` |
+| `approval.bulk_approve_max_items` | `25` | Most requests in one batch (1–100) | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_approve_max_items` |
+| `approval.bulk_email_token_ttl_hours` | `48` | How long a batch-approval email link stays valid | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_bulk_email_token_ttl_hours` |
+| `approval.bulk_excluded_request_types` | `[]` | Request types that can never be approved in bulk | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_excluded_request_types` |
 | `approval.email_action_allowed_high_risk_vendor` | `false` | Allow email approval when the vendor's risk band is High | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_email_action_allowed_high_risk_vendor` |
 | `approval.email_action_allowed_over_budget` | `false` | Allow email approval of requests that exceed the budget | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_email_action_allowed_over_budget` |
 | `approval.email_action_enabled` | `true` | Allow approvers to approve or reject from a single-use email link | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_email_action_enabled` |
@@ -26,7 +33,12 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `budget.warning_threshold_pct` | `0.8` | A request that takes its budget past this share is marked *warning* and publishes budget.threshold_crossed | approval-inventory-agent: budget_service.py | `approval-inventory-agent` · `test_budget_warning_threshold_pct` |
 | `catalog.preapproved_max_inr` | `0` | Catalog-only requests up to this amount skip the manager step (0 = off); finance steps from budget or vendor-risk rules stay | approval-inventory-agent: catalog_service.py | `approval-inventory-agent` · `test_catalog_preapproved_max_inr` |
 | `contract.auto_send_scope` | `"all"` | Which approved requests get their contract sent for signature automatically: "all" or "drop_folder" (only quotes dropped in the inbox folder) | contract-risk-agent: contract_service.py | `contract-risk-agent` · `test_contract_auto_send_scope` |
+| `contract.auto_sign_allow_email_channel` | `true` | Contracts approved from an email link may also be signed under a mandate | contract-risk-agent: kafka/consumer.py | `contract-risk-agent` · `test_contract_auto_sign_allow_email_channel` |
+| `contract.auto_sign_enabled` | `false` | Sign a contract automatically when finance gives the final approval in bulk or from email and holds an active signing mandate | contract-risk-agent: kafka/consumer.py, approval-inventory-agent: bulk_service.py, email_action.py | `contract-risk-agent` · `test_contract_auto_sign_enabled` |
+| `contract.auto_sign_max_amount` | `25000` | Largest contract (INR) signed under a mandate; a mandate can't be issued above it; must not exceed `approval.bulk_approve_max_amount` | contract-risk-agent: kafka/consumer.py, api/mandates.py | `contract-risk-agent` · `test_contract_auto_sign_max_amount` |
+| `contract.auto_sign_roles` | `["finance"]` | Roles that may hold a signing mandate | contract-risk-agent: api/mandates.py | `contract-risk-agent` · `test_contract_auto_sign_roles` |
 | `contract.clause_extraction_fallback_threshold` | `0.4` | Confidence threshold to fallback during contract clause extraction | contract-risk-agent: clause_router.py | `contract-risk-agent` · `test_contract_clause_extraction_fallback_threshold` |
+| `contract.mandate_max_days` | `90` | Longest validity of a signing mandate | contract-risk-agent: api/mandates.py | `contract-risk-agent` · `test_contract_mandate_max_days` |
 | `contract.obligation_model_min_confidence` | `0.5` | Legal-BERT passages scoring below this are not proposed as obligations (only for types where the model beat the rules on CUAD) | contract-risk-agent: obligation_service.py | `contract-risk-agent` · `test_contract_obligation_model_min_confidence` |
 | `contract.obligation_reminder_days` | `[30, 7]` | Days before a confirmed obligation's due date when its owner is reminded (contract.obligation.due) | contract-risk-agent: obligation_service.py | `contract-risk-agent` · `test_contract_obligation_reminder_days` |
 | `contract.signature_reminder_days` | `3` | Remind the signer when a contract has waited this many days for signature | contract-risk-agent: reminder_sweep.py | `contract-risk-agent` · `test_contract_signature_reminder_days` |
@@ -53,6 +65,7 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `monitor.event_log_retention_days` | `14` | How long the Control Panel keeps Kafka events (summaries only) | document-vendor-agent: event_monitor.py | `document-vendor-agent` · `test_monitor_event_log_retention_days` |
 | `msme.payment_days` | `45` | Days from acceptance within which a micro or small enterprise's invoice must be paid (s. 43B(h)) | approval-inventory-agent: tds_service.py | `approval-inventory-agent` · `test_msme_payment_days` |
 | `msme.warning_days` | `7` | An unpaid MSME invoice shows as due soon this many days before its deadline | approval-inventory-agent: tds_service.py | `approval-inventory-agent` · `test_msme_warning_days` |
+| `reorder.create_request_roles` | `["requester", "approver", "finance", "admin"]` | Roles that may turn a reorder suggestion into a purchase request | approval-inventory-agent: api/requests.py | `approval-inventory-agent` · `test_reorder_create_request_roles` |
 | `risk.alert_recipients` | `"procurement-risk-team@company.com"` | Who is e-mailed when a vendor turns High risk or a new hard override fires (empty = nobody) | contract-risk-agent: risk_service.py | `contract-risk-agent` · `test_risk_alert_recipients` |
 | `risk.contract_renewal_milestones_days` | `[60, 30, 15]` | Days before renewal to trigger notification alerts | contract-risk-agent: api/contracts.py, contract-risk-agent: workflows/activities.py | `contract-risk-agent` · `test_risk_contract_renewal_milestones_days` |
 | `risk.min_relationship_days` | `90` | Days on file (without a delivered order) before a vendor's incident history counts as assessed | contract-risk-agent: collectors/performance_collectors.py | `contract-risk-agent` · `test_risk_min_relationship_days` |
@@ -84,6 +97,10 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `risk.adverse_media_article_count_threshold` | `2` | Adverse-media screening isn't built. |
 | `risk.adverse_media_lookback_days` | `90` | Adverse-media screening isn't built. |
 | `risk.adverse_media_negative_confidence` | `0.7` | Adverse-media screening isn't built. |
+| `approval.bulk_digest_enabled` | `true` | The daily digest email that lists an approver's eligible requests with one batch-approval link isn't sent yet; the batch page and `/internal/email-action/mint-batch` exist, but nothing calls them. |
+| `approval.bulk_digest_min_items` | `2` | Same: no digest email is sent yet. |
+| `approval.bulk_digest_time_ist` | `"09:00"` | Same: no digest email is sent yet. |
+| `approval.bulk_email_enabled` | `true` | Same: no digest email is sent yet, so there is nothing to switch off. Read it before minting batch links when the digest is built. |
 
 ## Changes made on 16 Oct (FR-09)
 

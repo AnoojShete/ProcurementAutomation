@@ -46,4 +46,4 @@ is implemented, and how it was checked (21 Oct 2026; re-checked 23 Oct, see
 | 7 | Functional flow diagram | Done |
 | 8 | Presentation slides | Done (team to rehearse) |
 | 9 | Standardised documentation | Done |
-| 10 | MkDocs documentation site | Partially done: builds cleanly; GitHub Pages not published yet (repository owner) |
+| 10 | MkDocs documentation site | Done: builds cleanly, published on GitHub Pages 23 Oct (republish after changes) |

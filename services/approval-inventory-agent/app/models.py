@@ -46,6 +46,8 @@ class Contract(Base):
     # Mapped because the contract.signed handler falls back to it when
     # deciding which licenses to activate.
     vendor_id: Mapped[Optional[str]] = mapped_column(Uuid)
+    # Read by compute_next_action (requests.py) for an approved request.
+    status: Mapped[Optional[str]] = mapped_column(String(50))
 
 
 class ProcessedEvent(Base):

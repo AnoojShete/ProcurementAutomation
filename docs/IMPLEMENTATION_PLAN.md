@@ -14,7 +14,7 @@ claim · **[X]** evaluates the claim · **[O]** optional, can be dropped.
 - [x] Basic requirements BR-1…BR-7 (email intake, scan preprocessing,
       "other" + PO-backed classes, vendor onboarding, reorder suggestions,
       risk before signing, delivery/compliance risk signals)
-- [x] R0 items FR-01, FR-02, FR-03, FR-06, FR-07, FR-30
+- [x] R0 items FR-01, FR-02, FR-03, FR-04 (risk write-up, red team 25/25; re-checked Oct 25), FR-06, FR-07, FR-30
 - [x] Fixes: 400 on out-of-stock requests, no ₹0 split requests, vendor
       page reload
 - [x] UI pass: dark mode, names instead of emails, clickable figures, one
@@ -25,7 +25,7 @@ claim · **[X]** evaluates the claim · **[O]** optional, can be dropped.
 
 - [x] Terminate the six stale approval workflows and cancel request
       `90261afb` [OPS-1] **[E]** — cleared by the Oct 18 demo-data reset
-- [ ] Decide the drift-check minimum sample (e.g. 30 vendors) [DRIFT-1] **[E]**
+- [x] Decide the drift-check minimum sample (e.g. 30 vendors) [DRIFT-1] **[E]** — moot: the PSI drift check was retired with the ML risk model (Oct 21)
 
 **Done when:** no `approval-…` workflow is left Running for a deleted or
 dead request.
@@ -91,7 +91,7 @@ paper will use, negative results included.
 - [x] Fix the two failing root tests (one is Anooj's) [TEST-1] **[E]**
 - [ ] Do the fresh-clone rehearsal in the UTM Ubuntu VM [FR-26] **[E]** — macOS build from a clean copy passes; the VM run is left
 - [ ] Close the security P1s [FR-27] **[E]** — Oct 19: upgrades, logout revocation, 15-min tokens done; MLflow, Paddle 3, QA-19 left
-- [ ] Final documentation pass [FR-28] **[E]**
+- [ ] Final documentation pass [FR-28] **[E]** — Oct 25: dashboards, business rules, MkDocs pages and checklist status brought up to date; report templates left
 
 **Done when:** a fresh Ubuntu clone passes every suite and the docs match
 the system.
@@ -116,8 +116,8 @@ in parallel because of the end-of-October deadline.
 ## Next three actions
 
 1. A teammate rehearses the 5-minute demo on reset data [FR-05].
-2. Finish the red-team list for the risk write-up [FR-04].
-3. Start the procurement-world generator with a 300-document pilot [RS-02].
+2. Niraj fixes the signing-mandate password check [MANDATE-1].
+3. Republish the MkDocs site; run `./scripts/reset-demo.sh` before the review.
 
 ## Most important unresolved dependency
 

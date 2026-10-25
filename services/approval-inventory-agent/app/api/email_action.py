@@ -22,6 +22,7 @@ from app.models import EmailActionToken, PurchaseRequest, Vendor
 from app.schemas import ApprovalAction
 from app.services import approval_authority as authority
 from app.services.approval_service import ApprovalService
+from shared.rules_engine import get_rule
 from app.services.email_action_token_service import (
     evaluate_step_up,
     get_public_base_url,
