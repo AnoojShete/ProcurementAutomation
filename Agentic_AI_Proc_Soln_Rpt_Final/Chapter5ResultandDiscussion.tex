@@ -174,7 +174,6 @@ The end-to-end suites drive the running stack through the gateway exactly as a c
 \code{obligation_flow.py} & Obligations read after signing, confirmation, downtime and service credit, invoice note, seat breach, lifecycle & 47 / 47 & 20 Oct 2026 \\ \hline
 \code{sourcing_flow.py} & Catalog prices and pre-approval, seat add-on, sealed RFQ with a pipeline-read quote, award, second round, partial receipts and three-way match, scorecard & 69 / 69 & 20 Oct 2026 \\ \hline
 \code{risk_flow.py} & Risk scorecard, explanation, replay, remediation, what-if, clearance, decisions, evidence, disputes, monitoring, rulesets; sanctions override, signing acknowledgement, budget routing, notifications & 49 / 49 & 21 Oct 2026 \\ \hline
-\code{gst_flow.py} & GST check, e-invoice QR, reverse charge, TDS at booking, MSME deadlines, GSTR-2B reconciliation & \todo{result} & \todo{date} \\ \hline
 \code{chatbot_eval.py} & Assistant answers: contract clauses, live records, a business rule, a follow-up, an unknown vendor, requests for data the user may not see, greetings and off-topic & 16 / 16 (3 runs) & 21 Oct 2026 \\ \hline
 \code{document_pipeline.py --quick} & Normal, oversized, corrupt, empty and mistyped files; duplicates; outages & 48 / 52\textsuperscript{a} & 19 Oct 2026 \\ \hline
 \code{auth_flows.py} & Sign-up, e-mail confirmation, password change and reset, expired and reused links, lockout, rate limits & 42 / 42 & 17 Oct 2026 \\ \hline
@@ -243,7 +242,7 @@ Shipped: TF-IDF + logistic regression, keywords below 0.6 & 1.000 & 1.000 & 1.00
 \end{table}
 
 \subsection{Field Extraction}
-Extraction was measured against ground truth on 15 generated PDFs and 6 generated images, each image also tested as rotated (4$^{\circ}$), noisy and half-resolution copies (24 image variants). Every field of every PDF was correct, but only 47\% of image fields without preprocessing and 49\% with deskewing and upscaling (Table~\ref{tab:extract}). Preprocessing helped on original and rotated images (47\% to 53\%) but hurt on noisy ones (47\% to 44\%). Image extraction is therefore the weakest part of the pipeline; this is why low-confidence documents go to review, and why OCR quality discounts every field's confidence (Equation~\ref{eq:confidence}).
+Extraction was measured against ground truth on 15 generated PDFs and 6 generated images, each image also tested as rotated (4\textdegree), noisy and half-resolution copies (24 image variants). Every field of every PDF was correct, but only 47\% of image fields without preprocessing and 49\% with deskewing and upscaling (Table~\ref{tab:extract}). Preprocessing helped on original and rotated images (47\% to 53\%) but hurt on noisy ones (47\% to 44\%). Image extraction is therefore the weakest part of the pipeline; this is why low-confidence documents go to review, and why OCR quality discounts every field's confidence (Equation~\ref{eq:confidence}).
 
 \begin{table}[!htbp]
 \centering\tablestyle
@@ -262,7 +261,12 @@ The Legal-BERT model and the regular-expression rules were compared on the 102 c
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics{figures/diagrams/clauses}
+\begin{tikzpicture}
+\begin{axis}[reportbars, height=5.6cm, ymax=1.1, ylabel={F1 score}, symbolic x coords={Renewal term, Notice period, Expiration date}, xtick=data, legend entries={Regular-expression rules, Legal-BERT (CUAD)}, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=2]{\pgfplotspointmeta}}]
+\addplot[fill=chartA, draw=chartA] coordinates {(Renewal term,0.50) (Notice period,0.19) (Expiration date,0.02)};
+\addplot[fill=chartB, draw=chartB] coordinates {(Renewal term,0.85) (Notice period,0.80) (Expiration date,0.91)};
+\end{axis}
+\end{tikzpicture}
 \caption[Clause extraction F1 on the CUAD test split]{Clause extraction F1 on the CUAD test split (102 contracts; 26, 16 and 78 of them contain the respective clause)}\label{fig:clauses}
 \end{figure}
 
@@ -273,18 +277,27 @@ The anomaly model was evaluated on 600 simulated licences (seed 2026), 30\% of w
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics{figures/diagrams/licence}
+\begin{tikzpicture}
+\begin{axis}[reportbars, height=5.8cm, ymax=1.12, ylabel={Score on 120 test licences}, symbolic x coords={Low utilisation alone, Previous model, Nine raw features, Shipped model}, xtick=data, xticklabel style={align=center, text width=2.6cm}, legend entries={ROC-AUC, Average precision}, bar width=15pt, enlarge x limits=0.14, every node near coord/.append style={font=\tiny}, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=3]{\pgfplotspointmeta}}]
+\addplot[fill=chartA, draw=chartA] coordinates {(Low utilisation alone,0.687) (Previous model,0.659) (Nine raw features,0.849) (Shipped model,0.954)};
+\addplot[fill=chartB, draw=chartB] coordinates {(Low utilisation alone,0.608) (Previous model,0.549) (Nine raw features,0.744) (Shipped model,0.873)};
+\end{axis}
+\end{tikzpicture}
 \caption[Licence-anomaly detection on simulated test licences]{Licence-anomaly detection on 120 simulated test licences. ``Previous model'': original features trained on 5 licences; ``Nine raw features'': original features trained on the same 360 licences; ``Shipped model'': seven scale-free features}\label{fig:licence}
 \end{figure}
 
 \subsection{Vendor Risk Scoring}
 The platform first scored vendor risk with a Random Forest, which is described here because its evaluation informed the replacement. The risk model was evaluated on 2,000 synthetic vendors (360 with an incident), split 1,600 / 400. The incident labels were drawn from a known formula of the six features plus random noise, so even a perfect model cannot exceed the ROC-AUC of that formula, 0.739. The Random Forest reached 0.715 (0.726 with 20\% of the values missing), close to that ceiling, with an accuracy of 0.72 at a threshold of 0.5. More importantly for its use, the bands are ordered by real incident rate (Figure~\ref{fig:bands}): 6.5\% of Low-band vendors, 20\% of Medium and 40.3\% of High had an incident. The most important features were on-time delivery (0.349), financial stability (0.210) and tenure (0.207). Twelve hand-written red-team profiles, including a perfect vendor with a cancelled GSTIN (forced High by the override), a vendor with no data on file (Medium, never High) and vendors with partial data, all received the expected band.
 
-The Random Forest has since been archived and replaced by a deterministic scorecard (Section~\ref{sec:extensions} and Figure~\ref{fig:scr-vendor}), because the platform must explain and reproduce every risk decision. Its properties were verified first: every stored score replayed to the same SHA-256 snapshot, points always summed to the total, a sanctioned vendor was forced to High by its override, and a vendor with incomplete checks was never reported as Low. A red-team set of 25 vendor profiles, each built to defeat one control (for example a perfect record with a sanctions match, or missing data presented as clean), all received the expected band, rating status and clearance decision. On the same 400 synthetic test vendors as the Random Forest, the scorecard's points ranked vendors with a ROC-AUC of 0.738, against 0.715 for the Random Forest and the ceiling of 0.739; Low-band vendors had an incident rate of 14.7\% and Medium-band vendors 47.5\%, and no vendor reached High, because the six synthetic features cover only part of the ruleset. This is a check on synthetic data, not an evaluation against real incident outcomes. In the demonstration environment most external sources are unreachable, so most vendors are rated provisional.
+The Random Forest has since been archived and replaced by a deterministic scorecard (Section~\ref{sec:extensions} and Figure~\ref{fig:scr-vendor}), because the platform must explain and reproduce every risk decision. Its properties were verified rather than its accuracy: every stored score replayed to the same SHA-256 snapshot, points always summed to the total, a sanctioned vendor was forced to High by its override, and a vendor with incomplete checks was never reported as Low. The scorecard has not yet been evaluated against incident outcomes, so no accuracy figure comparable to the Random Forest's is claimed. In the demonstration environment most external sources are unreachable, so most vendors are rated provisional.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics{figures/diagrams/bands}
+\begin{tikzpicture}
+\begin{axis}[reportbars, width=0.7\textwidth, height=5.4cm, ymax=0.5, ylabel={Incident rate}, symbolic x coords={Low, Medium, High}, xtick=data, enlarge x limits=0.3, bar width=24pt, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=3]{\pgfplotspointmeta}}]
+\addplot[fill=chartB, draw=chartB] coordinates {(Low,0.065) (Medium,0.200) (High,0.403)};
+\end{axis}
+\end{tikzpicture}
 \caption[Incident rate per risk band]{Incident rate per risk band on 400 synthetic test vendors (153 Low, 185 Medium, 62 High)}\label{fig:bands}
 \end{figure}
 
