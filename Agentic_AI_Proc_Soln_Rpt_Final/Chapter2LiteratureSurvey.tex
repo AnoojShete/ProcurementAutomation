@@ -10,7 +10,7 @@ Each agent of the proposed platform draws on a different set of methods, so this
 \section{About the Technique}
 Traditional procurement processing rests on four habits. The first is manual or template-based data entry: staff key in invoice and purchase-order details, or an OCR template is built for each vendor's layout. The second is static approval rules, where a request follows a fixed chain with no deadline, no escalation and no awareness of remaining stock. The third is periodic vendor review, which in practice often means one questionnaire at onboarding. The fourth is the flat-threshold licence audit, in which a seat is flagged when nobody has logged in for a fixed number of days. These habits work at small volumes but break down as an organisation grows; Table~\ref{tab:traditional} summarises where each struggles.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Traditional procurement practices and their shortcomings}\label{tab:traditional}
 \begin{tabularx}{\textwidth}{|L{0.19\textwidth}|L{0.27\textwidth}|Y|}
@@ -57,7 +57,7 @@ A flat inactivity threshold is transparent but flags seasonal and weekend dips b
 \subsection{Contract Analysis and Clause Extraction}
 Keyword search misses paraphrased clauses. Legal-BERT~\cite{chalkidis2020legalbert} fine-tuned on CUAD~\cite{hendrycks2021cuad} handles legal wording better and answers one question per clause, but it was trained mostly on US commercial contracts and is slow on a CPU. FinBERT~\cite{araci2019finbert} scores financial sentiment, which could serve as an adverse-media signal, although sentiment is only a rough proxy for risk.
 
-\emph{Choice in this project.} A publicly released Legal-BERT checkpoint fine-tuned on CUAD's training split~\cite{apostolo2023legalbertcuad} extracts the renewal term, the notice period and the expiration date; regular-expression rules are the fallback when the model is not installed or finds too little. The model was kept as the primary method because it beat the rules on CUAD's test split and read every value of the project's own templates correctly (Section~\ref{sec:eval}). FinBERT was studied but not implemented; adverse media is screened by matching news results against a keyword lexicon.
+\emph{Choice in this project.} A publicly released Legal-BERT checkpoint fine-tuned on CUAD's training split~\cite{apostolo2023legalbertcuad} extracts the renewal term, the notice period and the expiration date; regular-expression rules are the fallback when the model is not installed or finds too little. The model was kept as the primary method because it beat the rules on CUAD's test split and read every value of the project's own templates correctly (Section~\ref{sec:eval}). FinBERT was studied but not implemented.
 
 \subsection{Vendor Risk Scoring and Drift Monitoring}
 Static questionnaires are snapshots, whereas a learned classifier can combine several signals into one score. Random Forests~\cite{breiman2001random} are robust on small tabular datasets and provide feature importances for explanation. Some facts, however, should not be weighed against others: a cancelled tax registration or a sanctions listing should decide the outcome on its own. The Population Stability Index (PSI)~\cite{yurdakul2018psi} compares the distribution of recent scores with the training distribution and signals model drift.
@@ -87,7 +87,7 @@ Ten published works were examined, each covering one building block of the platf
 
 \paragraph{Agent frameworks.} AutoGen~\cite{wu2023autogen} represents the LLM-driven approach in which agents cooperate by conversation. It is included as a contrast to the event-driven design chosen here.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Comparison of related works}\label{tab:related}
 \begin{tabularx}{\textwidth}{|L{0.16\textwidth}|L{0.18\textwidth}|L{0.16\textwidth}|L{0.17\textwidth}|Y|}
@@ -101,14 +101,14 @@ Hendrycks et al., CUAD (NeurIPS 2021)~\cite{hendrycks2021cuad} & 510 contracts, 
 \end{tabularx}
 \end{table}
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Comparison of related works (continued)}\label{tab:related2}
 \begin{tabularx}{\textwidth}{|L{0.16\textwidth}|L{0.18\textwidth}|L{0.16\textwidth}|L{0.17\textwidth}|Y|}
 \hline
 \textbf{Reference} & \textbf{Contribution} & \textbf{Advantages} & \textbf{Limitations} & \textbf{Role in this project} \\ \hline
 Chalkidis et al., LEGAL-BERT (EMNLP 2020)~\cite{chalkidis2020legalbert} & BERT pretrained on legal corpora & Beats generic BERT on legal tasks & Smaller corpus; mostly English & Implemented: CUAD-fine-tuned checkpoint extracts renewal clauses \\ \hline
-Araci, FinBERT (2019)~\cite{araci2019finbert} & BERT further pretrained on financial text & Strong financial sentiment & Sentiment is only a proxy for risk & Studied, not used: adverse media is screened with a keyword lexicon \\ \hline
+Araci, FinBERT (2019)~\cite{araci2019finbert} & BERT further pretrained on financial text & Strong financial sentiment & Sentiment is only a proxy for risk & Studied; adverse-media signal left as future scope \\ \hline
 Liu et al., Isolation Forest (ICDM 2008)~\cite{liu2008isolation} & Anomaly detection by random partitioning & Linear time, no labels needed & No native explanation; contamination must be set & Implemented for licence-usage anomalies \\ \hline
 Lundberg and Lee, SHAP (NeurIPS 2017)~\cite{lundberg2017shap} & Unified feature attribution & Consistent local explanations; fast for trees & Cost grows with features; not causal & Implemented: reasons shown for each flagged licence \\ \hline
 Wu et al., AutoGen (2023)~\cite{wu2023autogen} & Multi-agent LLM conversation framework & Modular and customisable & Conversation-driven; hard to audit & Contrast: event-driven agents with durable workflows \\ \hline
@@ -148,7 +148,7 @@ Contract lifecycle & \checkmark e-sign, renewals & \checkmark & $\sim$ & \checkm
 ML clause or obligation extraction & \checkmark Legal-BERT, obligations tracked & \checkmark & -- & -- & -- & -- \\ \hline
 Supplier risk scoring & \checkmark explainable & \checkmark & $\sim$ & \checkmark & $\sim$ & -- \\ \hline
 Sanctions screening & \checkmark & \checkmark & -- & -- & -- & -- \\ \hline
-Indian tax compliance & \checkmark GST, e-invoice QR, TDS, GSTR-2B & -- & -- & -- & -- & \checkmark GST, TDS \\ \hline
+Indian tax compliance & $\sim$ GSTIN, IFSC & -- & -- & -- & -- & \checkmark GST, TDS \\ \hline
 Payments & -- & \checkmark & $\sim$ & -- & \checkmark & \checkmark \\ \hline
 Spend analytics & $\sim$ & \checkmark & \checkmark & $\sim$ & -- & \checkmark \\ \hline
 ERP integration & -- & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\ \hline
@@ -156,12 +156,12 @@ Conversational AI or agents & \checkmark RAG, cited, read-only & \checkmark & \c
 Deployment & Self-hosted & SaaS & SaaS & SaaS & SaaS & SaaS \\ \hline
 \end{longtable}}
 
-Coupa is the strongest competitor: it covers every area except software licences, and its AI is the most developed, with invoice capture, obligation extraction from signed contracts, and agents that monitor supplier risk and sanctions. Zapro is the closest peer in scale and is the only other product that tracks software licences, although without a usage model. When the comparison was first made, the commercial suites offered several capabilities that this platform lacked: budget control before approval, sourcing events, catalog buying, tracking of contract obligations, ERP integration, supplier portals, payment execution and, for TYASuite, Indian GST and TDS compliance. The first four, and then GST and TDS compliance, were added (Section~\ref{sec:extensions}) and are shown in the table; ERP integration, a supplier portal, punch-out catalogs and payments remain absent. Conversely, none of the five describes a usage model for licence reclamation, dual control of bank-detail changes, or---most relevant here---an error rate for the documents they accept without review: vendors report extraction accuracy (96--99\% in their own figures), not how often an automatically accepted document is wrong. These public descriptions are marketing material and were not verified independently.
+Coupa is the strongest competitor: it covers every area except software licences, and its AI is the most developed, with invoice capture, obligation extraction from signed contracts, and agents that monitor supplier risk and sanctions. Zapro is the closest peer in scale and is the only other product that tracks software licences, although without a usage model. When the comparison was first made, the commercial suites offered several capabilities that this platform lacked: budget control before approval, sourcing events, catalog buying, tracking of contract obligations, ERP integration, supplier portals, payment execution and, for TYASuite, Indian GST and TDS compliance. The first four were then added (Section~\ref{sec:extensions}) and are shown in the table; ERP integration, a supplier portal, punch-out catalogs, payments and GST/TDS compliance remain absent. Conversely, none of the five describes a usage model for licence reclamation, dual control of bank-detail changes, or---most relevant here---an error rate for the documents they accept without review: vendors report extraction accuracy (96--99\% in their own figures), not how often an automatically accepted document is wrong. These public descriptions are marketing material and were not verified independently.
 
 \section{Literature Summary and Research Gap}
 Table~\ref{tab:summary} summarises the techniques reviewed and where each is used in the proposed system.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Techniques reviewed and their use in the proposed system}\label{tab:summary}
 \begin{tabularx}{\textwidth}{|L{0.20\textwidth}|L{0.28\textwidth}|Y|}

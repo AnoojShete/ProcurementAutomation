@@ -8,55 +8,55 @@ This chapter presents the implemented system, its testing, and the evaluation of
 \section{Screenshots of the System}\label{sec:screens}
 Every item in the frontend has one page that holds all its actions; lists, dashboards and the approval inbox link to it. Figures~\ref{fig:scr-lifecycle} to~\ref{fig:scr-control} show a request (Figure~\ref{fig:scr-lifecycle}), a document held for review (Figure~\ref{fig:scr-document}), a vendor (Figure~\ref{fig:scr-vendor}), a licence (Figure~\ref{fig:scr-licence}), a signed contract (Figure~\ref{fig:scr-contract}) and the Control Panel, which shows the agents' events as they happen (Figure~\ref{fig:scr-control}); later figures show the extensions and the assistant (Figure~\ref{fig:scr-assistant}).
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{figures/screens/06-request-lifecycle.png}
 \caption[Request page with the procurement lifecycle]{Request page of a SaaS purchase created from a dropped vendor quote: key figures, the completed lifecycle from request to invoice (each step opens its details), and the procurement checks}\label{fig:scr-lifecycle}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{figures/screens/02-document-detail.png}
 \caption[Document review page]{Document page of an invoice held for review: the three-way match found a unit price above the agreed one and a total above the balance left on the request; extracted fields are shown with their confidence for correction or confirmation}\label{fig:scr-document}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{figures/screens/03-vendor-risk.png}
 \caption[Vendor risk scorecard]{Vendor risk scorecard: the assessment narrative per group with points out of each group's maximum, the rating status (provisional: several checks could not be run in the demonstration environment, so the band is Unrated rather than Low), the worst case if the missing checks failed, and the tabs for remediation, history, evidence, audit and disputes}\label{fig:scr-vendor}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{figures/screens/08-licence-anomaly.png}
 \caption[Licence page with usage trend and explanation]{Licence page: seat utilisation, the 90-day usage trend with its late drop, and the SHAP explanation of the anomaly score. The score (0.32) is just below the watch threshold (0.34), so the licence is still rated Normal}\label{fig:scr-licence}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{figures/screens/09-contract.png}
 \caption[Signed contract page]{Contract page of a signed SaaS subscription: signer and signing record, renewal type, notice period and deadline, the next renewal reminder, and the generated contract text}\label{fig:scr-contract}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{figures/screens/10-control-panel.png}
 \caption[Control Panel with the live Kafka event log]{Control Panel: the drop-folder path from file to signature, the status of the drop folder, Kafka, MinIO and e-signature, a dropped quote that reached a signed contract unattended, and the live Kafka event log}\label{fig:scr-control}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{figures/screens/11-contract-obligations.png}
 \caption[Obligations read from a signed contract]{Obligations card of a signed SaaS contract: the SLA terms and the seat limit read by the clause rules and confirmed by finance, with due dates; the price cap and minimum commitment still wait for confirmation, with the source sentence shown}\label{fig:scr-obligations}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{figures/screens/12-rfq-comparison.png}
 \caption[Comparison of quotes in a request for quotation]{A closed request for quotation: each criterion scored among the round's quotes and weighted; the cheaper quote ranks second because of its longer lead time, shorter warranty and weaker support terms}\label{fig:scr-rfq}
 \end{figure}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.48\textwidth]{figures/screens/13-assistant.png}
 \caption[Assistant answering from a contract clause]{The assistant drawer answering a finance user's question about the SaaS uptime commitment and service credit: each part of the answer quotes the retrieved clause and cites the contract it came from (Section~\ref{sec:assistant}).}\label{fig:scr-assistant}
@@ -141,28 +141,28 @@ async def mark_contract_signed(db, kafka_producer, contract_id, signed_by, signe
 Testing was carried out at three levels: unit tests for each service and for the shared code, end-to-end tests through the gateway against the running system, and black-box probes of externally visible behaviour. Every defect fixed received a regression test, and each such test was checked by reverting the fix and confirming that it fails.
 
 \subsection{Unit Testing}
-Each service has its own pytest suite, run inside that service's Docker image with the source mounted (\code{./scripts/test-service.sh all}). The suites test logic, schemas, API behaviour and the wiring of every enforced business rule (each rule is set to two values and the test checks that behaviour changes). On 21 October 2026, after the extensions of Section~\ref{sec:extensions} the replacement of the risk model by a deterministic scorecard and the retrieval-augmented assistant, all 1,078 tests passed, with none failing or skipped (Table~\ref{tab:unit}). A further suite tests the shared code and configuration: the event outbox and dead-letter handling, the request state machine, Kafka permissions against the code, log redaction, correlation IDs, e-mail approval actions, the business-rules registry and the refusal of published secrets in production mode. It passed 158 tests; 4 tests of the assistant's live script were skipped because they need a running language model.
+Each service has its own pytest suite, run inside that service's Docker image with the source mounted (\code{./scripts/test-service.sh all}). The suites test logic, schemas, API behaviour and the wiring of every enforced business rule (each rule is set to two values and the test checks that behaviour changes). On 25 October 2026, after the extensions of Section~\ref{sec:extensions}, the replacement of the risk model by a deterministic scorecard and the retrieval-augmented assistant, all 1,282 tests passed, with none failing or skipped (Table~\ref{tab:unit}). A further suite tests the shared code and configuration: the event outbox and dead-letter handling, the request state machine, Kafka permissions against the code, log redaction, correlation IDs, e-mail approval actions, the business-rules registry and the refusal of published secrets in production mode. It passed 183 tests; 4 tests of the assistant's live script were skipped because they need a running language model.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
-\caption{Unit tests per service (run on 21 October 2026)}\label{tab:unit}
+\caption{Unit tests per service (run on 25 October 2026)}\label{tab:unit}
 \begin{tabularx}{\textwidth}{|L{0.25\textwidth}|C{0.09\textwidth}|Y|}
 \hline
 \textbf{Service} & \textbf{Passed} & \textbf{Areas covered} \\ \hline
-document-vendor-agent & 334 & Upload checks and ClamAV, e-mail and drop-folder intake, OCR runtime and preprocessing, Docling extraction, classification and classifier routing, field extraction and schema, LayoutLMv3 cross-check, confidence, vendor matching and onboarding, GSTIN and IFSC, payment quarantine, learning from corrections, pipeline resilience, event schemas, rules wiring, document access, the risk-controlled review gate \\ \hline
-approval-inventory-agent & 249 & Spend tiers, approval authority and reminders, lifecycle enforcement, Redis lock and inventory reservation, reorder, invoice ledger and the received-quantity check, budgets, catalog resolution, RFQ scoring and sealed views, goods receipts, licence-usage anomaly model and reclaim, outbox publishing, order monitor, audit regressions, rules wiring, approval security, internal-token configuration \\ \hline
-contract-risk-agent & 299 & Deterministic risk scorecard (points, bands, rating status, overrides, replay, clearance, remediation, monitoring), clause extraction and model routing, obligation extraction from the templates, service credits, due dates, reminders and seat checks, vendor scorecards, contract documents and access, in-app signing and its risk check, e-sign webhook and DocuSign client, renewal schedule, sanctions screening, reminders, rules wiring, security configuration \\ \hline
-notification-agent & 81 & Digest versus urgent routing, recipients and priorities of the budget, obligation, RFQ and delivery e-mails, template rendering with strict undefined checks, consumer retry and dead-letter, notification-log access, event schemas \\ \hline
-auth-service & 100 & Password hashing, JWT, session cookies and CSRF, account flows and refresh-token revocation (with a throwaway database), lockout and hardening, business rules, user profiles, demo-seed guard, validation of rule values \\ \hline
-chatbot-agent & 15 & Index contents and masking of bank details, clause and sentence chunking, re-embedding only changed sources, access filter in retrieval, re-ranking, prompt construction without tools \\ \hline
-\textbf{Total} & \textbf{1,078} & \\ \hline
+document-vendor-agent & 373 & Upload checks and ClamAV, e-mail and drop-folder intake, OCR runtime and preprocessing, Docling extraction, classification and classifier routing, field extraction and schema, LayoutLMv3 cross-check, confidence, vendor matching and onboarding, GSTIN and IFSC, payment quarantine, learning from corrections, pipeline resilience, event schemas, rules wiring, document access, the risk-controlled review gate \\ \hline
+approval-inventory-agent & 275 & Spend tiers, approval authority and reminders, lifecycle enforcement, Redis lock and inventory reservation, reorder, invoice ledger and the received-quantity check, budgets, catalog resolution, RFQ scoring and sealed views, goods receipts, licence-usage anomaly model and reclaim, outbox publishing, order monitor, audit regressions, rules wiring, approval security, internal-token configuration \\ \hline
+contract-risk-agent & 328 & Deterministic risk scorecard (points, bands, rating status, overrides, replay, clearance, remediation, monitoring), clause extraction and model routing, obligation extraction from the templates, service credits, due dates, reminders and seat checks, vendor scorecards, contract documents and access, in-app signing and its risk check, e-sign webhook and DocuSign client, renewal schedule, sanctions screening, reminders, rules wiring, security configuration \\ \hline
+notification-agent & 125 & Digest versus urgent routing, recipients and priorities of the budget, obligation, RFQ and delivery e-mails, template rendering with strict undefined checks, templates edited in the Control Panel, company SMTP settings with an encrypted password, consumer retry and dead-letter, notification-log access, event schemas \\ \hline
+auth-service & 115 & Password hashing, JWT, session cookies and CSRF, account flows and refresh-token revocation (with a throwaway database), lockout and hardening, business rules, user profiles, demo-seed guard, validation of rule values, administrator changes to a user's e-mail address \\ \hline
+chatbot-agent & 66 & Deciding the intent of a message before retrieval (greetings, follow-ups and topic-only messages answered directly), index contents and masking of bank details, clause and sentence chunking, re-embedding only changed sources, access filter in retrieval, re-ranking, prompt construction without tools \\ \hline
+\textbf{Total} & \textbf{1,282} & \\ \hline
 \end{tabularx}
 \end{table}
 
 \subsection{Integration Testing}
 The end-to-end suites drive the running stack through the gateway exactly as a client would, without database shortcuts (Table~\ref{tab:e2e}). The gateway suite (\code{make e2e}) signs in as three roles, checks that ClamAV rejects the EICAR test file and accepts a clean PDF, creates a manager-tier request, approves it, generates and sends a contract, simulates the provider's signed callback with a real HMAC signature, confirms the signature, recomputes the vendor's risk, confirms that a notification reached Mailpit, and changes a business rule mid-test to check its history and reset. The invoice-lifecycle suite takes one fresh vendor's quote and invoice through all five services, and the document-pipeline suite submits normal, very large, corrupt, empty, wrongly typed and pathological files and simulates outages. Three further suites cover the extensions: budgets (including two concurrent requests that cannot both fit), contract obligations from signature to service credit and seat breach, and sourcing, in which a generated quotation PDF that quotes an RFQ reference is read by the pipeline and linked to the RFQ.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{End-to-end test suites}\label{tab:e2e}
 \begin{tabularx}{\textwidth}{|L{0.30\textwidth}|Y|C{0.10\textwidth}|C{0.14\textwidth}|}
@@ -184,15 +184,17 @@ The end-to-end suites drive the running stack through the gateway exactly as a c
 
 Integration exposed defects that unit tests could not, which were fixed in the shared configuration: the gateway did not strip the API prefix (every route returned 404), the broker advertised an unreachable address, UUID columns were typed as strings, Alembic version tables of two services collided, and ClamAV's slow start blocked the services that depended on it.
 
+\subsection{Security and Dependency Checks}\label{sec:deps}
+Every service image was audited for known vulnerabilities with \code{pip-audit}, and the frontend with \code{npm audit}. Upgrading the web framework (FastAPI~0.148, Starlette~1.9) and the libraries that parse uploaded files (Pillow~12.3, pdfminer.six, Docling~2.140) reduced the findings from 302 to 152; the remainder are in the model-tracking server, which is not exposed, in parts of the OCR engine that the system does not call, and in test tooling. Started in production mode with the published default secrets, every service refuses to start; with new secrets, every service and worker starts (BB13). A full backup of the database and document store was restored into separate containers with identical record counts.
+
 \subsection{Black-box Testing}
 Black-box probes test externally visible behaviour without reference to the code. The cases in Table~\ref{tab:bb} were sent through the gateway to the running system; the last column records the behaviour observed before a defect was fixed, where a probe first failed.
 
-\begin{table}[!htbp]
-\centering
-\small
+\begin{table}[H]
+\centering\tablestyle
 \setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{0.9}
-\tablestyle\caption{Black-box test cases (run through the gateway, 17--21 October 2026)}\label{tab:bb}
+\renewcommand{\arraystretch}{1.1}
+\caption{Black-box test cases (run through the gateway, 17--21 October 2026)}\label{tab:bb}
 \begin{tabularx}{\textwidth}{|C{0.06\textwidth}|L{0.30\textwidth}|Y|L{0.17\textwidth}|}
 \hline
 \textbf{ID} & \textbf{Scenario} & \textbf{Expected and observed result} & \textbf{Before the fix} \\ \hline
@@ -220,16 +222,13 @@ BB21 & Weekly risk monitoring report; remediation plan & 200 with the report and
 \end{tabularx}
 \end{table}
 
-\subsection{Security and Dependency Checks}\label{sec:deps}
-Every service image was audited for known vulnerabilities with \code{pip-audit}, and the frontend with \code{npm audit}. Upgrading the web framework (FastAPI~0.148, Starlette~1.9) and the libraries that parse uploaded files (Pillow~12.3, pdfminer.six, Docling~2.140) reduced the findings from 302 to 152; the remainder are in the model-tracking server, which is not exposed, in parts of the OCR engine that the system does not call, and in test tooling. Started in production mode with the published default secrets, every service refuses to start; with new secrets, every service and worker starts (BB13). A full backup of the database and document store was restored into separate containers with identical record counts.
-
 \section{Evaluation of the Models}\label{sec:eval}
 Each model was compared with a simple baseline on data it was not trained on, and each decision rule for keeping a model was fixed before the comparison was run. All training and test data is synthetic except the CUAD contracts, so these results compare methods on controlled data; they do not predict accuracy on an organisation's real documents or vendors.
 
 \subsection{Document Classification}
 The classifier was trained on 861 of 1,260 generated documents (clean, OCR-noise, missing-title and \emph{other} paperwork), with 252 for validation and 252 for testing. A second test trained on 870 documents without one invoice layout and two kinds of \emph{other} paperwork, and tested on 390 documents of exactly those kinds. Table~\ref{tab:clf} shows that the shipped router (the model when it is at least 60\% confident, otherwise keywords) classified every test document correctly, against a macro-F1 of 0.912 and 0.844 for keywords. The keyword classifier was weakest on documents with no title (0.847 and 0.602). Because both test sets share the generator's vocabulary, perfect scores here mean the model learned these templates, not that it would be perfect on real documents.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Document classification on synthetic test sets (accuracy and macro-F1)}\label{tab:clf}
 \begin{tabularx}{\textwidth}{|L{0.30\textwidth}|C{0.13\textwidth}|C{0.13\textwidth}|C{0.13\textwidth}|Y|}
@@ -244,7 +243,7 @@ Shipped: TF-IDF + logistic regression, keywords below 0.6 & 1.000 & 1.000 & 1.00
 \subsection{Field Extraction}
 Extraction was measured against ground truth on 15 generated PDFs and 6 generated images, each image also tested as rotated (4\textdegree), noisy and half-resolution copies (24 image variants). Every field of every PDF was correct, but only 47\% of image fields without preprocessing and 49\% with deskewing and upscaling (Table~\ref{tab:extract}). Preprocessing helped on original and rotated images (47\% to 53\%) but hurt on noisy ones (47\% to 44\%). Image extraction is therefore the weakest part of the pipeline; this is why low-confidence documents go to review, and why OCR quality discounts every field's confidence (Equation~\ref{eq:confidence}).
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Field-extraction accuracy by field (share of documents with the field correct)}\label{tab:extract}
 \begin{tabularx}{\textwidth}{|Y|C{0.07\textwidth}|C{0.08\textwidth}|C{0.09\textwidth}|C{0.07\textwidth}|C{0.07\textwidth}|C{0.10\textwidth}|C{0.06\textwidth}|}
@@ -259,7 +258,7 @@ Images, with preprocessing (24) & 50\% & 54\% & 50\% & 38\% & 38\% & 67\% & 49\%
 \subsection{Clause Extraction}
 The Legal-BERT model and the regular-expression rules were compared on the 102 contracts of CUAD's test split, real commercial contracts annotated by lawyers; a clause counts as found when the returned passage overlaps an annotated span. The model beat the rules on all three clause types (Figure~\ref{fig:clauses}), most clearly on expiration dates, which in CUAD are usually written relative to another date (``five years from the Effective Date'') and so defeat the date rules. On 60 contracts generated from the project's own templates, both methods read every value correctly. The model was kept as the primary extractor under a rule fixed in advance (beat the rules on at least two of the three clauses and read every template value). Its cost is speed: a median of 17 seconds per contract on a CPU.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[reportbars, height=5.6cm, ymax=1.1, ylabel={F1 score}, symbolic x coords={Renewal term, Notice period, Expiration date}, xtick=data, legend entries={Regular-expression rules, Legal-BERT (CUAD)}, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=2]{\pgfplotspointmeta}}]
@@ -275,7 +274,7 @@ The same model was tested on eight obligation categories of CUAD for contract-ob
 \subsection{Licence-Usage Anomaly Detection}
 The anomaly model was evaluated on 600 simulated licences (seed 2026), 30\% of which follow an anomalous pattern (gradual decline, sudden drop-off or abandonment) while the rest are steady, have weekend dips or are stable at low use. The licences were split 360 / 120 / 120 for training, validation and testing. Figure~\ref{fig:licence} compares the shipped model with three alternatives on the test set. Scale-free features (utilisation and retention ratios rather than raw seat counts) raised the ROC-AUC from 0.849 to 0.954, and both are far above the earlier model trained on only five licences (0.659) and above ranking by low utilisation alone (0.687), which is what a flat inactivity rule does. The thresholds were chosen on the validation set: at the ``anomalous'' threshold (0.39) the test precision was 0.83 and the recall 0.69; at the ``watch'' threshold (0.34) they were 0.79 and 0.83. Abandoned licences were always flagged and sudden drop-offs 87\% of the time, but gradual declines only 36\% of the time, while 4--10\% of the normal licences crossed the anomalous threshold. The grace period and human approval exist for exactly these false positives.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[reportbars, height=5.8cm, ymax=1.12, ylabel={Score on 120 test licences}, symbolic x coords={Low utilisation alone, Previous model, Nine raw features, Shipped model}, xtick=data, xticklabel style={align=center, text width=2.6cm}, legend entries={ROC-AUC, Average precision}, bar width=15pt, enlarge x limits=0.14, every node near coord/.append style={font=\tiny}, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=3]{\pgfplotspointmeta}}]
@@ -291,7 +290,7 @@ The platform first scored vendor risk with a Random Forest, which is described h
 
 The Random Forest has since been archived and replaced by a deterministic scorecard (Section~\ref{sec:extensions} and Figure~\ref{fig:scr-vendor}), because the platform must explain and reproduce every risk decision. Its properties were verified rather than its accuracy: every stored score replayed to the same SHA-256 snapshot, points always summed to the total, a sanctioned vendor was forced to High by its override, and a vendor with incomplete checks was never reported as Low. The scorecard has not yet been evaluated against incident outcomes, so no accuracy figure comparable to the Random Forest's is claimed. In the demonstration environment most external sources are unreachable, so most vendors are rated provisional.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[reportbars, width=0.7\textwidth, height=5.4cm, ymax=0.5, ylabel={Incident rate}, symbolic x coords={Low, Medium, High}, xtick=data, enlarge x limits=0.3, bar width=24pt, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=3]{\pgfplotspointmeta}}]
@@ -311,7 +310,7 @@ The review gate of Equation~\ref{eq:confidence} sends a document to a person whe
 
 \paragraph{Systems.} B0 is the current rule (confidence $\ge$ 0.8 and no forced-review flag). B2 accepts an invoice when every record check passes (vendor matched, order matched, no duplicate, bank details and GSTIN as on file). B1 and P are calibrated gates: a logistic-regression or gradient-boosting model estimates the probability that an invoice is correct, from document evidence only (B1) or from document and record evidence (P), and the acceptance threshold is chosen with Learn-then-Test~\cite{angelopoulos2021ltt} so that the error rate among accepted invoices is at most $\alpha$ with probability at least $1-\delta$ ($\delta = 0.1$). All systems were evaluated on 20 random splits in which the training, calibration and test sets contain different vendors.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption[Review-gate systems on 3,000 synthetic invoices]{Review-gate systems on 3,000 synthetic invoices (means over 20 vendor-disjoint splits). Coverage: share of test invoices accepted without review; risk: share of accepted invoices that are wrong; violations: share of splits in which risk exceeded $\alpha$}\label{tab:gate}
 \begin{tabularx}{\textwidth}{|L{0.30\textwidth}|C{0.10\textwidth}|C{0.09\textwidth}|C{0.10\textwidth}|C{0.09\textwidth}|Y|}

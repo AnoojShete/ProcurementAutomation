@@ -12,3 +12,16 @@ order: contract-risk, approval-inventory, document-vendor, notification, auth
 
 # make e2e  (17 Oct 2026, 23:41 IST)
   e2e: 17 passed, 0 failed
+
+# ./scripts/test-service.sh all  (25 Oct 2026, 17:57 IST, anjali @ 2f84402)
+contract-risk-agent       328 passed
+approval-inventory-agent  275 passed
+document-vendor-agent     373 passed
+notification-agent        125 passed   (database tests on a throwaway Postgres 16; the stack's Postgres had no free connections)
+auth-service              115 passed   (same)
+chatbot-agent              66 passed
+total                    1282 passed, 0 failed, 0 skipped
+
+# ./scripts/test-root.sh  (25 Oct 2026)
+169 passed, 4 skipped, 6 warnings in 2.02s
+14 passed in 0.83s

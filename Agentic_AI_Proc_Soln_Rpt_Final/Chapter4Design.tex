@@ -28,9 +28,18 @@ The project followed an iterative and incremental model (Figure~\ref{fig:sdlc}).
   \item \textbf{Repeatable deployment:} a single \code{run.sh} script builds and starts the whole containerised stack from a clean clone.
 \end{itemize}
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
-\includegraphics{figures/diagrams/sdlc}
+\begin{tikzpicture}[node distance=7mm]
+\node[ext, text width=2.3cm] (c1) {Contract-first design};
+\node[agA, text width=2.3cm, right=of c1] (c2) {Service-wise increment};
+\node[agB, text width=2.3cm, right=of c2] (c3) {Integration behind the gateway};
+\node[agC, text width=2.3cm, right=of c3] (c4) {Testing (unit and end-to-end)};
+\node[human, text width=3.2cm, below=9mm of c3] (c5) {Audit, demonstration and mentor feedback};
+\draw[flow] (c1) -- (c2); \draw[flow] (c2) -- (c3); \draw[flow] (c3) -- (c4);
+\draw[flow] (c4.south) |- (c5.east);
+\draw[flow] (c5.west) -| node[lbl, pos=0.25, below] {next iteration} (c2.south);
+\end{tikzpicture}
 \caption{Iterative and incremental development cycle}\label{fig:sdlc}
 \end{figure}
 
@@ -76,13 +85,12 @@ FR24 & Obligations are read from signed contracts and confirmed by finance; conf
 FR25 & Requesters order from an IT catalog whose agreed prices, vendor and type override client input; expired items cannot be ordered, and a received seat add-on increases the licence's seats. & Approval and Inventory \\ \hline
 FR26 & Finance runs request-for-quotation events with sealed quotes, quotes linked from the document pipeline by reference, weighted comparison, further rounds and an award that creates the purchase request. & Approval and Inventory \\ \hline
 FR27 & Deliveries are recorded per line with asset tags; invoices may not exceed the quantity received; each vendor has a performance scorecard. & Approval and Inventory, Contract and Risk \\ \hline
-FR28 & Every invoice is checked for GST (GSTIN, tax split, rate per HSN or SAC code, totals, e-invoice QR signature); a failed check forces review without changing the confidence score. TDS is computed at booking, the GSTR-2B statement is reconciled, and MSME payment deadlines are tracked. & Document and Vendor, Approval and Inventory \\ \hline
 \end{longtable}}
 
 \subsubsection{Non-Functional Requirements}
 Table~\ref{tab:nfr} lists the qualities and constraints the system must satisfy.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Non-functional requirements}\label{tab:nfr}
 \begin{tabularx}{\textwidth}{|L{0.18\textwidth}|Y|}
@@ -99,7 +107,7 @@ Portability & The stack is containerised and runs on macOS, Linux and Windows th
 \end{tabularx}
 \end{table}
 
-\noindent\textbf{Constraints and assumptions.} Payment execution, ERP integration, a third-party e-signature provider and automatic model retraining are outside the scope. GST and TDS rates are seeded values that a chartered accountant must confirm. Kafka traffic is authenticated but not encrypted, which is acceptable only on a single host. The vendor risk data, licence usage logs, classifier corpus and sample documents are synthetic.
+\noindent\textbf{Constraints and assumptions.} Payment execution, ERP integration, adverse-media screening, a third-party e-signature provider and automatic model retraining are outside the scope. Kafka traffic is authenticated but not encrypted, which is acceptable only on a single host. The vendor risk data, licence usage logs, classifier corpus and sample documents are synthetic.
 
 \subsection{UML Diagrams and Data Flow Diagrams}
 
@@ -109,22 +117,66 @@ The use case diagram is shown in Figure~\ref{fig:usecase} in Chapter~\ref{chap3}
 \subsubsection{Data Flow Diagram -- Level 0}
 The context diagram (Figure~\ref{fig:dfd0}) shows the platform as a single process and its exchanges with the external entities: the three groups of users, vendors who send documents, the e-mail service, and the external lookup services.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
-\includegraphics{figures/diagrams/dfd0}
+\begin{tikzpicture}
+\node[circle, draw=inline, fill=infill, align=center, minimum size=2.9cm, nohyph] (p) at (0,0) {\textbf{0.0}\\Procurement\\Intelligence\\Platform};
+\tikzset{ent/.style={ext, text width=2.5cm, minimum height=10mm}}
+\node[ent] (rq) at (-6.3,2.7) {Requester};
+\node[ent] (ap) at (-6.3,0) {Approver / Finance};
+\node[ent] (ad) at (-6.3,-2.7) {Administrator};
+\node[ent] (vd) at (6.3,2.7) {Vendor};
+\node[ent] (ml) at (6.3,0) {E-mail service (SMTP / Mailpit)};
+\node[ent, text width=3.0cm] (lk) at (6.3,-2.7) {Lookup services (IFSC, breached passwords, sanctions list, FX rates)};
+\draw[flow] ([yshift=2mm]rq.east) -- node[lbl, above, sloped, pos=0.45] {requests, documents} (p.135);
+\draw[flow] (p.155) -- node[lbl, below, sloped, pos=0.55] {status, extracted fields} ([yshift=-2mm]rq.east);
+\draw[flow] ([yshift=2mm]ap.east) -- node[lbl, above, pos=0.45] {decisions, signatures} ([yshift=2mm]ap.east -| p.west);
+\draw[flow] ([yshift=-2mm]ap.east -| p.west) -- node[lbl, below, pos=0.55] {tasks, risk, reasons} ([yshift=-2mm]ap.east);
+\draw[flow] ([yshift=2mm]ad.east) -- node[lbl, above, sloped, pos=0.45] {rules, roles} (p.205);
+\draw[flow] (p.225) -- node[lbl, below, sloped, pos=0.55] {health, events, audit} ([yshift=-2mm]ad.east);
+\draw[flow] (vd.west) -- node[lbl, above, sloped, pos=0.5] {quotes, invoices} (p.40);
+\draw[flow] (p.east) -- node[lbl, above] {notifications} (ml.west);
+\draw[flow] (p.330) -- node[lbl, above, sloped, pos=0.5] {queries} ([yshift=2mm]lk.west);
+\draw[flow] ([yshift=-2mm]lk.west) -- node[lbl, below, sloped, pos=0.5] {results} (p.310);
+\end{tikzpicture}
 \caption{Level 0 data flow diagram (context diagram)}\label{fig:dfd0}
 \end{figure}
 
 \subsubsection{Data Flow Diagram -- Level 1}
 The Level 1 diagram (Figure~\ref{fig:dfd1}) decomposes the platform into the processes of Table~\ref{tab:dfd}. Processes 2.0 to 5.0 exchange events through the messaging layer, process 6.0 consumes them, and process 1.0 issues the tokens and rules that the others check.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
-\includegraphics{figures/diagrams/dfd1}
+\begin{tikzpicture}
+\tikzset{proc/.style={box, text width=2.3cm, minimum height=13mm}, store/.style={nohyph, draw=inline, fill=infill, minimum height=8mm, align=center, text width=2.3cm, font=\scriptsize}}
+\node[ext, text width=2.4cm, minimum height=12mm] (u) at (-6.3,3.2) {Users (requester, approver, finance, admin)};
+\node[proc, fill=agDfill, draw=agDline] (p1) at (-2.2,3.2) {\textbf{1.0}\\Authenticate, serve rules};
+\node[proc, fill=agDfill, draw=agDline] (p6) at (2.6,3.2) {\textbf{6.0}\\Notify};
+\node[ext, text width=2.1cm, minimum height=12mm] (sm) at (6.3,3.2) {SMTP / Mailpit};
+\node[infra, minimum width=15cm] (bus) at (0,1.4) {Kafka-compatible event bus (Redpanda)};
+\node[proc, fill=agAfill, draw=agAline] (p2) at (-5.6,-0.6) {\textbf{2.0}\\Ingest and extract documents};
+\node[proc, fill=agBfill, draw=agBline] (p3) at (-1.9,-0.6) {\textbf{3.0}\\Approve, reserve, reclaim};
+\node[proc, fill=agCfill, draw=agCline] (p4) at (1.9,-0.6) {\textbf{4.0}\\Manage contracts};
+\node[proc, fill=agCfill, draw=agCline] (p5) at (5.6,-0.6) {\textbf{5.0}\\Score vendor risk};
+\node[store] (d2) at (-5.6,-2.5) {D2 MinIO\\document files};
+\node[store] (d3) at (-1.9,-2.5) {D3 Redis\\reservation locks};
+\node[store, text width=14.6cm] (d1) at (0,-3.9) {D1 PostgreSQL: application records, audit log, notification log};
+\draw[<->] (u) -- node[lbl, above] {credentials} node[lbl, below] {tokens} (p1);
+\draw[flow] (p6) -- node[lbl, above] {e-mail} (sm);
+\foreach \p/\t in {p2/document events, p3/approval events, p4/contract events, p5/risk events} \draw[<->] (\p.north) -- node[lbl, right] {\t} (\p.north |- bus.south);
+\draw[flow] (p6.south |- bus.north) -- node[lbl, right] {events from 2.0--5.0} (p6.south);
+\draw[dflow] (p1.south) -- node[lbl, right] {rule changes} (p1.south |- bus.north);
+\draw[<->] (p2) -- (d2);
+\draw[<->] (p3) -- (d3);
+\draw[<->] (p2.east) -- (-3.75,-0.6) -- (-3.75,0 |- d1.north);
+\draw[<->] (p3.east) -- (0,-0.6) -- (0,0 |- d1.north);
+\draw[<->] (p4.south) -- (p4.south |- d1.north);
+\draw[<->] (p5.south) -- (p5.south |- d1.north);
+\end{tikzpicture}
 \caption{Level 1 data flow diagram}\label{fig:dfd1}
 \end{figure}
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Level 1 DFD processes}\label{tab:dfd}
 \begin{tabularx}{\textwidth}{|C{0.09\textwidth}|L{0.18\textwidth}|L{0.26\textwidth}|Y|}
@@ -142,43 +194,136 @@ The Level 1 diagram (Figure~\ref{fig:dfd1}) decomposes the platform into the pro
 \subsubsection{Sequence Diagram}
 Figure~\ref{fig:sequence} follows one purchase request from creation to signature. It shows the synchronous calls through the gateway, the asynchronous events, and the point at which the Temporal workflow hands the decision back to the service.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
-\includegraphics{figures/diagrams/sequence}
+\begin{tikzpicture}[x=0.95cm, y=-0.62cm]
+\tikzset{ll/.style={box, text width=1.55cm, minimum height=10mm, font=\scriptsize}, msg/.style={->, draw=ink}, amsg/.style={->, draw=ink, dashed}, ml/.style={font=\scriptsize, above, inner sep=1pt, fill=white}, self/.style={font=\scriptsize, right, inner sep=1pt, align=left}}
+\foreach \x/\n/\t/\s in {0/rq/Requester/ext, 2.1/gw/Frontend and gateway/infra, 4.2/ap/Approval agent/agB, 6.3/tp/Temporal/infra, 8.4/kf/Kafka bus/infra, 10.5/ct/Contract agent/agC, 12.6/nt/Notification agent/agD, 14.7/av/Approver/ext}
+  { \node[ll, \s] (\n) at (\x,0) {\t}; \draw[dotted, draw=black!50] (\n.south) -- (\x,21.2); }
+\draw[msg] (0,1.5) -- node[ml] {1. create request} (2.1,1.5);
+\draw[msg] (2.1,2.5) -- node[ml] {2. POST /requests (JWT)} (4.2,2.5);
+\node[self] at (4.2,3.4) {3. reserve stock (Redis lock),\\\phantom{3. }save request + outbox};
+\draw[msg] (4.2,4.6) -- node[ml] {4. start workflow} (6.3,4.6);
+\draw[amsg] (4.2,5.6) -- node[ml] {5. approval.requested} (8.4,5.6);
+\draw[amsg] (8.4,6.5) -- node[ml] {6. event} (12.6,6.5);
+\draw[msg] (12.6,7.4) -- node[ml] {7. e-mail} (14.7,7.4);
+\draw[msg] (14.7,8.4) -- node[ml] {8. approve (in app)} (2.1,8.4);
+\draw[msg] (2.1,9.3) -- node[ml] {9. POST approve} (4.2,9.3);
+\draw[msg] (4.2,10.2) -- node[ml] {10. signal decision} (6.3,10.2);
+\draw[msg] (6.3,11.1) -- node[ml] {11. apply decision} (4.2,11.1);
+\draw[amsg] (4.2,12.0) -- node[ml] {12. approval.decided} (8.4,12.0);
+\draw[amsg] (8.4,12.9) -- node[ml] {13. event} (10.5,12.9);
+\node[self] at (10.5,13.8) {14. generate contract,\\\phantom{14. }extract clauses, send};
+\draw[msg] (14.7,15.0) -- node[ml] {15. sign (risk shown)} (10.5,15.0);
+\draw[amsg] (10.5,15.9) -- node[ml] {16. contract.signed} (8.4,15.9);
+\draw[amsg] (8.4,16.8) -- node[ml] {17. event} (4.2,16.8);
+\node[self] at (4.2,17.6) {18. status: ordered};
+\draw[amsg] (8.4,18.6) -- node[ml] {19. event} (12.6,18.6);
+\draw[msg] (0,19.6) -- node[ml] {20. view request} (2.1,19.6);
+\draw[msg] (2.1,20.5) -- node[ml] {21. status: ordered} (0,20.5);
+\end{tikzpicture}
 \caption[Sequence diagram of the purchase-request journey]{Sequence diagram of the purchase-request journey (solid: synchronous call; dashed: asynchronous event)}\label{fig:sequence}
 \end{figure}
 
 \subsubsection{Activity Diagram: Document Processing}
 The activity diagram (Figure~\ref{fig:activity}) shows the decisions taken for one document. The upload is rejected if the file fails a check, is infected or cannot be scanned; a file that cannot be read fails with a message for the uploader. A readable file is classified, extracted, matched and scored. A document meeting the threshold, with no rule forcing review, is completed; otherwise it waits in the review queue until a reviewer corrects or confirms it.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
-\includegraphics{figures/diagrams/activity}
+\begin{tikzpicture}[node distance=5.5mm]
+\tikzset{act/.style={box, fill=agAfill, draw=agAline, text width=5.2cm, minimum height=7mm}, dec/.style={decision, text width=2.4cm, font=\scriptsize}, endn/.style={circle, draw=ink, fill=ink, inner sep=0pt, minimum size=3.2mm}, fin/.style={circle, draw=ink, double, double distance=1pt, inner sep=0pt, minimum size=3.6mm}}
+\node[endn] (start) {};
+\node[act, below=of start] (a1) {Receive file (upload, e-mail or drop folder)};
+\node[dec, below=of a1] (q1) {passes checks, clean, scanner up?};
+\node[act, below=of q1] (a2) {Store in MinIO, record, publish \code{document.ingested}};
+\node[act, below=of a2] (a3) {Read text in an isolated process (120 s limit)};
+\node[dec, below=of a3] (q2) {readable?};
+\node[act, below=of q2] (a4) {Classify; extract fields; LayoutLMv3 cross-check};
+\node[act, below=of a4] (a5) {Match vendor; hold new bank details; invoice: ledger and duplicate check};
+\node[act, below=of a5] (a6) {Compute weighted confidence score};
+\node[dec, below=of a6] (q3) {score $\geq$ threshold and no forced review?};
+\node[act, below=8mm of q3] (a7) {Mark classified; publish \code{document.classified}, \code{vendor.matched}};
+\node[fin, below=of a7] (end) {};
+\node[box, fill=exfill, draw=exline, text width=2.6cm, right=14mm of q1] (rej) {Reject upload (415, 422 or 503)};
+\node[fin, right=6mm of rej] (e1) {};
+\node[box, fill=exfill, draw=exline, text width=2.6cm, right=14mm of q2] (fail) {Mark failed, message to uploader};
+\node[fin, right=6mm of fail] (e2) {};
+\node[human, text width=2.8cm, right=14mm of q3] (rq) {Review queue: reviewer corrects or confirms};
+\foreach \a/\b in {start/a1,a1/q1,a2/a3,a3/q2,a4/a5,a5/a6,a6/q3,a7/end} \draw[flow] (\a) -- (\b);
+\draw[flow] (q1) -- node[lbl, right] {yes} (a2);
+\draw[flow] (q2) -- node[lbl, right] {yes} (a4);
+\draw[flow] (q3) -- node[lbl, right] {yes} (a7);
+\draw[flow] (q1) -- node[lbl, above] {no} (rej); \draw[flow] (rej) -- (e1);
+\draw[flow] (q2) -- node[lbl, above] {no} (fail); \draw[flow] (fail) -- (e2);
+\draw[flow] (q3) -- node[lbl, above] {no} (rq);
+\draw[flow] (rq.south) |- (a7.east);
+\end{tikzpicture}
 \caption{Activity diagram of document processing}\label{fig:activity}
 \end{figure}
 
 \subsubsection{Purchase-Request State Machine}
 A purchase request moves through the states of Figure~\ref{fig:states}. The allowed transitions are defined once in a shared module and checked on every status change, and the database rejects any status outside the list. An event that arrives after the request has already moved past the state it would cause (for example a late \code{contract.signed}) is recognised and ignored rather than treated as an error.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
-\includegraphics{figures/diagrams/states}
+\begin{tikzpicture}
+\tikzset{stt/.style={box, fill=agBfill, draw=agBline, rounded corners=6pt, text width=2.0cm, minimum height=10mm, font=\scriptsize}, term/.style={box, fill=exfill, draw=exline, rounded corners=6pt, text width=1.5cm, minimum height=8mm, font=\scriptsize}, tl/.style={lbl, font=\scriptsize\itshape}}
+\node[stt] (gp) at (-7.0,1.9) {pending grace period};
+\node[stt] (bo) at (-7.0,-0.7) {backordered};
+\node[stt] (pa) at (-3.4,0.6) {pending approval};
+\node[stt] (ap) at (0.6,0.6) {approved};
+\node[stt] (or) at (5.0,0.6) {ordered};
+\node[stt] (fu) at (5.0,-2.2) {fulfilled};
+\node[stt] (prc) at (2.8,-0.8) {partially received};
+\node[stt] (pi) at (0.6,-2.2) {partially invoiced};
+\node[stt, fill=agAfill, draw=agAline] (ir) at (-3.4,-2.2) {invoice received};
+\node[term] (rj) at (-5.3,3.0) {rejected};
+\node[term] (cn) at (-3.4,3.0) {cancelled};
+\node[term] (sp) at (-1.5,3.0) {split};
+\draw[flow] (gp) -- node[tl, above, sloped] {grace ends} (pa);
+\draw[flow] (bo) -- node[tl, below, sloped] {stock arrives} (pa);
+\draw[flow] (pa) -- node[tl, above] {approved} (ap);
+\draw[flow] (ap) -- node[tl, above] {\code{contract.signed}} (or);
+\draw[flow] (or) -- node[tl, right] {all received} (fu);
+\draw[flow] (or) -- node[tl, left, pos=0.4] {part delivered} (prc);
+\draw[flow] (prc) -- node[tl, below, sloped] {rest arrives} (fu);
+\draw[flow] (fu) -- node[tl, above] {invoice} (pi);
+\draw[flow] (pi) -- node[tl, above] {final invoice} (ir);
+\draw[flow] (pa) -- (rj); \draw[flow] (pa) -- (cn); \draw[flow] (pa) -- (sp);
+\draw[dflow] (ap.south) -- node[tl, right, pos=0.45] {invoice before signing} (pi.north);
+\end{tikzpicture}
 \caption[State machine of a purchase request]{State machine of a purchase request (main transitions; stored state names use underscores, for example \code{pending_approval}; a request can also be cancelled from the waiting states)}\label{fig:states}
 \end{figure}
 
 \subsubsection{Entity Relationship Diagram}
-All services share one PostgreSQL database of about fifty tables; each service creates and migrates its own. Figure~\ref{fig:er} shows the main entities and their foreign keys as they exist in the running database. The vendor is the central entity: documents, purchase requests, contracts, licences, risk scores, sanctions screenings and payment-change requests all refer to it. The \code{inventory} table has no foreign key: requests refer to stock by SKU inside their items. The extensions of Section~\ref{sec:extensions} add \code{budgets}, \code{contract_obligations}, \code{obligation_events}, \code{sla_credits}, \code{catalog_items}, \code{rfq_events}, \code{rfq_invitations}, \code{rfq_responses}, \code{goods_receipts}, \code{vendor_scorecards}, \code{gst_rates}, \code{gstr2b_uploads} and \code{tds_sections}, and the deterministic risk scorecard adds \code{risk_rulesets}, \code{risk_score_rule_results}, \code{vendor_signal_observations}, \code{vendor_signal_raw_responses}, \code{vendor_evidence}, \code{vendor_assessment_disputes} and \code{vendor_decisions} (scores and observations are append-only); each refers to a request, contract, licence or vendor of the figure. Supporting tables, not shown, hold users and tokens, business rules and their history, the event outbox, inbox and dead-letter table, the Kafka event log, notification and model-routing logs, the reviewer-feedback tables, and the assistant's chat sessions and \code{document_embeddings} index (one row per passage, with its 768-dimensional vector, source, section and audience).
+All services share one PostgreSQL database of about fifty tables; each service creates and migrates its own. Figure~\ref{fig:er} shows the main entities and their foreign keys as they exist in the running database. The vendor is the central entity: documents, purchase requests, contracts, licences, risk scores, sanctions screenings and payment-change requests all refer to it. The \code{inventory} table has no foreign key: requests refer to stock by SKU inside their items. The extensions of Section~\ref{sec:extensions} add \code{budgets}, \code{contract_obligations}, \code{obligation_events}, \code{sla_credits}, \code{catalog_items}, \code{rfq_events}, \code{rfq_invitations}, \code{rfq_responses}, \code{goods_receipts} and \code{vendor_scorecards}, and the deterministic risk scorecard adds \code{risk_rulesets}, \code{risk_score_rule_results}, \code{vendor_signal_observations}, \code{vendor_signal_raw_responses}, \code{vendor_evidence}, \code{vendor_assessment_disputes} and \code{vendor_decisions} (scores and observations are append-only); each refers to a request, contract, licence or vendor of the figure. Supporting tables, not shown, hold users and tokens, business rules and their history, the event outbox, inbox and dead-letter table, the Kafka event log, notification and model-routing logs, the reviewer-feedback tables, and the assistant's chat sessions and \code{document_embeddings} index (one row per passage, with its 768-dimensional vector, source, section and audience).
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
-\includegraphics{figures/diagrams/er}
+\begin{tikzpicture}
+\tikzset{ent/.style={nohyph, draw=inline, fill=white, rounded corners=1.5pt, align=center, inner sep=2pt, text width=3.2cm, font=\scriptsize}, rel/.style={draw=ink!80}, card/.style={font=\tiny\itshape, fill=white, inner sep=0.5pt}}
+\newcommand{\ent}[2]{\textbf{#1}\\[1pt]\hrule\vspace{1pt}#2}
+\node[ent, fill=agAfill, draw=agAline] (v) at (0,0.9) {\ent{vendors}{id, name, normalized\_name, gstin, status, bank details}};
+\node[ent] (pr) at (0,4.3) {\ent{purchase\_requests}{id, vendor\_id, document\_id, amount, status, spend\_tier, approval\_chain, items}};
+\node[ent] (im) at (-5.4,4.3) {\ent{invoice\_matches}{document\_id, vendor\_id, purchase\_request\_id, status, payment\_hold}};
+\node[ent] (ah) at (5.4,4.3) {\ent{approval\_history}{request\_id, decision, decided\_by, escalated}};
+\node[ent] (d) at (-5.4,0.9) {\ent{documents}{id, vendor\_id, document\_type, status, extracted, overall\_confidence}};
+\node[ent] (c) at (5.4,0.9) {\ent{contracts}{id, purchase\_request\_id, vendor\_id, status, contract\_end\_date, notice\_period\_days}};
+\node[ent] (pc) at (-5.4,-2.6) {\ent{vendor\_payment\_\\change\_requests}{vendor\_id, document\_id, new bank details, status, verified\_by}};
+\node[ent] (rs) at (-1.8,-2.6) {\ent{risk\_scores}{vendor\_id, score, band, overrides, signals\_used}};
+\node[ent] (ss) at (1.8,-2.6) {\ent{vendor\_sanctions\_\\screenings}{vendor\_id, status, matches, justification}};
+\node[ent] (l) at (5.4,-1.7) {\ent{licenses}{id, vendor\_id, app\_name, total\_seats, anomaly\_score}};
+\node[ent] (lu) at (5.4,-4.2) {\ent{license\_usage}{license\_id, user\_email, login\_count\_30/60/90d}};
+\foreach \a/\b/\c in {v/d/1:N, v/pr/1:N, v/c/1:N, v/pc/1:N, v/rs/1:N, v/ss/1:N, v/l/1:N, pr/ah/1:N, pr/c/1:N, l/lu/1:N, pr/im/1:N, d/im/1:1, d/pc/1:N}
+  { \draw[rel] (\a) -- (\b); \node[card] at ($(\a)!0.5!(\b)$) {\c}; }
+\end{tikzpicture}
 \caption[Entity relationship diagram of the main entities]{Entity relationship diagram of the main entities (foreign keys as in the running database; \code{invoice_matches} also refers to \code{vendors})}\label{fig:er}
 \end{figure}
 
 \subsection{Cost Analysis}
 The project uses only open-source software and free API tiers, so it incurs no software-licence cost, and it was developed on the team's own laptops. The potential costs are team effort, paid API tiers if live registry lookups are enabled, cloud hosting, and a production e-mail service. The estimates in Table~\ref{tab:cost} are indicative and should be revised against real quotations.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Indicative cost analysis}\label{tab:cost}
 \begin{tabularx}{\textwidth}{|L{0.18\textwidth}|Y|L{0.20\textwidth}|}
@@ -198,7 +343,7 @@ A meaningful break-even estimate needs measured document volumes, licence costs 
 \subsection{Hardware and Software Requirements}
 The stack runs 24 containers on one Docker host. Measured on 16 October 2026, it used about 3.2\,GB of RAM when idle and more while reading scanned documents, and its images occupied about 15\,GB before build cache and data volumes. ClamAV alone needs about 1\,GB of memory. Table~\ref{tab:hw} gives the resulting requirements and Table~\ref{tab:sw} the software.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Hardware requirements}\label{tab:hw}
 \begin{tabularx}{\textwidth}{|L{0.16\textwidth}|L{0.34\textwidth}|Y|}
@@ -212,7 +357,7 @@ GPU & Not required & Optional, for faster OCR and transformer inference \\ \hlin
 \end{tabularx}
 \end{table}
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Software requirements}\label{tab:sw}
 \begin{tabularx}{\textwidth}{|L{0.20\textwidth}|Y|}
@@ -246,7 +391,7 @@ The frontend is a React and TypeScript single-page application built with Vite a
 \end{enumerate}
 Screenshots of the implemented screens are given in Section~\ref{sec:screens}, and Table~\ref{tab:screens} lists the principal screens.
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Principal screens and their purposes}\label{tab:screens}
 \begin{tabularx}{\textwidth}{|L{0.22\textwidth}|L{0.20\textwidth}|Y|}
@@ -264,7 +409,6 @@ Contract page & Approver, finance, admin & Contract text, renewal dates, signing
 Budgets & Approver, finance, admin & Budgets per department, category and quarter with consumed, committed, pending and remaining amounts \\ \hline
 IT catalog & All (editing: finance, admin) & Order approved items at agreed prices; add, reprice or switch off items \\ \hline
 Sourcing & Approver, finance, admin & RFQ list and RFQ page: invitations, sealed or open quotes, weighted comparison, rounds and award \\ \hline
-GST & Approver, finance, admin & Month figures, GST check of each invoice, GSTR-2B reconciliation, MSME deadlines, TDS register and rate tables \\ \hline
 Inventory, spend analysis, risk & Finance, admin & Stock and reorder suggestions, spend by category, vendor risk bands and weekly scorecard monitoring \\ \hline
 Business rules, users & Admin & Edit rules with history; manage roles \\ \hline
 Control Panel, Controls, System Health, Audit & Admin (Controls: finance too) & Kafka event log and failed events, platform controls, service and model-routing status, audit trail \\ \hline
@@ -276,13 +420,25 @@ Assistant drawer & All & Questions in plain language, answered from the contract
 \subsection{Block Diagram}
 The block diagram (Figure~\ref{fig:block}) shows the deployed components and their connections on the single Docker host. Table~\ref{tab:layers} describes each layer.
 
-\begin{figure}[!htbp]
+\begin{figure}[H]
 \centering
-\includegraphics{figures/diagrams/block}
+\begin{tikzpicture}
+\tikzset{svc/.style={box, text width=2.15cm, minimum height=15mm, font=\scriptsize}, inf/.style={infra, text width=1.62cm, minimum height=10mm, font=\scriptsize}}
+\node[ext, text width=15cm] (cl) at (0,0) {\textbf{Clients:} browser (React SPA) and API clients; only port 8080 is reachable from other machines};
+\node[infra, text width=15cm] (gw) at (0,-1.2) {\textbf{Nginx gateway :8080}: serves the frontend, routes \texttt{/api/<prefix>/}, rate limits, correlation ID};
+\draw[<->] (cl) -- (gw);
+\foreach \x/\s/\n/\t in {-6.4/agA/s1/{document-\\vendor-agent\\:8001 + worker},-3.84/agB/s2/{approval-\\inventory-agent\\:8002 + worker},-1.28/agC/s3/{contract-\\risk-agent\\:8003 + worker},1.28/agD/s4/{notification-\\agent\\:8004},3.84/agD/s5/{auth-service\\:8005\\business rules},6.4/agD/s6/{chatbot-agent\\assistant}}
+  { \node[svc, \s] (\n) at (\x,-3.0) {\t}; \draw[<->] (\n.north) -- (\n.north |- gw.south); }
+\node[infra, text width=15cm] (mq) at (0,-4.75) {\textbf{Redpanda} (Kafka API, SASL/SCRAM, ACLs) \qquad \textbf{Temporal} (+ UI): durable workflows};
+\foreach \n in {s1,s2,s3,s4,s5} \draw[<->] (\n.south) -- (\n.south |- mq.north);
+\foreach \x/\t in {-6.65/PostgreSQL, -4.75/Redis, -2.85/MinIO, -0.95/ClamAV, 0.95/MLflow, 2.85/{Mailpit\\(SMTP)}, 4.75/{Ollama\\(host)}, 6.65/{sanctions\\data, models}}
+  \node[inf] at (\x,-6.15) {\t};
+\node[ext, text width=15cm] at (0,-7.45) {\textbf{Observability:} Prometheus, kafka-exporter, Loki + Promtail, Grafana (metrics, Kafka lag, logs by correlation ID)};
+\end{tikzpicture}
 \caption{Block diagram of the deployed system}\label{fig:block}
 \end{figure}
 
-\begin{table}[!htbp]
+\begin{table}[H]
 \centering\tablestyle
 \caption{Architectural layers}\label{tab:layers}
 \begin{tabularx}{\textwidth}{|L{0.19\textwidth}|Y|}

@@ -68,4 +68,4 @@ photographed raster diagrams in the draft are gone.
 4. Screenshots and `docs/results/` numbers are from 16 Oct; e2e suites other than `make e2e` were
    not re-run (dated 16–17 Oct in Table 5.2).
 5. The research-paper title in Appendix D is provisional (from `docs/RESEARCH_PAPER_PLAN.md`).
-6. pdfLaTeX (Overleaf's default) and Tectonic both build it (24 Oct). Diagrams are pre-built PDFs in `figures/diagrams/` (TikZ source next to each; rebuild with `build.sh`) so the report compiles within Overleaf's time limit. Red TO-DO marks: Appendix C scores and team number, Appendix D competitions, the GST e2e result.
+6. Only the Tectonic build was tested, not Overleaf/pdfLaTeX.
