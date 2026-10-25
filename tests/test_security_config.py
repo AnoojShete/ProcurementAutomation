@@ -150,3 +150,25 @@ def test_nginx_unknown_api_path_is_json_404_not_the_spa():
     assert block, "no catch-all `location /api/` block"
     assert "default_type application/json" in block.group(1)
     assert re.search(r"return 404 '\{\"error\":\{\"code\":\"not_found\"", block.group(1))
+
+
+def test_internal_routes_have_no_gateway_path():
+    """/internal/ routes (service token, no user login) must stay off the
+    gateway: nginx maps only /api/<prefix>/ to fixed service paths."""
+    conf = (ROOT / "infra/nginx/nginx.conf").read_text(encoding='utf-8', errors='ignore')
+    assert "/internal" not in conf
+
+
+def test_every_service_checking_or_sending_the_internal_token_gets_it():
+    # contract-risk-agent's clearance route (Oct 25) needs the same token
+    # approval-inventory-agent sends, or every check is a 403 (fail closed).
+    doc = yaml.safe_load((ROOT / "docker-compose.override.yml").read_text(encoding='utf-8', errors='ignore'))
+    missing = []
+    for svc, spec in doc["services"].items():
+        image = (spec or {}).get("image", "")
+        source = svc if (ROOT / "services" / svc).is_dir() else image.split("}-", 1)[-1]
+        app = ROOT / "services" / source / "app"
+        if app.is_dir() and any("INTERNAL_SERVICE_TOKEN" in f.read_text(encoding='utf-8', errors='ignore') for f in app.rglob("*.py")):
+            if "INTERNAL_SERVICE_TOKEN" not in (spec.get("environment") or {}):
+                missing.append(svc)
+    assert missing == []

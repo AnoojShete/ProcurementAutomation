@@ -13,7 +13,7 @@ from app.database import async_session_factory, init_db, get_db
 from shared.eventing import kafka_sender, run_relay
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
-from app.api import health, contracts, vendors, webhooks, ops, obligations, rulesets, mandates
+from app.api import health, contracts, vendors, webhooks, ops, obligations, rulesets, mandates, internal
 from app.services.docusign_client import run_status_poller
 from app.services.reminder_sweep import run_reminder_sweeps
 from app.models import AuditLog
@@ -125,3 +125,6 @@ app.include_router(
 # Not JWT-gated: the e-sign provider has no platform login. Trust comes
 # from the HMAC signature verified inside the handler instead.
 app.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
+# Not JWT-gated either: called by other services (no user), authenticated by
+# the X-Internal-Service-Token header. The gateway has no route to /internal/.
+app.include_router(internal.router, prefix="/internal", tags=["Internal"])

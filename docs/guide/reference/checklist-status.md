@@ -62,6 +62,7 @@ Review of the *Project Deliverables and Implementation Checklist* against the
   generation and auto-send (missing imports, uncommitted risk-check sessions),
   approval and contract e-mails (wrong users table) and the request list for
   admin and finance. All fixed, each with a test that fails without the fix.
-  Still open: bulk and e-mail approval can't check a vendor's clearance (401),
-  and the signing-mandate password check calls the wrong port.
+  Bulk and e-mail approval now check a vendor's clearance with the internal
+  service token (they got 401 before). Still open: the signing-mandate
+  password check calls the wrong port.
 - **Tests (25 Oct):** 1,330 service tests pass, plus 169 + 14 root tests; invoice lifecycle 71/71 and the demo script 28/28 through the gateway; frontend typecheck and `mkdocs build --strict` are clean.

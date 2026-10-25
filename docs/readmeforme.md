@@ -612,11 +612,15 @@ reorder-suggestion drawer that creates a request (`PlaceReorderModal.tsx`,
 roles in `reorder.create_request_roles`), and the ivory palette in
 `styles/tokens.css`.
 
-Known gaps (25 Oct): bulk and email approval call contract-risk's
-`/vendors/{id}/clearance` without credentials and get 401, so a request with
-a vendor is always "vendor not cleared": never bulk-eligible, and an email
-approval sends the approver to the portal (safe, but the feature does nothing
-for those requests until service-to-service auth is decided). The daily digest email that would send an approver one
+Vendor clearance for bulk and email approval (fixed 25 Oct): there is no
+user JWT to forward, so approval-inventory-agent calls contract-risk's
+`GET /internal/vendors/{id}/clearance` with `X-Internal-Service-Token`
+(`INTERNAL_SERVICE_TOKEN`, the same secret notification-agent uses for
+`/internal/email-actions/*`). It runs the same `clearance.evaluate` as the
+public route, and any failure still counts as not cleared. nginx has no route
+to `/internal/` (`tests/test_security_config.py`).
+
+Known gaps (25 Oct): the daily digest email that would send an approver one
 batch-approval link isn't built, so `approval.bulk_digest_*` and
 `approval.bulk_email_enabled` have no effect (the batch page and
 `/internal/email-action/mint-batch` exist). The mandate password re-check calls

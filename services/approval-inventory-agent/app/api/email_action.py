@@ -10,7 +10,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -21,6 +20,7 @@ from app.database import get_db
 from app.models import EmailActionToken, PurchaseRequest, Vendor
 from app.schemas import ApprovalAction
 from app.services import approval_authority as authority
+from app.services import bulk_service
 from app.services.approval_service import ApprovalService
 from shared.rules_engine import get_rule
 from app.services.email_action_token_service import (
@@ -92,23 +92,11 @@ async def _fetch_vendor_clearance(
     spend_amount: Optional[float] = None,
     currency: str = "INR",
 ) -> tuple[dict, bool]:
-    """Calls contract-risk-agent GET /vendors/{vendor_id}/clearance?purpose=purchase (Prompt 9C Section C3)."""
-    if not vendor_id:
-        return {"cleared": False, "final_band": "Unrated", "risk_band": "Unrated", "reasons": ["no_vendor_id"]}, True
-    clearance_url = f"http://contract-risk-agent:8003/vendors/{vendor_id}/clearance"
-    params: dict = {"purpose": "purchase", "currency": currency}
-    if spend_amount is not None:
-        params["spend_amount"] = spend_amount
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(clearance_url, params=params)
-            if resp.status_code == 200:
-                data = resp.json().get("data", {})
-                return data, False
-            return {"cleared": False, "final_band": "Unrated", "risk_band": "Unrated", "reasons": ["clearance_endpoint_error"]}, True
-    except Exception as e:
-        logger.warning(f"Could not reach contract-risk-agent for vendor clearance: {e}")
-        return {"cleared": False, "final_band": "Unrated", "risk_band": "Unrated", "reasons": ["service_unreachable"]}, True
+    """Vendor clearance (Prompt 9C Section C3), via the same internal call as bulk approval."""
+    cl, failed = await bulk_service.fetch_vendor_clearance(vendor_id, spend_amount, currency)
+    if failed:
+        cl = {"final_band": "Unrated", "risk_band": "Unrated", **cl}
+    return cl, failed
 
 
 async def _fetch_vendor_risk(vendor_id: Optional[str]) -> tuple[Optional[str], bool]:

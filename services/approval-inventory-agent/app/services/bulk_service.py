@@ -10,6 +10,7 @@ Enforces:
 - Single shared entry point: ApprovalService.process_decision (never writes approvals directly to DB).
 """
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,6 +20,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import DEFAULT_INTERNAL_SERVICE_TOKEN
 from app.database import async_session_factory
 from app.models import (
     ApprovalBatch,
@@ -40,19 +42,26 @@ async def fetch_vendor_clearance(
     spend_amount: Optional[float] = None,
     currency: str = "INR",
 ) -> tuple[dict, bool]:
-    """Calls contract-risk-agent GET /vendors/{vendor_id}/clearance?purpose=purchase."""
+    """Calls contract-risk-agent GET /internal/vendors/{vendor_id}/clearance?purpose=purchase.
+
+    Bulk and email approval have no user JWT to forward, so this uses the
+    internal service token (the public /vendors/{id}/clearance answered 401).
+    Used by both; any failure counts as not cleared (fail closed).
+    """
     if not vendor_id:
         return {"cleared": False, "reasons": ["no_vendor_id"]}, True
-    clearance_url = f"http://contract-risk-agent:8003/vendors/{vendor_id}/clearance"
+    clearance_url = f"http://contract-risk-agent:8003/internal/vendors/{vendor_id}/clearance"
+    headers = {"X-Internal-Service-Token": os.environ.get("INTERNAL_SERVICE_TOKEN", DEFAULT_INTERNAL_SERVICE_TOKEN)}
     params: dict = {"purpose": "purchase", "currency": currency}
     if spend_amount is not None:
         params["spend_amount"] = spend_amount
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(clearance_url, params=params)
+            resp = await client.get(clearance_url, params=params, headers=headers)
             if resp.status_code == 200:
                 data = resp.json().get("data", {})
                 return data, False
+            logger.warning(f"Vendor clearance check for {vendor_id} failed: HTTP {resp.status_code}")
             return {"cleared": False, "reasons": ["clearance_endpoint_error"]}, True
     except Exception as e:
         logger.warning(f"Could not reach contract-risk-agent for vendor clearance: {e}")

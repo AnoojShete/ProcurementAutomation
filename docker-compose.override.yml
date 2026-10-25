@@ -15,6 +15,8 @@ services:
       APP_ENV: ${APP_ENV:-development}
       # Reads business rules from auth-service (shared/rules_engine).
       RULES_ENGINE_INTERNAL_SECRET: ${RULES_ENGINE_INTERNAL_SECRET:-dev-rules-secret-change-me}
+      # Token approval-inventory-agent uses to check vendor clearance (/internal/).
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
       # Demo-only "simulate signature" endpoint; off unless set to true.
       ENABLE_SIGN_SIMULATED: ${ENABLE_SIGN_SIMULATED:-false}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
@@ -86,6 +88,8 @@ services:
       APP_ENV: ${APP_ENV:-development}
       # Reads business rules from auth-service (shared/rules_engine).
       RULES_ENGINE_INTERNAL_SECRET: ${RULES_ENGINE_INTERNAL_SECRET:-dev-rules-secret-change-me}
+      # Token approval-inventory-agent uses to check vendor clearance (/internal/).
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_REDIS_URL: redis://redis:6379/0
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092

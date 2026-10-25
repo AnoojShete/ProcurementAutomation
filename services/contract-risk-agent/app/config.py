@@ -74,6 +74,10 @@ settings = Settings()
 # A published webhook secret would let anyone mark contracts signed.
 require_secret("APP_ESIGN_WEBHOOK_SECRET", settings.esign_webhook_secret, {DEFAULT_ESIGN_SECRET})
 
+# Shared with approval-inventory-agent for GET /internal/vendors/{id}/clearance.
+DEFAULT_INTERNAL_SERVICE_TOKEN = "dev-internal-service-token-change-me"
+require_secret("INTERNAL_SERVICE_TOKEN", os.environ.get("INTERNAL_SERVICE_TOKEN"), {DEFAULT_INTERNAL_SERVICE_TOKEN})
+
 
 @lru_cache
 def load_config() -> dict:
