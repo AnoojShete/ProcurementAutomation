@@ -193,3 +193,26 @@ class TestSignContractDigitally:
         res.scalars.return_value.first.return_value = None
         db.execute.return_value = res
         assert await contract_service.get_signature_certificate(db, str(uuid.uuid4())) is None
+
+
+    @pytest.mark.asyncio
+    async def test_records_signing_method_in_certificate(self, db):
+        from app.services import contract_service
+        from types import SimpleNamespace
+        from app.services import clearance
+        contract = _contract()
+        db.get.return_value = contract
+        outbox = AsyncMock()
+        low_risk = MagicMock(band="Low", final_band="Low", rating_status="assessed", is_provisional=False, score=0.1,
+                             details=[], overrides=[], override_rule_ids=[], blocked_by=[], scored_at=None)
+        loaded = (SimpleNamespace(status="active", vendor_tier="standard"), clearance.score_view(low_risk, set()), None)
+        with patch("app.services.contract_service.staged", return_value=outbox), \
+                patch("app.services.risk_service.latest_risk_score", new=AsyncMock(return_value=low_risk)), \
+                patch("app.services.clearance.load", new=AsyncMock(return_value=loaded)), \
+                patch("app.services.contract_service.write_audit_log", new=AsyncMock()) as audit:
+            signed, cert = await contract_service.sign_contract_digitally(
+                db, MagicMock(), contract.id, signer_name="Niraj", signer_email="finance@company.com",
+                legal_consent=True, signing_method="Approved through email",
+            )
+        assert signed.status == "signed"
+        assert cert["signing_method"] == "Approved through email"

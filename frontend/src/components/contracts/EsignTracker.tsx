@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Download } from "lucide-react";
+import { Download, FileText, ShieldCheck } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { contractsApi, type EsignDocument } from "@/api/contracts";
 import { useApi } from "@/hooks/useApi";
@@ -11,14 +11,8 @@ import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { InlineError } from "@/components/ui/ErrorState";
 import { formatCurrency, formatRelativeTime } from "@/lib/format";
-
-const TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
-  signed: "success",
-  pending_signature: "warning",
-  draft: "neutral",
-  terminated: "danger",
-  expired: "neutral",
-};
+import { SignatureCertificateModal } from "./SignatureCertificateModal";
+import type { Contract, ContractStatus, SignatureCertificate } from "@/types/api";
 
 const FILTERS = [
   { key: "", label: "All" },
@@ -35,6 +29,7 @@ export function EsignTracker() {
   const { data, error, loading } = useApi(() => contractsApi.esignDocuments(status || undefined), [status]);
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [certModal, setCertModal] = useState<{ contract: Contract; cert?: SignatureCertificate } | null>(null);
 
   // Counts come with every response; keep the last ones while a filter loads.
   useApi(
@@ -52,6 +47,32 @@ export function EsignTracker() {
       await fn();
     } catch (e) {
       setDownloadError(e instanceof ApiError ? e.message : "Couldn't download the PDF.");
+    }
+  };
+
+  const openCert = async (c: EsignDocument) => {
+    const contractStub: Contract = {
+      id: c.contract_id,
+      purchase_request_id: c.request_id ?? null,
+      vendor_id: null,
+      template_used: c.template_used,
+      version: c.version,
+      status: c.status as ContractStatus,
+      contract_text: "",
+      renewal_type: null,
+      notice_period_days: null,
+      contract_end_date: null,
+      generated_at: c.generated_at,
+      signed_at: c.signed_at,
+      signed_by: c.signed_by,
+      esign_provider_ref: c.esign_provider_ref ?? null,
+      reconciliation_status: null,
+    };
+    try {
+      const resp = await contractsApi.getCertificate(c.contract_id);
+      setCertModal({ contract: contractStub, cert: resp.data as unknown as SignatureCertificate });
+    } catch {
+      setCertModal({ contract: contractStub });
     }
   };
 
@@ -86,30 +107,50 @@ export function EsignTracker() {
               <thead className="bg-sheet-sunk text-13 text-ink-3">
                 <tr>
                   <th className="px-4 py-2 font-medium">Contract</th>
-                  <th className="px-4 py-2 font-medium">Document</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th className="px-4 py-2 font-medium">Documents & Corresponding Status</th>
                   <th className="px-4 py-2 font-medium">Signer</th>
                   <th className="px-4 py-2 font-medium">Updated</th>
+                  <th className="px-4 py-2 font-medium text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
                 {data.map((c) => (
-                  <Row key={c.contract_id} c={c} download={download} />
+                  <Row key={c.contract_id} c={c} download={download} onCert={openCert} />
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </Card>
+
+      {certModal && (
+        <SignatureCertificateModal
+          open={!!certModal}
+          onClose={() => setCertModal(null)}
+          contract={certModal.contract}
+          certificate={certModal.cert}
+        />
+      )}
     </div>
   );
 }
 
-function Row({ c, download }: { c: EsignDocument; download: (fn: () => Promise<void>) => void }) {
+function Row({
+  c,
+  download,
+  onCert,
+}: {
+  c: EsignDocument;
+  download: (fn: () => Promise<void>) => void;
+  onCert: (c: EsignDocument) => void;
+}) {
   const signed = c.status === "signed";
+  const pending = c.status === "pending_signature";
+  const draft = c.status === "draft";
+
   return (
     <tr className="align-top">
-      <td className="px-4 py-2.5">
+      <td className="px-4 py-3">
         <Link to={`/app/contracts/${c.contract_id}`} className="font-medium text-accent hover:underline">
           {c.vendor_name ?? `Contract ${c.contract_id.slice(0, 8)}`}
         </Link>
@@ -118,35 +159,77 @@ function Row({ c, download }: { c: EsignDocument; download: (fn: () => Promise<v
           {c.amount != null && ` · ${formatCurrency(c.amount, c.currency ?? "INR")}`}
         </p>
       </td>
-      <td className="whitespace-nowrap px-4 py-2.5">
-        <div className="flex flex-col gap-1">
-          <PdfLink label="Unsigned contract PDF" onClick={() => download(() => contractsApi.downloadDocument(c.contract_id))} />
-          {signed && <PdfLink label="Signed contract PDF" onClick={() => download(() => contractsApi.downloadSigned(c.contract_id))} />}
+      <td className="px-4 py-3">
+        <div className="flex flex-col gap-2">
+          {/* Unsigned contract PDF */}
+          <div className="flex items-center justify-between gap-4">
+            <PdfLink
+              label="Unsigned contract PDF"
+              onClick={() => download(() => contractsApi.downloadDocument(c.contract_id))}
+            />
+            <StatusDot tone={pending ? "warning" : draft ? "neutral" : "neutral"}>
+              {pending ? "Pending E-Signature" : draft ? "Draft" : "Original"}
+            </StatusDot>
+          </div>
+
+          {/* Signed contract PDF */}
+          <div className="flex items-center justify-between gap-4">
+            {signed ? (
+              <PdfLink
+                label="Signed contract PDF"
+                onClick={() => download(() => contractsApi.downloadSigned(c.contract_id))}
+              />
+            ) : (
+              <span className="inline-flex items-center gap-1 text-ink-3">
+                <FileText className="size-3.5" /> Signed contract PDF
+              </span>
+            )}
+            {signed ? (
+              <StatusDot tone="success">E-Signature Complete</StatusDot>
+            ) : (
+              <span className="text-11 text-ink-3 italic">Available once signed</span>
+            )}
+          </div>
+
+          {/* Signature certificate (cryptographic seal) */}
+          {signed && c.certificate && (
+            <div className="flex items-center justify-between gap-4 pt-1 border-t border-rule/50">
+              <button
+                type="button"
+                onClick={() => onCert(c)}
+                className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+              >
+                <ShieldCheck className="size-3.5 text-success-600" /> Signature Certificate
+              </button>
+              <span className="text-11 font-mono text-success-700">SHA-256 seal</span>
+            </div>
+          )}
         </div>
       </td>
-      <td className="px-4 py-2.5">
-        <StatusDot tone={TONE[c.status] ?? "neutral"}>{c.status_label}</StatusDot>
-        {c.status === "pending_signature" && (
-          <p className="mt-1">
-            <Link to={`/app/contracts/${c.contract_id}?action=sign`} className="text-accent hover:underline">
-              Open to sign
-            </Link>
-          </p>
-        )}
-        {c.status === "draft" && (
-          <p className="mt-1">
-            <Link to={`/app/contracts/${c.contract_id}?action=send`} className="text-accent hover:underline">
-              Send for signature
-            </Link>
-          </p>
-        )}
-      </td>
-      <td className="px-4 py-2.5 text-ink-2">
-        {signed ? c.signed_by ?? "—" : c.signer_email ?? "—"}
+      <td className="px-4 py-3 text-ink-2">
+        <div>{signed ? c.signed_by ?? "—" : c.signer_email ?? "—"}</div>
         {c.provider && <p className="text-ink-3">{c.provider === "builtin" ? "built-in e-sign" : c.provider}</p>}
       </td>
-      <td className="whitespace-nowrap px-4 py-2.5 text-ink-3">
+      <td className="whitespace-nowrap px-4 py-3 text-ink-3">
         {signed ? `Signed ${formatRelativeTime(c.signed_at)}` : c.sent_at ? `Sent ${formatRelativeTime(c.sent_at)}` : `Generated ${formatRelativeTime(c.generated_at)}`}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-right">
+        {pending && (
+          <Link
+            to={`/app/contracts/${c.contract_id}?action=sign`}
+            className="inline-flex items-center gap-1 rounded bg-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-accent/90"
+          >
+            Open to sign
+          </Link>
+        )}
+        {draft && (
+          <Link
+            to={`/app/contracts/${c.contract_id}?action=send`}
+            className="inline-flex items-center gap-1 rounded border border-rule px-2.5 py-1 text-xs font-medium text-ink hover:bg-sheet-sunk"
+          >
+            Send for signature
+          </Link>
+        )}
       </td>
     </tr>
   );

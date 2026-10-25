@@ -35,6 +35,10 @@ def _serialize_vendor(v: Vendor) -> dict:
         "normalized_name": v.normalized_name,
         "status": v.status,
         "vendor_tier": v.vendor_tier,
+        "inherent_tier": getattr(v, "inherent_tier", None),
+        "swift_bic": getattr(v, "swift_bic", None),
+        "bank_name": getattr(v, "bank_name", None),
+        "website": getattr(v, "website", None),
         "gstin": v.gstin,
         "gstin_verification_status": v.gstin_verification_status,
         "gstin_data_source": v.gstin_data_source,
@@ -261,6 +265,10 @@ async def list_pending_payment_changes(db: AsyncSession = Depends(get_db)):
 class VendorOnboardBody(BaseModel):
     name: str
     country: Optional[str] = None
+    inherent_tier: Optional[str] = None
+    swift_bic: Optional[str] = None
+    bank_name: Optional[str] = None
+    website: Optional[str] = None
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     address: Optional[str] = None
@@ -310,3 +318,34 @@ async def onboard(body: VendorOnboardBody, request: Request, db: AsyncSession = 
     return DataResponse(data={"id": str(vendor.id), "name": vendor.name,
                               "payment_details_pending_verification": bool(vendor.payment_details_pending_verification),
                               "warnings": check.warnings})
+
+
+class VendorPatchRequest(BaseModel):
+    inherent_tier: Optional[str] = None
+    website: Optional[str] = None
+    swift_bic: Optional[str] = None
+    bank_name: Optional[str] = None
+
+
+@router.patch("/{vendor_id}", response_model=DataResponse,
+              dependencies=[Depends(require_role("finance", "admin"))])
+async def patch_vendor_profile(vendor_id: str, body: VendorPatchRequest, db: AsyncSession = Depends(get_db)):
+    """Updates editable vendor attributes (inherent_tier, website, swift_bic, bank_name)."""
+    vendor = await db.get(Vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    if body.inherent_tier is not None:
+        val = body.inherent_tier.lower().strip()
+        if val not in ("low", "moderate", "high", "critical"):
+            raise HTTPException(status_code=400, detail="inherent_tier must be low, moderate, high, or critical")
+        vendor.inherent_tier = val
+    if body.website is not None:
+        vendor.website = body.website.strip() or None
+    if body.swift_bic is not None:
+        vendor.swift_bic = body.swift_bic.strip().upper() or None
+    if body.bank_name is not None:
+        vendor.bank_name = body.bank_name.strip() or None
+    vendor.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(vendor)
+    return DataResponse(data=_serialize_vendor(vendor))

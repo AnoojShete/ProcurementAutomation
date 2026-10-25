@@ -18,6 +18,9 @@ site_dir: .run/docs-site
 hooks:
   - scripts/mkdocs_hooks.py
 
+extra_css:
+  - stylesheets/extra.css
+
 theme:
   name: material
   language: en
@@ -41,6 +44,7 @@ theme:
         name: Light mode
   features:
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
     - navigation.footer

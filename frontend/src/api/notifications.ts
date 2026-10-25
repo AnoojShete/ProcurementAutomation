@@ -5,8 +5,10 @@ export interface NotificationTemplateSummary {
   name: string;
   /** The event that sends it. */
   event: string;
-  /** Who it goes to. */
+  /** Who it goes to (configured override or default audience). */
   recipient: string;
+  /** The custom configured recipient pattern/override if any. */
+  configured_recipient?: string | null;
   description: string;
   subject: string;
   extra_recipients: string[];
@@ -21,7 +23,7 @@ export interface NotificationTemplateSummary {
 
 export interface NotificationTemplate extends NotificationTemplateSummary {
   body: string;
-  default: { subject: string; body: string } | null;
+  default: { subject: string; body: string; recipient?: string } | null;
   placeholders: string[];
   /** True for built-ins: only these placeholders can be used. */
   placeholders_fixed: boolean;
@@ -31,6 +33,7 @@ export interface TemplateInput {
   subject: string;
   body: string;
   description?: string;
+  recipient?: string;
   extra_recipients: string[];
   enabled: boolean;
 }
@@ -60,6 +63,10 @@ export const notificationsApi = {
   /** Restores a built-in's default text, or deletes a custom template. */
   resetTemplate: (name: string) =>
     api.request<NotificationTemplate | { name: string; deleted: boolean }>(`/notifications/templates/${encodeURIComponent(name)}`, "DELETE"),
-  previewTemplate: (name: string, subject: string, body: string) =>
-    api.post<{ subject: string; body: string }>(`/notifications/templates/${encodeURIComponent(name)}/preview`, { subject, body }),
+  previewTemplate: (name: string, subject: string, body: string, recipient?: string) =>
+    api.post<{ subject: string; body: string; recipient?: string | null }>(`/notifications/templates/${encodeURIComponent(name)}/preview`, {
+      subject,
+      body,
+      recipient: recipient || undefined,
+    }),
 };

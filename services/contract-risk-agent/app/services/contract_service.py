@@ -511,6 +511,11 @@ async def sign_contract_digitally(
     user_agent: Optional[str] = None,
     signer_designation: Optional[str] = None,
     risk_acknowledged: bool = False,
+    signing_method: Optional[str] = None,
+    approval_channel: Optional[str] = None,
+    mandate_id: Optional[str] = None,
+    bulk_batch_id: Optional[str] = None,
+    mandate_sha256: Optional[str] = None,
 ) -> tuple[Contract, dict]:
     """Built-in e-sign: the signed-in user signs inside the platform.
 
@@ -552,6 +557,14 @@ async def sign_contract_digitally(
     contract.signed_by = f"{signer_name} <{signer_email}>"
     contract.esign_provider_ref = f"builtin-seal-{sha256_seal[:16]}"
     contract.updated_at = now
+    if mandate_id:
+        contract.signature_method = "auto_mandate"
+        contract.approval_channel = approval_channel
+        contract.mandate_id = mandate_id
+        contract.bulk_batch_id = bulk_batch_id
+    elif signing_method:
+        contract.signature_method = "manual"
+        contract.approval_channel = approval_channel
 
     certificate = {
         "certificate_id": str(uuid.uuid4()),
@@ -567,6 +580,12 @@ async def sign_contract_digitally(
         "ip_address": ip_address,
         "user_agent": user_agent,
         "signature_image": signature_data,
+        "signing_method": signing_method,
+        "approval_channel": approval_channel,
+        "mandate_id": str(mandate_id) if mandate_id else None,
+        "mandate_sha256": mandate_sha256,
+        "bulk_batch_id": str(bulk_batch_id) if bulk_batch_id else None,
+        "disclaimer": "Signature applied automatically under a standing mandate; not individually reviewed at signing." if mandate_id else None,
         "vendor_risk_at_signing": {
             "risk_band": risk["risk_band"], "risk_score": risk["risk_score"],
             "overrides": [o.get("check", str(o)) if isinstance(o, dict) else str(o) for o in risk.get("overrides", [])],
@@ -711,6 +730,13 @@ async def build_pdf_input(db: AsyncSession, contract: Contract, include_audit: b
             signature_image = cert.get("signature_image")
             signer_designation = cert.get("signer_designation")
 
+    mandate_text_hash = None
+    if getattr(contract, "mandate_id", None):
+        from app.models import SigningMandate
+        mandate_obj = await db.get(SigningMandate, contract.mandate_id)
+        if mandate_obj:
+            mandate_text_hash = mandate_obj.mandate_text_hash
+
     return ContractPdfInput(
         contract_id=str(contract.id),
         contract_text=contract.contract_text or "",
@@ -725,6 +751,11 @@ async def build_pdf_input(db: AsyncSession, contract: Contract, include_audit: b
         audit_trail=trail,
         signature_image=signature_image,
         signer_designation=signer_designation,
+        signature_method=getattr(contract, "signature_method", None),
+        approval_channel=getattr(contract, "approval_channel", None),
+        bulk_batch_id=getattr(contract, "bulk_batch_id", None),
+        mandate_id=getattr(contract, "mandate_id", None),
+        mandate_text_hash=mandate_text_hash,
     )
 
 

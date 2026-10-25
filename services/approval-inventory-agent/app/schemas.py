@@ -20,6 +20,9 @@ class CreatePurchaseRequest(BaseModel):
     request_type: Literal["hardware", "license", "saas", "reclaim", "reinstate"]
     # Filled in from the caller's JWT by the endpoint; any client value is ignored.
     requested_by: Optional[str] = None
+    requested_by_user_id: Optional[str] = None
+    source: Optional[str] = "manual"
+    source_ref: Optional[str] = None
     department: str = Field(min_length=1, max_length=255)
     vendor_id: Optional[str] = None
     document_id: Optional[str] = None
@@ -52,6 +55,7 @@ class CreatePurchaseRequest(BaseModel):
         return items
 
 class ApprovalAction(BaseModel):
+    channel: Optional[str] = "portal"
     # Filled in from the caller's JWT by the endpoint; any client value is ignored.
     decided_by: Optional[str] = None
     comments: Optional[str] = None
@@ -100,6 +104,10 @@ class PurchaseRequestResponse(BaseModel):
     # Phase 3: advisory sourcing notes and the RFQ it was awarded from.
     sourcing_flags: Optional[list[dict]] = None
     rfq_id: Optional[str] = None
+    requested_by_user_id: Optional[str] = None
+    bulk_eligible: Optional[bool] = None
+    bulk_ineligible_reasons: Optional[list[str]] = None
+    next_action: Optional[dict] = None
     model_config = ConfigDict(from_attributes=True)
 
 class InventoryItemResponse(BaseModel):

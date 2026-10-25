@@ -37,8 +37,10 @@ async def notify(
                     status="skipped", error="template turned off in the Control Panel",
                 )
                 return priority
-            # The routed recipient, plus any copies set on the template.
-            for to in [recipient] + [r for r in email.extra_recipients if r != recipient]:
+            # Use configured recipient override if set on the template, else routed recipient.
+            primary_to = email.recipient if (email.recipient and email.recipient.strip()) else recipient
+            # The primary recipient, plus any copies set on the template.
+            for to in [primary_to] + [r for r in email.extra_recipients if r != primary_to]:
                 await email_service.send_email(to, email.subject, email.body, db=db)
                 await log_service.record(
                     db,

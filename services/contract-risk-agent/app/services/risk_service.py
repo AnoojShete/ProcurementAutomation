@@ -21,7 +21,7 @@ from app.services.scorecard.default_ruleset import (
     canonical_json_hash,
     get_default_ruleset,
 )
-from app.services.scorecard.engine import evaluate_risk
+from app.services.scorecard.engine import evaluate_risk, calculate_effective_tier
 from shared.eventing import staged
 from shared.rules_engine import get_rule
 
@@ -131,27 +131,30 @@ async def score_vendor(
 
     # 3. Vendor context & tier
     v_row = (await db.execute(
-        text("SELECT vendor_tier FROM vendors WHERE id = :id"),
+        text("SELECT vendor_tier, inherent_tier, country FROM vendors WHERE id = :id"),
         {"id": vendor_id},
     )).first()
     spend_tier = (v_row.vendor_tier if v_row else "standard") or "standard"
+    inh_tier = v_row.inherent_tier if v_row else getattr(vendor, "inherent_tier", None)
+    effective_tier, _ = calculate_effective_tier(spend_tier, inh_tier)
+
     vendor_context = {
         "name": vendor.name,
         "spend_tier": spend_tier,
-        "inherent_tier": None,
+        "inherent_tier": inh_tier,
         # Without the country every vendor came out provisional ("vendor
         # country missing"), even one onboarded with it (merge review G3).
-        "country": getattr(vendor, "country", None),
+        "country": getattr(vendor, "country", None) or (v_row.country if v_row else None),
         "ruleset_version": getattr(ruleset_row, "version", None),
     }
 
     # 4. Gather observations (run collectors or load fresh)
     if force_fresh_collect:
-        observations = await collect_all_signals(db, vendor, now=now, effective_tier=spend_tier)
+        observations = await collect_all_signals(db, vendor, now=now, effective_tier=effective_tier)
     else:
         observations = await load_fresh_observations(db, vendor_id, ruleset_def, now)
         if len(observations) < len(ruleset_def.get("signals", [])):
-            fresh_obs = await collect_all_signals(db, vendor, now=now, effective_tier=spend_tier)
+            fresh_obs = await collect_all_signals(db, vendor, now=now, effective_tier=effective_tier)
             for k, v in fresh_obs.items():
                 if k not in observations:
                     observations[k] = v

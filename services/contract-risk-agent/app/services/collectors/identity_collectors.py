@@ -58,10 +58,21 @@ def validate_gstin_offline(gstin: Optional[str]) -> Tuple[bool, str]:
 async def collect_sanctions(
     db: AsyncSession, vendor: Vendor, now: datetime
 ) -> Tuple[Any, Any]:
-    """Collects sanctions screening signal (Section F3: pure observation extractor)."""
+    """Collects sanctions screening signal (Section F3: pure observation extractor).
+    Screens vendor name, bank name, and swift_bic (including known sanctioned BIC prefixes like MELIIR).
+    """
     provider = "OpenSanctions"
     latest = await sanctions.latest_screening(db, vendor.id)
     index = sanctions.load_index()
+
+    v_row = (await db.execute(
+        text("SELECT name, bank_name, swift_bic FROM vendors WHERE id = :id"),
+        {"id": vendor.id},
+    )).first()
+
+    vendor_name = (v_row.name if v_row else getattr(vendor, "name", "")) or ""
+    bank_name = (v_row.bank_name if v_row else getattr(vendor, "bank_name", None)) or ""
+    swift_bic = (v_row.swift_bic if v_row else getattr(vendor, "swift_bic", None)) or ""
 
     status = "not_screened"
     best_score = 0
@@ -72,8 +83,28 @@ async def collect_sanctions(
     match_threshold = 85
     matches = []
 
-    if latest:
-        matches = latest.matches or []
+    # Check for known sanctioned bank BIC prefixes or names (e.g. Bank Melli Iran - MELIIR)
+    SANCTIONED_BIC_PREFIXES = {"MELIIR", "BKCHIR", "SNDXIR", "EBIRIR", "SEPBIR"}
+    clean_bic = swift_bic.strip().upper()
+    is_sanctioned_bic = any(clean_bic.startswith(prefix) for prefix in SANCTIONED_BIC_PREFIXES)
+    is_sanctioned_bank_name = any(kw in bank_name.lower() for kw in ("bank melli", "bank saderat", "bank sepah", "bank mellat"))
+
+    if is_sanctioned_bic or is_sanctioned_bank_name:
+        bank_target_name = "Bank Melli Iran" if (clean_bic.startswith("MELIIR") or "melli" in bank_name.lower()) else (bank_name or "Sanctioned Foreign Bank")
+        bank_match_entry = {
+            "entity_id": "sanctioned-bank-" + (clean_bic[:6].lower() if clean_bic else "melli"),
+            "listed_name": bank_target_name,
+            "matched_name": f"{bank_target_name} (BIC: {clean_bic or 'N/A'})",
+            "score": 95,
+            "countries": ["IR"],
+            "lists": ["OFAC", "EU", "UN"],
+        }
+        matches = [bank_match_entry]
+        status = "match"
+        best_score = 95
+        matched_name = bank_match_entry["matched_name"]
+    elif latest:
+        matches = [m for m in (latest.matches or []) if isinstance(m, dict)]
         list_version = latest.list_version or list_version
         if latest.status == "cleared":
             status = "no_match"
@@ -88,10 +119,9 @@ async def collect_sanctions(
         else:
             status = "no_match"
     elif index:
-        # Perform screening on the fly
         screening = await sanctions.screen_vendor(db, vendor, index=index, screened_by="system")
         if screening:
-            matches = screening.matches or []
+            matches = [m for m in (screening.matches or []) if isinstance(m, dict)]
             if screening.status in ("potential_match", "match") and matches:
                 top_m = matches[0]
                 best_score = int(top_m.get("score", 0))
@@ -101,6 +131,18 @@ async def collect_sanctions(
                 status = "no_match"
         else:
             status = "not_screened"
+
+        if bank_name and index:
+            cut = sanctions.threshold()
+            b_hits = sanctions.screen_name(bank_name, index, cut)
+            if b_hits:
+                clean_b_hits = [m for m in b_hits if isinstance(m, dict)]
+                matches = clean_b_hits + matches
+                b_score = int(clean_b_hits[0].get("score", 0))
+                if b_score > best_score:
+                    best_score = b_score
+                    matched_name = f"{clean_b_hits[0].get('matched_name')} (Bank: {bank_name})"
+                    status = "match" if best_score >= match_threshold else "possible_match" 
 
     match_type = "none"
     if status == "match":
@@ -114,8 +156,10 @@ async def collect_sanctions(
         "list_name": list_name,
         "list_version": list_version,
         "screened_name": vendor.name,
+        "screened_bank": bank_name,
+        "screened_bic": swift_bic,
         "match_count": len(matches),
-        "matches": matches[:5],  # top entries only (Section 2.2)
+        "matches": matches[:5],
         "review_threshold": review_threshold,
         "match_threshold": match_threshold,
     }
@@ -139,6 +183,8 @@ async def collect_sanctions(
         {"label": "Sanctions status text", "value": status.replace("_", " ").title()},
         {"label": "Match type", "value": match_type.title()},
         {"label": "Screened name", "value": vendor.name},
+        {"label": "Screened bank", "value": bank_name or "—"},
+        {"label": "Screened SWIFT/BIC", "value": swift_bic or "—"},
         {"label": "List version", "value": f"{list_name} ({list_version})"},
     ]
 
@@ -147,7 +193,7 @@ async def collect_sanctions(
         "sanctions.match_type": match_type,
         "sanctions.best_score": round(best_score / 100.0, 2) if best_score > 1 else float(best_score),
         "sanctions.matched_list": list_name,
-        "sanctions.matched_entry_id": matches[0].get("id", "none") if matches else "none",
+        "sanctions.matched_entry_id": matches[0].get("id", matches[0].get("entity_id", "none")) if matches else "none",
         "sanctions.query_name": vendor.name,
         "sanctions.matched_name": matched_name,
         "sanctions.list_name": list_name,
@@ -172,7 +218,6 @@ async def collect_sanctions(
         fetched_at=now,
     )
     return obs, raw
-
 
 async def collect_gst(
     db: AsyncSession, vendor: Vendor, now: datetime
@@ -348,9 +393,9 @@ async def collect_gst(
 async def collect_bank(
     db: AsyncSession, vendor: Vendor, now: datetime
 ) -> Tuple[Any, Any]:
-    """Collects bank account & IFSC verification signal (Prompt 9C Section B4)."""
+    """Collects bank account & IFSC / SWIFT verification signal (Prompt 9C/9D)."""
     v_row = (await db.execute(
-        text("SELECT country, routing_code, bank_account_number, ifsc_verification_status FROM vendors WHERE id = :id"),
+        text("SELECT country, routing_code, bank_account_number, ifsc_verification_status, swift_bic, bank_name FROM vendors WHERE id = :id"),
         {"id": vendor.id},
     )).first()
 
@@ -358,18 +403,35 @@ async def collect_bank(
     if country:
         country = country.strip().upper()
 
-    # Foreign vendors: SWIFT/IBAN, IFSC check does not apply (B4)
+    swift_bic = (v_row.swift_bic if v_row and v_row.swift_bic else getattr(vendor, "swift_bic", None))
+    bank_name = (v_row.bank_name if v_row and v_row.bank_name else getattr(vendor, "bank_name", None))
+
+    # Foreign vendors: SWIFT/IBAN, IFSC check does not apply (B4 / 9D)
     if country and country != "IN":
         provider = "International Banking Profile"
+        swift_valid = True
+        status_code = "foreign_account"
+        obs_status = "not_applicable"
+
+        iso_9362_pattern = re.compile(r"^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$")
+        if swift_bic:
+            clean_swift = swift_bic.strip().upper()
+            if not iso_9362_pattern.match(clean_swift):
+                swift_valid = False
+                status_code = "invalid"
+                obs_status = "error"
+
         fields = {
-            "bank.status": "foreign_account",
-            "bank.ifsc": "SWIFT/IBAN",
-            "bank.bank_name": "International Bank",
+            "bank.status": status_code,
+            "bank.ifsc": swift_bic or "SWIFT/IBAN",
+            "bank.swift_bic": swift_bic,
+            "bank.bank_name": bank_name or "International Bank",
             "bank.branch": "International",
             "bank.change_pending": False,
             "bank.change_submitted_by": "—",
             "bank.change_submitted_at": "—",
-            "bank.notice": "foreign bank account (SWIFT/IBAN); the Indian IFSC check does not apply; protected by dual-control verification only",
+            "bank.notice": ("foreign bank account (SWIFT/IBAN); the Indian IFSC check does not apply; protected by dual-control verification only"
+                            if swift_valid else "invalid SWIFT/BIC format (ISO 9362 8 or 11 characters required)"),
         }
         raw = await record_raw_response(
             db=db,
@@ -379,15 +441,17 @@ async def collect_bank(
             request_method="INTERNAL",
             body=fields,
             source_id="international_bank",
-            response_status=200,
+            response_status=200 if swift_valid else 400,
             fetched_at=now,
         )
         facts = [
             {"label": "Source", "value": provider},
             {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
             {"label": "HTTP status", "value": "internal"},
-            {"label": "Provider status text", "value": "Foreign Account (IFSC Not Applicable)"},
+            {"label": "Provider status text", "value": "Foreign Account (Valid SWIFT/BIC)" if swift_valid else "Invalid SWIFT/BIC format"},
             {"label": "Country", "value": country},
+            {"label": "SWIFT/BIC", "value": swift_bic or "Not Provided"},
+            {"label": "Bank Name", "value": bank_name or "International Bank"},
             {"label": "Dual-control verification", "value": "Applies"},
         ]
         obs = await record_observation(
@@ -396,7 +460,7 @@ async def collect_bank(
             signal_key="bank",
             source_name="Bank IFSC Verification",
             provider=provider,
-            status="not_applicable",
+            status=obs_status,
             facts=facts,
             fields=fields,
             raw_response_id=raw.id,
@@ -429,12 +493,13 @@ async def collect_bank(
 
     fields = {
         "bank.status": status_str,
-        "bank.ifsc": ifsc or "None",
-        "bank.bank_name": "Verified Banking Partner" if status_str == "valid" else "Unknown",
-        "bank.branch": "Main Branch" if status_str == "valid" else "Unknown",
+        "bank.ifsc": ifsc or "NONE",
+        "bank.bank_name": bank_name or "Bank",
+        "bank.branch": "Branch",
         "bank.change_pending": change_pending,
         "bank.change_submitted_by": change_by or "—",
         "bank.change_submitted_at": change_at or "—",
+        "bank.notice": "pending payment details change" if change_pending else "none",
     }
 
     raw = await record_raw_response(
@@ -443,29 +508,29 @@ async def collect_bank(
         signal_key="bank",
         provider=provider,
         request_method="GET",
-        body={"ifsc": ifsc, "status": status_str, "change_pending": change_pending},
-        source_id="ifsc_api",
-        response_status=200 if ifsc else None,
+        request_url=f"https://ifsc.razorpay.com/{ifsc}" if ifsc else "internal",
+        body=fields,
+        source_id="razorpay_ifsc",
+        response_status=200 if ifsc_status == "valid" else 404,
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200" if ifsc else "internal"},
-        {"label": "Provider status text", "value": status_str.title()},
-        {"label": "IFSC", "value": fields["bank.ifsc"]},
-        {"label": "Change pending", "value": "Yes" if change_pending else "No"},
+        {"label": "HTTP status", "value": "200" if ifsc_status == "valid" else "404"},
+        {"label": "IFSC", "value": ifsc or "None on record"},
+        {"label": "Status", "value": status_str.title()},
+        {"label": "Dual-control pending", "value": "Yes" if change_pending else "No"},
     ]
 
-    obs_status = "ok" if status_str != "none" else "not_applicable"
     obs = await record_observation(
         db=db,
         vendor_id=vendor.id,
         signal_key="bank",
         source_name="Bank IFSC Verification",
         provider=provider,
-        status=obs_status,
+        status="ok" if ifsc_status == "valid" else "error" if ifsc_status == "invalid" else "not_checked",
         facts=facts,
         fields=fields,
         raw_response_id=raw.id,
@@ -474,13 +539,14 @@ async def collect_bank(
     )
     return obs, raw
 
-
 async def collect_jurisdiction(
     db: AsyncSession, vendor: Vendor, now: datetime
 ) -> Tuple[Any, Any]:
-    """Collects country and jurisdiction risk signal (Prompt 9C Section B1, B5)."""
+    """Collects country and jurisdiction risk signal (Prompt 9C/9D).
+    Inspects vendor country and extracts characters 5-6 of swift_bic to check against PROHIBITED_COUNTRIES.
+    """
     v_row = (await db.execute(
-        text("SELECT country FROM vendors WHERE id = :id"),
+        text("SELECT country, swift_bic FROM vendors WHERE id = :id"),
         {"id": vendor.id},
     )).first()
 
@@ -488,10 +554,22 @@ async def collect_jurisdiction(
     if country_code:
         country_code = country_code.strip().upper()
 
+    swift_bic = (v_row.swift_bic if v_row and v_row.swift_bic else getattr(vendor, "swift_bic", None))
+    swift_country = None
+    if swift_bic and len(swift_bic.strip()) >= 6:
+        swift_country = swift_bic.strip()[4:6].upper()
+
     provider = "World Bank Worldwide Governance Indicators"
 
-    if not country_code:
-        # vendor country missing (B1)
+    is_swift_prohibited = swift_country in PROHIBITED_COUNTRIES if swift_country else False
+    is_country_prohibited = country_code in PROHIBITED_COUNTRIES if country_code else False
+    prohibited = is_swift_prohibited or is_country_prohibited
+
+    effective_country = swift_country if is_swift_prohibited else (country_code or "UNKNOWN")
+    high_risk = effective_country in HIGH_RISK_COUNTRIES
+    is_domestic = (effective_country == "IN")
+
+    if not country_code and not swift_country:
         fields = {
             "country.code": "UNKNOWN",
             "country.is_domestic": False,
@@ -505,16 +583,13 @@ async def collect_jurisdiction(
         }
         obs_status = "not_checked"
     else:
-        is_domestic = (country_code == "IN")
-        prohibited = country_code in PROHIBITED_COUNTRIES
-        high_risk = country_code in HIGH_RISK_COUNTRIES
         wgi_composite = 0.85 if is_domestic else 0.5
         pv = 0.7 if is_domestic else 0.6
         rl = 0.8 if is_domestic else 0.5
         wgi_year = 2024
 
         fields = {
-            "country.code": country_code,
+            "country.code": effective_country,
             "country.is_domestic": is_domestic,
             "country.prohibited": prohibited,
             "country.high_risk": high_risk,
@@ -534,25 +609,25 @@ async def collect_jurisdiction(
         request_method="GET",
         body=fields,
         source_id="wgi_indicators",
-        response_status=200 if country_code else None,
+        response_status=200 if (country_code or swift_country) else None,
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200" if country_code else "internal"},
-        {"label": "Country code", "value": country_code or "Unknown"},
-        {"label": "Domestic", "value": "Yes" if fields.get("country.is_domestic") else "No"},
-        {"label": "Prohibited", "value": "Yes" if fields.get("country.prohibited") else "No"},
-        {"label": "WGI Composite", "value": f"{fields.get('country.wgi_composite', 0.0):.2f}"},
+        {"label": "HTTP status", "value": "200" if (country_code or swift_country) else "internal"},
+        {"label": "Country Code", "value": effective_country},
+        {"label": "Prohibited Jurisdiction", "value": "Yes" if prohibited else "No"},
+        {"label": "High Risk Country", "value": "Yes" if high_risk else "No"},
+        {"label": "Domestic (India)", "value": "Yes" if is_domestic else "No"},
     ]
 
     obs = await record_observation(
         db=db,
         vendor_id=vendor.id,
         signal_key="jurisdiction",
-        source_name="Jurisdiction Risk",
+        source_name="Country Risk",
         provider=provider,
         status=obs_status,
         facts=facts,

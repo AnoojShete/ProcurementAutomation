@@ -73,6 +73,10 @@ def _serialize(contract) -> dict:
         "esign_provider_ref": contract.esign_provider_ref,
         "reconciliation_status": contract.reconciliation_status,
         "contract_text": contract.contract_text,
+        "signature_method": getattr(contract, "signature_method", None),
+        "approval_channel": getattr(contract, "approval_channel", None),
+        "bulk_batch_id": getattr(contract, "bulk_batch_id", None),
+        "mandate_id": getattr(contract, "mandate_id", None),
     }
 
 

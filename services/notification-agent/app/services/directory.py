@@ -26,12 +26,20 @@ logger = logging.getLogger(__name__)
 
 async def requester_for_request_id(db: AsyncSession, request_id: Optional[str]) -> Optional[str]:
     """approval.decided's payload has no requester contact — only
-    request_id — so look it up in purchase_requests.requested_by."""
+    request_id — so look it up in purchase_requests.requested_by / requested_by_user_id."""
     if not request_id:
         return None
     try:
+        from app.models import UserRef
         row = await db.get(PurchaseRequestRef, request_id)
-        return row.requested_by if row else None
+        if not row:
+            return None
+        user_id = getattr(row, "requested_by_user_id", None)
+        if user_id:
+            user = await db.get(UserRef, user_id)
+            if user and user.email:
+                return user.email
+        return row.requested_by
     except Exception as e:
         logger.warning(f"requester_for_request_id({request_id}) lookup failed: {e}")
         return None
@@ -199,3 +207,9 @@ async def vendor_for_contract(db: AsyncSession, contract_id: Optional[str]) -> O
     if not contract_id:
         return None
     return await _scalar(db, "SELECT vendor_id::text FROM contracts WHERE id = CAST(:c AS uuid)", {"c": contract_id})
+
+
+async def vendor_for_request(db: AsyncSession, request_id: Optional[str]) -> Optional[str]:
+    if not request_id:
+        return None
+    return await _scalar(db, "SELECT vendor_id::text FROM purchase_requests WHERE id = CAST(:r AS uuid)", {"r": request_id})

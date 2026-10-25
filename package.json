@@ -1,4 +1,11 @@
 {
+  "name": "procurement-automation",
+  "private": true,
+  "scripts": {
+    "docs:serve": "mkdocs serve",
+    "docs:build": "mkdocs build --strict",
+    "docs:deploy": "mkdocs gh-deploy"
+  },
   "dependencies": {
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1"

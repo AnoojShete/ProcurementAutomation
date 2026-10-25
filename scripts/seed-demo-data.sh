@@ -16,8 +16,8 @@ DEMO_REQUEST_ID="22222222-2222-2222-2222-222222222222"
 
 echo "Seeding demo vendor + approved purchase request..."
 docker compose exec -T postgres psql -U "$POSTGRES_USER" <<SQL
-INSERT INTO vendors (id, name, normalized_name)
-VALUES ('$DEMO_VENDOR_ID', 'Acme IT Supplies Inc', 'acme it supplies')
+INSERT INTO vendors (id, name, normalized_name, status, activation_exempt_reason)
+VALUES ('$DEMO_VENDOR_ID', 'Acme IT Supplies Inc', 'acme it supplies', 'active', 'petty_tier')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO purchase_requests (id, requested_by, department, amount, currency, status, request_type)

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { usePeople } from "@/hooks/usePeople";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Clock } from "lucide-react";
@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DocketHeader, RefCopy } from "@/components/ui/DocketHeader";
+import { NextActionBar } from "@/components/ui/NextActionBar";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
 
 /** The contract agent's page for one contract. Its actions come from
@@ -41,6 +42,60 @@ export function ContractDetailPage() {
     const t = setTimeout(reloadObligations, 10000);
     return () => clearTimeout(t);
   }, [obligations, reloadObligations]);
+
+  // Prompt 10 Section 3: Next-Action bar for contracts
+  const nextActionConfig = useMemo(() => {
+    if (!contract) return null;
+    if (contract.status === "pending_signature") {
+      const isFinance = user?.role === "finance" || user?.role === "admin";
+      return {
+        key: isFinance ? "sign_contract" : "review_contract",
+        label: isFinance ? "Sign now" : "View Request",
+        enabled: true,
+        onExecute: isFinance
+          ? () => {
+              const url = new URL(window.location.href);
+              url.searchParams.set("action", "sign");
+              window.history.pushState({}, "", url.toString());
+              reload();
+            }
+          : () => {
+              if (contract.purchase_request_id) {
+                window.location.href = `/app/requests/${contract.purchase_request_id}`;
+              }
+            },
+        secondaryAction: isFinance && contract.purchase_request_id
+          ? {
+              key: "view_request",
+              label: "View Request",
+              onExecute: () => {
+                window.location.href = `/app/requests/${contract.purchase_request_id}`;
+              },
+            }
+          : undefined,
+      };
+    }
+    if (contract.status === "signed") {
+      return {
+        key: "download_pdf",
+        label: "Download Signed PDF",
+        enabled: true,
+        onExecute: () => {
+          window.open(`/api/contracts/${contract.id}/pdf`, "_blank");
+        },
+        secondaryAction: contract.purchase_request_id
+          ? {
+              key: "view_request",
+              label: "View Request",
+              onExecute: () => {
+                window.location.href = `/app/requests/${contract.purchase_request_id}`;
+              },
+            }
+          : undefined,
+      };
+    }
+    return null;
+  }, [contract, user, reload]);
 
   // Same dates the renewal workflow uses: counted back from the notice deadline.
   const renewalMilestones = contract?.renewal_reminders ?? [];
@@ -75,6 +130,8 @@ export function ContractDetailPage() {
           />
         }
       />
+
+      {nextActionConfig && <NextActionBar action={nextActionConfig} requestId={contract.id} vendorName={vendor?.name} />}
 
       {contract.status === "pending_signature" && (
         <div className="flex items-start gap-2 rounded-md border border-warning-500/40 bg-warning-50 px-4 py-2.5 text-13 text-slate-800">
@@ -182,6 +239,12 @@ export function ContractDetailPage() {
                       <p className="mt-0.5 text-caption text-slate-400">
                         Electronically signed · {formatDateTime(contract.signed_at)}
                       </p>
+                      {contract.signature_certificate?.signing_method && (
+                        <p className="mt-1.5 inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-caption font-semibold text-emerald-900">
+                          <CheckCircle2 className="size-3 text-emerald-600" />
+                          {contract.signature_certificate.signing_method}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

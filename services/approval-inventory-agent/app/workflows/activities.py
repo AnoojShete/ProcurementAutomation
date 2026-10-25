@@ -99,7 +99,8 @@ async def update_request_status(request_id: str, status: str, approver_index: in
 @activity.defn
 async def record_approval_decision(
     request_id: str, decision: str, decided_by: str,
-    decision_level: str, escalated: bool, comments: Optional[str] = None
+    decision_level: str, escalated: bool, comments: Optional[str] = None,
+    channel: str = "portal", bulk_batch_id: Optional[str] = None
 ) -> None:
     """Record an approval/rejection decision in the approval_history table.
     
@@ -132,6 +133,8 @@ async def record_approval_decision(
                 "decision": decision,
                 "level": decision_level,
                 "escalated": escalated,
+                "channel": channel,
+                "bulk_batch_id": bulk_batch_id,
             },
         )
         session.add(audit)
@@ -148,7 +151,8 @@ async def record_approval_decision(
 @activity.defn
 async def publish_approval_decided_event(
     request_id: str, decision: str, decided_by: str,
-    decision_level: str, escalated: bool, comments: Optional[str] = None
+    decision_level: str, escalated: bool, comments: Optional[str] = None,
+    channel: str = "portal", bulk_batch_id: Optional[str] = None
 ) -> None:
     """Publish an approval.decided event to Kafka.
     
@@ -165,6 +169,8 @@ async def publish_approval_decided_event(
             escalated=escalated,
             comments=comments,
             decided_at=datetime.now(timezone.utc),
+            decision_channel=channel,
+            bulk_batch_id=bulk_batch_id,
         )
     finally:
         await producer.stop()

@@ -79,6 +79,13 @@ export interface PurchaseRequest {
   sla_deadline: string | null;
   items: Record<string, unknown>[] | null;
   is_backordered: boolean;
+  comments?: string | null;
+  source?: string | null;
+  source_ref?: string | null;
+  requested_by_user_id?: string | null;
+  bulk_eligible?: boolean | null;
+  bulk_ineligible_reasons?: string[] | null;
+  next_action?: any;
   created_at: string | null;
   updated_at: string | null;
   approval_history: ApprovalHistoryEntry[] | null;
@@ -177,6 +184,9 @@ export interface CreatePurchaseRequestBody {
   currency?: string;
   items?: Record<string, unknown>[] | null;
   comments?: string | null;
+  source?: string | null;
+  source_ref?: string | null;
+  idempotency_key?: string | null;
 }
 
 export interface InboxItem {
@@ -204,6 +214,7 @@ export interface InventoryItem {
   unit_cost: number | null;
   currency: string | null;
   location: string | null;
+  vendor_id?: string | null;
   reorder?: ReorderStatus | null;
 }
 
@@ -384,6 +395,10 @@ export interface VendorSummary {
   id: string;
   name: string;
   status: string;
+  inherent_tier?: string | null;
+  swift_bic?: string | null;
+  bank_name?: string | null;
+  website?: string | null;
   portal_access_revoked: boolean;
   risk_band: RiskBand | null;
   risk_score: number | null;
@@ -660,6 +675,7 @@ export interface SignatureCertificate {
   ip_address?: string | null;
   user_agent?: string | null;
   signature_image?: string | null;
+  signing_method?: string | null;
 }
 
 export interface Contract {
@@ -678,6 +694,10 @@ export interface Contract {
   esign_provider_ref: string | null;
   /** Sent for signature by the platform after approval, nobody clicked "Send". */
   sent_automatically?: boolean;
+  approval_channel?: string | null;
+  signature_method?: string | null;
+  bulk_batch_id?: string | null;
+  mandate_id?: string | null;
   /** Last day to give notice (end date − notice period); reminders count back from it. */
   notice_deadline?: string | null;
   renewal_reminders?: { alert_level: number; date: string; passed: boolean }[];

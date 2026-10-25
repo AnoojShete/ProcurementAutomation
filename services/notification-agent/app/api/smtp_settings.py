@@ -13,6 +13,11 @@ from email.utils import formatdate, make_msgid, parseaddr
 import logging
 import smtplib
 import ssl
+import ipaddress
+import json
+import os
+import socket
+from sqlalchemy import text
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -43,10 +48,54 @@ class SmtpSettingsDto(BaseModel):
 
 
 def normalize_smtp_host(host: str) -> str:
-    h = (host or "").strip()
-    if h.lower() in ("smtp.google.com", "google.com", "gmail.com"):
+    h = (host or "").strip().lower()
+    if h in ("smtp.google.com", "google.com", "gmail.com"):
         return "smtp.gmail.com"
     return h
+
+
+def validate_smtp_host(host: str) -> str:
+    """Prompt 10 Section 6.8: Normalizes host and rejects private/loopback/reserved IPs
+    unless ALLOW_PRIVATE_SMTP=true is set."""
+    norm = normalize_smtp_host(host)
+    if not norm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Host is required",
+        )
+
+    allow_private = os.environ.get("ALLOW_PRIVATE_SMTP", "").lower() in ("true", "1", "yes")
+    if allow_private:
+        return norm
+
+    # Direct IP address check
+    try:
+        ip = ipaddress.ip_address(norm)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Host resolves to a disallowed private or loopback address",
+            )
+        return norm
+    except ValueError:
+        pass
+
+    # Hostname DNS resolution check
+    try:
+        addr_info = socket.getaddrinfo(norm, None)
+        for item in addr_info:
+            ip_str = item[4][0]
+            ip = ipaddress.ip_address(ip_str)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Host resolves to a disallowed private or loopback address",
+                )
+    except socket.gaierror:
+        # Host could not be resolved; connection handler will report network error
+        pass
+
+    return norm
 
 
 def _send_test_email_sync(
@@ -57,7 +106,7 @@ def _send_test_email_sync(
     email_from: str,
     to_email: str,
     enable_ssl: bool,
-    timeout: float = 15.0,
+    timeout: float = 3.0,
 ) -> None:
     """Synchronous SMTP connection and test message delivery."""
     host = normalize_smtp_host(host)
@@ -133,6 +182,8 @@ async def save_settings(
     if company_id <= 0:
         raise HTTPException(status_code=400, detail="Invalid Company ID")
 
+    valid_host = validate_smtp_host(request.host)
+
     stmt = select(CompanySmtpSettings).where(CompanySmtpSettings.comp_id == company_id)
     res = await db.execute(stmt)
     existing = res.scalar_one_or_none()
@@ -143,13 +194,13 @@ async def save_settings(
             password_to_save = existing.password
     else:
         pwd = request.password.strip()
-        if request.host and (request.host.strip().endswith("gmail.com") or request.host.strip() == "smtp.gmail.com"):
+        if valid_host and (valid_host.endswith("gmail.com") or valid_host == "smtp.gmail.com"):
             pwd = pwd.replace(" ", "")
         password_to_save = default_encryption_service.encrypt(pwd)
 
     now = datetime.now(timezone.utc)
     if existing:
-        existing.host = normalize_smtp_host(request.host)
+        existing.host = valid_host
         existing.port = request.port
         existing.email_from = request.emailFrom
         existing.username = request.username
@@ -161,7 +212,7 @@ async def save_settings(
     else:
         new_settings = CompanySmtpSettings(
             comp_id=company_id,
-            host=normalize_smtp_host(request.host),
+            host=valid_host,
             port=request.port,
             email_from=request.emailFrom,
             username=request.username,
@@ -172,6 +223,28 @@ async def save_settings(
             updated_at=now,
         )
         db.add(new_settings)
+
+    # Prompt 10 Section 6.8: Audit log on SaveSettings
+    try:
+        await db.execute(
+            text(
+                "INSERT INTO audit_log (id, entity_type, action, payload, created_at) "
+                "VALUES (gen_random_uuid(), 'smtp_settings', 'save_settings', :payload, :created_at)"
+            ),
+            {
+                "payload": json.dumps({
+                    "user_id": str(getattr(user, "id", None) or getattr(user, "user_id", "") or user.email),
+                    "user_email": user.email,
+                    "host": valid_host,
+                    "port": request.port,
+                    "enable_ssl": request.enableSsl,
+                    "company_id": company_id,
+                }),
+                "created_at": now,
+            },
+        )
+    except Exception as ex:
+        logger.warning("Failed to record smtp_settings audit log: %s", ex)
 
     await db.commit()
     logger.info("Admin %s updated company SMTP settings for company %d", user.email, company_id)
@@ -214,13 +287,15 @@ async def test_connection(
                     },
                 )
 
-        if not request.host:
+        try:
+            valid_test_host = validate_smtp_host(request.host)
+        except HTTPException as he:
             return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=he.status_code,
                 content={
                     "success": False,
-                    "message": "Host is required",
-                    "error": {"code": "bad_request", "message": "Host is required"},
+                    "message": str(he.detail),
+                    "error": {"code": "bad_request", "message": str(he.detail)},
                 },
             )
 
@@ -228,7 +303,7 @@ async def test_connection(
 
         await asyncio.to_thread(
             _send_test_email_sync,
-            host=normalize_smtp_host(request.host),
+            host=valid_test_host,
             port=request.port,
             username=request.username,
             password=password_to_use,

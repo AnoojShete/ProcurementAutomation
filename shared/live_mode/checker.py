@@ -26,6 +26,19 @@ def is_live_mode_enabled() -> bool:
         print(f"Error checking live mode: {e}")
         return False
 
+async def is_live_verification_enabled(db=None) -> bool:
+    """Checks if live verification mode is enabled, querying async db session if provided."""
+    if db is not None:
+        try:
+            from sqlalchemy import text
+            res = await db.execute(text("SELECT live_verification_enabled FROM system_settings WHERE id = 1"))
+            val = res.scalar()
+            if val is not None:
+                return bool(val)
+        except Exception:
+            pass
+    return is_live_mode_enabled()
+
 def check_and_reserve_quota(api_name: str) -> bool:
     """
     Atomically checks remaining quota and increments it.

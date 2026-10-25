@@ -15,7 +15,7 @@ from app.models import BusinessRule, BusinessRuleHistory
 from app.kafka_producer import publish_business_rule_updated
 from shared.auth.middleware import require_role, CurrentUser
 
-admin_router = APIRouter(prefix="/admin/business-rules", dependencies=[Depends(require_role("admin"))], tags=["Admin Business Rules"])
+admin_router = APIRouter(prefix="/admin/business-rules", dependencies=[Depends(require_role("admin", "approver", "finance"))], tags=["Admin Business Rules"])
 internal_router = APIRouter(prefix="/internal/business-rules", tags=["Internal Business Rules"])
 
 
@@ -194,6 +194,19 @@ async def _validate_rule_value(db: AsyncSession, rule: BusinessRule, new_value: 
         mod_val = await get_other_val("risk.psi_moderate_threshold")
         if mod_val is not None and float(new_value) <= mod_val:
             raise HTTPException(status_code=400, detail=f"psi_significant_threshold ({new_value}) must be strictly greater than psi_moderate_threshold ({mod_val})")
+
+    elif rule.rule_key == "approval.bulk_approve_max_amount":
+        email_max = await get_other_val("approval.email_action_max_amount")
+        if email_max is not None and float(new_value) > email_max:
+            raise HTTPException(status_code=400, detail=f"bulk_approve_max_amount ({new_value}) must be <= approval.email_action_max_amount ({email_max})")
+    elif rule.rule_key == "approval.bulk_approve_max_batch_total":
+        item_max = await get_other_val("approval.bulk_approve_max_amount")
+        if item_max is not None and float(new_value) < item_max:
+            raise HTTPException(status_code=400, detail=f"bulk_approve_max_batch_total ({new_value}) must be >= bulk_approve_max_amount ({item_max})")
+    elif rule.rule_key == "contract.auto_sign_max_amount":
+        bulk_max = await get_other_val("approval.bulk_approve_max_amount")
+        if bulk_max is not None and float(new_value) > bulk_max:
+            raise HTTPException(status_code=400, detail=f"auto_sign_max_amount ({new_value}) must be <= bulk_approve_max_amount ({bulk_max})")
 
 
 @admin_router.get("")

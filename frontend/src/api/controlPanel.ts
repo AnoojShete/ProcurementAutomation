@@ -73,7 +73,7 @@ export interface InboxStatus {
     in_pipeline?: { document_id: string; name: string }[];
     processed_count?: number;
     failed_count?: number;
-    failed: { name: string; reason: string }[];
+    failed: { name: string; reason: string; error_log?: string; document_id?: string | null; failed_at?: string | null }[];
     paths?: { input: string; processed: string; failed: string };
   };
   drops: DroppedFile[];

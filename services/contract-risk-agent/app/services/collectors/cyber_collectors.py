@@ -1,21 +1,40 @@
 """Cyber and technical collectors: web, email, breach, certification (Prompt 9B section 4).
 """
+import asyncio
 import logging
+import ssl
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
+import httpx
+import dns.resolver
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Vendor, VendorEvidence
 from app.services.collectors.base import record_observation, record_raw_response
+from shared.live_mode.checker import is_live_verification_enabled
 
 logger = logging.getLogger(__name__)
 
+DEMO_DOMAINS = (".local", ".test", ".demo", ".internal", ".example", "localhost")
+
 
 def derive_vendor_domain(vendor: Vendor) -> Optional[str]:
-    """Derives a domain name from contact email or vendor normalized name."""
+    """Derives a domain name from website, contact email, or vendor normalized name."""
+    website = getattr(vendor, "website", None)
+    if website and isinstance(website, str) and website.strip():
+        clean = website.strip().lower()
+        if "://" in clean:
+            clean = clean.split("://", 1)[1]
+        clean = clean.split("/", 1)[0].split("?", 1)[0].split(":", 1)[0].strip()
+        if clean:
+            return clean
+
     email = getattr(vendor, "contact_email", None)
     if email and "@" in email:
-        return email.split("@")[1].strip().lower()
+        domain = email.split("@")[1].strip().lower()
+        if domain and "." in domain:
+            return domain
+
     norm = getattr(vendor, "normalized_name", None) or getattr(vendor, "name", "")
     clean = "".join(c for c in norm.lower() if c.isalnum() or c in ("-", "."))
     if "." in clean:
@@ -26,7 +45,7 @@ def derive_vendor_domain(vendor: Vendor) -> Optional[str]:
 async def collect_web(
     db: AsyncSession, vendor: Vendor, now: datetime
 ) -> Tuple[Any, Any]:
-    """Collects web and TLS security posture."""
+    """Collects web and TLS security posture using direct SSL handshake and HTTP headers probe."""
     domain = derive_vendor_domain(vendor)
     provider = "SSL Labs / TLS Probe"
 
@@ -63,22 +82,113 @@ async def collect_web(
         )
         return obs, raw
 
-    # Defaults for reputable corporate domains
-    ssl_grade = "A"
-    cert_valid = True
-    cert_days_left = 180
-    hsts = True
-    cert_issuer = "DigiCert Global Root G2"
-    cert_problem = "None"
+    is_demo = any(domain.endswith(ext) for ext in DEMO_DOMAINS)
+    live_enabled = await is_live_verification_enabled(db)
+
+    if is_demo:
+        # Prompt 10 section 6.1: simulated pass values permitted ONLY for demo domains
+        ssl_grade = "A"
+        cert_valid = True
+        cert_days_left = 180
+        hsts = True
+        cert_issuer = "DigiCert Global Root G2"
+        cert_problem = "None"
+        tls_version = "TLSv1.3"
+        web_reachable = True
+        obs_status = "ok"
+        confidence = "simulated"
+    elif not live_enabled:
+        # Live verification disabled: do not invent pass grades
+        ssl_grade = None
+        cert_valid = False
+        cert_days_left = None
+        hsts = False
+        cert_issuer = "—"
+        cert_problem = "Live verification disabled"
+        tls_version = "—"
+        web_reachable = False
+        obs_status = "not_checked"
+        confidence = "unverified"
+    else:
+        confidence = "live"
+        try:
+            # 1. Dual-probe: direct SSL handshake for accurate TLS version & peercert
+            ctx = ssl.create_default_context()
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(domain, 443, ssl=ctx, server_hostname=domain),
+                timeout=6.0,
+            )
+            ssl_obj = writer.get_extra_info("ssl_object")
+            peercert = writer.get_extra_info("peercert") or {}
+            tls_version = ssl_obj.version() if ssl_obj else "TLSv1.2"
+            not_after_str = peercert.get("notAfter")
+            writer.close()
+            await writer.wait_closed()
+
+            cert_days_left = None
+            cert_valid = False
+            cert_problem = "None"
+            if not_after_str:
+                try:
+                    expiry = datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+                    cert_days_left = (expiry - now).days
+                    cert_valid = cert_days_left > 0
+                    if not cert_valid:
+                        cert_problem = "Certificate expired"
+                except Exception as ex:
+                    logger.debug("Failed parsing cert expiry %s: %s", not_after_str, ex)
+
+            # Extract issuer name
+            cert_issuer = "—"
+            issuer_tuples = peercert.get("issuer", ())
+            for rdn in issuer_tuples:
+                for k, v in rdn:
+                    if k in ("organizationName", "commonName"):
+                        cert_issuer = v
+                        break
+
+            # 2. HTTP headers probe via httpx
+            hsts = False
+            async with httpx.AsyncClient(verify=True, timeout=5.0, follow_redirects=True) as client:
+                try:
+                    resp = await client.get(f"https://{domain}")
+                    hsts = "strict-transport-security" in resp.headers
+                except Exception:
+                    pass
+
+            # Calculate SSL grade
+            if not cert_valid or tls_version in ("SSLv2", "SSLv3", "TLSv1", "TLSv1.1"):
+                ssl_grade = "F"
+            elif hsts and tls_version in ("TLSv1.3", "TLSv1.2"):
+                ssl_grade = "A"
+            elif tls_version in ("TLSv1.3", "TLSv1.2"):
+                ssl_grade = "B"
+            else:
+                ssl_grade = "C"
+
+            web_reachable = True
+            obs_status = "ok"
+        except Exception as e:
+            logger.info("Live TLS probe for %s failed (%s)", domain, e)
+            web_reachable = False
+            ssl_grade = None
+            cert_valid = False
+            cert_days_left = None
+            hsts = False
+            cert_issuer = "—"
+            cert_problem = f"Connection failed: {e}"
+            tls_version = "—"
+            obs_status = "error"
 
     fields = {
-        "web.reachable": True,
+        "web.reachable": web_reachable,
         "web.ssl_grade": ssl_grade,
         "web.cert_valid": cert_valid,
         "web.cert_days_left": cert_days_left,
         "web.hsts": hsts,
         "web.cert_issuer": cert_issuer,
         "web.cert_problem": cert_problem,
+        "web.confidence": confidence,
     }
 
     raw = await record_raw_response(
@@ -87,21 +197,23 @@ async def collect_web(
         signal_key="web",
         provider=provider,
         request_method="GET",
-        request_url=f"https://api.ssllabs.com/api/v3/analyze?host={domain}",
+        request_url=f"https://{domain}",
         body=fields,
-        source_id="ssllabs_api",
-        response_status=200,
+        source_id="tls_probe",
+        response_status=200 if web_reachable else (404 if obs_status == "not_checked" else 502),
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200"},
+        {"label": "HTTP status", "value": "200" if web_reachable else ("not_checked" if obs_status == "not_checked" else "502")},
         {"label": "Domain", "value": domain},
-        {"label": "SSL Labs Grade", "value": ssl_grade},
-        {"label": "TLS Certificate", "value": "Valid" if cert_valid else "Invalid"},
+        {"label": "TLS Version", "value": tls_version if web_reachable else "—"},
+        {"label": "SSL Labs Grade", "value": ssl_grade if ssl_grade else "N/A"},
+        {"label": "TLS Certificate", "value": "Valid" if cert_valid else ("Not Checked" if obs_status == "not_checked" else "Invalid")},
         {"label": "HSTS Enforced", "value": "Yes" if hsts else "No"},
+        {"label": "Confidence", "value": confidence},
     ]
 
     obs = await record_observation(
@@ -110,7 +222,7 @@ async def collect_web(
         signal_key="web",
         source_name="Web & TLS Security",
         provider=provider,
-        status="ok",
+        status=obs_status,
         facts=facts,
         fields=fields,
         raw_response_id=raw.id,
@@ -123,7 +235,7 @@ async def collect_web(
 async def collect_email(
     db: AsyncSession, vendor: Vendor, now: datetime
 ) -> Tuple[Any, Any]:
-    """Collects email DNS security (SPF and DMARC)."""
+    """Collects email DNS security (SPF and DMARC) via real DNS lookups."""
     domain = derive_vendor_domain(vendor)
     provider = "DNS Resolver (RFC 7208 / RFC 7489)"
 
@@ -164,14 +276,72 @@ async def collect_email(
         )
         return obs, raw
 
-    has_mx = True
-    dmarc_policy = "reject"
-    spf_present = True
+    is_demo = any(domain.endswith(ext) for ext in DEMO_DOMAINS)
+    live_enabled = await is_live_verification_enabled(db)
+
+    if is_demo:
+        # Prompt 10 section 6.1: simulated pass values permitted ONLY for demo domains
+        has_mx = True
+        dmarc_policy = "reject"
+        spf_present = True
+        obs_status = "ok"
+        confidence = "simulated"
+    elif not live_enabled:
+        # Live verification disabled: record not_checked and do not invent reject policy
+        has_mx = False
+        dmarc_policy = "missing"
+        spf_present = False
+        obs_status = "not_checked"
+        confidence = "unverified"
+    else:
+        confidence = "live"
+        obs_status = "ok"
+        resolver = dns.resolver.Resolver()
+        resolver.lifetime = 4.0
+
+        # 1. Query MX records
+        has_mx = False
+        try:
+            mx_records = await asyncio.to_thread(resolver.resolve, domain, "MX")
+            has_mx = len(mx_records) > 0
+        except Exception:
+            has_mx = False
+
+        # 2. Query SPF (TXT records on root domain)
+        spf_present = False
+        try:
+            txt_records = await asyncio.to_thread(resolver.resolve, domain, "TXT")
+            for rdata in txt_records:
+                txt_val = b"".join(rdata.strings).decode("utf-8", errors="ignore")
+                if txt_val.startswith("v=spf1"):
+                    spf_present = True
+                    break
+        except Exception:
+            spf_present = False
+
+        # 3. Query DMARC (TXT records on _dmarc.{domain})
+        dmarc_policy = "missing"
+        try:
+            dmarc_records = await asyncio.to_thread(resolver.resolve, f"_dmarc.{domain}", "TXT")
+            for rdata in dmarc_records:
+                txt_val = b"".join(rdata.strings).decode("utf-8", errors="ignore")
+                if txt_val.startswith("v=DMARC1"):
+                    for part in txt_val.split(";"):
+                        part = part.strip()
+                        if part.startswith("p="):
+                            dmarc_policy = part.split("=", 1)[1].strip().lower()
+                    break
+        except Exception:
+            dmarc_policy = "missing"
+
+        if not has_mx and not spf_present and dmarc_policy == "missing":
+            obs_status = "error"
 
     fields = {
         "email.has_mx": has_mx,
         "email.dmarc_policy": dmarc_policy,
         "email.spf_present": spf_present,
+        "email.confidence": confidence,
     }
 
     raw = await record_raw_response(
@@ -183,17 +353,19 @@ async def collect_email(
         request_url=f"dns://_dmarc.{domain}",
         body=fields,
         source_id="dns_dmarc",
-        response_status=200,
+        response_status=200 if obs_status == "ok" else (404 if obs_status == "not_checked" else 502),
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200"},
+        {"label": "HTTP status", "value": "200" if obs_status == "ok" else ("not_checked" if obs_status == "not_checked" else "502")},
         {"label": "Domain", "value": domain},
         {"label": "DMARC Policy", "value": dmarc_policy.upper()},
         {"label": "SPF Record", "value": "Present" if spf_present else "Missing"},
+        {"label": "MX Records", "value": "Present" if has_mx else "Missing"},
+        {"label": "Confidence", "value": confidence},
     ]
 
     obs = await record_observation(
@@ -202,7 +374,7 @@ async def collect_email(
         signal_key="email",
         source_name="Email Security",
         provider=provider,
-        status="ok",
+        status=obs_status,
         facts=facts,
         fields=fields,
         raw_response_id=raw.id,

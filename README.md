@@ -157,6 +157,10 @@ flowchart TD
    - Machine learning models (Legal-BERT, PaddleOCR, LayoutLMv3, NER) produce structured observation values (e.g. classification labels, confidence scores, extracted entities), never points or risk scores.
    - The risk evaluator contains zero model inference or external network code, enabling pure deterministic replay and auditability.
 
+8. **Signing Mandates & Internal Authorisation Records**:
+   - Automated digital contract signing is supported under explicit, revocable 90-day standing mandates granted by finance signatories for bulk-approved requests within configured spending thresholds.
+   - *Legal Disclaimer*: This is an internal authorisation record with a sealed PDF. Whether a counterparty or regulator accepts it as a legally valid electronic signature must be confirmed with legal or finance. Do not claim legal validity anywhere.
+
 ## Try it
 
 **Prerequisites:** Docker with Compose v2 (Docker Desktop on macOS/Windows,

@@ -1,11 +1,11 @@
 """Notification templates an admin edits from the Control Panel.
 
 Every email starts from a built-in file, app/templates/<name>.j2. An admin
-can override its subject, body and extra recipients, or turn it off, and
+can override its subject, body, recipient and extra recipients, or turn it off, and
 can create new templates that other services send by name through
 notification.send. Overrides live in `notification_templates`
-(migrations/0002_notification_templates.sql); deleting the row restores the
-built-in.
+(migrations/0002_notification_templates.sql and 0004_template_recipient.sql);
+deleting the row restores the built-in.
 
 Edited text is rendered in Jinja's sandbox (it comes from a web form, not
 the repo) and is checked when saved: it must parse, and a built-in's
@@ -33,6 +33,8 @@ TEMPLATE_INFO: dict[str, tuple[str, str]] = {
     "approval_requested": ("approval.requested, and approval.decided with levels left",
                            "The people assigned to the approval level"),
     "approval_decided": ("approval.decided", "The requester"),
+    "approval_decided_vendor": ("approval.decided (final or rejected)", "The vendor's contact"),
+    "request_submitted": ("approval.requested (initial submission)", "The requester"),
     "contract_generated": ("contract.generated", "The requester"),
     "contract_signed": ("contract.signed", "The requester"),
     "contract_signed_vendor": ("contract.signed", "The vendor's contact"),
@@ -66,6 +68,9 @@ _SAMPLE_VALUES = {
     "context": {"request_id": "PR-1042"},
     "approval_chain": ["approver@procurement.local"],
     "step_index": 0,
+    "decision": "approved",
+    "vendor_name": "Acme Supplier Inc",
+    "decided_at": "23 Oct 2026, 12:00 UTC",
 }
 
 _NAME = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
@@ -85,6 +90,7 @@ class Template:
     subject: str
     body: str
     description: str = ""
+    recipient: Optional[str] = None
     extra_recipients: list[str] = field(default_factory=list)
     enabled: bool = True
     is_custom: bool = False
@@ -110,11 +116,12 @@ def builtin_source(name: str) -> tuple[str, str]:
     return subject, body.strip("\n")
 
 
-def placeholders(subject: str, body: str) -> list[str]:
+def placeholders(subject: str, body: str, recipient: str = "") -> list[str]:
     """Variables a template refers to (loop variables excluded)."""
     found = set()
-    for source in (subject, body):
-        found |= meta.find_undeclared_variables(_sandbox.parse(source))
+    for source in (subject, body, recipient):
+        if source and source.strip():
+            found |= meta.find_undeclared_variables(_sandbox.parse(source))
     return sorted(found)
 
 
@@ -127,26 +134,40 @@ def allowed_placeholders(name: str) -> Optional[list[str]]:
 
 # ------------------------------------------------------------ the table
 
-_COLUMNS = "name, description, subject, body, extra_recipients, enabled, is_custom, updated_by, updated_at"
+_COLUMNS = "name, description, subject, body, extra_recipients, enabled, is_custom, updated_by, updated_at, recipient"
+_COLUMNS_LEGACY = "name, description, subject, body, extra_recipients, enabled, is_custom, updated_by, updated_at"
 
 
 def _from_row(row) -> Template:
+    recip = getattr(row, "recipient", None)
     return Template(
-        name=row.name, subject=row.subject, body=row.body, description=row.description,
-        extra_recipients=parse_recipients(row.extra_recipients), enabled=row.enabled,
-        is_custom=row.is_custom, customised=not row.is_custom, updated_by=row.updated_by,
+        name=row.name,
+        subject=row.subject,
+        body=row.body,
+        description=row.description,
+        recipient=recip if recip else None,
+        extra_recipients=parse_recipients(row.extra_recipients),
+        enabled=row.enabled,
+        is_custom=row.is_custom,
+        customised=not row.is_custom,
+        updated_by=row.updated_by,
         updated_at=row.updated_at.isoformat() if row.updated_at else None,
     )
 
 
 def _builtin(name: str) -> Template:
     subject, body = builtin_source(name)
-    return Template(name=name, subject=subject, body=body, description=TEMPLATE_INFO.get(name, ("", ""))[0])
+    desc, audience = TEMPLATE_INFO.get(name, ("", ""))
+    return Template(name=name, subject=subject, body=body, description=desc, recipient=audience)
 
 
 async def get(db: AsyncSession, name: str) -> Optional[Template]:
-    row = (await db.execute(text(f"SELECT {_COLUMNS} FROM notification_templates WHERE name = :n"),
-                            {"n": name})).first()
+    try:
+        row = (await db.execute(text(f"SELECT {_COLUMNS} FROM notification_templates WHERE name = :n"),
+                                {"n": name})).first()
+    except Exception:
+        row = (await db.execute(text(f"SELECT {_COLUMNS_LEGACY} FROM notification_templates WHERE name = :n"),
+                                {"n": name})).first()
     if row is not None:
         return _from_row(row)
     if name in builtin_names():
@@ -155,8 +176,11 @@ async def get(db: AsyncSession, name: str) -> Optional[Template]:
 
 
 async def list_all(db: AsyncSession) -> list[Template]:
-    rows = {r.name: _from_row(r) for r in (await db.execute(
-        text(f"SELECT {_COLUMNS} FROM notification_templates"))).all()}
+    try:
+        raw_rows = (await db.execute(text(f"SELECT {_COLUMNS} FROM notification_templates"))).all()
+    except Exception:
+        raw_rows = (await db.execute(text(f"SELECT {_COLUMNS_LEGACY} FROM notification_templates"))).all()
+    rows = {r.name: _from_row(r) for r in raw_rows}
     out = [rows.pop(n, None) or _builtin(n) for n in builtin_names()]
     return out + sorted(rows.values(), key=lambda t: t.name)
 
@@ -170,7 +194,15 @@ def parse_recipients(raw: str | list[str] | None) -> list[str]:
     return [r.strip() for r in items if r and r.strip()]
 
 
-def validate(name: str, subject: str, body: str, extra_recipients: list[str], *, creating: bool = False) -> None:
+def validate(
+    name: str,
+    subject: str,
+    body: str,
+    extra_recipients: list[str],
+    recipient: Optional[str] = None,
+    *,
+    creating: bool = False,
+) -> None:
     if creating:
         if not _NAME.match(name):
             raise TemplateValidationError(
@@ -183,14 +215,17 @@ def validate(name: str, subject: str, body: str, extra_recipients: list[str], *,
         raise TemplateValidationError("subject: must be one line")
     if not body.strip():
         raise TemplateValidationError("body: can't be empty")
-    for part, source in (("subject", subject), ("body", body)):
+    sources = [("subject", subject), ("body", body)]
+    if recipient and recipient.strip():
+        sources.append(("recipient", recipient.strip()))
+    for part, source in sources:
         try:
             _sandbox.parse(source)
         except TemplateSyntaxError as e:
             raise TemplateValidationError(f"{part}: line {e.lineno}: {e.message}") from e
     allowed = allowed_placeholders(name)
     if allowed is not None:
-        unknown = sorted(set(placeholders(subject, body)) - set(allowed))
+        unknown = sorted(set(placeholders(subject, body, recipient or "")) - set(allowed))
         if unknown:
             raise TemplateValidationError(
                 f"unknown placeholder{'s' if len(unknown) > 1 else ''} "
@@ -200,19 +235,48 @@ def validate(name: str, subject: str, body: str, extra_recipients: list[str], *,
         raise TemplateValidationError(f"recipients: not an email address: {', '.join(bad)}")
 
 
-async def save(db: AsyncSession, name: str, *, subject: str, body: str, description: str,
-               extra_recipients: list[str], enabled: bool, is_custom: bool, updated_by: str) -> Template:
-    await db.execute(text("""
-        INSERT INTO notification_templates
-            (name, description, subject, body, extra_recipients, enabled, is_custom, updated_by)
-        VALUES (:name, :description, :subject, :body, :extra, :enabled, :is_custom, :updated_by)
-        ON CONFLICT (name) DO UPDATE SET
-            description = EXCLUDED.description, subject = EXCLUDED.subject, body = EXCLUDED.body,
-            extra_recipients = EXCLUDED.extra_recipients, enabled = EXCLUDED.enabled,
-            updated_by = EXCLUDED.updated_by, updated_at = now()
-    """), {"name": name, "description": description, "subject": subject.strip(), "body": body,
-           "extra": ", ".join(extra_recipients), "enabled": enabled, "is_custom": is_custom,
-           "updated_by": updated_by})
+async def save(
+    db: AsyncSession,
+    name: str,
+    *,
+    subject: str,
+    body: str,
+    description: str,
+    extra_recipients: list[str],
+    enabled: bool,
+    is_custom: bool,
+    updated_by: str,
+    recipient: Optional[str] = None,
+) -> Template:
+    try:
+        await db.execute(text("""
+            INSERT INTO notification_templates
+                (name, description, subject, body, extra_recipients, enabled, is_custom, updated_by, recipient)
+            VALUES (:name, :description, :subject, :body, :extra, :enabled, :is_custom, :updated_by, :recipient)
+            ON CONFLICT (name) DO UPDATE SET
+                description = EXCLUDED.description, subject = EXCLUDED.subject, body = EXCLUDED.body,
+                extra_recipients = EXCLUDED.extra_recipients, enabled = EXCLUDED.enabled,
+                updated_by = EXCLUDED.updated_by, recipient = EXCLUDED.recipient, updated_at = now()
+        """), {
+            "name": name, "description": description, "subject": subject.strip(), "body": body,
+            "extra": ", ".join(extra_recipients), "enabled": enabled, "is_custom": is_custom,
+            "updated_by": updated_by, "recipient": recipient.strip() if recipient else None,
+        })
+    except Exception:
+        # Backward compatibility if migration not yet applied
+        await db.execute(text("""
+            INSERT INTO notification_templates
+                (name, description, subject, body, extra_recipients, enabled, is_custom, updated_by)
+            VALUES (:name, :description, :subject, :body, :extra, :enabled, :is_custom, :updated_by)
+            ON CONFLICT (name) DO UPDATE SET
+                description = EXCLUDED.description, subject = EXCLUDED.subject, body = EXCLUDED.body,
+                extra_recipients = EXCLUDED.extra_recipients, enabled = EXCLUDED.enabled,
+                updated_by = EXCLUDED.updated_by, updated_at = now()
+        """), {
+            "name": name, "description": description, "subject": subject.strip(), "body": body,
+            "extra": ", ".join(extra_recipients), "enabled": enabled, "is_custom": is_custom,
+            "updated_by": updated_by,
+        })
     await db.commit()
     return await get(db, name)
 
@@ -229,6 +293,17 @@ def render_source(subject: str, body: str, context: dict, *, strict: bool = True
     env = _sandbox if strict else _preview_sandbox
     return (env.from_string(subject).render(**context).strip(),
             env.from_string(body).render(**context).strip())
+
+
+def render_recipient_source(recipient: Optional[str], context: dict, *, strict: bool = True) -> Optional[str]:
+    if not recipient or not recipient.strip():
+        return None
+    env = _sandbox if strict else _preview_sandbox
+    try:
+        rendered = env.from_string(recipient.strip()).render(**context).strip()
+        return rendered or None
+    except Exception:
+        return recipient.strip()
 
 
 def sample_context(names: list[str]) -> dict:
@@ -250,6 +325,7 @@ class Rendered:
     body: str
     extra_recipients: list[str]
     enabled: bool
+    recipient: Optional[str] = None
 
 
 async def render(db: AsyncSession, name: str, context: dict) -> Rendered:
@@ -258,21 +334,26 @@ async def render(db: AsyncSession, name: str, context: dict) -> Rendered:
     try:
         row = (await db.execute(text(f"SELECT {_COLUMNS} FROM notification_templates WHERE name = :n"),
                                 {"n": name})).first()
-    except Exception as e:  # table missing / DB hiccup: the built-in still goes out
-        logger.warning(f"[templates] couldn't read override for {name}, using the built-in: {e}")
-        row = None
+    except Exception:
+        try:
+            row = (await db.execute(text(f"SELECT {_COLUMNS_LEGACY} FROM notification_templates WHERE name = :n"),
+                                    {"n": name})).first()
+        except Exception as e:
+            logger.warning(f"[templates] couldn't read override for {name}, using the built-in: {e}")
+            row = None
     if row is not None:
         override = _from_row(row)
         if not override.enabled:
             return Rendered("", "", [], enabled=False)
+        recip = render_recipient_source(override.recipient, context)
         try:
             subject, body = render_source(override.subject, override.body, context)
-            return Rendered(subject, body, override.extra_recipients, enabled=True)
+            return Rendered(subject, body, override.extra_recipients, enabled=True, recipient=recip)
         except Exception as e:
             if override.is_custom:
                 raise
             logger.warning(f"[templates] override of {name} failed to render ({e}); sent the built-in instead")
             subject, body = templating.render_template(name, context)
-            return Rendered(subject, body, override.extra_recipients, enabled=True)
+            return Rendered(subject, body, override.extra_recipients, enabled=True, recipient=recip)
     subject, body = templating.render_template(name, context)
-    return Rendered(subject, body, [], enabled=True)
+    return Rendered(subject, body, [], enabled=True, recipient=None)

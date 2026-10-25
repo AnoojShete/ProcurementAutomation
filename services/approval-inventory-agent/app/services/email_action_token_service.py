@@ -181,3 +181,54 @@ def evaluate_step_up(
         return True, True, "Vendor is categorized as High Risk. Login to portal required for high-risk vendor approval."
 
     return True, False, None
+
+
+async def mint_batch_action_token(
+    db: AsyncSession,
+    approver_id: str,
+    request_ids: list,
+) -> Tuple[str, datetime, str]:
+    """Mints an email batch token for digest approvals (Prompt 10 Section 1.5)."""
+    from app.models import EmailBatchToken
+    now = datetime.now(timezone.utc)
+    ttl_hours = int(get_rule("approval.bulk_email_token_ttl_hours", fallback=48))
+    expires_at = now + timedelta(hours=ttl_hours)
+
+    raw_token = secrets.token_urlsafe(32)
+    token_h = hash_token(raw_token)
+
+    batch_token = EmailBatchToken(
+        id=str(uuid.uuid4()),
+        token_hash=token_h,
+        approver_id=approver_id,
+        request_ids=request_ids,
+        created_at=now,
+        expires_at=expires_at,
+    )
+    db.add(batch_token)
+    await db.commit()
+
+    action_url = f"{get_public_base_url()}/email-action/batch/{raw_token}"
+    return raw_token, expires_at, action_url
+
+
+async def revoke_batch_tokens(
+    db: AsyncSession,
+    approver_id: str,
+    reason: str,
+) -> int:
+    """Revokes all active email batch tokens for an approver."""
+    from app.models import EmailBatchToken
+    now = datetime.now(timezone.utc)
+    stmt = (
+        update(EmailBatchToken)
+        .where(
+            EmailBatchToken.approver_id == approver_id,
+            EmailBatchToken.used_at.is_(None),
+            EmailBatchToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=now, revoked_reason=reason)
+    )
+    res = await db.execute(stmt)
+    await db.commit()
+    return res.rowcount

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { authApi } from "@/api/auth";
@@ -188,6 +189,23 @@ export function AccountPage() {
           </form>
         </CardBody>
       </Card>
+
+      {["finance", "admin"].includes(user.role) && (
+        <Card>
+          <CardHeader
+            title="Signing Authority"
+            subtitle="Automated digital signing authority for batch approvals"
+          />
+          <CardBody className="flex items-center justify-between gap-4">
+            <p className="text-sm text-ink-2">
+              Manage your 90-day standing mandate for automated contract execution.
+            </p>
+            <Link to="/app/signing-authority">
+              <Button variant="secondary">Manage Mandate</Button>
+            </Link>
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardHeader title="Sessions" />

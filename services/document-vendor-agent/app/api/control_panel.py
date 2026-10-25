@@ -132,6 +132,25 @@ def _failure_reason(log: str) -> str:
     return log.strip()
 
 
+def _parse_failed_error(file_path: Path) -> dict:
+    raw_text = file_path.read_text(encoding="utf-8", errors="replace")
+    reason = _failure_reason(raw_text)
+    document_id = None
+    failed_at = None
+    for line in raw_text.splitlines():
+        if line.startswith("document:"):
+            document_id = line.removeprefix("document:").strip()
+        elif line.startswith("failed:"):
+            failed_at = line.removeprefix("failed:").strip()
+    return {
+        "name": file_path.name.removesuffix(".error.txt"),
+        "reason": reason,
+        "error_log": raw_text.strip(),
+        "document_id": document_id,
+        "failed_at": failed_at,
+    }
+
+
 @router.get("/inbox")
 async def get_inbox(limit: int = Query(20, ge=1, le=100), db: AsyncSession = Depends(get_db)):
     inbox = InboxFolder(settings.inbox_dir)
@@ -152,10 +171,7 @@ async def get_inbox(limit: int = Query(20, ge=1, le=100), db: AsyncSession = Dep
             all_errors = list(inbox.failed.glob("*.error.txt"))
             folder["failed_count"] = len(all_errors)
             errors = sorted(all_errors, key=lambda f: f.stat().st_mtime, reverse=True)[:10]
-            folder["failed"] = [
-                {"name": e.name.removesuffix(".error.txt"), "reason": _failure_reason(e.read_text())}
-                for e in errors
-            ]
+            folder["failed"] = [_parse_failed_error(e) for e in errors]
 
     rows = (await db.execute(_RECENT_DROPS, {"uploader": INBOX_UPLOADER, "limit": limit})).mappings().all()
     drops = []

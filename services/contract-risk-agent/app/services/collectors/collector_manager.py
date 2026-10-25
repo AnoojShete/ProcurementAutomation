@@ -264,9 +264,22 @@ async def collect_all_signals(
         ("adverse_media", collect_adverse_media, {}),
     ]
 
+    try:
+        from app.database import async_session_factory
+    except ImportError:
+        async_session_factory = None
+
+    async def _run_single_task(sig_name, fn, extra_kwargs):
+        # Open independent DB session for parallel collector to prevent SQLAlchemy session concurrency
+        if async_session_factory is not None and not getattr(db, "_mock_self", None):
+            async with async_session_factory() as task_db:
+                return await _safe_collect(fn, task_db, vendor, now, sig_name, **extra_kwargs)
+        else:
+            return await _safe_collect(fn, db, vendor, now, sig_name, **extra_kwargs)
+
     async def _run_parallel():
         tasks = [
-            _safe_collect(fn, db, vendor, now, sig_name, **extra_kwargs)
+            _run_single_task(sig_name, fn, extra_kwargs)
             for sig_name, fn, extra_kwargs in parallel_signals
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -276,14 +289,14 @@ async def collect_all_signals(
         results = await asyncio.wait_for(_run_parallel(), timeout=TOTAL_COLLECTION_DEADLINE)
         for (sig_name, _, _), res in zip(parallel_signals, results):
             if isinstance(res, Exception):
-                logger.error("Parallel collector %s raised unhandled exception: %s", sig_name, res)
+                logger.error("Parallel collector %s raised unhandled exception: %s", sig_name, res, exc_info=res)
                 observations[sig_name] = await _record_skipped_signal(
                     db=db,
                     vendor=vendor,
                     now=now,
                     signal_key=sig_name,
-                    skip_reason="deadline_exceeded",
-                    detail=f"Execution failed: {res}",
+                    skip_reason="error",
+                    detail=f"Execution failed: {type(res).__name__}: {res}",
                 )
             else:
                 observations[sig_name] = res

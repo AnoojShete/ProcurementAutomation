@@ -126,6 +126,63 @@ export function VendorDetailPage() {
       />
       {recomputeMsg && (recomputeMsg.includes("Unable") ? <InlineError message={recomputeMsg} /> : <InlineSuccess message={recomputeMsg} />)}
 
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-surface-border bg-sheet px-4 py-3 text-sm shadow-xs">
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium uppercase text-slate-500">Inherent Tier</span>
+            {(user?.role === "finance" || user?.role === "admin") ? (
+              <select
+                aria-label="Inherent Risk Tier"
+                className="rounded-md border border-surface-border bg-sheet px-2.5 py-1 text-xs font-semibold uppercase text-ink"
+                value={vendor.inherent_tier || "moderate"}
+                onChange={async (e) => {
+                  const newTier = e.target.value;
+                  try {
+                    await vendorsApi.update(vendor.id, { inherent_tier: newTier });
+                    reloadVendors();
+                    await recompute();
+                  } catch (err) {
+                    console.error("Failed to update inherent tier:", err);
+                  }
+                }}
+              >
+                <option value="low">Low</option>
+                <option value="moderate">Moderate</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            ) : (
+              <Badge tone="brand">{(vendor.inherent_tier || "moderate").toUpperCase()}</Badge>
+            )}
+          </div>
+          {vendor.website && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-600">
+              <span className="font-medium text-slate-400">Website:</span>
+              <a
+                href={vendor.website.startsWith("http") ? vendor.website : `https://${vendor.website}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-brand-600 hover:underline"
+              >
+                {vendor.website}
+              </a>
+            </div>
+          )}
+          {vendor.swift_bic && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-600">
+              <span className="font-medium text-slate-400">SWIFT/BIC:</span>
+              <span className="font-mono font-medium text-slate-800">{vendor.swift_bic}</span>
+            </div>
+          )}
+          {vendor.bank_name && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-600">
+              <span className="font-medium text-slate-400">Bank:</span>
+              <span className="font-medium text-slate-800">{vendor.bank_name}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* The risk score lives in the Vendor Risk panel below, not twice. */}
       <LedgerStrip cols={3} label="Vendor figures">
         <MetricCard label="Approved spend" value={formatCurrency(totalSpend)} icon={IndianRupee} to={`/app/requests?scope=all&vendor=${id}&status=approved,ordered,fulfilled`} />

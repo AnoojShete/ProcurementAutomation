@@ -14,8 +14,8 @@ depends_on = None
 RULES = [
     ("approval.email_action_enabled", "approval", "Approve From Email",
      "Allow approvers to approve or reject from a single-use email link", "bool", "true", None, None),
-    ("approval.email_action_max_amount", "approval", "Email Approval Limit (INR)",
-     "Requests above this amount must be decided in the app, not from email", "float", "50000", 0, None),
+    ("approval.email_action_max_amount", "approval", "Bulk & Email Approval Limit (INR)",
+     "Requests above this amount must be approved individually in the app, not in bulk or from email", "float", "50000", 0, None),
     ("approval.email_action_allowed_over_budget", "approval", "Email Approval Over Budget",
      "Allow email approval of requests that exceed the budget", "bool", "false", None, None),
     ("approval.email_action_allowed_high_risk_vendor", "approval", "Email Approval For High-Risk Vendors",
@@ -42,6 +42,7 @@ def upgrade():
             "ON CONFLICT (rule_key) DO NOTHING"
         ).bindparams(key=key, category=category, name=name, description=description, vtype=vtype,
                      value=value, lo=lo, hi=hi))
+        op.execute(sa.text("UPDATE business_rules SET display_name = :name, description = :description WHERE rule_key = :key").bindparams(key=key, name=name, description=description))
 
 
 def downgrade():

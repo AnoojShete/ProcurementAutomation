@@ -75,8 +75,8 @@ done
 
 step "Seed a vendor on the request (normally comes from document-vendor-agent's vendor.matched)"
 docker compose exec -T postgres psql -U "${POSTGRES_USER:-postgres}" -q <<SQL
-INSERT INTO vendors (id, name, normalized_name) VALUES
-  ('99999999-9999-9999-9999-999999999999', 'E2E Test Vendor Inc', 'e2e test vendor')
+INSERT INTO vendors (id, name, normalized_name, status, activation_exempt_reason) VALUES
+  ('99999999-9999-9999-9999-999999999999', 'E2E Test Vendor Inc', 'e2e test vendor', 'active', 'petty_tier')
 ON CONFLICT (id) DO NOTHING;
 UPDATE purchase_requests SET vendor_id = '99999999-9999-9999-9999-999999999999' WHERE id = '$REQUEST_ID';
 SQL

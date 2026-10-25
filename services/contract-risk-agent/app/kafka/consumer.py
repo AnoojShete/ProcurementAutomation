@@ -15,7 +15,7 @@ from app.database import async_session_factory
 from app.services.contract_service import (
     ContractGenerationError, auto_send_for_signature, generate_contract_for_request,
 )
-from app.models import Contract
+from app.models import Contract, SigningMandate
 from sqlalchemy import select, text
 from shared.eventing import deliver, PermanentEventError
 from app.services.risk_service import score_vendor
@@ -139,6 +139,71 @@ async def _handle_approval_decided(app, payload: dict):
         # or drop-folder quotes only: rule contract.auto_send_scope).
         # Also runs for an existing contract, so a crash between generating
         # and sending is finished on redelivery.
+        # Prompt 10 Section 2.2: Auto-sign under standing finance mandate
+        channel = payload.get("decision_channel") or "portal"
+        decided_by = payload.get("decided_by") or ""
+        decision_level = payload.get("decision_level") or ""
+        bulk_batch_id = payload.get("bulk_batch_id")
+        is_finance = "finance" in decision_level.lower()
+
+        auto_sign_enabled = get_rule("contract.auto_sign_enabled", fallback=False)
+        allow_email = get_rule("contract.auto_sign_allow_email_channel", fallback=True)
+
+        if contract.status != "signed" and auto_sign_enabled and is_finance and (bulk_batch_id or channel in ("bulk", "email")):
+            channel_allowed = (channel == "portal") or (channel in ("email", "bulk") and allow_email)
+            if not channel_allowed:
+                logger.info(f"Auto-signing skipped for contract {contract.id}: channel {channel} not permitted")
+            else:
+                now_utc = datetime.now(timezone.utc)
+                stmt_mandate = select(SigningMandate).where(
+                    SigningMandate.user_id == decided_by,
+                    SigningMandate.status == "active",
+                    SigningMandate.valid_until > now_utc,
+                )
+                mandate_res = await db.execute(stmt_mandate)
+                mandate = mandate_res.scalars().first()
+                if not mandate:
+                    logger.info(f"Auto-signing skipped for contract {contract.id}: no active signing mandate for {decided_by}")
+                else:
+                    from app.services.contract_service import _contract_amount, signing_risk, sign_contract_digitally
+                    spend_amount = await _contract_amount(db, contract) or 0.0
+                    max_auto_amount = float(get_rule("contract.auto_sign_max_amount", fallback=25000.0))
+                    allowed_cap = min(float(mandate.max_amount_per_contract), max_auto_amount)
+                    if spend_amount > allowed_cap:
+                        logger.info(f"Auto-signing skipped for contract {contract.id}: spend {spend_amount} exceeds cap {allowed_cap}")
+                    else:
+                        risk = await signing_risk(db, contract.vendor_id, spend_amount=spend_amount)
+                        if risk.get("signing_blocked"):
+                            logger.info(f"Auto-signing skipped for contract {contract.id}: vendor blocked ({risk.get('blocked_reason')})")
+                        else:
+                            mandate_short = str(mandate.id)[:8]
+                            batch_short = str(bulk_batch_id)[:8] if bulk_batch_id else "batch"
+                            channel_text = "Approved through email link" if channel == "email" else "Approved in the application"
+                            wording = f"{channel_text} · Approved and signed under signing mandate {mandate_short} (batch {batch_short})"
+                            signer_name = decided_by.split("@")[0].replace(".", " ").replace("_", " ").title() if decided_by else "Head of Finance"
+                            try:
+                                contract, cert = await sign_contract_digitally(
+                                    db=db,
+                                    kafka_producer=app.state.kafka_producer,
+                                    contract_id=contract.id,
+                                    signer_name=signer_name,
+                                    signer_email=decided_by or "finance@company.com",
+                                    signature_data=None,
+                                    legal_consent=True,
+                                    signer_designation="Head of Finance",
+                                    signing_method=wording,
+                                    approval_channel=channel,
+                                    mandate_id=mandate.id,
+                                    bulk_batch_id=bulk_batch_id,
+                                    mandate_sha256=mandate.mandate_text_sha256,
+                                    ip_address="Automated Mandate Engine",
+                                    user_agent="Approval-To-Contract Bridge",
+                                    risk_acknowledged=True,
+                                )
+                                logger.info(f"Contract {contract.id} automatically signed under mandate {mandate.id}")
+                            except Exception as e:
+                                logger.warning(f"Could not auto-sign contract {contract.id}: {e}")
+
         contract_id = contract.id
         outcome = await auto_send_for_signature(db, app.state.kafka_producer, contract)
         if outcome not in ("skipped", "not_from_drop_folder", "already_tried"):
