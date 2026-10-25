@@ -2,7 +2,7 @@
 
     docs/index.html          team workspace: overview, showcase (with the
                              5-minute demo), demo script, research, codebase
-                             guide, deployment, competitors
+                             guide, deployment, competitors, interview prep
     docs/presentation.html   for presenting: project status, vendor risk, slides
 
 Both share one shell: a sidebar of tabs over one frame. Each page is kept
@@ -48,6 +48,7 @@ PAGES = [
     ("code", "codebase-guide", "Codebase guide", "Every service, file, table, endpoint and algorithm", "team", "code", "teal"),
     ("deploy", "deployment", "Deployment", "Production settings, secrets, backups and restore", "team", "server", "grey"),
     ("market", "competitive-analysis", "Competitors", "Five commercial suites compared with the platform", "team", "chart", "pink"),
+    ("interview", "interview-prep", "Interview prep", "Problem, stack choices and alternatives, Q&A", "team", "chat", "orange"),
     ("status", "project-flow", "Project status", "What is built, agent by agent", "present", "flow", "blue"),
     ("risk", "risk-model", "Vendor risk", "Scorecard, clearance, red team, evaluation", "present", "shield", "pink"),
     ("slides", "slides", "Slides", "The final-review deck, slide by slide", "present", "screen", "purple"),
@@ -69,6 +70,7 @@ ICONS = {
     "flow": '<rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v4a2 2 0 0 0 2 2H14"/>',
     "shield": '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
     "screen": '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+    "chat": '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
     "users": '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
     "box": '<path d="M12 3l9 5v8l-9 5-9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
     "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',

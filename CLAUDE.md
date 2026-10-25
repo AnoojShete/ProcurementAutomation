@@ -13,13 +13,13 @@ short checklist; `docs/RESEARCH_GAP_ANALYSIS.md` and
 **Everything a person reads is in two dashboard files**, one shell (left
 sidebar with a Team / Present switch): `docs/index.html` for the team
 (Overview, Showcase with the 5-minute demo as its first tab, Demo script,
-Research, Codebase guide, Deployment, Competitors) and
+Research, Codebase guide, Deployment, Competitors, Interview prep) and
 `docs/presentation.html` for presenting (Project status, Vendor risk,
 Slides). Each tab is a whole page kept in a `<template id="page-ID">` and
 rendered in its own frame, so pages keep their own CSS/JS. Edit a page with
 `python scripts/docs_dashboard.py extract <id> > f.html`, change it, then
 `put <id> f.html` (ids: home, showcase, demo-script, research, code, deploy,
-market, status, risk, slides); `put` writes the right file. Links between
+market, interview, status, risk, slides); `put` writes the right file. Links between
 pages may use a page's former file name (the tab's old `<name>.html`),
 `index.html#tab/anchor` or `presentation.html#tab/anchor`; they switch tabs,
 across the two files if needed, and old ids redirect (`#demo-5min`,
