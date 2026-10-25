@@ -1,0 +1,15 @@
+% Diagram for the report (sdlc). Build: see build.sh in this folder.
+\documentclass[12pt]{standalone}
+\input{style}
+\begin{document}
+\begin{tikzpicture}[node distance=7mm]
+\node[ext, text width=2.3cm] (c1) {Contract-first design};
+\node[agA, text width=2.3cm, right=of c1] (c2) {Service-wise increment};
+\node[agB, text width=2.3cm, right=of c2] (c3) {Integration behind the gateway};
+\node[agC, text width=2.3cm, right=of c3] (c4) {Testing (unit and end-to-end)};
+\node[human, text width=3.2cm, below=9mm of c3] (c5) {Audit, demonstration and mentor feedback};
+\draw[flow] (c1) -- (c2); \draw[flow] (c2) -- (c3); \draw[flow] (c3) -- (c4);
+\draw[flow] (c4.south) |- (c5.east);
+\draw[flow] (c5.west) -| node[lbl, pos=0.25, below] {next iteration} (c2.south);
+\end{tikzpicture}
+\end{document}

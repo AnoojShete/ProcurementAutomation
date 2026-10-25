@@ -1,0 +1,11 @@
+% Diagram for the report (clauses). Build: see build.sh in this folder.
+\documentclass[12pt]{standalone}
+\input{style}
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[reportbars, height=5.6cm, ymax=1.1, ylabel={F1 score}, symbolic x coords={Renewal term, Notice period, Expiration date}, xtick=data, legend entries={Regular-expression rules, Legal-BERT (CUAD)}, nodes near coords={\pgfmathprintnumber[fixed, fixed zerofill, precision=2]{\pgfplotspointmeta}}]
+\addplot[fill=chartA, draw=chartA] coordinates {(Renewal term,0.50) (Notice period,0.19) (Expiration date,0.02)};
+\addplot[fill=chartB, draw=chartB] coordinates {(Renewal term,0.85) (Notice period,0.80) (Expiration date,0.91)};
+\end{axis}
+\end{tikzpicture}
+\end{document}

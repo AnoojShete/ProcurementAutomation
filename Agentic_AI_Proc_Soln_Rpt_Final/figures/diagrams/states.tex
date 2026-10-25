@@ -1,0 +1,31 @@
+% Diagram for the report (states). Build: see build.sh in this folder.
+\documentclass[12pt]{standalone}
+\input{style}
+\begin{document}
+\begin{tikzpicture}
+\tikzset{stt/.style={box, fill=agBfill, draw=agBline, rounded corners=6pt, text width=2.0cm, minimum height=10mm, font=\scriptsize}, term/.style={box, fill=exfill, draw=exline, rounded corners=6pt, text width=1.5cm, minimum height=8mm, font=\scriptsize}, tl/.style={lbl, font=\scriptsize\itshape}}
+\node[stt] (gp) at (-7.0,1.9) {pending grace period};
+\node[stt] (bo) at (-7.0,-0.7) {backordered};
+\node[stt] (pa) at (-3.4,0.6) {pending approval};
+\node[stt] (ap) at (0.6,0.6) {approved};
+\node[stt] (or) at (5.0,0.6) {ordered};
+\node[stt] (fu) at (5.0,-2.2) {fulfilled};
+\node[stt] (prc) at (2.8,-0.8) {partially received};
+\node[stt] (pi) at (0.6,-2.2) {partially invoiced};
+\node[stt, fill=agAfill, draw=agAline] (ir) at (-3.4,-2.2) {invoice received};
+\node[term] (rj) at (-5.3,3.0) {rejected};
+\node[term] (cn) at (-3.4,3.0) {cancelled};
+\node[term] (sp) at (-1.5,3.0) {split};
+\draw[flow] (gp) -- node[tl, above, sloped] {grace ends} (pa);
+\draw[flow] (bo) -- node[tl, below, sloped] {stock arrives} (pa);
+\draw[flow] (pa) -- node[tl, above] {approved} (ap);
+\draw[flow] (ap) -- node[tl, above] {\code{contract.signed}} (or);
+\draw[flow] (or) -- node[tl, right] {all received} (fu);
+\draw[flow] (or) -- node[tl, left, pos=0.4] {part delivered} (prc);
+\draw[flow] (prc) -- node[tl, below, sloped] {rest arrives} (fu);
+\draw[flow] (fu) -- node[tl, above] {invoice} (pi);
+\draw[flow] (pi) -- node[tl, above] {final invoice} (ir);
+\draw[flow] (pa) -- (rj); \draw[flow] (pa) -- (cn); \draw[flow] (pa) -- (sp);
+\draw[dflow] (ap.south) -- node[tl, right, pos=0.45] {invoice before signing} (pi.north);
+\end{tikzpicture}
+\end{document}

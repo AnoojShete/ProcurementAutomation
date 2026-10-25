@@ -1,0 +1,38 @@
+% Diagram for the report (usecase). Build: see build.sh in this folder.
+\documentclass[12pt]{standalone}
+\input{style}
+\begin{document}
+\begin{tikzpicture}
+\tikzset{
+  uc/.style={nohyph, ellipse, draw=inline, fill=infill, align=center, inner sep=0.5pt, minimum height=8.5mm, minimum width=3.3cm, font=\scriptsize},
+  actor/.pic={\draw[line width=0.7pt] (0,0.62) circle (0.17) (0,0.45)--(0,0.05) (-0.25,0.33)--(0.25,0.33) (0,0.05)--(-0.2,-0.3) (0,0.05)--(0.2,-0.3);},
+  link/.style={draw=ink!70, line width=0.5pt},
+}
+\draw[rounded corners=3pt, draw=exline] (-4.9,-5.6) rectangle (4.9,5.0);
+\node[font=\small\bfseries] at (0,4.65) {IT Procurement Intelligence Platform};
+\pic at (-6.6,2.0) {actor};  \node[font=\footnotesize] at (-6.6,1.35) {Requester};
+\pic at (-6.6,-3.4) {actor}; \node[font=\footnotesize] at (-6.6,-4.05) {Approver};
+\pic at (6.6,2.6) {actor};   \node[font=\footnotesize] at (6.6,1.95) {Administrator};
+\pic at (6.6,-4.3) {actor};  \node[font=\footnotesize] at (6.6,-4.95) {Finance};
+\node[uc] (u1) at (-2.6,3.9) {Sign up and sign in};
+\node[uc] (u2) at (-2.6,2.75) {Submit purchase\\request};
+\node[uc] (u3) at (-2.6,1.6) {Upload document,\\review extracted fields};
+\node[uc] (u4) at (-2.6,0.45) {Track request\\lifecycle};
+\node[uc] (u5) at (-2.6,-0.65) {Ask the assistant};
+\node[uc] (u6) at (-2.6,-2.2) {Approve or reject request\\(app or e-mail link)};
+\node[uc] (u7) at (-2.6,-3.35) {Decide licence\\reclaim};
+\node[uc] (d1) at (2.6,3.9) {Edit business rules};
+\node[uc] (d2) at (2.6,2.85) {Manage users\\and roles};
+\node[uc] (d3) at (2.6,1.8) {Monitor health,\\events and audit log};
+\node[uc] (d4) at (2.6,0.75) {Offboard vendor};
+\node[uc] (f1) at (2.6,-0.4) {Verify bank-detail\\change};
+\node[uc] (f2) at (2.6,-1.5) {Onboard vendor\\(GSTIN, IFSC checks)};
+\node[uc] (f3) at (2.6,-2.6) {Record risk signals,\\clear sanctions flag};
+\node[uc] (f4) at (2.6,-3.7) {View spend analysis};
+\node[uc] (u8) at (0,-4.85) {Sign contract\\(risk acknowledged)};
+\foreach \u in {u1,u2,u3,u4,u5} \draw[link] (-6.3,1.95) -- (\u.west);
+\foreach \u in {u6,u7,u8} \draw[link] (-6.3,-3.45) -- (\u.west);
+\foreach \u in {d1,d2,d3,d4} \draw[link] (6.3,2.55) -- (\u.east);
+\foreach \u in {f1,f2,f3,f4,u8} \draw[link] (6.3,-4.35) -- (\u.east);
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,31 @@
+% Diagram for the report (dfd1). Build: see build.sh in this folder.
+\documentclass[12pt]{standalone}
+\input{style}
+\begin{document}
+\begin{tikzpicture}
+\tikzset{proc/.style={box, text width=2.3cm, minimum height=13mm}, store/.style={nohyph, draw=inline, fill=infill, minimum height=8mm, align=center, text width=2.3cm, font=\scriptsize}}
+\node[ext, text width=2.4cm, minimum height=12mm] (u) at (-6.3,3.2) {Users (requester, approver, finance, admin)};
+\node[proc, fill=agDfill, draw=agDline] (p1) at (-2.2,3.2) {\textbf{1.0}\\Authenticate, serve rules};
+\node[proc, fill=agDfill, draw=agDline] (p6) at (2.6,3.2) {\textbf{6.0}\\Notify};
+\node[ext, text width=2.1cm, minimum height=12mm] (sm) at (6.3,3.2) {SMTP / Mailpit};
+\node[infra, minimum width=15cm] (bus) at (0,1.4) {Kafka-compatible event bus (Redpanda)};
+\node[proc, fill=agAfill, draw=agAline] (p2) at (-5.6,-0.6) {\textbf{2.0}\\Ingest and extract documents};
+\node[proc, fill=agBfill, draw=agBline] (p3) at (-1.9,-0.6) {\textbf{3.0}\\Approve, reserve, reclaim};
+\node[proc, fill=agCfill, draw=agCline] (p4) at (1.9,-0.6) {\textbf{4.0}\\Manage contracts};
+\node[proc, fill=agCfill, draw=agCline] (p5) at (5.6,-0.6) {\textbf{5.0}\\Score vendor risk};
+\node[store] (d2) at (-5.6,-2.5) {D2 MinIO\\document files};
+\node[store] (d3) at (-1.9,-2.5) {D3 Redis\\reservation locks};
+\node[store, text width=14.6cm] (d1) at (0,-3.9) {D1 PostgreSQL: application records, audit log, notification log};
+\draw[<->] (u) -- node[lbl, above] {credentials} node[lbl, below] {tokens} (p1);
+\draw[flow] (p6) -- node[lbl, above] {e-mail} (sm);
+\foreach \p/\t in {p2/document events, p3/approval events, p4/contract events, p5/risk events} \draw[<->] (\p.north) -- node[lbl, right] {\t} (\p.north |- bus.south);
+\draw[flow] (p6.south |- bus.north) -- node[lbl, right] {events from 2.0--5.0} (p6.south);
+\draw[dflow] (p1.south) -- node[lbl, right] {rule changes} (p1.south |- bus.north);
+\draw[<->] (p2) -- (d2);
+\draw[<->] (p3) -- (d3);
+\draw[<->] (p2.east) -- (-3.75,-0.6) -- (-3.75,0 |- d1.north);
+\draw[<->] (p3.east) -- (0,-0.6) -- (0,0 |- d1.north);
+\draw[<->] (p4.south) -- (p4.south |- d1.north);
+\draw[<->] (p5.south) -- (p5.south |- d1.north);
+\end{tikzpicture}
+\end{document}

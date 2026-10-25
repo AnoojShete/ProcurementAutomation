@@ -27,9 +27,9 @@ No single view of a request across tools & Difficult auditing and slow investiga
 These problems are connected. A vendor record that was never checked is exactly what makes a fraudulent bank-detail change possible, and an extraction error that goes unnoticed can become a duplicate payment, so fixing one step in isolation helps only a little. The problem addressed in this project is therefore: \textit{to design and build an automated, event-driven procurement platform that reads unstructured procurement documents, links every document to a vendor record, routes approvals under spend and deadline controls, manages contracts and renewals, and keeps a vendor risk score up to date, while keeping automated decisions explainable and auditable and keeping a person in the loop for low-confidence results and sensitive changes.}
 
 \section{Scope}\label{sec:scope3}
-The project covers the path from an incoming procurement document or purchase request to a signed contract, the receipt of goods and the matching of the vendor's invoice. Within this scope the system scans and reads documents, matches vendors, routes approvals with spend-tier and SLA controls, checks each request against its department's budget, reserves inventory, monitors licence usage, offers an IT catalog with agreed prices, runs request-for-quotation events, records partial deliveries, generates, signs and tracks contracts and the obligations they contain, scores vendor risk and keeps a performance scorecard per vendor, and keeps users informed through e-mail notifications, all behind role-based access control and with metrics, logs and an audit trail.
+The project covers the path from an incoming procurement document or purchase request to a signed contract, the receipt of goods and the matching of the vendor's invoice. Within this scope the system scans and reads documents, matches vendors, routes approvals with spend-tier and SLA controls, checks each request against its department's budget, reserves inventory, monitors licence usage, offers an IT catalog with agreed prices, runs request-for-quotation events, records partial deliveries, checks invoices for GST and computes TDS, generates, signs and tracks contracts and the obligations they contain, scores vendor risk and keeps a performance scorecard per vendor, and keeps users informed through e-mail notifications, all behind role-based access control and with metrics, logs and an audit trail.
 
-The work does not include payment execution, ERP integration, adverse-media screening, live GSTIN registry lookups as a default (the client exists but is switched off), a third-party e-signature provider in the demonstrated configuration (Documenso and DocuSign clients exist but signing is done in the application), automatic retraining of models, or a production or Kubernetes deployment. All data is synthetic: the vendor risk training set, the licence usage logs, the classifier corpus and the sample documents are generated, and the CUAD contracts are used only to evaluate clause extraction.
+The work does not include payment execution, ERP integration, live GSTIN registry and news lookups as a default (the clients exist but are switched off, so adverse-media screening reads a sample feed in the demonstration), a third-party e-signature provider in the demonstrated configuration (Documenso and DocuSign clients exist but signing is done in the application), automatic retraining of models, or a production or Kubernetes deployment. All data is synthetic: the vendor risk training set, the licence usage logs, the classifier corpus and the sample documents are generated, and the CUAD contracts are used only to evaluate clause extraction.
 
 \section{Scope Design}
 The system design defines the structure, components, interfaces and information flow of the platform. Its scope covers the following areas:
@@ -50,28 +50,7 @@ The proposed system is an event-driven platform of four cooperating agents. Each
 
 \begin{figure}[!htbp]
 \centering
-\begin{tikzpicture}
-\node[ext, minimum width=15cm] (users) at (0,0) {\textbf{Users:}\quad Requester \quad$\cdot$\quad Approver \quad$\cdot$\quad Finance \quad$\cdot$\quad Administrator};
-\node[ext, text width=6.6cm, minimum height=10mm] (fe) at (-3.95,-1.35) {React + TypeScript frontend\\role-specific pages};
-\node[infra, text width=6.6cm, minimum height=10mm] (gw) at (3.95,-1.35) {Nginx gateway (port 8080)\\routes \texttt{/api/<prefix>/}, rate limits};
-\draw[flow] (users.south -| fe.north) -- (fe.north);
-\draw[<->] (fe) -- (gw);
-\foreach \x/\s/\n/\t in {-5.7/agA/a1/{\textbf{Agent 1}\\Document \& Vendor\\Intelligence\\[2pt]\scriptsize intake, OCR, classify,\\\scriptsize vendor match, duplicates},
-                         -1.9/agB/a2/{\textbf{Agent 2}\\Approval \& Inventory\\Intelligence\\[2pt]\scriptsize approvals, stock, licence\\\scriptsize anomalies, invoice ledger},
-                          1.9/agC/a3/{\textbf{Agent 3}\\Contract \& Risk\\Analysis\\[2pt]\scriptsize contracts, e-sign, clauses,\\\scriptsize vendor risk, sanctions},
-                          5.7/agD/a4/{\textbf{Agent 4}\\Platform\\[2pt]\scriptsize auth, business rules,\\\scriptsize notifications, assistant}}
-  \node[\s, minimum width=3.55cm, minimum height=23mm] (\n) at (\x,-3.55) {\t};
-\draw (gw.south) -- (3.95,-2.3);
-\draw (-5.7,-2.3) -- (5.7,-2.3);
-\foreach \n in {a1,a2,a3,a4} \draw[flow] (\n.north |- 0,-2.3) -- (\n.north);
-\node[infra, minimum width=15cm] (bus) at (0,-5.35) {\textbf{Redpanda event bus (Kafka API)}: 17 topics, transactional outbox, retry and dead-letter table};
-\foreach \n in {a1,a2,a3,a4} \draw[<->] (\n.south) -- (\n.south |- bus.north);
-\foreach \x/\t in {-6/{PostgreSQL\\\scriptsize shared database},-3/{Redis\\\scriptsize locks, cache},0/{MinIO\\\scriptsize document files},3/{Temporal\\\scriptsize durable workflows},6/{MLflow\\\scriptsize model tracking}}
-  \node[infra, minimum width=2.7cm, minimum height=10mm] at (\x,-6.65) {\t};
-\node[note] at (0,-7.35) {shared data and workflow layer, used by every agent};
-\node[ext, text width=7.0cm, minimum height=10mm] at (-3.85,-8.5) {\textbf{External:} ClamAV, SMTP/Mailpit,\\HaveIBeenPwned, IFSC directory,\\OpenSanctions list, Ollama};
-\node[ext, text width=7.0cm, minimum height=10mm] at (3.85,-8.5) {\textbf{Observability:} Prometheus, Grafana,\\Loki, audit log, Kafka event log,\\notification log};
-\end{tikzpicture}
+\includegraphics{figures/diagrams/arch}
 \caption{Overall architecture of the proposed system}\label{fig:arch}
 \end{figure}
 
@@ -93,19 +72,19 @@ Platform & 8004, 8005, chatbot & Authentication and roles, business-rules engine
 \end{tabularx}
 \end{table}
 
-\paragraph{Document and Vendor Intelligence.} This agent is the entry point for every document, whether uploaded, e-mailed to an intake address or dropped into a watched folder. It checks the file's size and real type, streams it through ClamAV and rejects it if the scanner flags it or cannot be reached, stores it in MinIO and publishes \code{document.ingested} in the same database transaction. A background worker reads, classifies and extracts the document, gives every field a confidence score and sends doubtful results to a review queue. The agent matches the vendor against existing records, books invoices against their purchase request, flags likely duplicates, and never applies new bank details directly: they wait as a pending change until a different user with the finance or admin role verifies them, and payment is held meanwhile.
+\paragraph{Document and Vendor Intelligence.} This agent is the entry point for every document, whether uploaded, e-mailed to an intake address or dropped into a watched folder. It checks the file's size and real type, streams it through ClamAV and rejects it if the scanner flags it or cannot be reached, stores it in MinIO and publishes \code{document.ingested} in the same database transaction. A background worker reads, classifies and extracts the document, gives every field a confidence score and sends doubtful results to a review queue. Each invoice is also checked for GST: the supplier's GSTIN, the split between central, state and integrated tax, the rate expected for each HSN or SAC code, the totals and, where present, the signed e-invoice QR code; a failed check forces review but never changes the confidence score. The agent matches the vendor against existing records, books invoices against their purchase request, flags likely duplicates, and never applies new bank details directly: they wait as a pending change until a different user with the finance or admin role verifies them, and payment is held meanwhile.
 
-\paragraph{Approval and Inventory Intelligence.} This agent derives each request's approval chain from spend tiers held in the business-rules engine (automatic up to \Rs 500, a department manager up to \Rs 5,000, and a manager plus the finance head above that) and from an approval-authority matrix that also enforces separation of duties: nobody, including an administrator, can approve their own request. A Temporal workflow per request waits for the decision, reminds the approver at 50\% and 80\% of the SLA and escalates after 48 hours. Stock is reserved under a short Redis lock so that two concurrent requests cannot take the last unit, and a request for an item that is out of stock is created as back-ordered. An Isolation Forest scores licence usage; a licence above the anomaly threshold receives a reclaim request that waits through a seven-day grace period before it reaches an approver. When \code{contract.signed} arrives, the request moves to \emph{ordered}; deliveries are then recorded per line, with asset tags for hardware (\emph{partially received} until everything has arrived, then \emph{fulfilled}), and invoices are matched line by line against the order, with a 1\% tolerance on the unit price and on the order's remaining balance before an invoice is held; once deliveries are recorded, an invoice may not exceed the quantity received. Each new request is also checked against its department's budget for the category and fiscal quarter, and the agent maintains the IT catalog and request-for-quotation events (Section~\ref{sec:extensions}).
+\paragraph{Approval and Inventory Intelligence.} This agent derives each request's approval chain from spend tiers held in the business-rules engine (automatic up to \Rs 500, a department manager up to \Rs 5,000, and a manager plus the finance head above that) and from an approval-authority matrix that also enforces separation of duties: nobody, including an administrator, can approve their own request. A Temporal workflow per request waits for the decision, reminds the approver at 50\% and 80\% of the SLA and escalates after 48 hours. Stock is reserved under a short Redis lock so that two concurrent requests cannot take the last unit, and a request for an item that is out of stock is created as back-ordered. An Isolation Forest scores licence usage; a licence above the anomaly threshold receives a reclaim request that waits through a seven-day grace period before it reaches an approver. When \code{contract.signed} arrives, the request moves to \emph{ordered}; deliveries are then recorded per line, with asset tags for hardware (\emph{partially received} until everything has arrived, then \emph{fulfilled}), and invoices are matched line by line against the order, with a 1\% tolerance on the unit price and on the order's remaining balance before an invoice is held; once deliveries are recorded, an invoice may not exceed the quantity received. When an invoice is booked, the TDS to deduct is computed from the vendor's or the category's section and threshold. Each new request is also checked against its department's budget for the category and fiscal quarter, and the agent maintains the IT catalog and request-for-quotation events (Section~\ref{sec:extensions}).
 
-\paragraph{Contract and Risk Analysis.} When a request is approved, this agent fills one of three Jinja2 templates (hardware purchase, SaaS subscription or professional services), renders the contract as text and PDF, and sends it for signature automatically. Signing happens in the application: an authorised approver, finance or admin user types or draws a signature, gives consent, and the contract and signer details are sealed with a SHA-256 hash recorded in the audit log and shown on a signature certificate. If the vendor is rated High or has not been scored, the signer must explicitly acknowledge the risk. An HMAC-verified, replay-protected webhook accepts signatures from external providers and is used by the tests. A Legal-BERT model reads the renewal term, notice period and expiration date from the contract text, and a Temporal workflow sends renewal reminders 60, 30 and 15 days before the notice deadline. After signature it reads the obligations the contract contains (Section~\ref{sec:extensions}). The agent also scores each vendor's risk with a deterministic 100-point scorecard, answers whether a vendor is cleared for activation, a purchase or a contract (taking human decisions such as an accepted risk into account), keeps a performance scorecard per vendor, screens vendor names against a sanctions list, and handles vendor offboarding by flagging active contracts for review instead of closing them. Every risk score stores its inputs and a SHA-256 hash, so it can be replayed exactly; evidence and disputes from vendors or staff are kept with the score.
+\paragraph{Contract and Risk Analysis.} When a request is approved, this agent fills one of three Jinja2 templates (hardware purchase, SaaS subscription or professional services), renders the contract as text and PDF, and sends it for signature automatically. Signing happens in the application: an authorised approver, finance or admin user types or draws a signature, gives consent, and the contract and signer details are sealed with a SHA-256 hash recorded in the audit log and shown on a signature certificate. If the vendor is rated High or has not been scored, the signer must explicitly acknowledge the risk. An HMAC-verified, replay-protected webhook accepts signatures from external providers and is used by the tests. A Legal-BERT model reads the renewal term, notice period and expiration date from the contract text, and a Temporal workflow sends renewal reminders 60, 30 and 15 days before the notice deadline. After signature it reads the obligations the contract contains (Section~\ref{sec:extensions}). The agent also scores each vendor's risk with a deterministic 100-point scorecard, answers whether a vendor is cleared for activation, a purchase or a contract (taking human decisions such as an accepted risk into account), keeps a performance scorecard per vendor, screens vendor names against a sanctions list and news results for adverse media, and handles vendor offboarding by flagging active contracts for review instead of closing them. Every risk score stores its inputs and a SHA-256 hash, so it can be replayed exactly; evidence and disputes from vendors or staff are kept with the score.
 
-\paragraph{Platform.} The fourth agent owns what no functional agent should. The authentication service issues 15-minute JWT access tokens and refresh tokens held in an httpOnly cookie (revoked on logout), hashes passwords with argon2id, verifies e-mail addresses, locks an account after repeated failures and rejects passwords found in known breaches. It also hosts the business-rules engine: 63 rules, such as spend tiers, thresholds and tolerances, that an administrator edits at run time and that services refresh when \code{business_rule.updated} is published. The notification service consumes 11 event topics, sends urgent messages immediately and batches routine ones into digests, retries failed deliveries and logs every message. Finally, a conversational assistant answers questions by retrieval-augmented generation with a local Llama~3.2 (3B) model through Ollama. An index of contract clauses, document text, business rules and current records (requests, vendors, licences, budgets) is embedded with \code{nomic-embed-text} into PostgreSQL with pgvector and kept current every minute; for each question the closest passages the user is allowed to see are retrieved and the model answers only from them, citing their source, and says so when they do not contain the answer. Access is applied when retrieving (staff see everything; a requester only their own requests, contracts and documents), and bank details are masked before indexing.
+\paragraph{Platform.} The fourth agent owns what no functional agent should. The authentication service issues 15-minute JWT access tokens and refresh tokens held in an httpOnly cookie (revoked on logout), hashes passwords with argon2id, verifies e-mail addresses, locks an account after repeated failures and rejects passwords found in known breaches. It also hosts the business-rules engine: 71 rules, such as spend tiers, thresholds and tolerances, that an administrator edits at run time and that services refresh when \code{business_rule.updated} is published. The notification service consumes 17 event topics, sends urgent messages immediately and batches routine ones into digests, retries failed deliveries and logs every message. Finally, a conversational assistant answers questions by retrieval-augmented generation with a local Llama~3.2 (3B) model through Ollama. An index of contract clauses, document text, business rules and current records (requests, vendors, licences, budgets) is embedded with \code{nomic-embed-text} into PostgreSQL with pgvector and kept current every minute; for each question the closest passages the user is allowed to see are retrieved and the model answers only from them, citing their source, and says so when they do not contain the answer. Access is applied when retrieving (staff see everything; a requester only their own requests, contracts and documents), and bank details are masked before indexing.
 
 \subsection{Extensions after the Competitive Analysis}\label{sec:extensions}
-The comparison with commercial suites (Section~\ref{sec:commercial}) identified capabilities that matter for IT procurement and that the platform lacked. Four were added without changing the existing flow: each is switched off or advisory by default, uses the existing agents, events and business rules, and is described in Table~\ref{tab:extensions}.
+The comparison with commercial suites (Section~\ref{sec:commercial}) identified capabilities that matter for IT procurement and that the platform lacked. Five were added without changing the existing flow: each is switched off or advisory by default, uses the existing agents, events and business rules, and is described in Table~\ref{tab:extensions}.
 
 {\tablestyle
-\begin{longtable}{|L{0.17\textwidth}|L{0.52\textwidth}|L{0.21\textwidth}|}
+\begin{longtable}{|L{0.17\textwidth}|L{0.47\textwidth}|L{0.26\textwidth}|}
 \caption{Extensions added after the competitive analysis}\label{tab:extensions}\\
 \hline
 \textbf{Extension} & \textbf{Behaviour} & \textbf{Agent and rules} \\ \hline
@@ -114,10 +93,11 @@ The comparison with commercial suites (Section~\ref{sec:commercial}) identified 
 \textbf{Extension} & \textbf{Behaviour} & \textbf{Agent and rules} \\ \hline
 \endhead
 Budget control & A budget is set per department, IT category (hardware, software, SaaS, services) and fiscal quarter. Its usage is computed from the requests that refer to it---pending, committed after approval, consumed once invoiced---so rejections and cancellations release money without bookkeeping. The budget row is locked while a request is checked, so two concurrent requests cannot both use the last amount. A request that would exceed the budget gets a finance approval step. & Approval and Inventory; seven \code{budget.*} rules \\ \hline
-Contract obligations & After signature the contract is read for eleven obligation types: SLA uptime and service credits, licence limits, price-increase cap, audit rights, warranty, termination for convenience, minimum commitment, exit terms, data protection, liability cap and insurance. Each finding waits for a person to confirm it; confirmed obligations get a due date and reminders. Recording a month's measured uptime computes the service credit, and invoices for the request carry a note until the credit is applied. A licence with more users than the contract allows is marked as breached, and licence reclaims respect a minimum commitment. & Contract and Risk; \code{contract.obligation_*}, \code{contract.sla_credit_auto_expect} \\ \hline
-IT catalog & Approved items with an agreed price, vendor, lead time, warranty and expiry date. A catalog line takes its price, vendor and request type from the catalog, not from the client; an expired item cannot be ordered. A seat add-on increases the licence's seat count when it is received. Catalog-only requests up to a set amount can skip the manager step. & Approval and Inventory; \code{catalog.preapproved_max_inr} \\ \hline
+Contract obligations & After signature the contract is read for eleven obligation types: SLA uptime and service credits, licence limits, price-increase cap, audit rights, warranty, termination for convenience, minimum commitment, exit terms, data protection, liability cap and insurance. Each finding waits for a person to confirm it; confirmed obligations get a due date and reminders. Recording a month's measured uptime computes the service credit, and invoices for the request carry a note until the credit is applied. A licence with more users than the contract allows is marked as breached, and licence reclaims respect a minimum commitment. & Contract and Risk;\newline \code{contract.obligation_*},\newline \code{contract.sla_credit_}\newline\code{auto_expect} \\ \hline
+IT catalog & Approved items with an agreed price, vendor, lead time, warranty and expiry date. A catalog line takes its price, vendor and request type from the catalog, not from the client; an expired item cannot be ordered. A seat add-on increases the licence's seat count when it is received. Catalog-only requests up to a set amount can skip the manager step. & Approval and Inventory;\newline \code{catalog.preapproved_}\newline\code{max_inr} \\ \hline
 Sourcing events (RFQ) & A buyer invites two or more vendors to quote by a deadline. A quote that carries the RFQ reference is linked automatically when the document pipeline reads it. While an RFQ is sealed, no role sees amounts before the deadline. Quotes are scored per criterion---price, lead time, warranty, support, vendor risk band and on-time delivery---and weighted; a shortlist can go to a second round, and the award creates the purchase request. Requests above a threshold without an RFQ or catalog price are flagged. & Approval and Inventory; \code{sourcing.*} \\ \hline
-Partial receipts and scorecards & Deliveries are recorded per line with asset tags; an invoice for more than has been received is a variance, completing the three-way match. A scorecard per vendor reports on-time delivery, invoice accuracy, RFQ response rate and SLA breaches, and feeds the RFQ comparison. & Approval and Inventory (\code{invoice.match_against_received}); Contract and Risk \\ \hline
+Partial receipts and scorecards & Deliveries are recorded per line with asset tags; an invoice for more than has been received is a variance, completing the three-way match. A scorecard per vendor reports on-time delivery, invoice accuracy, RFQ response rate and SLA breaches, and feeds the RFQ comparison. & Approval and Inventory\newline (\code{invoice.match_}\newline\code{against_received});\newline Contract and Risk \\ \hline
+GST and TDS & Every invoice is checked for GST: supplier GSTIN, central and state tax or integrated tax depending on the place of supply, the rate for each HSN or SAC code, and taxable value plus tax equal to the total; reverse charge applies to services from suppliers outside India. An e-invoice QR code is verified against the tax portal's public key and compared with the printed invoice. A failed check forces review and publishes \code{invoice.tax_flagged}, without changing the confidence score. TDS is computed when an invoice is booked, the GSTR-2B statement from the GST portal is reconciled with the books, and payment deadlines for micro and small enterprises are tracked. The rates are seeded values that a chartered accountant must confirm. & Document and Vendor; Approval and Inventory;\newline \code{gst.*}, \code{tds.*}, \code{msme.*} \\ \hline
 \end{longtable}}
 
 \subsection{Document Processing Pipeline}
@@ -125,55 +105,18 @@ The document pipeline turns an uploaded file into a structured, confidence-score
 
 \begin{figure}[!htbp]
 \centering
-\begin{tikzpicture}[node distance=4.5mm]
-\tikzset{st/.style={agA, text width=2.4cm, minimum height=13mm}}
-\node[ext, text width=2.4cm, minimum height=13mm] (s1) {1. Upload, e-mail or drop folder};
-\node[st, right=of s1] (s2) {2. Size and type check, ClamAV scan};
-\node[infra, text width=2.4cm, minimum height=13mm, right=of s2] (s3) {3. MinIO + record + outbox event};
-\node[st, right=of s3] (s4) {4. Worker claims document};
-\node[st, right=of s4] (s5) {5. Read text: pdfplumber, Docling or PaddleOCR};
-\node[st, below=9mm of s5] (s6) {6. Classify: model\\($\geq$0.6) or keywords};
-\node[st, left=of s6] (s7) {7. Extract fields; LayoutLMv3 cross-check};
-\node[st, left=of s7] (s8) {8. Match vendor; hold new bank details};
-\node[st, left=of s8] (s9) {9. Invoice: ledger match, duplicate check};
-\node[st, left=of s9] (s10) {10. Weighted confidence score};
-\node[decision, below=9mm of s10, text width=1.5cm] (d) {score\\$\geq$ 0.8?};
-\node[agA, text width=4.4cm, minimum height=10mm, right=14mm of d] (ok) {Classified: publish \code{document.classified}, \code{vendor.matched}};
-\node[human, text width=3.6cm, minimum height=10mm, right=10mm of ok] (rev) {Review queue: a person corrects or confirms};
-\foreach \a/\b in {s1/s2,s2/s3,s3/s4,s4/s5,s5/s6,s6/s7,s7/s8,s8/s9,s9/s10,s10/d} \draw[flow] (\a) -- (\b);
-\draw[flow] (d) -- node[lbl, above] {yes} (ok);
-\draw[flow] (d.south) -- ++(0,-0.45) -| node[lbl, pos=0.25, below] {no} (rev.south);
-\draw[flow] (rev.north) |- node[lbl, pos=0.75, above] {corrected} ($(ok.north)+(0,0.3)$) -- (ok.north);
-\node[note, above=1mm of s2] {rejected if infected (422)\\or scanner down (503)};
-\node[note, above=1mm of s5] {120 s limit, isolated process};
-\end{tikzpicture}
+\includegraphics{figures/diagrams/pipeline}
 \caption{Document processing pipeline of the Document and Vendor Intelligence agent}\label{fig:pipeline}
 \end{figure}
 
 A file is rejected before storage if it is empty, too large (25\,MB at the gateway), of a type that its bytes do not confirm, infected, or if ClamAV cannot be reached, so the intake fails closed. After the file and its database row are stored, the worker reads it in a separate process with a 120-second limit: pdfplumber for PDFs with a usable text layer, Docling for scanned PDFs, and PaddleOCR for images after deskewing and upscaling by at most 1.5 times. The classifier labels the document as an invoice, purchase order, quotation or other paperwork, and regular expressions extract the vendor name, document number, date, currency, totals and line items. When LayoutLMv3 is installed it reads the document independently, and a disagreement forces review. The vendor name is normalised and matched against existing vendors with a fuzzy ratio of at least 88, or a new vendor record is created; first-seen bank details are held for verification. An invoice is booked against its purchase request and checked for duplicates: same vendor, an amount within 2\%, a date within 7 days and a document number at least 85\% similar (all three values are business rules). Finally, the per-field confidence scores are combined into an overall score (Section~\ref{sec:code}); a document scoring below 0.8 goes to the review queue, and reviewers' corrections are kept as per-vendor hints for later documents. Any dependency failure returns the document to the queue to be retried, up to five attempts.
 
 \subsection{Inter-Agent Communication and Workflow}
-Every event uses the same envelope (event ID, event type, timestamp, source service, correlation ID and payload), and the 17 topics and their payloads are fixed in a shared contract document so that producers and consumers could be built in parallel. Each service authenticates to the broker with its own SASL/SCRAM account and may use only its own topics. Events are written to an outbox table in the same transaction as the change that caused them and relayed to the broker afterwards; consumers are idempotent, retry failures and move events that keep failing to a dead-letter table shown on the Control Panel. Figure~\ref{fig:events} shows the main flows and Table~\ref{tab:events} lists the topics.
+Every event uses the same envelope (event ID, event type, timestamp, source service, correlation ID and payload), and the 23 topics and their payloads are fixed in a shared contract document so that producers and consumers could be built in parallel. Each service authenticates to the broker with its own SASL/SCRAM account and may use only its own topics. Events are written to an outbox table in the same transaction as the change that caused them and relayed to the broker afterwards; consumers are idempotent, retry failures and move events that keep failing to a dead-letter table shown on the Control Panel. Figure~\ref{fig:events} shows the main flows and Table~\ref{tab:events} lists the topics.
 
 \begin{figure}[!htbp]
 \centering
-\begin{tikzpicture}
-\node[agA, text width=2.5cm, minimum height=14mm] (a1) at (-6.3,0) {\textbf{Agent 1}\\Document \& Vendor};
-\node[agB, text width=2.5cm, minimum height=14mm] (a2) at (0,0) {\textbf{Agent 2}\\Approval \& Inventory};
-\node[agC, text width=2.5cm, minimum height=14mm] (a3) at (6.3,0) {\textbf{Agent 3}\\Contract \& Risk};
-\node[agD, text width=5.2cm, minimum height=12mm] (nt) at (0,-5.0) {\textbf{Agent 4: notification service}\\urgent e-mail, digests, notification log};
-\draw[flow] ([yshift=2.5mm]a1.east) -- node[lbl, above] {\code{document.classified}} ([yshift=2.5mm]a2.west);
-\draw[flow] ([yshift=-2.5mm]a1.east) -- node[lbl, below] {\code{invoice.matched}} ([yshift=-2.5mm]a2.west);
-\draw[flow] ([yshift=2.5mm]a2.east) -- node[lbl, above] {\code{approval.decided}} ([yshift=2.5mm]a3.west);
-\draw[flow] ([yshift=-2.5mm]a3.west) -- node[lbl, below] {\code{contract.signed}} ([yshift=-2.5mm]a2.east);
-\draw[flow] (a1.north) to[out=22, in=158] node[lbl, above] {\code{vendor.matched}} (a3.north);
-\draw[flow] (a1.south) |- (nt.west);
-\draw[flow] (a2.south) -- (nt.north);
-\draw[flow] (a3.south) |- (nt.east);
-\node[note, anchor=north west, align=left] at (-6.15,-1.4) {\code{vendor.payment_}\\\code{details_flagged}};
-\node[note, anchor=north west, align=left] at (0.15,-1.4) {\code{approval.requested}\\\code{approval.decided}\\\code{license.usage.updated}};
-\node[note, anchor=north east, align=right] at (6.15,-2.6) {\code{contract.generated}\\\code{contract.signed}\\\code{contract.renewal.due}\\\code{risk.score.updated}\\\code{vendor.offboarded}};
-\end{tikzpicture}
+\includegraphics{figures/diagrams/events}
 \caption[Main event flows between the agents]{Main event flows between the agents. Rule changes (\code{business_rule.updated}) are broadcast to every agent and are omitted for clarity.}\label{fig:events}
 \end{figure}
 
@@ -199,9 +142,15 @@ Every event uses the same envelope (event ID, event type, timestamp, source serv
 \code{contract.renewal.due} & Agent 3 & Notifications: 60, 30 and 15-day reminders (urgent at 15) \\ \hline
 \code{risk.score.updated} & Agent 3 & Notifications: urgent for the High band \\ \hline
 \code{vendor.offboarded} & Agent 3 & Notifications: offboarding summary and contracts flagged \\ \hline
-\code{reminder.due} & Agents 1--3 & Control Panel; e-mail delivery is future work \\ \hline
+\code{reminder.due} & Agents 1--3 & Notifications: reminder to whoever must act; Control Panel \\ \hline
 \code{business_rule.updated} & Agent 4 & Agents 1--3: refresh their cached rules \\ \hline
 \code{notification.send} & Any service & Notifications: generic message \\ \hline
+\code{budget.threshold_crossed} & Agent 2 & Notifications: budget warning or overrun \\ \hline
+\code{rfq.issued} & Agent 2 & Notifications: invitation to each invited vendor \\ \hline
+\code{rfq.awarded} & Agent 2 & Notifications: award and thank-you messages \\ \hline
+\code{goods.received} & Agent 2 & Notifications: delivery recorded \\ \hline
+\code{contract.obligation.due} & Agent 3 & Notifications: obligation due, overdue or breached \\ \hline
+\code{invoice.tax_flagged} & Agent 1 & Control Panel: failed GST check \\ \hline
 \end{longtable}
 
 In a typical run, a requester creates a purchase request, or a vendor quote is dropped into the intake folder and Agent~1 classifies it and Agent~2 creates the request from it. Agent~2 builds the approval chain and, once the last approver agrees, publishes \code{approval.decided}. Agent~3 generates the contract and sends it for signature, and its \code{contract.signed} event moves the request to \emph{ordered}. The notification service follows all of these events, sending urgent alerts such as an approval request or a flagged bank-detail change immediately and batching routine ones into a digest. Every API request receives a correlation ID at the gateway, which is carried through the events and log lines of every service, so the whole journey of one request can be followed in Grafana.
@@ -211,39 +160,7 @@ Figure~\ref{fig:usecase} presents the use cases of the four roles. The \emph{Req
 
 \begin{figure}[!htbp]
 \centering
-\begin{tikzpicture}
-\tikzset{
-  uc/.style={nohyph, ellipse, draw=inline, fill=infill, align=center, inner sep=0.5pt, minimum height=8.5mm, minimum width=3.3cm, font=\scriptsize},
-  actor/.pic={\draw[line width=0.7pt] (0,0.62) circle (0.17) (0,0.45)--(0,0.05) (-0.25,0.33)--(0.25,0.33) (0,0.05)--(-0.2,-0.3) (0,0.05)--(0.2,-0.3);},
-  link/.style={draw=ink!70, line width=0.5pt},
-}
-\draw[rounded corners=3pt, draw=exline] (-4.9,-5.6) rectangle (4.9,5.0);
-\node[font=\small\bfseries] at (0,4.65) {IT Procurement Intelligence Platform};
-\pic at (-6.6,2.0) {actor};  \node[font=\footnotesize] at (-6.6,1.35) {Requester};
-\pic at (-6.6,-3.4) {actor}; \node[font=\footnotesize] at (-6.6,-4.05) {Approver};
-\pic at (6.6,2.6) {actor};   \node[font=\footnotesize] at (6.6,1.95) {Administrator};
-\pic at (6.6,-4.3) {actor};  \node[font=\footnotesize] at (6.6,-4.95) {Finance};
-\node[uc] (u1) at (-2.6,3.9) {Sign up and sign in};
-\node[uc] (u2) at (-2.6,2.75) {Submit purchase\\request};
-\node[uc] (u3) at (-2.6,1.6) {Upload document,\\review extracted fields};
-\node[uc] (u4) at (-2.6,0.45) {Track request\\lifecycle};
-\node[uc] (u5) at (-2.6,-0.65) {Ask the assistant};
-\node[uc] (u6) at (-2.6,-2.2) {Approve or reject request\\(app or e-mail link)};
-\node[uc] (u7) at (-2.6,-3.35) {Decide licence\\reclaim};
-\node[uc] (d1) at (2.6,3.9) {Edit business rules};
-\node[uc] (d2) at (2.6,2.85) {Manage users\\and roles};
-\node[uc] (d3) at (2.6,1.8) {Monitor health,\\events and audit log};
-\node[uc] (d4) at (2.6,0.75) {Offboard vendor};
-\node[uc] (f1) at (2.6,-0.4) {Verify bank-detail\\change};
-\node[uc] (f2) at (2.6,-1.5) {Onboard vendor\\(GSTIN, IFSC checks)};
-\node[uc] (f3) at (2.6,-2.6) {Record risk signals,\\clear sanctions flag};
-\node[uc] (f4) at (2.6,-3.7) {View spend analysis};
-\node[uc] (u8) at (0,-4.85) {Sign contract\\(risk acknowledged)};
-\foreach \u in {u1,u2,u3,u4,u5} \draw[link] (-6.3,1.95) -- (\u.west);
-\foreach \u in {u6,u7,u8} \draw[link] (-6.3,-3.45) -- (\u.west);
-\foreach \u in {d1,d2,d3,d4} \draw[link] (6.3,2.55) -- (\u.east);
-\foreach \u in {f1,f2,f3,f4,u8} \draw[link] (6.3,-4.35) -- (\u.east);
-\end{tikzpicture}
+\includegraphics{figures/diagrams/usecase}
 \caption{Use case diagram of the IT procurement platform}\label{fig:usecase}
 \end{figure}
 

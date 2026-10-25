@@ -1,0 +1,27 @@
+% Diagram for the report (arch). Build: see build.sh in this folder.
+\documentclass[12pt]{standalone}
+\input{style}
+\begin{document}
+\begin{tikzpicture}
+\node[ext, minimum width=15cm] (users) at (0,0) {\textbf{Users:}\quad Requester \quad$\cdot$\quad Approver \quad$\cdot$\quad Finance \quad$\cdot$\quad Administrator};
+\node[ext, text width=6.6cm, minimum height=10mm] (fe) at (-3.95,-1.35) {React + TypeScript frontend\\role-specific pages};
+\node[infra, text width=6.6cm, minimum height=10mm] (gw) at (3.95,-1.35) {Nginx gateway (port 8080)\\routes \texttt{/api/<prefix>/}, rate limits};
+\draw[flow] (users.south -| fe.north) -- (fe.north);
+\draw[<->] (fe) -- (gw);
+\foreach \x/\s/\n/\t in {-5.7/agA/a1/{\textbf{Agent 1}\\Document \& Vendor\\Intelligence\\[2pt]\scriptsize intake, OCR, classify,\\\scriptsize vendor match, duplicates},
+                         -1.9/agB/a2/{\textbf{Agent 2}\\Approval \& Inventory\\Intelligence\\[2pt]\scriptsize approvals, stock, licence\\\scriptsize anomalies, invoice ledger},
+                          1.9/agC/a3/{\textbf{Agent 3}\\Contract \& Risk\\Analysis\\[2pt]\scriptsize contracts, e-sign, clauses,\\\scriptsize vendor risk, sanctions},
+                          5.7/agD/a4/{\textbf{Agent 4}\\Platform\\[2pt]\scriptsize auth, business rules,\\\scriptsize notifications, assistant}}
+  \node[\s, minimum width=3.55cm, minimum height=23mm] (\n) at (\x,-3.55) {\t};
+\draw (gw.south) -- (3.95,-2.3);
+\draw (-5.7,-2.3) -- (5.7,-2.3);
+\foreach \n in {a1,a2,a3,a4} \draw[flow] (\n.north |- 0,-2.3) -- (\n.north);
+\node[infra, minimum width=15cm] (bus) at (0,-5.35) {\textbf{Redpanda event bus (Kafka API)}: 23 topics, transactional outbox, retry and dead-letter table};
+\foreach \n in {a1,a2,a3,a4} \draw[<->] (\n.south) -- (\n.south |- bus.north);
+\foreach \x/\t in {-6/{PostgreSQL\\\scriptsize shared database},-3/{Redis\\\scriptsize locks, cache},0/{MinIO\\\scriptsize document files},3/{Temporal\\\scriptsize durable workflows},6/{MLflow\\\scriptsize model tracking}}
+  \node[infra, minimum width=2.7cm, minimum height=10mm] at (\x,-6.65) {\t};
+\node[note] at (0,-7.35) {shared data and workflow layer, used by every agent};
+\node[ext, text width=7.0cm, minimum height=10mm] at (-3.85,-8.5) {\textbf{External:} ClamAV, SMTP/Mailpit,\\HaveIBeenPwned, IFSC directory,\\OpenSanctions list, Ollama};
+\node[ext, text width=7.0cm, minimum height=10mm] at (3.85,-8.5) {\textbf{Observability:} Prometheus, Grafana,\\Loki, audit log, Kafka event log,\\notification log};
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,22 @@
+% Diagram for the report (er). Build: see build.sh in this folder.
+\documentclass[12pt]{standalone}
+\input{style}
+\begin{document}
+\begin{tikzpicture}
+\tikzset{ent/.style={nohyph, draw=inline, fill=white, rounded corners=1.5pt, align=center, inner sep=2pt, text width=3.2cm, font=\scriptsize}, rel/.style={draw=ink!80}, card/.style={font=\tiny\itshape, fill=white, inner sep=0.5pt}}
+\newcommand{\ent}[2]{\textbf{#1}\\[1pt]\hrule\vspace{1pt}#2}
+\node[ent, fill=agAfill, draw=agAline] (v) at (0,0.9) {\ent{vendors}{id, name, normalized\_name, gstin, status, bank details}};
+\node[ent] (pr) at (0,4.3) {\ent{purchase\_requests}{id, vendor\_id, document\_id, amount, status, spend\_tier, approval\_chain, items}};
+\node[ent] (im) at (-5.4,4.3) {\ent{invoice\_matches}{document\_id, vendor\_id, purchase\_request\_id, status, payment\_hold}};
+\node[ent] (ah) at (5.4,4.3) {\ent{approval\_history}{request\_id, decision, decided\_by, escalated}};
+\node[ent] (d) at (-5.4,0.9) {\ent{documents}{id, vendor\_id, document\_type, status, extracted, overall\_confidence}};
+\node[ent] (c) at (5.4,0.9) {\ent{contracts}{id, purchase\_request\_id, vendor\_id, status, contract\_end\_date, notice\_period\_days}};
+\node[ent] (pc) at (-5.4,-2.6) {\ent{vendor\_payment\_\\change\_requests}{vendor\_id, document\_id, new bank details, status, verified\_by}};
+\node[ent] (rs) at (-1.8,-2.6) {\ent{risk\_scores}{vendor\_id, score, band, overrides, signals\_used}};
+\node[ent] (ss) at (1.8,-2.6) {\ent{vendor\_sanctions\_\\screenings}{vendor\_id, status, matches, justification}};
+\node[ent] (l) at (5.4,-1.7) {\ent{licenses}{id, vendor\_id, app\_name, total\_seats, anomaly\_score}};
+\node[ent] (lu) at (5.4,-4.2) {\ent{license\_usage}{license\_id, user\_email, login\_count\_30/60/90d}};
+\foreach \a/\b/\c in {v/d/1:N, v/pr/1:N, v/c/1:N, v/pc/1:N, v/rs/1:N, v/ss/1:N, v/l/1:N, pr/ah/1:N, pr/c/1:N, l/lu/1:N, pr/im/1:N, d/im/1:1, d/pc/1:N}
+  { \draw[rel] (\a) -- (\b); \node[card] at ($(\a)!0.5!(\b)$) {\c}; }
+\end{tikzpicture}
+\end{document}
