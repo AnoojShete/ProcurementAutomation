@@ -1,0 +1,232 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="arch" id="arch-2" viewBox="0 0 1440 780" role="group" aria-label="System architecture, part 2: the six agents talk through Kafka events and Temporal workflows, keep data in PostgreSQL, MinIO and Redis, and call outside services over HTTP">
+<style>.arch{--ink:var(--arch-ink,#14213d);--ink2:var(--arch-ink2,#3f4a5a);--ink3:var(--arch-ink3,#5d6670);
+--sheet:var(--arch-sheet,#ffffff);--paper:var(--arch-paper,#f4f5f1);--rule:var(--arch-rule,#d5dad2);
+--gate:var(--arch-gate,#14213d);--ongate:var(--arch-ongate,#f5f6f2);--ongate2:var(--arch-ongate2,#c9d3e3);
+font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+.arch .c-doc{--c:var(--arch-doc,#c2410c)}.arch .c-appr{--c:var(--arch-appr,#1d4ed8)}
+.arch .c-ctr{--c:var(--arch-ctr,#be185d)}.arch .c-notif{--c:var(--arch-notif,#15803d)}
+.arch .c-auth{--c:var(--arch-auth,#6d28d9)}.arch .c-chat{--c:var(--arch-chat,#0f766e)}
+.arch .c-infra{--c:var(--ink)}
+.arch text{fill:var(--ink)}.arch .t2{fill:var(--ink2)}.arch .t3{fill:var(--ink3)}.arch .tc{fill:var(--c)}
+.arch .b{font-weight:600}.arch .mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace}
+.arch .box{fill:var(--sheet);stroke:var(--rule);stroke-width:1.5}
+.arch .soft{fill:var(--paper);stroke:var(--rule);stroke-width:1.5}
+.arch .ext{fill:var(--sheet);stroke:var(--ink3);stroke-width:1.5;stroke-dasharray:6 5}
+.arch .band{fill:var(--c)}.arch .tint{fill:var(--c);fill-opacity:.12}
+.arch .gate{fill:var(--gate)}.arch .gate-t{fill:var(--ongate)}.arch .gate-t2{fill:var(--ongate2)}
+.arch .ico{fill:none;stroke:var(--c);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.arch .ico-l{fill:none;stroke:var(--ongate);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.arch .ai{fill:var(--c)}.arch .ai-t{fill:var(--sheet);font-weight:700}
+.arch .edge{fill:none;stroke:var(--ink3);stroke-width:2.2}
+.arch .edge-head{fill:var(--ink3)}
+.arch .node{cursor:pointer;outline:none}
+.arch .node:focus-visible .box,.arch .node:focus-visible .soft,.arch .node:focus-visible .ext{stroke:var(--c);stroke-width:3}
+.arch [data-links]{transition:opacity .2s}
+.arch.focus [data-links]:not(.on){opacity:.16}
+.arch .node.on .box,.arch .node.on .soft,.arch .node.on .ext{stroke:var(--c);stroke-width:3}
+.arch .edge-g.on .edge{stroke:var(--ink);stroke-width:3}.arch .edge-g.on .edge-head{fill:var(--ink)}</style>
+<g class="edge-g" data-links="appr auth ctr doc ev-approval.decided ev-approval.requested ev-contract.generated ev-contract.signed ev-document.classified ev-document.ingested kafka notif">
+<path class="edge" d="M244,96 V164"/>
+<polygon class="edge-head" points="236,154 252,154 244,166"/>
+<polygon class="edge-head" points="236,106 252,106 244,94"/>
+<text x="258" y="136" font-size="17" class="t2">publish · consume</text>
+</g>
+<g class="edge-g" data-links="appr ctr renew sla temporal">
+<path class="edge" d="M481,92 V164"/>
+<polygon class="edge-head" points="473,154 489,154 481,166"/>
+<text x="495" y="136" font-size="17" class="t2">start · signal</text>
+</g>
+<g class="edge-g" data-links="appr auth chat ctr doc minio models notif pg redis">
+<path class="edge" d="M955,92 V164"/>
+<polygon class="edge-head" points="947,154 963,154 955,166"/>
+<text x="969" y="136" font-size="17" class="t2">SQL · files</text>
+</g>
+<g class="edge-g" data-links="auth chat clamav ctr doc fx hibp ifsc mail notif ollama sanctions">
+<path class="edge" d="M1192,92 V164"/>
+<polygon class="edge-head" points="1184,154 1200,154 1192,166"/>
+<text x="1206" y="136" font-size="17" class="t2">HTTP</text>
+</g>
+<rect class="soft c-infra" x="0" y="0" width="1440" height="92" rx="14"/>
+<g class="node c-doc" data-id="doc" data-links="clamav ev-approval.decided ev-approval.requested ev-document.classified ev-document.ingested fx ifsc kafka mail minio models pg" data-name="Document &amp; Vendor" data-info="takes documents in, virus-scans and reads them (OCR, classifier, LayoutLMv3), extracts and checks the fields, matches the vendor." tabindex="0" role="button" aria-label="Document &amp; Vendor: takes documents in, virus-scans and reads them (OCR, classifier, LayoutLMv3), extracts and checks the fields, matches the vendor.">
+<rect class="box" x="14" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="14" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(36 30) scale(1.33333)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></g>
+<text x="80" y="44" font-size="20" class="b">Document</text>
+<text x="80" y="68" font-size="16" class="t3">:8001</text>
+</g>
+<g class="node c-appr" data-id="appr" data-links="ev-approval.decided ev-approval.requested ev-contract.generated ev-contract.signed ev-document.classified kafka models pg redis sla temporal" data-name="Approval &amp; Inventory" data-info="turns a quote into a purchase request, routes it by amount, enforces who may approve, keeps budgets, stock, licences (anomaly model) and the invoice ledger." tabindex="0" role="button" aria-label="Approval &amp; Inventory: turns a quote into a purchase request, routes it by amount, enforces who may approve, keeps budgets, stock, licences (anomaly model) and the invoice ledger.">
+<rect class="box" x="251" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="251" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(273 30) scale(1.33333)"><circle cx="12" cy="12" r="9"/><path d="M8.5 12l2.5 2.5 4.5-5"/></g>
+<text x="317" y="44" font-size="20" class="b">Approval</text>
+<text x="317" y="68" font-size="16" class="t3">:8002</text>
+</g>
+<g class="node c-ctr" data-id="ctr" data-links="ev-approval.decided ev-approval.requested ev-contract.generated ev-contract.signed ev-document.classified kafka models pg renew sanctions temporal" data-name="Contract &amp; Risk" data-info="writes the contract after the final approval, collects the e-signature, reads clauses (Legal-BERT) and scores vendor risk; a sanctioned vendor can&#x27;t be signed." tabindex="0" role="button" aria-label="Contract &amp; Risk: writes the contract after the final approval, collects the e-signature, reads clauses (Legal-BERT) and scores vendor risk; a sanctioned vendor can&#x27;t be signed.">
+<rect class="box" x="488" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="488" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(510 30) scale(1.33333)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8 17c1.5-2.5 2.5-2.5 3 0s1.5 1 3-1"/></g>
+<text x="554" y="44" font-size="20" class="b">Contract</text>
+<text x="554" y="68" font-size="16" class="t3">:8003</text>
+</g>
+<g class="node c-notif" data-id="notif" data-links="ev-approval.decided ev-approval.requested ev-contract.generated ev-contract.signed ev-document.classified kafka mail pg" data-name="Notification agent" data-info="listens to 17 event topics and emails whoever must act next, from templates admins edit in the Control Panel." tabindex="0" role="button" aria-label="Notification agent: listens to 17 event topics and emails whoever must act next, from templates admins edit in the Control Panel.">
+<rect class="box" x="725" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="725" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(747 30) scale(1.33333)"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></g>
+<text x="791" y="44" font-size="20" class="b">Notification</text>
+<text x="791" y="68" font-size="16" class="t3">:8004</text>
+</g>
+<g class="node c-auth" data-id="auth" data-links="hibp kafka mail pg" data-name="Auth service" data-info="sign-up, login and roles; serves the business rules every agent reads, changed live without a deploy." tabindex="0" role="button" aria-label="Auth service: sign-up, login and roles; serves the business rules every agent reads, changed live without a deploy.">
+<rect class="box" x="962" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="962" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(984 30) scale(1.33333)"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></g>
+<text x="1028" y="44" font-size="20" class="b">Auth</text>
+<text x="1028" y="68" font-size="16" class="t3">:8005</text>
+</g>
+<g class="node c-chat" data-id="chat" data-links="ollama pg" data-name="Assistant (chatbot)" data-info="answers questions from contracts, documents and records (retrieval-augmented, local LLM), only from what the signed-in user may see." tabindex="0" role="button" aria-label="Assistant (chatbot): answers questions from contracts, documents and records (retrieval-augmented, local LLM), only from what the signed-in user may see.">
+<rect class="box" x="1199" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="1199" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(1221 30) scale(1.33333)"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></g>
+<text x="1265" y="44" font-size="20" class="b">Assistant</text>
+<text x="1265" y="68" font-size="16" class="t3">:8006</text>
+</g>
+<g class="node c-infra" data-id="kafka" data-links="appr auth ctr doc notif" data-name="Kafka events" data-info="carries every hand-off between agents as an event. 23 topics; each agent has its own login and may use only its own topics. An event is saved in the same transaction as the change (outbox), so a restart loses nothing." tabindex="0" role="button" aria-label="Kafka events: carries every hand-off between agents as an event. 23 topics; each agent has its own login and may use only its own topics. An event is saved in the same transaction as the change (outbox), so a restart loses nothing.">
+<rect class="soft" x="0" y="170" width="400" height="490" rx="14"/>
+<g class="ico" transform="translate(20 190) scale(1.5)"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></g>
+<text x="68" y="208" font-size="24" class="b">Kafka events</text>
+<text x="68" y="236" font-size="17" class="t3">Redpanda · 23 topics</text>
+</g>
+<g class="node c-doc" data-id="ev-document.ingested" data-links="doc" data-name="document.ingested" data-info="published by Document; read by Document." tabindex="0" role="button" aria-label="document.ingested: published by Document; read by Document.">
+<rect class="box" x="24" y="262" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="283" r="7"/>
+<text x="64" y="290" font-size="18" class="mono">document.ingested</text>
+</g>
+<path class="edge" d="M46,306 V318" style="stroke-width:1.6"/>
+<g class="node c-doc" data-id="ev-document.classified" data-links="appr ctr doc notif" data-name="document.classified" data-info="published by Document; read by Approval, Contract, Notification." tabindex="0" role="button" aria-label="document.classified: published by Document; read by Approval, Contract, Notification.">
+<rect class="box" x="24" y="318" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="339" r="7"/>
+<text x="64" y="346" font-size="18" class="mono">document.classified</text>
+</g>
+<path class="edge" d="M46,362 V374" style="stroke-width:1.6"/>
+<g class="node c-appr" data-id="ev-approval.requested" data-links="appr ctr doc notif" data-name="approval.requested" data-info="published by Approval; read by Document, Contract, Notification." tabindex="0" role="button" aria-label="approval.requested: published by Approval; read by Document, Contract, Notification.">
+<rect class="box" x="24" y="374" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="395" r="7"/>
+<text x="64" y="402" font-size="18" class="mono">approval.requested</text>
+</g>
+<path class="edge" d="M46,418 V430" style="stroke-width:1.6"/>
+<g class="node c-appr" data-id="ev-approval.decided" data-links="appr ctr doc notif" data-name="approval.decided" data-info="published by Approval; read by Document, Contract, Notification." tabindex="0" role="button" aria-label="approval.decided: published by Approval; read by Document, Contract, Notification.">
+<rect class="box" x="24" y="430" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="451" r="7"/>
+<text x="64" y="458" font-size="18" class="mono">approval.decided</text>
+</g>
+<path class="edge" d="M46,474 V486" style="stroke-width:1.6"/>
+<g class="node c-ctr" data-id="ev-contract.generated" data-links="appr ctr notif" data-name="contract.generated" data-info="published by Contract; read by Approval, Notification." tabindex="0" role="button" aria-label="contract.generated: published by Contract; read by Approval, Notification.">
+<rect class="box" x="24" y="486" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="507" r="7"/>
+<text x="64" y="514" font-size="18" class="mono">contract.generated</text>
+</g>
+<path class="edge" d="M46,530 V542" style="stroke-width:1.6"/>
+<g class="node c-ctr" data-id="ev-contract.signed" data-links="appr ctr notif" data-name="contract.signed" data-info="published by Contract; read by Approval, Notification." tabindex="0" role="button" aria-label="contract.signed: published by Contract; read by Approval, Notification.">
+<rect class="box" x="24" y="542" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="563" r="7"/>
+<text x="64" y="570" font-size="18" class="mono">contract.signed</text>
+</g>
+<text x="24" y="636" font-size="17" class="t3">saved with the change (outbox)</text>
+<g class="node c-infra" data-id="temporal" data-links="appr ctr" data-name="Temporal" data-info="runs the long waits that must survive restarts: approval deadlines with reminders and escalation, and contract renewal notices. Workers in Approval and Contract poll it." tabindex="0" role="button" aria-label="Temporal: runs the long waits that must survive restarts: approval deadlines with reminders and escalation, and contract renewal notices. Workers in Approval and Contract poll it.">
+<rect class="soft" x="426" y="170" width="260" height="490" rx="14"/>
+<g class="ico" transform="translate(446 190) scale(1.5)"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>
+<text x="494" y="208" font-size="24" class="b">Temporal</text>
+<text x="494" y="236" font-size="17" class="t3">durable workflows</text>
+</g>
+<g class="node c-appr" data-id="sla" data-links="appr" data-name="Approval SLAs" data-info="reminders at 50% and 80%, then escalation (run by Approval)." tabindex="0" role="button" aria-label="Approval SLAs: reminders at 50% and 80%, then escalation (run by Approval).">
+<rect class="box" x="446" y="262" width="220" height="112" rx="12"/>
+<rect class="band" x="446" y="278" width="6" height="80" rx="3"/>
+<text x="466" y="300" font-size="20" class="b">Approval SLAs</text>
+<text x="466" y="330" font-size="17" class="t2">reminders at 50% and</text>
+<text x="466" y="356" font-size="17" class="t2">80%, then escalation</text>
+</g>
+<g class="node c-ctr" data-id="renew" data-links="ctr" data-name="Contract renewals" data-info="notice before a contract expires (run by Contract)." tabindex="0" role="button" aria-label="Contract renewals: notice before a contract expires (run by Contract).">
+<rect class="box" x="446" y="390" width="220" height="112" rx="12"/>
+<rect class="band" x="446" y="406" width="6" height="80" rx="3"/>
+<text x="466" y="428" font-size="20" class="b">Contract renewals</text>
+<text x="466" y="458" font-size="17" class="t2">notice before a</text>
+<text x="466" y="484" font-size="17" class="t2">contract expires</text>
+</g>
+<g class="c-infra">
+<rect class="soft" x="712" y="170" width="360" height="490" rx="14"/>
+<g class="ico" transform="translate(732 190) scale(1.5)"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></g>
+<text x="780" y="208" font-size="24" class="b">Data</text>
+<text x="780" y="236" font-size="17" class="t3">inside the Docker network</text>
+</g>
+<g class="node c-infra" data-id="pg" data-links="appr auth chat ctr doc notif" data-name="PostgreSQL 16 + pgvector" data-info="one shared database; each agent its own tables. Used by every agent." tabindex="0" role="button" aria-label="PostgreSQL 16 + pgvector: one shared database; each agent its own tables. Used by every agent.">
+<rect class="box" x="732" y="262" width="320" height="88" rx="12"/>
+<text x="752" y="294" font-size="20" class="b">PostgreSQL 16 + pgvector</text>
+<text x="752" y="320" font-size="17" class="t2">one shared database;</text>
+<text x="752" y="342" font-size="17" class="t2">each agent its own tables</text>
+</g>
+<g class="node c-infra" data-id="minio" data-links="doc" data-name="MinIO" data-info="original documents (S3 storage). Used by Document." tabindex="0" role="button" aria-label="MinIO: original documents (S3 storage). Used by Document.">
+<rect class="box" x="732" y="360" width="320" height="88" rx="12"/>
+<text x="752" y="392" font-size="20" class="b">MinIO</text>
+<text x="752" y="418" font-size="17" class="t2">original documents</text>
+<text x="752" y="440" font-size="17" class="t2">(S3 storage)</text>
+</g>
+<g class="node c-infra" data-id="redis" data-links="appr" data-name="Redis" data-info="stock reservation locks, repeat-safe requests. Used by Approval." tabindex="0" role="button" aria-label="Redis: stock reservation locks, repeat-safe requests. Used by Approval.">
+<rect class="box" x="732" y="458" width="320" height="88" rx="12"/>
+<text x="752" y="490" font-size="20" class="b">Redis</text>
+<text x="752" y="516" font-size="17" class="t2">stock reservation locks,</text>
+<text x="752" y="538" font-size="17" class="t2">repeat-safe requests</text>
+</g>
+<g class="node c-infra" data-id="models" data-links="appr ctr doc" data-name="Trained models" data-info="LayoutLMv3 · Legal-BERT scikit-learn. Used by Document, Approval, Contract." tabindex="0" role="button" aria-label="Trained models: LayoutLMv3 · Legal-BERT scikit-learn. Used by Document, Approval, Contract.">
+<rect class="box" x="732" y="556" width="320" height="88" rx="12"/>
+<text x="752" y="588" font-size="20" class="b">Trained models</text>
+<text x="752" y="614" font-size="17" class="t2">LayoutLMv3 · Legal-BERT</text>
+<text x="752" y="636" font-size="17" class="t2">scikit-learn</text>
+</g>
+<g class="c-infra">
+<rect class="ext" x="1098" y="170" width="342" height="490" rx="14"/>
+<g class="ico" transform="translate(1118 190) scale(1.5)"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z"/></g>
+<text x="1166" y="208" font-size="24" class="b">Outside services</text>
+<text x="1166" y="236" font-size="17" class="t3">called over HTTP</text>
+</g>
+<g class="node c-infra" data-id="clamav" data-links="doc" data-name="ClamAV" data-info="virus scan of every upload. Used by Document." tabindex="0" role="button" aria-label="ClamAV: virus scan of every upload. Used by Document.">
+<rect x="1110" y="258" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="280" font-size="19" class="b">ClamAV</text>
+<text x="1122" y="304" font-size="16" class="t2">virus scan of every upload</text>
+</g>
+<g class="node c-infra" data-id="mail" data-links="auth doc notif" data-name="Mailpit / SMTP" data-info="every email sent. Used by Document, Notification, Auth." tabindex="0" role="button" aria-label="Mailpit / SMTP: every email sent. Used by Document, Notification, Auth.">
+<rect x="1110" y="314" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="336" font-size="19" class="b">Mailpit / SMTP</text>
+<text x="1122" y="360" font-size="16" class="t2">every email sent</text>
+</g>
+<g class="node c-infra" data-id="ollama" data-links="chat" data-name="Ollama" data-info="local LLM for the assistant. Used by Assistant." tabindex="0" role="button" aria-label="Ollama: local LLM for the assistant. Used by Assistant.">
+<rect x="1110" y="370" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="392" font-size="19" class="b">Ollama</text>
+<text x="1122" y="416" font-size="16" class="t2">local LLM for the assistant</text>
+</g>
+<g class="node c-infra" data-id="fx" data-links="doc" data-name="Frankfurter" data-info="exchange rates to INR. Used by Document." tabindex="0" role="button" aria-label="Frankfurter: exchange rates to INR. Used by Document.">
+<rect x="1110" y="426" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="448" font-size="19" class="b">Frankfurter</text>
+<text x="1122" y="472" font-size="16" class="t2">exchange rates to INR</text>
+</g>
+<g class="node c-infra" data-id="ifsc" data-links="doc" data-name="IFSC and GSTIN lookups" data-info="bank and tax ids. Used by Document." tabindex="0" role="button" aria-label="IFSC and GSTIN lookups: bank and tax ids. Used by Document.">
+<rect x="1110" y="482" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="504" font-size="19" class="b">IFSC and GSTIN lookups</text>
+<text x="1122" y="528" font-size="16" class="t2">bank and tax ids</text>
+</g>
+<g class="node c-infra" data-id="hibp" data-links="auth" data-name="HaveIBeenPwned" data-info="breached-password check. Used by Auth." tabindex="0" role="button" aria-label="HaveIBeenPwned: breached-password check. Used by Auth.">
+<rect x="1110" y="538" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="560" font-size="19" class="b">HaveIBeenPwned</text>
+<text x="1122" y="584" font-size="16" class="t2">breached-password check</text>
+</g>
+<g class="node c-infra" data-id="sanctions" data-links="ctr" data-name="OpenSanctions" data-info="sanctions list. Used by Contract." tabindex="0" role="button" aria-label="OpenSanctions: sanctions list. Used by Contract.">
+<rect x="1110" y="594" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="616" font-size="19" class="b">OpenSanctions</text>
+<text x="1122" y="640" font-size="16" class="t2">sanctions list</text>
+</g>
+<g class="c-infra">
+<rect class="soft" x="0" y="700" width="1440" height="80" rx="14"/>
+<g class="ico" transform="translate(24 722) scale(1.5)"><path d="M3 12h4l3-8 4 16 3-8h4"/></g>
+<text x="76" y="748" font-size="21" class="b">Watching it run</text>
+<text x="260" y="748" font-size="18" class="t2">Prometheus metrics  ·  Loki logs by correlation id  ·  Grafana dashboards  ·  Temporal UI</text>
+<text x="1416" y="748" font-size="18" class="t3" text-anchor="end">Click any box</text>
+</g>
+</svg>

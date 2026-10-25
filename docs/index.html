@@ -4212,6 +4212,7 @@ function openPage(id, sub, fromHash) {
   if (!frames[id]) {
     const f = document.createElement("iframe");
     f.title = page.label;
+    f.allowFullscreen = true;  // the Slides tab presents full screen
     f.srcdoc = "<!doctype html>" + document.getElementById("page-" + id).innerHTML + LINKS;
     f.addEventListener("load", () => { setTheme(); if (f.dataset.sub) jump(f, f.dataset.sub); });
     document.getElementById("main").appendChild(f);

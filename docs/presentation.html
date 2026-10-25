@@ -56,7 +56,7 @@ main iframe[hidden] { display:none; }
 <aside class="side">
   <div class="brand"><span class="mark"><svg class="i"><use href="#i-box"/></svg></span><span class="lbl">Procurement Platform</span></div>
   <div class="mode" role="group" aria-label="Dashboard"><a href="index.html" data-dash="team" aria-current="false" title="Team workspace"><svg class="i"><use href="#i-users"/></svg><span class="lbl">Team</span></a><a href="presentation.html" data-dash="present" aria-current="true" title="Presentation"><svg class="i"><use href="#i-screen"/></svg><span class="lbl">Present</span></a></div>
-  <nav aria-label="Pages"><a href="#status" data-id="status" title="What is built, agent by agent" style="--c:var(--blue)"><span class="ic"><svg class="i"><use href="#i-flow"/></svg></span><span class="lbl">Project status</span></a><a href="#risk" data-id="risk" title="Scorecard, clearance, red team, evaluation" style="--c:var(--pink)"><span class="ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="lbl">Vendor risk</span></a><a href="#slides" data-id="slides" title="The final-review deck, slide by slide" style="--c:var(--purple)"><span class="ic"><svg class="i"><use href="#i-screen"/></svg></span><span class="lbl">Slides</span></a></nav>
+  <nav aria-label="Pages"><a href="#status" data-id="status" title="What is built, agent by agent" style="--c:var(--blue)"><span class="ic"><svg class="i"><use href="#i-flow"/></svg></span><span class="lbl">Project status</span></a><a href="#risk" data-id="risk" title="Scorecard, clearance, red team, evaluation" style="--c:var(--pink)"><span class="ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="lbl">Vendor risk</span></a><a href="#slides" data-id="slides" title="The final-review deck; press F to present" style="--c:var(--purple)"><span class="ic"><svg class="i"><use href="#i-screen"/></svg></span><span class="lbl">Slides</span></a></nav>
   <div class="foot">
     <button class="btn" type="button" id="theme" aria-label="Switch light or dark theme" title="Light or dark"><svg class="i"><use href="#i-moon"/></svg></button>
     <button class="btn" type="button" id="slim" aria-label="Collapse the sidebar" title="Collapse the sidebar"><svg class="i"><use href="#i-side"/></svg></button>
@@ -654,95 +654,1195 @@ python tests/e2e/demo_scenarios.py 6                    # the red-team demo scen
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Slides</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600&display=swap" rel="stylesheet">
 <style>
-:root { --bg:#f4f6f9; --panel:#fff; --ink:#172033; --muted:#5d6879; --line:#e1e6ee;
-  --blue:#2563c9; --orange:#d9730d; --green:#1d8a4a; --purple:#7a3fa3; --pink:#d1336b; --navy:#14213d; }
-:root[data-theme="dark"] { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#252e3a;
-  --blue:#7aa7f2; --orange:#f2a250; --green:#4cc27f; --purple:#b98ae0; --pink:#f07aa0; --navy:#0b1426; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1218; --panel:#161c24; --ink:#e6ebf1; --muted:#9aa5b4; --line:#252e3a;
-  --blue:#7aa7f2; --orange:#f2a250; --green:#4cc27f; --purple:#b98ae0; --pink:#f07aa0; --navy:#0b1426; } }
+/* The final-review deck. Slides are a fixed 1920x1080 canvas scaled to the
+   frame; keys: arrows / space move, F full screen, N notes, G all slides.
+   Slides 4 and 5 hold the architecture SVGs between <!-- arch:N --> markers,
+   refreshed by docs/assets/make_architecture_carousel.py. */
+:root { --bg:#e9ece6; --panel:#fff; --chrome:#172033; --chrome2:#5d6879; --line:#d5dad2;
+  --navy:#14213d; --paper:#f5f6f2; --sheet:#fbfbf8; --ink:#14213d; --ink2:#3f4a5a; --ink3:#5d6670; --rule:#dadfd6;
+  --blue:#1f4b8f; --orange:#c2410c; --green:#15803d; --amber:#a16207;
+  --doc:#c2410c; --appr:#1d4ed8; --ctr:#be185d; --notif:#15803d; --auth:#6d28d9; --chat:#0f766e;
+  --serif:'Source Serif 4', Georgia, serif; --sans:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, Menlo, monospace; }
+:root[data-theme="dark"] { --bg:#0b0f15; --panel:#161c24; --chrome:#e6ebf1; --chrome2:#9aa5b4; --line:#252e3a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0b0f15; --panel:#161c24; --chrome:#e6ebf1; --chrome2:#9aa5b4; --line:#252e3a; } }
 * { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-.page { max-width:1180px; margin:0 auto; padding:28px 16px 56px; }
-svg.i { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
-h1 { margin:0; font-size:24px; }
-.open { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:10px; font-weight:600; color:#fff;
-  background:linear-gradient(120deg, var(--blue), var(--purple)); text-decoration:none; }
-.part { --c:var(--blue); margin-top:26px; }
-.part h2 { display:flex; align-items:center; gap:10px; font-size:15px; margin:0 0 12px; }
-.part h2 .n { width:26px; height:26px; border-radius:8px; display:grid; place-items:center; font-size:13px; color:var(--panel); background:var(--c); }
-.grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; }
-.slide { margin:0; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-.thumb { aspect-ratio:16 / 9; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; padding:12px 14px; position:relative;
-  background:color-mix(in srgb, var(--c) 10%, var(--panel)); border-bottom:3px solid var(--c); color:var(--c); }
-.thumb img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top left; }
-.thumb img.fit { object-fit:contain; object-position:center; background:#fff; padding:6px; }
-.thumb.dark { background:var(--navy); color:#f5f6f2; border-bottom-color:var(--navy); }
-.thumb .k { font-size:11.5px; font-weight:700; letter-spacing:.04em; opacity:.85; }
-.thumb .big { font-size:26px; font-weight:700; line-height:1.1; }
-.thumb svg.i { width:30px; height:30px; position:absolute; top:12px; left:14px; }
-.slide figcaption { display:flex; gap:8px; padding:9px 12px 11px; font-size:13px; }
-.slide figcaption b { color:var(--c); }
-@media (max-width:900px) { .grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
-@media (max-width:520px) { .grid { grid-template-columns:1fr; } }
+html, body { height:100%; margin:0; }
+body { display:flex; flex-direction:column; background:var(--bg); color:var(--chrome); font:14px/1.45 var(--sans); overflow:hidden; }
+.ic { width:1em; height:1em; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+
+/* ---------- chrome ---------- */
+.viewport { flex:1; position:relative; min-height:0; overflow:hidden; }
+.stage { position:absolute; left:50%; top:50%; width:1920px; height:1080px; transform-origin:center; background:var(--paper);
+  box-shadow:0 2px 24px rgb(0 0 0 / .16); }
+.notes-panel { height:150px; overflow:auto; padding:12px 18px; border-top:1px solid var(--line); background:var(--panel); font-size:15px; line-height:1.55; }
+.notes-panel b { display:block; font-size:12.5px; color:var(--chrome2); font-weight:600; margin-bottom:2px; }
+.bar { display:flex; align-items:center; gap:6px; padding:8px 12px; border-top:1px solid var(--line); background:var(--panel); position:relative; }
+.bar button { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; min-width:36px; padding:0 10px; border-radius:9px;
+  border:1px solid var(--line); background:var(--panel); color:var(--chrome); font:600 13px var(--sans); cursor:pointer; }
+.bar button:hover:not(:disabled) { border-color:var(--chrome2); }
+.bar button:disabled { opacity:.4; cursor:default; }
+.bar button[aria-pressed="true"] { background:var(--chrome); color:var(--panel); border-color:var(--chrome); }
+.bar .ic { width:18px; height:18px; }
+.count { font:600 13px var(--sans); min-width:58px; text-align:center; font-variant-numeric:tabular-nums; }
+.now { flex:1; min-width:0; color:var(--chrome2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; }
+.keys { color:var(--chrome2); font-size:12.5px; white-space:nowrap; }
+.progress { position:absolute; left:0; top:-1px; height:3px; background:var(--blue); transition:width .3s; }
+@media (max-width:720px) { .keys, .bar .lbl { display:none; } .notes-panel { height:120px; } }
+body.fs .bar, body.fs .notes-panel { position:fixed; left:0; right:0; z-index:5; opacity:0; transition:opacity .25s; }
+body.fs .bar { bottom:0; } body.fs .notes-panel { bottom:53px; }
+body.fs.awake .bar, body.fs.awake .notes-panel:not([hidden]) { opacity:1; }
+body.fs .viewport { background:#000; } body.fs .stage { box-shadow:none; }
+
+.overview { position:fixed; inset:0; z-index:10; background:var(--bg); overflow:auto; padding:20px 16px 40px; }
+.overview header { display:flex; align-items:center; justify-content:space-between; max-width:1400px; margin:0 auto 14px; }
+.overview h1 { font:600 18px var(--sans); margin:0; }
+.overview .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; max-width:1400px; margin:0 auto; }
+.thumb { all:unset; cursor:pointer; display:flex; flex-direction:column; gap:6px; }
+.thumb .frame { position:relative; aspect-ratio:16 / 9; overflow:hidden; border-radius:8px; border:1px solid var(--line); background:var(--paper); }
+.thumb[aria-current="true"] .frame { outline:3px solid var(--blue); outline-offset:2px; }
+.thumb .frame > div { position:absolute; left:0; top:0; width:1920px; height:1080px; transform-origin:0 0; pointer-events:none; }
+.thumb span { font-size:13px; color:var(--chrome2); }
+.thumb span b { color:var(--chrome); margin-right:6px; }
+.overview button.close { height:36px; padding:0 12px; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--chrome); font:600 13px var(--sans); cursor:pointer; }
+
+/* ---------- slides ---------- */
+.slide { position:absolute; inset:0; padding:88px 120px 120px; background:var(--paper); color:var(--ink); font-family:var(--sans);
+  opacity:0; visibility:hidden; transition:opacity .35s ease, visibility .35s; overflow:hidden; }
+.slide.on, .thumb .slide { opacity:1; visibility:visible; transition:none; }
+.slide .notes { display:none; }
+.slide.dark { background:var(--navy); color:#f5f6f2; }
+.slide.blue { background:var(--blue); color:#f5f6f2; }
+.kicker { margin:0 0 12px; font-size:26px; font-weight:600; color:var(--blue); }
+.dark .kicker, .blue .kicker { color:#9db4d8; }
+.slide h2 { margin:0; font:600 64px/1.08 var(--serif); letter-spacing:-.005em; }
+.slide h1 { margin:0; font:600 120px/1.0 var(--serif); letter-spacing:-.01em; }
+.body { position:absolute; left:120px; right:120px; top:270px; bottom:120px; }
+.foot { position:absolute; left:120px; right:120px; bottom:44px; display:flex; justify-content:space-between; font-size:22px; color:var(--ink3); }
+.dark .foot, .blue .foot { color:#9db4d8; }
+.lead { font-size:30px; line-height:1.4; color:var(--ink2); margin:0; }
+.t24 { font-size:24px; line-height:1.4; color:var(--ink2); margin:0; }
+.disc { display:grid; place-items:center; border-radius:50%; background:color-mix(in srgb, var(--c, var(--blue)) 13%, transparent); color:var(--c, var(--blue)); flex:none; }
+.band { position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:22px; padding:26px 34px; border-radius:16px; background:var(--sheet); border:1px solid var(--rule); font-size:30px; }
+.band .ic { width:44px; height:44px; color:var(--blue); }
+.shot { display:block; border:1px solid var(--rule); border-radius:12px; background:#fff; box-shadow:0 10px 30px rgb(20 33 61 / .10); object-fit:contain; }
+.split { display:grid; grid-template-columns:600px 1fr; gap:64px; align-items:start; height:100%; }
+.split .shot { justify-self:end; }
+.pill { display:inline-flex; align-items:center; gap:12px; padding:10px 22px; border-radius:999px; font-size:26px; font-weight:600; background:color-mix(in srgb, var(--c) 12%, transparent); color:var(--c); }
+.pill .ic { width:28px; height:28px; }
+.rows { display:flex; flex-direction:column; gap:30px; }
+.row { display:flex; align-items:center; gap:24px; font-size:30px; line-height:1.3; }
+.row .disc { width:76px; height:76px; } .row .disc .ic { width:38px; height:38px; }
+.row small { display:block; font-size:24px; color:var(--ink2); }
+svg.draw text { font-family:var(--sans); }
+svg.draw .u { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+/* cover */
+.cover-team { position:absolute; left:120px; bottom:96px; font-size:32px; }
+.cover-team small { display:block; font-size:24px; color:#9db4d8; margin-top:6px; }
+/* problem */
+.chain { display:flex; align-items:stretch; }
+.tile { width:360px; display:flex; flex-direction:column; gap:22px; padding:40px 34px; background:var(--sheet); border:1px solid var(--rule); border-radius:18px; }
+.tile .disc { width:120px; height:120px; } .tile .disc .ic { width:58px; height:58px; }
+.tile b { font-size:42px; line-height:1.1; }
+.tile p { margin:0; font-size:26px; line-height:1.4; color:var(--ink2); }
+.chev { width:76px; display:grid; place-items:center; color:#b7beb2; } .chev .ic { width:44px; height:44px; }
+/* architecture */
+.arch-slide { padding-top:64px; }
+.arch-slide h2 { font-size:56px; }
+.arch-slide .kicker { margin-bottom:6px; }
+.arch-body { position:absolute; left:120px; right:120px; top:206px; bottom:150px; }
+.arch-body svg.arch { width:100%; height:100%; display:block; }
+.arch-cap { position:absolute; left:120px; right:120px; bottom:32px; height:100px; display:flex; align-items:center; padding:0 28px; border-radius:14px;
+  background:var(--sheet); border:1px solid var(--rule); font-size:24px; line-height:1.4; color:var(--ink2); }
+.arch-cap > span { display:block; }
+.arch-cap b { color:var(--ink); }
+.arch-slide .foot { display:none; }
+/* results */
+.nums { display:grid; grid-template-columns:repeat(3, 1fr); gap:56px 64px; }
+.num { display:flex; flex-direction:column; gap:10px; }
+.num .ic { width:44px; height:44px; color:#9db4d8; }
+.num strong { font:600 104px/1 var(--serif); }
+.num span { font-size:27px; line-height:1.35; color:#d5ddea; }
+/* stack */
+.stack { display:flex; flex-direction:column; gap:20px; }
+.layer { display:grid; grid-template-columns:330px 1fr; align-items:center; gap:24px; padding-bottom:20px; border-bottom:1px solid var(--rule); }
+.layer:last-child { border-bottom:0; }
+.layer > b { display:flex; align-items:center; gap:18px; font-size:30px; }
+.layer > b .disc { width:64px; height:64px; } .layer > b .disc .ic { width:32px; height:32px; }
+.chips { display:flex; flex-wrap:wrap; gap:12px; }
+.chips span { padding:8px 20px; border-radius:999px; background:var(--sheet); border:1px solid var(--rule); font-size:26px; }
+/* two columns */
+.cols { display:grid; grid-template-columns:1fr 1fr; gap:96px; }
+.cols h3 { margin:0 0 34px; font:600 44px/1.1 var(--serif); }
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-  <symbol id="screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
-  <symbol id="alert" viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5h.01"/></symbol>
-  <symbol id="bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
-  <symbol id="layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
-  <symbol id="play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z"/></symbol>
-  <symbol id="rocket" viewBox="0 0 24 24"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M9 15l-3-3 4-6c3-4 8-4 11-4 0 3 0 8-4 11l-6 4z"/><circle cx="15" cy="9" r="1.5"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-approve" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-contract" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8 17c1.5-2.5 2.5-2.5 3 0s1.5 1 3-1"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-folder-ok" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 13l2 2 4-4"/></symbol>
+  <symbol id="i-folder-x" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M10 11l4 4M14 11l-4 4"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5h.01"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 4H7a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-1"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M7 12h10"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-notes" viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
 </defs></svg>
 
-<div class="page">
-  <header>
-    <h1>Final review deck</h1>
-    <a class="open" href="https://claude.ai/artifact/8nH3XPvkRpejh6Cq1xDeSW" target="_blank" rel="noopener"><svg class="i"><use href="#screen"/></svg>Open the deck</a>
-  </header>
+<div class="viewport" id="viewport"><div class="stage" id="stage">
 
-  <section class="part" style="--c:var(--blue)">
-    <h2><span class="n">1</span>The problem and the solution</h2>
-    <div class="grid">
-      <figure class="slide"><div class="thumb dark"><span class="k">FINAL PROJECT REVIEW</span><span class="big">Agentic AI Procurement</span></div><figcaption><b>1</b>Cover</figcaption></figure>
-      <figure class="slide"><div class="thumb"><svg class="i"><use href="#alert"/></svg><span class="big">Manual hand-offs</span></div><figcaption><b>2</b>The business problem</figcaption></figure>
-      <figure class="slide"><div class="thumb"><svg class="i"><use href="#bulb"/></svg><span class="big">Five agents</span></div><figcaption><b>3</b>Proposed solution</figcaption></figure>
-    </div>
-  </section>
+<!-- 1 -->
+<section class="slide dark" data-title="Cover">
+  <p class="kicker">Fractal Analytics · final project review 2026–27</p>
+  <h1 style="margin-top:110px">Agentic AI<br>Procurement</h1>
+  <p class="lead" style="color:#c9d3e3;width:760px;margin-top:44px;font-size:36px">From a vendor’s quote to a signed contract and a matched invoice.</p>
+  <div class="cover-team">Anjali · Vaidehi · Niraj · Anooj<small>IT Procurement Intelligence Platform</small></div>
+  <svg class="draw" viewBox="0 0 760 760" style="position:absolute;right:110px;top:150px;width:760px;height:760px" aria-label="Five agents around a shared event stream">
+    <g stroke="#41557c" stroke-width="2" stroke-dasharray="6 8" fill="none">
+      <path d="M380 380L380 110M380 380L637 297M380 380L539 598M380 380L221 598M380 380L123 297"/>
+      <circle cx="380" cy="380" r="270"/>
+    </g>
+    <circle cx="380" cy="380" r="108" fill="#1f3157" stroke="#9db4d8" stroke-width="2"/>
+    <use href="#i-zap" class="u" x="346" y="318" width="68" height="68" style="color:#f5f6f2"/>
+    <text x="380" y="428" fill="#c9d3e3" font-size="24" text-anchor="middle">events</text>
+    <g font-size="25" font-weight="600" fill="#f5f6f2" text-anchor="middle">
+      <circle cx="380" cy="110" r="68" fill="#14213d" stroke="#fb923c" stroke-width="3"/><use href="#i-doc" class="u" x="352" y="82" width="56" height="56" style="color:#fb923c"/><text x="380" y="214">Document</text>
+      <circle cx="637" cy="297" r="68" fill="#14213d" stroke="#7aa7f2" stroke-width="3"/><use href="#i-approve" class="u" x="609" y="269" width="56" height="56" style="color:#7aa7f2"/><text x="637" y="401">Approval</text>
+      <circle cx="539" cy="598" r="68" fill="#14213d" stroke="#f472b6" stroke-width="3"/><use href="#i-contract" class="u" x="511" y="570" width="56" height="56" style="color:#f472b6"/><text x="539" y="702">Contract</text>
+      <circle cx="221" cy="598" r="68" fill="#14213d" stroke="#4ade80" stroke-width="3"/><use href="#i-bell" class="u" x="193" y="570" width="56" height="56" style="color:#4ade80"/><text x="221" y="702">Notification</text>
+      <circle cx="123" cy="297" r="68" fill="#14213d" stroke="#b794f6" stroke-width="3"/><use href="#i-key" class="u" x="95" y="269" width="56" height="56" style="color:#b794f6"/><text x="123" y="401">Auth</text>
+    </g>
+  </svg>
+  <aside class="notes">Introduce the team and the one-line idea: buying IT for a company, automated end to end. AI reads the documents; people approve, sign and review what the system is unsure about.</aside>
+</section>
 
-  <section class="part" style="--c:var(--purple)">
-    <h2><span class="n">2</span>How it is built</h2>
-    <div class="grid">
-      <figure class="slide"><div class="thumb"><img class="fit" src="assets/architecture.png" alt="System architecture diagram"></div><figcaption><b>4</b>System architecture</figcaption></figure>
-      <figure class="slide"><div class="thumb"><img class="fit" src="assets/functional-flow.png" alt="Functional flow diagram"></div><figcaption><b>5</b>Functional flow: five stages</figcaption></figure>
+<!-- 2 -->
+<section class="slide" data-title="The business problem">
+  <p class="kicker">The problem</p>
+  <h2>Procurement runs on manual hand-offs</h2>
+  <div class="body">
+    <div class="chain">
+      <div class="tile"><span class="disc"><svg class="ic"><use href="#i-keyboard"/></svg></span><b>Retyping</b><p>Quotes and invoices keyed in by hand</p></div>
+      <div class="chev"><svg class="ic"><use href="#i-chevron"/></svg></div>
+      <div class="tile"><span class="disc"><svg class="ic"><use href="#i-mail"/></svg></span><b>Chasing</b><p>Approvals over email, no record of who may approve</p></div>
+      <div class="chev"><svg class="ic"><use href="#i-chevron"/></svg></div>
+      <div class="tile"><span class="disc"><svg class="ic"><use href="#i-folder"/></svg></span><b>Losing</b><p>Contracts saved somewhere on a shared drive</p></div>
+      <div class="chev"><svg class="ic"><use href="#i-chevron"/></svg></div>
+      <div class="tile" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-alert"/></svg></span><b style="color:var(--orange)">Missing risk</b><p>Fake invoices, changed bank details, sanctioned vendors</p></div>
     </div>
-  </section>
+    <div class="band"><svg class="ic"><use href="#i-eye-off"/></svg>No one can see where a document or contract is without opening five tools.</div>
+  </div>
+  <aside class="notes">Walk through the existing process: retyping, chasing approvers, contracts lost on drives, invoices matched by eye. The risky cases are exactly the ones nobody has time to check.</aside>
+</section>
 
-  <section class="part" style="--c:var(--orange)">
-    <h2><span class="n">3</span>The workflow, checklist item by item</h2>
-    <div class="grid">
-      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/02-documents.png" alt="Control Panel documents"></div><figcaption><b>6</b>Input, Processed, Failed</figcaption></figure>
-      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/06-extraction.png" alt="Extracted fields with confidence"></div><figcaption><b>7</b>Every field and its confidence</figcaption></figure>
-      <figure class="slide"><div class="thumb"><img src="showcase/approval/01-approval-queue.png" alt="Approval queue"></div><figcaption><b>8</b>Approval notifications</figcaption></figure>
-      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/04-templates.png" alt="Template editor"></div><figcaption><b>9</b>Editable email templates</figcaption></figure>
-      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/05-esignatures.png" alt="Contracts and e-signatures"></div><figcaption><b>10</b>Approval to signed PDF</figcaption></figure>
-      <figure class="slide"><div class="thumb"><img src="showcase/cpanel/01-overview.png" alt="Control Panel overview"></div><figcaption><b>11</b>Control Panel</figcaption></figure>
+<!-- 3 -->
+<section class="slide" data-title="Proposed solution">
+  <p class="kicker">Proposed solution</p>
+  <h2>Five agents, connected by events</h2>
+  <div class="body" style="display:grid;grid-template-columns:1040px 1fr;gap:72px">
+    <svg class="draw" viewBox="0 0 1040 660" style="width:1040px;height:660px" aria-label="Notification above and Auth below three agents in a row: Document, Approval, Contract">
+      <g stroke="#9aa3ad" stroke-width="2.2" stroke-dasharray="5 7" fill="none">
+        <path d="M140 116V232M520 116V232M900 116V232M140 446V546M520 446V546M900 446V546"/>
+      </g>
+      <rect x="0" y="0" width="1040" height="116" rx="18" fill="#e6f2ea" stroke="#15803d" stroke-width="2"/>
+      <use href="#i-bell" class="u" x="34" y="30" width="56" height="56" style="color:#15803d"/>
+      <text x="112" y="56" font-size="32" font-weight="600" fill="#14213d">Notification</text>
+      <text x="112" y="92" font-size="24" fill="#3f4a5a">emails whoever must act next, at every step</text>
+      <g font-size="24" fill="#3f4a5a">
+        <rect x="0" y="232" width="280" height="214" rx="18" fill="#fbfbf8" stroke="#dadfd6" stroke-width="2"/><rect x="0" y="232" width="280" height="10" rx="5" fill="#c2410c"/>
+        <circle cx="62" cy="304" r="38" fill="#c2410c" fill-opacity=".12"/><use href="#i-doc" class="u" x="40" y="282" width="44" height="44" style="color:#c2410c"/>
+        <text x="28" y="384" font-size="32" font-weight="600" fill="#14213d">Document</text><text x="28" y="420">reads every document</text>
+        <rect x="380" y="232" width="280" height="214" rx="18" fill="#fbfbf8" stroke="#dadfd6" stroke-width="2"/><rect x="380" y="232" width="280" height="10" rx="5" fill="#1d4ed8"/>
+        <circle cx="442" cy="304" r="38" fill="#1d4ed8" fill-opacity=".12"/><use href="#i-approve" class="u" x="420" y="282" width="44" height="44" style="color:#1d4ed8"/>
+        <text x="408" y="384" font-size="32" font-weight="600" fill="#14213d">Approval</text><text x="408" y="420">routes by amount</text>
+        <rect x="760" y="232" width="280" height="214" rx="18" fill="#fbfbf8" stroke="#dadfd6" stroke-width="2"/><rect x="760" y="232" width="280" height="10" rx="5" fill="#be185d"/>
+        <circle cx="822" cy="304" r="38" fill="#be185d" fill-opacity=".12"/><use href="#i-contract" class="u" x="800" y="282" width="44" height="44" style="color:#be185d"/>
+        <text x="788" y="384" font-size="32" font-weight="600" fill="#14213d">Contract</text><text x="788" y="420">writes, signs, checks</text>
+      </g>
+      <g stroke="#3f4a5a" stroke-width="3" fill="#3f4a5a">
+        <path d="M290 340H364" fill="none"/><polygon points="370,340 356,331 356,349"/>
+        <path d="M670 340H744" fill="none"/><polygon points="750,340 736,331 736,349"/>
+      </g>
+      <text x="330" y="318" font-size="22" fill="#5d6670" text-anchor="middle">quote</text>
+      <text x="710" y="318" font-size="22" fill="#5d6670" text-anchor="middle">approved</text>
+      <rect x="0" y="546" width="1040" height="114" rx="18" fill="#efeafb" stroke="#6d28d9" stroke-width="2"/>
+      <use href="#i-key" class="u" x="34" y="575" width="56" height="56" style="color:#6d28d9"/>
+      <text x="112" y="600" font-size="32" font-weight="600" fill="#14213d">Auth</text>
+      <text x="112" y="636" font-size="24" fill="#3f4a5a">logins, roles and the business rules every agent reads</text>
+    </svg>
+    <div style="display:flex;flex-direction:column;gap:34px;padding-top:6px">
+      <p style="margin:0;font:600 40px/1.15 var(--serif)">People only decide</p>
+      <div class="rows">
+        <div class="row" style="--c:var(--appr)"><span class="disc"><svg class="ic"><use href="#i-approve"/></svg></span>Approve</div>
+        <div class="row" style="--c:var(--ctr)"><span class="disc"><svg class="ic"><use href="#i-pen"/></svg></span>Sign</div>
+        <div class="row" style="--c:var(--doc)"><span class="disc"><svg class="ic"><use href="#i-eye"/></svg></span>Review what the AI is unsure of</div>
+      </div>
+      <p class="t24" style="margin-top:auto">Everything else flows, and every step is audited. A sixth service, the assistant, answers questions.</p>
     </div>
-  </section>
+  </div>
+  <aside class="notes">One agent per part of procurement. They hand work to each other through Kafka events written in the same transaction as the change, so nothing is lost if a service restarts. Mention the assistant (Anooj) as the sixth service.</aside>
+</section>
 
-  <section class="part" style="--c:var(--green)">
-    <h2><span class="n">4</span>Stack, results, demo, next steps</h2>
-    <div class="grid">
-      <figure class="slide"><div class="thumb"><svg class="i"><use href="#layers"/></svg><span class="big">Open-source stack</span></div><figcaption><b>12</b>Technology stack</figcaption></figure>
-      <figure class="slide"><div class="thumb dark" style="background:#1f4b8f"><span class="k">RESULTS</span><span class="big">1,276 tests · 71/71</span></div><figcaption><b>13</b>Results</figcaption></figure>
-      <figure class="slide"><div class="thumb"><svg class="i"><use href="#play"/></svg><span class="big">Live demo</span></div><figcaption><b>14</b>One quote, end to end</figcaption></figure>
-      <figure class="slide"><div class="thumb"><svg class="i"><use href="#rocket"/></svg><span class="big">Limits · next</span></div><figcaption><b>15</b>Limitations and next steps</figcaption></figure>
-      <figure class="slide"><div class="thumb dark"><span class="big">Thank you</span></div><figcaption><b>16</b>Questions</figcaption></figure>
+<!-- 4 -->
+<section class="slide arch-slide" data-title="System architecture 1 of 2">
+  <p class="kicker">System architecture · 1 of 2</p>
+  <h2>From the browser to the agents</h2>
+  <div class="arch-cap"><span>Click any box to see what it connects to.</span></div>
+  <div class="arch-body">
+<!-- arch:1 -->
+<svg xmlns="http://www.w3.org/2000/svg" class="arch" id="arch-1" viewBox="0 0 1440 780" role="group" aria-label="System architecture, part 1: the browser and the e-sign callback reach the nginx gateway, which routes to six agents; the drop folder and mailbox feed the document agent">
+<style>.arch{--ink:var(--arch-ink,#14213d);--ink2:var(--arch-ink2,#3f4a5a);--ink3:var(--arch-ink3,#5d6670);
+--sheet:var(--arch-sheet,#ffffff);--paper:var(--arch-paper,#f4f5f1);--rule:var(--arch-rule,#d5dad2);
+--gate:var(--arch-gate,#14213d);--ongate:var(--arch-ongate,#f5f6f2);--ongate2:var(--arch-ongate2,#c9d3e3);
+font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+.arch .c-doc{--c:var(--arch-doc,#c2410c)}.arch .c-appr{--c:var(--arch-appr,#1d4ed8)}
+.arch .c-ctr{--c:var(--arch-ctr,#be185d)}.arch .c-notif{--c:var(--arch-notif,#15803d)}
+.arch .c-auth{--c:var(--arch-auth,#6d28d9)}.arch .c-chat{--c:var(--arch-chat,#0f766e)}
+.arch .c-infra{--c:var(--ink)}
+.arch text{fill:var(--ink)}.arch .t2{fill:var(--ink2)}.arch .t3{fill:var(--ink3)}.arch .tc{fill:var(--c)}
+.arch .b{font-weight:600}.arch .mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace}
+.arch .box{fill:var(--sheet);stroke:var(--rule);stroke-width:1.5}
+.arch .soft{fill:var(--paper);stroke:var(--rule);stroke-width:1.5}
+.arch .ext{fill:var(--sheet);stroke:var(--ink3);stroke-width:1.5;stroke-dasharray:6 5}
+.arch .band{fill:var(--c)}.arch .tint{fill:var(--c);fill-opacity:.12}
+.arch .gate{fill:var(--gate)}.arch .gate-t{fill:var(--ongate)}.arch .gate-t2{fill:var(--ongate2)}
+.arch .ico{fill:none;stroke:var(--c);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.arch .ico-l{fill:none;stroke:var(--ongate);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.arch .ai{fill:var(--c)}.arch .ai-t{fill:var(--sheet);font-weight:700}
+.arch .edge{fill:none;stroke:var(--ink3);stroke-width:2.2}
+.arch .edge-head{fill:var(--ink3)}
+.arch .node{cursor:pointer;outline:none}
+.arch .node:focus-visible .box,.arch .node:focus-visible .soft,.arch .node:focus-visible .ext{stroke:var(--c);stroke-width:3}
+.arch [data-links]{transition:opacity .2s}
+.arch.focus [data-links]:not(.on){opacity:.16}
+.arch .node.on .box,.arch .node.on .soft,.arch .node.on .ext{stroke:var(--c);stroke-width:3}
+.arch .edge-g.on .edge{stroke:var(--ink);stroke-width:3}.arch .edge-g.on .edge-head{fill:var(--ink)}</style>
+<g class="edge-g" data-links="browser gateway">
+<path class="edge" d="M580,104 V172"/>
+<polygon class="edge-head" points="572,162 588,162 580,174"/>
+<text x="594" y="146" font-size="17" class="t2">HTTPS + login token (JWT)</text>
+</g>
+<g class="edge-g" data-links="esign gateway">
+<path class="edge" d="M1130,104 V172"/>
+<polygon class="edge-head" points="1122,162 1138,162 1130,174"/>
+<text x="1144" y="146" font-size="17" class="t2">signed callback</text>
+</g>
+<g class="edge-g" data-links="doc gateway">
+<path class="edge" d="M111,268 V356"/>
+<polygon class="edge-head" points="103,346 119,346 111,358"/>
+<text x="121" y="322" font-size="17" class="t2">/api/documents</text>
+</g>
+<g class="edge-g" data-links="appr gateway">
+<path class="edge" d="M354,268 V356"/>
+<polygon class="edge-head" points="346,346 362,346 354,358"/>
+<text x="364" y="322" font-size="17" class="t2">/api/requests</text>
+</g>
+<g class="edge-g" data-links="ctr esign gateway">
+<path class="edge" d="M597,268 V356"/>
+<polygon class="edge-head" points="589,346 605,346 597,358"/>
+<text x="607" y="322" font-size="17" class="t2">/api/contracts</text>
+</g>
+<g class="edge-g" data-links="gateway notif">
+<path class="edge" d="M840,268 V356"/>
+<polygon class="edge-head" points="832,346 848,346 840,358"/>
+<text x="850" y="322" font-size="17" class="t2">/api/notifications</text>
+</g>
+<g class="edge-g" data-links="auth gateway">
+<path class="edge" d="M1083,268 V356"/>
+<polygon class="edge-head" points="1075,346 1091,346 1083,358"/>
+<text x="1093" y="322" font-size="17" class="t2">/api/auth</text>
+</g>
+<g class="edge-g" data-links="chat gateway">
+<path class="edge" d="M1326,268 V356"/>
+<polygon class="edge-head" points="1318,346 1334,346 1326,358"/>
+<text x="1336" y="322" font-size="17" class="t2">/api/chat</text>
+</g>
+<g class="edge-g" data-links="doc inputs">
+<path class="edge" d="M111,700 V644"/>
+<polygon class="edge-head" points="103,654 119,654 111,642"/>
+<text x="123" y="678" font-size="17" class="t2">files, mail</text>
+</g>
+<g class="node c-infra" data-id="browser" data-links="gateway" data-name="Web app" data-info="the React app in the browser: one page per item, navigation by role (requester, approver, finance, admin), the admin Control Panel." tabindex="0" role="button" aria-label="Web app: the React app in the browser: one page per item, navigation by role (requester, approver, finance, admin), the admin Control Panel.">
+<rect class="box" x="300" y="0" width="560" height="104" rx="14"/>
+<g class="ico" transform="translate(326 30) scale(1.83333)"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></g>
+<text x="392" y="46" font-size="26" class="b">Web app</text>
+<text x="392" y="78" font-size="18" class="t2">React · requester, approver, finance, admin</text>
+</g>
+<g class="node c-infra" data-id="esign" data-links="ctr gateway" data-name="E-sign callback" data-info="an outside e-signature provider reports a signature; the request is HMAC-signed and replay-protected, and reaches Contract &amp; Risk through the gateway." tabindex="0" role="button" aria-label="E-sign callback: an outside e-signature provider reports a signature; the request is HMAC-signed and replay-protected, and reaches Contract &amp; Risk through the gateway.">
+<rect class="box" x="940" y="0" width="380" height="104" rx="14"/>
+<g class="ico" transform="translate(966 30) scale(1.83333)"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></g>
+<text x="1032" y="46" font-size="26" class="b">E-sign callback</text>
+<text x="1032" y="78" font-size="18" class="t2">signed webhook (HMAC)</text>
+</g>
+<g class="node c-infra" data-id="gateway" data-links="appr auth browser chat ctr doc esign notif" data-name="nginx gateway" data-info="the only public port (8080): serves the app, sends /api/&lt;prefix&gt; to the agent that owns it, rate-limits logins, adds security headers, caps uploads at 25 MB." tabindex="0" role="button" aria-label="nginx gateway: the only public port (8080): serves the app, sends /api/&lt;prefix&gt; to the agent that owns it, rate-limits logins, adds security headers, caps uploads at 25 MB.">
+<rect class="gate" x="0" y="176" width="1440" height="92" rx="14"/>
+<g class="ico-l" transform="translate(28 200) scale(1.83333)"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></g>
+<text x="92" y="216" font-size="26" class="b gate-t">nginx gateway · :8080</text>
+<text x="92" y="248" font-size="18" class="gate-t2">the only public port · serves the app · rate limits · security headers · 25 MB upload cap</text>
+</g>
+<g class="node c-doc" data-id="doc" data-links="gateway inputs" data-name="Document &amp; Vendor" data-info="takes documents in, virus-scans and reads them (OCR, classifier, LayoutLMv3), extracts and checks the fields, matches the vendor." tabindex="0" role="button" aria-label="Document &amp; Vendor: takes documents in, virus-scans and reads them (OCR, classifier, LayoutLMv3), extracts and checks the fields, matches the vendor.">
+<rect class="box" x="0" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M0,370 V374 a14,14 0 0 1 14,-14 H209 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="44" cy="412" r="28"/>
+<g class="ico" transform="translate(28 396) scale(1.33333)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></g>
+<rect class="ai" x="163" y="398" width="42" height="28" rx="8"/>
+<text x="184" y="418" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="20" y="484" font-size="24" class="b">Document</text>
+<text x="20" y="514" font-size="24" class="b">&amp; Vendor</text>
+<text x="20" y="546" font-size="18" class="b tc">:8001 + worker</text>
+<line x1="20" y1="564" x2="203" y2="564" stroke="var(--rule)"/>
+<text x="20" y="594" font-size="18" class="t2">Reads documents</text>
+<text x="20" y="622" font-size="18" class="t2">Checks vendors</text>
+</g>
+<g class="node c-appr" data-id="appr" data-links="gateway" data-name="Approval &amp; Inventory" data-info="turns a quote into a purchase request, routes it by amount, enforces who may approve, keeps budgets, stock, licences (anomaly model) and the invoice ledger." tabindex="0" role="button" aria-label="Approval &amp; Inventory: turns a quote into a purchase request, routes it by amount, enforces who may approve, keeps budgets, stock, licences (anomaly model) and the invoice ledger.">
+<rect class="box" x="243" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M243,370 V374 a14,14 0 0 1 14,-14 H452 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="287" cy="412" r="28"/>
+<g class="ico" transform="translate(271 396) scale(1.33333)"><circle cx="12" cy="12" r="9"/><path d="M8.5 12l2.5 2.5 4.5-5"/></g>
+<rect class="ai" x="406" y="398" width="42" height="28" rx="8"/>
+<text x="427" y="418" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="263" y="484" font-size="24" class="b">Approval</text>
+<text x="263" y="514" font-size="24" class="b">&amp; Inventory</text>
+<text x="263" y="546" font-size="18" class="b tc">:8002 + worker</text>
+<line x1="263" y1="564" x2="446" y2="564" stroke="var(--rule)"/>
+<text x="263" y="594" font-size="18" class="t2">Approvals, budgets</text>
+<text x="263" y="622" font-size="18" class="t2">Stock, licences</text>
+</g>
+<g class="node c-ctr" data-id="ctr" data-links="esign gateway" data-name="Contract &amp; Risk" data-info="writes the contract after the final approval, collects the e-signature, reads clauses (Legal-BERT) and scores vendor risk; a sanctioned vendor can&#x27;t be signed." tabindex="0" role="button" aria-label="Contract &amp; Risk: writes the contract after the final approval, collects the e-signature, reads clauses (Legal-BERT) and scores vendor risk; a sanctioned vendor can&#x27;t be signed.">
+<rect class="box" x="486" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M486,370 V374 a14,14 0 0 1 14,-14 H695 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="530" cy="412" r="28"/>
+<g class="ico" transform="translate(514 396) scale(1.33333)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8 17c1.5-2.5 2.5-2.5 3 0s1.5 1 3-1"/></g>
+<rect class="ai" x="649" y="398" width="42" height="28" rx="8"/>
+<text x="670" y="418" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="506" y="484" font-size="24" class="b">Contract</text>
+<text x="506" y="514" font-size="24" class="b">&amp; Risk</text>
+<text x="506" y="546" font-size="18" class="b tc">:8003 + worker</text>
+<line x1="506" y1="564" x2="689" y2="564" stroke="var(--rule)"/>
+<text x="506" y="594" font-size="18" class="t2">Contracts, e-sign</text>
+<text x="506" y="622" font-size="18" class="t2">Vendor risk</text>
+</g>
+<g class="node c-notif" data-id="notif" data-links="gateway" data-name="Notification agent" data-info="listens to 17 event topics and emails whoever must act next, from templates admins edit in the Control Panel." tabindex="0" role="button" aria-label="Notification agent: listens to 17 event topics and emails whoever must act next, from templates admins edit in the Control Panel.">
+<rect class="box" x="729" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M729,370 V374 a14,14 0 0 1 14,-14 H938 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="773" cy="412" r="28"/>
+<g class="ico" transform="translate(757 396) scale(1.33333)"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></g>
+<text x="749" y="484" font-size="24" class="b">Notification</text>
+<text x="749" y="514" font-size="24" class="b">agent</text>
+<text x="749" y="546" font-size="18" class="b tc">:8004</text>
+<line x1="749" y1="564" x2="932" y2="564" stroke="var(--rule)"/>
+<text x="749" y="594" font-size="18" class="t2">Emails each step</text>
+<text x="749" y="622" font-size="18" class="t2">Editable templates</text>
+</g>
+<g class="node c-auth" data-id="auth" data-links="gateway" data-name="Auth service" data-info="sign-up, login and roles; serves the business rules every agent reads, changed live without a deploy." tabindex="0" role="button" aria-label="Auth service: sign-up, login and roles; serves the business rules every agent reads, changed live without a deploy.">
+<rect class="box" x="972" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M972,370 V374 a14,14 0 0 1 14,-14 H1181 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="1016" cy="412" r="28"/>
+<g class="ico" transform="translate(1000 396) scale(1.33333)"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></g>
+<text x="992" y="484" font-size="24" class="b">Auth</text>
+<text x="992" y="514" font-size="24" class="b">service</text>
+<text x="992" y="546" font-size="18" class="b tc">:8005</text>
+<line x1="992" y1="564" x2="1175" y2="564" stroke="var(--rule)"/>
+<text x="992" y="594" font-size="18" class="t2">Accounts, roles</text>
+<text x="992" y="622" font-size="18" class="t2">Business rules</text>
+</g>
+<g class="node c-chat" data-id="chat" data-links="gateway" data-name="Assistant (chatbot)" data-info="answers questions from contracts, documents and records (retrieval-augmented, local LLM), only from what the signed-in user may see." tabindex="0" role="button" aria-label="Assistant (chatbot): answers questions from contracts, documents and records (retrieval-augmented, local LLM), only from what the signed-in user may see.">
+<rect class="box" x="1215" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M1215,370 V374 a14,14 0 0 1 14,-14 H1424 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="1259" cy="412" r="28"/>
+<g class="ico" transform="translate(1243 396) scale(1.33333)"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></g>
+<rect class="ai" x="1378" y="398" width="42" height="28" rx="8"/>
+<text x="1399" y="418" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="1235" y="484" font-size="24" class="b">Assistant</text>
+<text x="1235" y="514" font-size="24" class="b">(chatbot)</text>
+<text x="1235" y="546" font-size="18" class="b tc">:8006</text>
+<line x1="1235" y1="564" x2="1418" y2="564" stroke="var(--rule)"/>
+<text x="1235" y="594" font-size="18" class="t2">Answers questions</text>
+<text x="1235" y="622" font-size="18" class="t2">Checks access</text>
+</g>
+<g class="node c-doc" data-id="inputs" data-links="doc" data-name="Drop folder and mailbox" data-info="files copied into ./inbox/input are picked up every 3 seconds; the intake mailbox is read every 30 seconds. Both go straight to the document worker, not through the gateway." tabindex="0" role="button" aria-label="Drop folder and mailbox: files copied into ./inbox/input are picked up every 3 seconds; the intake mailbox is read every 30 seconds. Both go straight to the document worker, not through the gateway.">
+<rect class="soft" x="0" y="700" width="223" height="80" rx="14"/>
+<g class="ico" transform="translate(18 722) scale(1.5)"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></g>
+<text x="66" y="734" font-size="21" class="b">Drop folder</text>
+<text x="66" y="762" font-size="18" class="t2">and mailbox</text>
+</g>
+<g class="c-infra">
+<rect class="soft" x="300" y="700" width="1140" height="80" rx="14"/>
+<g class="c-appr"><rect class="ai" x="328" y="726" width="42" height="28" rx="8"/></g>
+<text x="349" y="746" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="384" y="746" font-size="18" class="t2">uses a trained model</text>
+<rect x="610" y="728" width="44" height="24" rx="6" fill="var(--rule)"/><rect x="610" y="728" width="44" height="7" rx="3" fill="var(--ink2)"/>
+<text x="668" y="746" font-size="18" class="t2">colour = one agent</text>
+<text x="870" y="746" font-size="18" class="t2">+ worker = background jobs</text>
+<text x="1416" y="746" font-size="18" class="b" text-anchor="end">Next: how they talk ›</text>
+</g>
+</svg>
+<!-- /arch:1 -->
+  </div>
+  <aside class="notes">Top: the browser talks only to the nginx gateway on port 8080; an outside e-signature provider's callback comes the same way. The gateway sends each /api prefix to the agent that owns it. Six agents, each with its own port; the three with workers do the heavy background jobs. AI marks the agents with a trained model inside. Files dropped in the inbox folder and the intake mailbox go straight to the document worker. Click the gateway to show it fans out to everything.</aside>
+</section>
+
+<!-- 5 -->
+<section class="slide arch-slide" data-title="System architecture 2 of 2">
+  <p class="kicker">System architecture · 2 of 2</p>
+  <h2>How the agents talk, and where data lives</h2>
+  <div class="arch-cap"><span>Click an agent to see what it uses, or an event to see who publishes and who reads it.</span></div>
+  <div class="arch-body">
+<!-- arch:2 -->
+<svg xmlns="http://www.w3.org/2000/svg" class="arch" id="arch-2" viewBox="0 0 1440 780" role="group" aria-label="System architecture, part 2: the six agents talk through Kafka events and Temporal workflows, keep data in PostgreSQL, MinIO and Redis, and call outside services over HTTP">
+<style>.arch{--ink:var(--arch-ink,#14213d);--ink2:var(--arch-ink2,#3f4a5a);--ink3:var(--arch-ink3,#5d6670);
+--sheet:var(--arch-sheet,#ffffff);--paper:var(--arch-paper,#f4f5f1);--rule:var(--arch-rule,#d5dad2);
+--gate:var(--arch-gate,#14213d);--ongate:var(--arch-ongate,#f5f6f2);--ongate2:var(--arch-ongate2,#c9d3e3);
+font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+.arch .c-doc{--c:var(--arch-doc,#c2410c)}.arch .c-appr{--c:var(--arch-appr,#1d4ed8)}
+.arch .c-ctr{--c:var(--arch-ctr,#be185d)}.arch .c-notif{--c:var(--arch-notif,#15803d)}
+.arch .c-auth{--c:var(--arch-auth,#6d28d9)}.arch .c-chat{--c:var(--arch-chat,#0f766e)}
+.arch .c-infra{--c:var(--ink)}
+.arch text{fill:var(--ink)}.arch .t2{fill:var(--ink2)}.arch .t3{fill:var(--ink3)}.arch .tc{fill:var(--c)}
+.arch .b{font-weight:600}.arch .mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace}
+.arch .box{fill:var(--sheet);stroke:var(--rule);stroke-width:1.5}
+.arch .soft{fill:var(--paper);stroke:var(--rule);stroke-width:1.5}
+.arch .ext{fill:var(--sheet);stroke:var(--ink3);stroke-width:1.5;stroke-dasharray:6 5}
+.arch .band{fill:var(--c)}.arch .tint{fill:var(--c);fill-opacity:.12}
+.arch .gate{fill:var(--gate)}.arch .gate-t{fill:var(--ongate)}.arch .gate-t2{fill:var(--ongate2)}
+.arch .ico{fill:none;stroke:var(--c);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.arch .ico-l{fill:none;stroke:var(--ongate);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.arch .ai{fill:var(--c)}.arch .ai-t{fill:var(--sheet);font-weight:700}
+.arch .edge{fill:none;stroke:var(--ink3);stroke-width:2.2}
+.arch .edge-head{fill:var(--ink3)}
+.arch .node{cursor:pointer;outline:none}
+.arch .node:focus-visible .box,.arch .node:focus-visible .soft,.arch .node:focus-visible .ext{stroke:var(--c);stroke-width:3}
+.arch [data-links]{transition:opacity .2s}
+.arch.focus [data-links]:not(.on){opacity:.16}
+.arch .node.on .box,.arch .node.on .soft,.arch .node.on .ext{stroke:var(--c);stroke-width:3}
+.arch .edge-g.on .edge{stroke:var(--ink);stroke-width:3}.arch .edge-g.on .edge-head{fill:var(--ink)}</style>
+<g class="edge-g" data-links="appr auth ctr doc ev-approval.decided ev-approval.requested ev-contract.generated ev-contract.signed ev-document.classified ev-document.ingested kafka notif">
+<path class="edge" d="M244,96 V164"/>
+<polygon class="edge-head" points="236,154 252,154 244,166"/>
+<polygon class="edge-head" points="236,106 252,106 244,94"/>
+<text x="258" y="136" font-size="17" class="t2">publish · consume</text>
+</g>
+<g class="edge-g" data-links="appr ctr renew sla temporal">
+<path class="edge" d="M481,92 V164"/>
+<polygon class="edge-head" points="473,154 489,154 481,166"/>
+<text x="495" y="136" font-size="17" class="t2">start · signal</text>
+</g>
+<g class="edge-g" data-links="appr auth chat ctr doc minio models notif pg redis">
+<path class="edge" d="M955,92 V164"/>
+<polygon class="edge-head" points="947,154 963,154 955,166"/>
+<text x="969" y="136" font-size="17" class="t2">SQL · files</text>
+</g>
+<g class="edge-g" data-links="auth chat clamav ctr doc fx hibp ifsc mail notif ollama sanctions">
+<path class="edge" d="M1192,92 V164"/>
+<polygon class="edge-head" points="1184,154 1200,154 1192,166"/>
+<text x="1206" y="136" font-size="17" class="t2">HTTP</text>
+</g>
+<rect class="soft c-infra" x="0" y="0" width="1440" height="92" rx="14"/>
+<g class="node c-doc" data-id="doc" data-links="clamav ev-approval.decided ev-approval.requested ev-document.classified ev-document.ingested fx ifsc kafka mail minio models pg" data-name="Document &amp; Vendor" data-info="takes documents in, virus-scans and reads them (OCR, classifier, LayoutLMv3), extracts and checks the fields, matches the vendor." tabindex="0" role="button" aria-label="Document &amp; Vendor: takes documents in, virus-scans and reads them (OCR, classifier, LayoutLMv3), extracts and checks the fields, matches the vendor.">
+<rect class="box" x="14" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="14" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(36 30) scale(1.33333)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></g>
+<text x="80" y="44" font-size="20" class="b">Document</text>
+<text x="80" y="68" font-size="16" class="t3">:8001</text>
+</g>
+<g class="node c-appr" data-id="appr" data-links="ev-approval.decided ev-approval.requested ev-contract.generated ev-contract.signed ev-document.classified kafka models pg redis sla temporal" data-name="Approval &amp; Inventory" data-info="turns a quote into a purchase request, routes it by amount, enforces who may approve, keeps budgets, stock, licences (anomaly model) and the invoice ledger." tabindex="0" role="button" aria-label="Approval &amp; Inventory: turns a quote into a purchase request, routes it by amount, enforces who may approve, keeps budgets, stock, licences (anomaly model) and the invoice ledger.">
+<rect class="box" x="251" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="251" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(273 30) scale(1.33333)"><circle cx="12" cy="12" r="9"/><path d="M8.5 12l2.5 2.5 4.5-5"/></g>
+<text x="317" y="44" font-size="20" class="b">Approval</text>
+<text x="317" y="68" font-size="16" class="t3">:8002</text>
+</g>
+<g class="node c-ctr" data-id="ctr" data-links="ev-approval.decided ev-approval.requested ev-contract.generated ev-contract.signed ev-document.classified kafka models pg renew sanctions temporal" data-name="Contract &amp; Risk" data-info="writes the contract after the final approval, collects the e-signature, reads clauses (Legal-BERT) and scores vendor risk; a sanctioned vendor can&#x27;t be signed." tabindex="0" role="button" aria-label="Contract &amp; Risk: writes the contract after the final approval, collects the e-signature, reads clauses (Legal-BERT) and scores vendor risk; a sanctioned vendor can&#x27;t be signed.">
+<rect class="box" x="488" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="488" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(510 30) scale(1.33333)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8 17c1.5-2.5 2.5-2.5 3 0s1.5 1 3-1"/></g>
+<text x="554" y="44" font-size="20" class="b">Contract</text>
+<text x="554" y="68" font-size="16" class="t3">:8003</text>
+</g>
+<g class="node c-notif" data-id="notif" data-links="ev-approval.decided ev-approval.requested ev-contract.generated ev-contract.signed ev-document.classified kafka mail pg" data-name="Notification agent" data-info="listens to 17 event topics and emails whoever must act next, from templates admins edit in the Control Panel." tabindex="0" role="button" aria-label="Notification agent: listens to 17 event topics and emails whoever must act next, from templates admins edit in the Control Panel.">
+<rect class="box" x="725" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="725" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(747 30) scale(1.33333)"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></g>
+<text x="791" y="44" font-size="20" class="b">Notification</text>
+<text x="791" y="68" font-size="16" class="t3">:8004</text>
+</g>
+<g class="node c-auth" data-id="auth" data-links="hibp kafka mail pg" data-name="Auth service" data-info="sign-up, login and roles; serves the business rules every agent reads, changed live without a deploy." tabindex="0" role="button" aria-label="Auth service: sign-up, login and roles; serves the business rules every agent reads, changed live without a deploy.">
+<rect class="box" x="962" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="962" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(984 30) scale(1.33333)"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></g>
+<text x="1028" y="44" font-size="20" class="b">Auth</text>
+<text x="1028" y="68" font-size="16" class="t3">:8005</text>
+</g>
+<g class="node c-chat" data-id="chat" data-links="ollama pg" data-name="Assistant (chatbot)" data-info="answers questions from contracts, documents and records (retrieval-augmented, local LLM), only from what the signed-in user may see." tabindex="0" role="button" aria-label="Assistant (chatbot): answers questions from contracts, documents and records (retrieval-augmented, local LLM), only from what the signed-in user may see.">
+<rect class="box" x="1199" y="14" width="223" height="64" rx="10"/>
+<rect class="band" x="1199" y="14" width="8" height="64" rx="3"/>
+<g class="ico" transform="translate(1221 30) scale(1.33333)"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></g>
+<text x="1265" y="44" font-size="20" class="b">Assistant</text>
+<text x="1265" y="68" font-size="16" class="t3">:8006</text>
+</g>
+<g class="node c-infra" data-id="kafka" data-links="appr auth ctr doc notif" data-name="Kafka events" data-info="carries every hand-off between agents as an event. 23 topics; each agent has its own login and may use only its own topics. An event is saved in the same transaction as the change (outbox), so a restart loses nothing." tabindex="0" role="button" aria-label="Kafka events: carries every hand-off between agents as an event. 23 topics; each agent has its own login and may use only its own topics. An event is saved in the same transaction as the change (outbox), so a restart loses nothing.">
+<rect class="soft" x="0" y="170" width="400" height="490" rx="14"/>
+<g class="ico" transform="translate(20 190) scale(1.5)"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></g>
+<text x="68" y="208" font-size="24" class="b">Kafka events</text>
+<text x="68" y="236" font-size="17" class="t3">Redpanda · 23 topics</text>
+</g>
+<g class="node c-doc" data-id="ev-document.ingested" data-links="doc" data-name="document.ingested" data-info="published by Document; read by Document." tabindex="0" role="button" aria-label="document.ingested: published by Document; read by Document.">
+<rect class="box" x="24" y="262" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="283" r="7"/>
+<text x="64" y="290" font-size="18" class="mono">document.ingested</text>
+</g>
+<path class="edge" d="M46,306 V318" style="stroke-width:1.6"/>
+<g class="node c-doc" data-id="ev-document.classified" data-links="appr ctr doc notif" data-name="document.classified" data-info="published by Document; read by Approval, Contract, Notification." tabindex="0" role="button" aria-label="document.classified: published by Document; read by Approval, Contract, Notification.">
+<rect class="box" x="24" y="318" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="339" r="7"/>
+<text x="64" y="346" font-size="18" class="mono">document.classified</text>
+</g>
+<path class="edge" d="M46,362 V374" style="stroke-width:1.6"/>
+<g class="node c-appr" data-id="ev-approval.requested" data-links="appr ctr doc notif" data-name="approval.requested" data-info="published by Approval; read by Document, Contract, Notification." tabindex="0" role="button" aria-label="approval.requested: published by Approval; read by Document, Contract, Notification.">
+<rect class="box" x="24" y="374" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="395" r="7"/>
+<text x="64" y="402" font-size="18" class="mono">approval.requested</text>
+</g>
+<path class="edge" d="M46,418 V430" style="stroke-width:1.6"/>
+<g class="node c-appr" data-id="ev-approval.decided" data-links="appr ctr doc notif" data-name="approval.decided" data-info="published by Approval; read by Document, Contract, Notification." tabindex="0" role="button" aria-label="approval.decided: published by Approval; read by Document, Contract, Notification.">
+<rect class="box" x="24" y="430" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="451" r="7"/>
+<text x="64" y="458" font-size="18" class="mono">approval.decided</text>
+</g>
+<path class="edge" d="M46,474 V486" style="stroke-width:1.6"/>
+<g class="node c-ctr" data-id="ev-contract.generated" data-links="appr ctr notif" data-name="contract.generated" data-info="published by Contract; read by Approval, Notification." tabindex="0" role="button" aria-label="contract.generated: published by Contract; read by Approval, Notification.">
+<rect class="box" x="24" y="486" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="507" r="7"/>
+<text x="64" y="514" font-size="18" class="mono">contract.generated</text>
+</g>
+<path class="edge" d="M46,530 V542" style="stroke-width:1.6"/>
+<g class="node c-ctr" data-id="ev-contract.signed" data-links="appr ctr notif" data-name="contract.signed" data-info="published by Contract; read by Approval, Notification." tabindex="0" role="button" aria-label="contract.signed: published by Contract; read by Approval, Notification.">
+<rect class="box" x="24" y="542" width="352" height="42" rx="21"/>
+<circle class="band" cx="46" cy="563" r="7"/>
+<text x="64" y="570" font-size="18" class="mono">contract.signed</text>
+</g>
+<text x="24" y="636" font-size="17" class="t3">saved with the change (outbox)</text>
+<g class="node c-infra" data-id="temporal" data-links="appr ctr" data-name="Temporal" data-info="runs the long waits that must survive restarts: approval deadlines with reminders and escalation, and contract renewal notices. Workers in Approval and Contract poll it." tabindex="0" role="button" aria-label="Temporal: runs the long waits that must survive restarts: approval deadlines with reminders and escalation, and contract renewal notices. Workers in Approval and Contract poll it.">
+<rect class="soft" x="426" y="170" width="260" height="490" rx="14"/>
+<g class="ico" transform="translate(446 190) scale(1.5)"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>
+<text x="494" y="208" font-size="24" class="b">Temporal</text>
+<text x="494" y="236" font-size="17" class="t3">durable workflows</text>
+</g>
+<g class="node c-appr" data-id="sla" data-links="appr" data-name="Approval SLAs" data-info="reminders at 50% and 80%, then escalation (run by Approval)." tabindex="0" role="button" aria-label="Approval SLAs: reminders at 50% and 80%, then escalation (run by Approval).">
+<rect class="box" x="446" y="262" width="220" height="112" rx="12"/>
+<rect class="band" x="446" y="278" width="6" height="80" rx="3"/>
+<text x="466" y="300" font-size="20" class="b">Approval SLAs</text>
+<text x="466" y="330" font-size="17" class="t2">reminders at 50% and</text>
+<text x="466" y="356" font-size="17" class="t2">80%, then escalation</text>
+</g>
+<g class="node c-ctr" data-id="renew" data-links="ctr" data-name="Contract renewals" data-info="notice before a contract expires (run by Contract)." tabindex="0" role="button" aria-label="Contract renewals: notice before a contract expires (run by Contract).">
+<rect class="box" x="446" y="390" width="220" height="112" rx="12"/>
+<rect class="band" x="446" y="406" width="6" height="80" rx="3"/>
+<text x="466" y="428" font-size="20" class="b">Contract renewals</text>
+<text x="466" y="458" font-size="17" class="t2">notice before a</text>
+<text x="466" y="484" font-size="17" class="t2">contract expires</text>
+</g>
+<g class="c-infra">
+<rect class="soft" x="712" y="170" width="360" height="490" rx="14"/>
+<g class="ico" transform="translate(732 190) scale(1.5)"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></g>
+<text x="780" y="208" font-size="24" class="b">Data</text>
+<text x="780" y="236" font-size="17" class="t3">inside the Docker network</text>
+</g>
+<g class="node c-infra" data-id="pg" data-links="appr auth chat ctr doc notif" data-name="PostgreSQL 16 + pgvector" data-info="one shared database; each agent its own tables. Used by every agent." tabindex="0" role="button" aria-label="PostgreSQL 16 + pgvector: one shared database; each agent its own tables. Used by every agent.">
+<rect class="box" x="732" y="262" width="320" height="88" rx="12"/>
+<text x="752" y="294" font-size="20" class="b">PostgreSQL 16 + pgvector</text>
+<text x="752" y="320" font-size="17" class="t2">one shared database;</text>
+<text x="752" y="342" font-size="17" class="t2">each agent its own tables</text>
+</g>
+<g class="node c-infra" data-id="minio" data-links="doc" data-name="MinIO" data-info="original documents (S3 storage). Used by Document." tabindex="0" role="button" aria-label="MinIO: original documents (S3 storage). Used by Document.">
+<rect class="box" x="732" y="360" width="320" height="88" rx="12"/>
+<text x="752" y="392" font-size="20" class="b">MinIO</text>
+<text x="752" y="418" font-size="17" class="t2">original documents</text>
+<text x="752" y="440" font-size="17" class="t2">(S3 storage)</text>
+</g>
+<g class="node c-infra" data-id="redis" data-links="appr" data-name="Redis" data-info="stock reservation locks, repeat-safe requests. Used by Approval." tabindex="0" role="button" aria-label="Redis: stock reservation locks, repeat-safe requests. Used by Approval.">
+<rect class="box" x="732" y="458" width="320" height="88" rx="12"/>
+<text x="752" y="490" font-size="20" class="b">Redis</text>
+<text x="752" y="516" font-size="17" class="t2">stock reservation locks,</text>
+<text x="752" y="538" font-size="17" class="t2">repeat-safe requests</text>
+</g>
+<g class="node c-infra" data-id="models" data-links="appr ctr doc" data-name="Trained models" data-info="LayoutLMv3 · Legal-BERT scikit-learn. Used by Document, Approval, Contract." tabindex="0" role="button" aria-label="Trained models: LayoutLMv3 · Legal-BERT scikit-learn. Used by Document, Approval, Contract.">
+<rect class="box" x="732" y="556" width="320" height="88" rx="12"/>
+<text x="752" y="588" font-size="20" class="b">Trained models</text>
+<text x="752" y="614" font-size="17" class="t2">LayoutLMv3 · Legal-BERT</text>
+<text x="752" y="636" font-size="17" class="t2">scikit-learn</text>
+</g>
+<g class="c-infra">
+<rect class="ext" x="1098" y="170" width="342" height="490" rx="14"/>
+<g class="ico" transform="translate(1118 190) scale(1.5)"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z"/></g>
+<text x="1166" y="208" font-size="24" class="b">Outside services</text>
+<text x="1166" y="236" font-size="17" class="t3">called over HTTP</text>
+</g>
+<g class="node c-infra" data-id="clamav" data-links="doc" data-name="ClamAV" data-info="virus scan of every upload. Used by Document." tabindex="0" role="button" aria-label="ClamAV: virus scan of every upload. Used by Document.">
+<rect x="1110" y="258" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="280" font-size="19" class="b">ClamAV</text>
+<text x="1122" y="304" font-size="16" class="t2">virus scan of every upload</text>
+</g>
+<g class="node c-infra" data-id="mail" data-links="auth doc notif" data-name="Mailpit / SMTP" data-info="every email sent. Used by Document, Notification, Auth." tabindex="0" role="button" aria-label="Mailpit / SMTP: every email sent. Used by Document, Notification, Auth.">
+<rect x="1110" y="314" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="336" font-size="19" class="b">Mailpit / SMTP</text>
+<text x="1122" y="360" font-size="16" class="t2">every email sent</text>
+</g>
+<g class="node c-infra" data-id="ollama" data-links="chat" data-name="Ollama" data-info="local LLM for the assistant. Used by Assistant." tabindex="0" role="button" aria-label="Ollama: local LLM for the assistant. Used by Assistant.">
+<rect x="1110" y="370" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="392" font-size="19" class="b">Ollama</text>
+<text x="1122" y="416" font-size="16" class="t2">local LLM for the assistant</text>
+</g>
+<g class="node c-infra" data-id="fx" data-links="doc" data-name="Frankfurter" data-info="exchange rates to INR. Used by Document." tabindex="0" role="button" aria-label="Frankfurter: exchange rates to INR. Used by Document.">
+<rect x="1110" y="426" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="448" font-size="19" class="b">Frankfurter</text>
+<text x="1122" y="472" font-size="16" class="t2">exchange rates to INR</text>
+</g>
+<g class="node c-infra" data-id="ifsc" data-links="doc" data-name="IFSC and GSTIN lookups" data-info="bank and tax ids. Used by Document." tabindex="0" role="button" aria-label="IFSC and GSTIN lookups: bank and tax ids. Used by Document.">
+<rect x="1110" y="482" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="504" font-size="19" class="b">IFSC and GSTIN lookups</text>
+<text x="1122" y="528" font-size="16" class="t2">bank and tax ids</text>
+</g>
+<g class="node c-infra" data-id="hibp" data-links="auth" data-name="HaveIBeenPwned" data-info="breached-password check. Used by Auth." tabindex="0" role="button" aria-label="HaveIBeenPwned: breached-password check. Used by Auth.">
+<rect x="1110" y="538" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="560" font-size="19" class="b">HaveIBeenPwned</text>
+<text x="1122" y="584" font-size="16" class="t2">breached-password check</text>
+</g>
+<g class="node c-infra" data-id="sanctions" data-links="ctr" data-name="OpenSanctions" data-info="sanctions list. Used by Contract." tabindex="0" role="button" aria-label="OpenSanctions: sanctions list. Used by Contract.">
+<rect x="1110" y="594" width="318" height="54" rx="8" fill="transparent"/>
+<text x="1122" y="616" font-size="19" class="b">OpenSanctions</text>
+<text x="1122" y="640" font-size="16" class="t2">sanctions list</text>
+</g>
+<g class="c-infra">
+<rect class="soft" x="0" y="700" width="1440" height="80" rx="14"/>
+<g class="ico" transform="translate(24 722) scale(1.5)"><path d="M3 12h4l3-8 4 16 3-8h4"/></g>
+<text x="76" y="748" font-size="21" class="b">Watching it run</text>
+<text x="260" y="748" font-size="18" class="t2">Prometheus metrics  ·  Loki logs by correlation id  ·  Grafana dashboards  ·  Temporal UI</text>
+<text x="1416" y="748" font-size="18" class="t3" text-anchor="end">Click any box</text>
+</g>
+</svg>
+<!-- /arch:2 -->
+  </div>
+  <aside class="notes">Agents never call each other for hand-offs: they publish Kafka events (23 topics, one login per agent, each limited to its own topics). The event is saved in the same transaction as the change, so a restart loses nothing. Temporal holds the long waits: approval deadlines and renewals. One shared Postgres with pgvector; MinIO keeps the original files. Click approval.decided: published by Approval, read by Contract, Notification and Document. Click Ollama: only the assistant uses it.</aside>
+</section>
+
+<!-- 6 -->
+<section class="slide" data-title="Functional flow">
+  <p class="kicker">Functional flow</p>
+  <h2>Five stages, each with a decision</h2>
+  <div class="body">
+    <svg class="draw" viewBox="0 0 1680 520" style="width:1680px;height:520px" aria-label="Ingest, Read, Approve, Sign, Store, with the decision and the failure path of each">
+      <g stroke="#9aa3ad" stroke-width="3" fill="#9aa3ad">
+        <path d="M262 92H406M598 92H742M934 92H1078M1270 92H1414" fill="none"/>
+        <polygon points="414,92 400,83 400,101"/><polygon points="750,92 736,83 736,101"/><polygon points="1086,92 1072,83 1072,101"/><polygon points="1422,92 1408,83 1408,101"/>
+      </g>
+      <g font-size="22" fill="#5d6670" text-anchor="middle"><text x="336" y="78">event</text><text x="672" y="78">event</text><text x="1008" y="78">event</text><text x="1344" y="78">event</text></g>
+      <g text-anchor="middle">
+        <g style="--c:#c2410c"><circle cx="168" cy="92" r="84" fill="#c2410c" fill-opacity=".12"/><use href="#i-inbox" class="u" x="130" y="54" width="76" height="76" style="color:#c2410c"/></g>
+        <g><circle cx="504" cy="92" r="84" fill="#6d28d9" fill-opacity=".12"/><use href="#i-scan" class="u" x="466" y="54" width="76" height="76" style="color:#6d28d9"/></g>
+        <g><circle cx="840" cy="92" r="84" fill="#1d4ed8" fill-opacity=".12"/><use href="#i-approve" class="u" x="802" y="54" width="76" height="76" style="color:#1d4ed8"/></g>
+        <g><circle cx="1176" cy="92" r="84" fill="#be185d" fill-opacity=".12"/><use href="#i-pen" class="u" x="1138" y="54" width="76" height="76" style="color:#be185d"/></g>
+        <g><circle cx="1512" cy="92" r="84" fill="#15803d" fill-opacity=".12"/><use href="#i-lock" class="u" x="1474" y="54" width="76" height="76" style="color:#15803d"/></g>
+        <g font-size="36" font-weight="600" fill="#14213d"><text x="168" y="236">1 · Ingest</text><text x="504" y="236">2 · Read</text><text x="840" y="236">3 · Approve</text><text x="1176" y="236">4 · Sign</text><text x="1512" y="236">5 · Store</text></g>
+        <g font-size="24" fill="#3f4a5a"><text x="168" y="274">upload, mail, folder</text><text x="504" y="274">OCR, classify, extract</text><text x="840" y="274">tier set by amount</text><text x="1176" y="274">after final approval</text><text x="1512" y="274">signed PDF, certificate</text></g>
+        <g font-size="24" font-weight="600" fill="#1f4b8f"><text x="168" y="350">Allowed, virus-free?</text><text x="504" y="350">≥ 80% sure, no flags?</text><text x="840" y="350">Decided within SLA?</text><text x="1176" y="350">Vendor cleared?</text><text x="1512" y="350">Signed?</text></g>
+        <g fill="#1f4b8f"><rect x="158" y="370" width="20" height="20" transform="rotate(45 168 380)"/><rect x="494" y="370" width="20" height="20" transform="rotate(45 504 380)"/><rect x="830" y="370" width="20" height="20" transform="rotate(45 840 380)"/><rect x="1166" y="370" width="20" height="20" transform="rotate(45 1176 380)"/><rect x="1502" y="370" width="20" height="20" transform="rotate(45 1512 380)"/></g>
+        <g stroke="#c9cfc5" stroke-width="2"><path d="M168 394V420M504 394V420M840 394V420M1176 394V420M1512 394V420"/></g>
+        <g font-size="22" font-weight="600">
+          <rect x="12" y="420" width="312" height="60" rx="30" fill="#c2410c" fill-opacity=".1"/><text x="168" y="458" fill="#c2410c">No: failed/ with reason</text>
+          <rect x="348" y="420" width="312" height="60" rx="30" fill="#c2410c" fill-opacity=".1"/><text x="504" y="458" fill="#c2410c">No: a person reviews</text>
+          <rect x="684" y="420" width="312" height="60" rx="30" fill="#c2410c" fill-opacity=".1"/><text x="840" y="458" fill="#c2410c">No: remind, escalate</text>
+          <rect x="1020" y="420" width="312" height="60" rx="30" fill="#c2410c" fill-opacity=".1"/><text x="1176" y="458" fill="#c2410c">Sanctioned: blocked</text>
+          <rect x="1356" y="420" width="312" height="60" rx="30" fill="#15803d" fill-opacity=".12"/><text x="1512" y="458" fill="#15803d">Yes: ordered, emailed</text>
+        </g>
+      </g>
+    </svg>
+    <div class="band"><svg class="ic"><use href="#i-zap"/></svg>Every arrow is a Kafka event. Every step is in the audit log.</div>
+  </div>
+  <aside class="notes">Read it left to right. Under each stage: the decision in blue and the exception path in orange. The full diagram in the docs (Functional workflow) has every branch. A file only moves to processed/ after the pipeline finishes, so a blank scan ends in failed/. A high-risk vendor (not sanctioned) can still be signed, but the signer must acknowledge the risk.</aside>
+</section>
+
+<!-- 7 -->
+<section class="slide" data-title="Input, Processed, Failed">
+  <p class="kicker">Checklist A1 · document lifecycle</p>
+  <h2>Input, Processed, Failed</h2>
+  <div class="body split">
+    <div>
+      <svg class="draw" viewBox="0 0 600 430" style="width:600px;height:430px" aria-label="input folder, then the pipeline, then processed or failed">
+        <g stroke="#9aa3ad" stroke-width="3" fill="none"><path d="M150 96H236M364 96C430 96 430 40 488 40M364 96C430 96 430 256 488 256"/></g>
+        <g fill="#9aa3ad"><polygon points="244,96 230,87 230,105"/></g>
+        <circle cx="80" cy="96" r="72" fill="#1f4b8f" fill-opacity=".1"/><use href="#i-folder" class="u" x="44" y="60" width="72" height="72" style="color:#1f4b8f"/>
+        <circle cx="300" cy="96" r="60" fill="#6d28d9" fill-opacity=".1"/><use href="#i-gear" class="u" x="270" y="66" width="60" height="60" style="color:#6d28d9"/>
+        <circle cx="540" cy="40" r="40" fill="#15803d" fill-opacity=".12"/><use href="#i-folder-ok" class="u" x="516" y="16" width="48" height="48" style="color:#15803d"/>
+        <circle cx="540" cy="256" r="40" fill="#c2410c" fill-opacity=".12"/><use href="#i-folder-x" class="u" x="516" y="232" width="48" height="48" style="color:#c2410c"/>
+        <g font-size="26" font-weight="600" fill="#14213d" text-anchor="middle"><text x="80" y="206" style="font-family:var(--mono)">input/</text><text x="300" y="196">pipeline</text></g>
+        <text x="540" y="116" font-size="24" font-weight="600" fill="#15803d" text-anchor="middle">processed/</text>
+        <text x="540" y="332" font-size="24" font-weight="600" fill="#c2410c" text-anchor="middle">failed/</text>
+        <rect x="420" y="350" width="176" height="48" rx="10" fill="#fbfbf8" stroke="#dadfd6" stroke-width="2"/>
+        <text x="508" y="382" font-size="22" fill="#3f4a5a" text-anchor="middle" style="font-family:var(--mono)">+ .error.txt</text>
+      </svg>
+      <div class="rows" style="margin-top:36px;gap:22px">
+        <div class="row" style="font-size:28px"><span class="disc" style="width:60px;height:60px"><svg class="ic" style="width:30px;height:30px"><use href="#i-clock"/></svg></span>Picked up every 3 seconds</div>
+        <div class="row" style="font-size:28px"><span class="disc" style="width:60px;height:60px"><svg class="ic" style="width:30px;height:30px"><use href="#i-check"/></svg></span>Moved only when reading ends</div>
+      </div>
     </div>
-  </section>
+    <img class="shot" src="showcase/cpanel/02-documents.png" alt="Control Panel documents section: folder counts, dropped files with their stage, failed files with reasons" style="width:940px;height:696px">
+  </div>
+  <aside class="notes">Live demo point: drop a quote and a blank scan. The quote ends in processed/, the blank scan in failed/ with "We couldn't find any text in this document". The .error.txt gives the file, time, document id and reason. The Control Panel shows each folder's count and every file's stage.</aside>
+</section>
+
+<!-- 8 -->
+<section class="slide" data-title="Every field and its confidence">
+  <p class="kicker">Checklist A6 · field extraction</p>
+  <h2>Every field, its confidence, every check</h2>
+  <div class="body split">
+    <div>
+      <svg class="draw" viewBox="0 0 640 330" style="width:600px;height:309px" aria-label="Confidence gauge with the review gate at 80 percent">
+        <path d="M60 300A240 240 0 0 1 540 300" fill="none" stroke="#e3e7df" stroke-width="44"/>
+        <path d="M60 300A240 240 0 0 1 494.2 159.1" fill="none" stroke="#c2410c" stroke-opacity=".28" stroke-width="44"/>
+        <path d="M494.2 159.1A240 240 0 0 1 540 300" fill="none" stroke="#15803d" stroke-width="44"/>
+        <path d="M494.2 159.1L540 125" stroke="#14213d" stroke-width="4"/>
+        <text x="552" y="118" font-size="26" font-weight="700" fill="#14213d">80%</text>
+        <text x="300" y="250" font-size="30" font-weight="600" fill="#14213d" text-anchor="middle">confidence</text>
+        <text x="300" y="292" font-size="24" fill="#3f4a5a" text-anchor="middle">per field and overall</text>
+      </svg>
+      <div style="display:flex;flex-direction:column;gap:18px;margin-top:40px;align-items:flex-start">
+        <span class="pill" style="--c:var(--green)"><svg class="ic"><use href="#i-check"/></svg>Valid</span>
+        <span class="pill" style="--c:var(--amber)"><svg class="ic"><use href="#i-eye"/></svg>Needs review</span>
+        <span class="pill" style="--c:var(--orange)"><svg class="ic"><use href="#i-x"/></svg>Invalid</span>
+      </div>
+      <p class="t24" style="margin-top:34px">Below 80%, or any flag: a person reviews it.</p>
+    </div>
+    <img class="shot" src="showcase/cpanel/06-extraction.png" alt="Document page: every extracted field with a confidence bar, and the result of each pipeline stage" style="width:940px;height:696px">
+  </div>
+  <aside class="notes">Each extracted field is on its own row with its confidence. Each pipeline stage shows its result with its errors and warnings: text reading, classification, field extraction, LayoutLMv3 cross-check, vendor match, currency, GST check, invoice match, duplicate check, confidence. In the example, the invoice match and duplicate check raised warnings, so the document was routed to review.</aside>
+</section>
+
+<!-- 9 -->
+<section class="slide" data-title="Approval notifications">
+  <p class="kicker">Checklist A2 · approval notifications</p>
+  <h2>The right person, at every level</h2>
+  <div class="body" style="display:grid;grid-template-columns:820px 1fr;gap:80px">
+    <svg class="draw" viewBox="0 0 820 600" style="width:820px;height:600px" aria-label="Approval tiers: up to 500 rupees automatic, up to 5,000 a manager, above that a manager then finance">
+      <text x="0" y="34" font-size="30" font-weight="600" fill="#14213d">Who approves, by amount</text>
+      <g font-size="24">
+        <rect x="0" y="420" width="250" height="180" rx="16" fill="#1d4ed8" fill-opacity=".1"/>
+        <rect x="285" y="290" width="250" height="310" rx="16" fill="#1d4ed8" fill-opacity=".18"/>
+        <rect x="570" y="140" width="250" height="460" rx="16" fill="#1d4ed8" fill-opacity=".28"/>
+        <use href="#i-zap" class="u" x="28" y="446" width="52" height="52" style="color:#1d4ed8"/>
+        <use href="#i-user" class="u" x="313" y="316" width="52" height="52" style="color:#1d4ed8"/>
+        <use href="#i-user" class="u" x="598" y="166" width="52" height="52" style="color:#1d4ed8"/><use href="#i-user" class="u" x="660" y="166" width="52" height="52" style="color:#1d4ed8"/>
+        <text x="28" y="540" font-size="34" font-weight="700" fill="#14213d">≤ ₹500</text><text x="28" y="576" fill="#3f4a5a">automatic</text>
+        <text x="313" y="410" font-size="34" font-weight="700" fill="#14213d">≤ ₹5,000</text><text x="313" y="446" fill="#3f4a5a">manager</text>
+        <text x="598" y="260" font-size="34" font-weight="700" fill="#14213d">above</text><text x="598" y="296" fill="#3f4a5a">manager, then</text><text x="598" y="328" fill="#3f4a5a">finance</text>
+      </g>
+    </svg>
+    <div>
+      <p style="margin:0 0 30px;font-size:30px;font-weight:600">If nobody decides</p>
+      <svg class="draw" viewBox="0 0 780 260" style="width:780px;height:260px" aria-label="SLA timeline: reminders at 50 and 80 percent, escalation at 100 percent">
+        <rect x="44" y="114" width="716" height="16" rx="8" fill="#e3e7df"/>
+        <rect x="44" y="114" width="716" height="16" rx="8" fill="url(#slaFade)"/>
+        <defs><linearGradient id="slaFade"><stop offset="0" stop-color="#1d4ed8" stop-opacity=".15"/><stop offset="1" stop-color="#c2410c" stop-opacity=".6"/></linearGradient></defs>
+        <g text-anchor="middle" font-size="24" fill="#3f4a5a">
+          <circle cx="44" cy="122" r="16" fill="#1d4ed8"/><text x="44" y="196">asked</text>
+          <circle cx="390" cy="122" r="34" fill="#fbfbf8" stroke="#1d4ed8" stroke-width="3"/><use href="#i-bell" class="u" x="372" y="104" width="36" height="36" style="color:#1d4ed8"/><text x="390" y="196">50%</text><text x="390" y="226">reminder</text>
+          <circle cx="612" cy="122" r="34" fill="#fbfbf8" stroke="#1d4ed8" stroke-width="3"/><use href="#i-bell" class="u" x="594" y="104" width="36" height="36" style="color:#1d4ed8"/><text x="612" y="196">80%</text><text x="612" y="226">reminder</text>
+          <circle cx="740" cy="44" r="34" fill="#c2410c"/><use href="#i-up" class="u" x="722" y="26" width="36" height="36" style="color:#fff"/><text x="740" y="196" fill="#c2410c" font-weight="600">SLA</text><text x="720" y="226" fill="#c2410c">escalate</text>
+        </g>
+      </svg>
+      <div class="rows" style="margin-top:56px;gap:26px">
+        <div class="row" style="font-size:28px;--c:var(--blue)"><span class="disc" style="width:64px;height:64px"><svg class="ic" style="width:32px;height:32px"><use href="#i-mail"/></svg></span>Each level gets a one-click email</div>
+        <div class="row" style="font-size:28px;--c:var(--green)"><span class="disc" style="width:64px;height:64px"><svg class="ic" style="width:32px;height:32px"><use href="#i-user"/></svg></span>The requester hears the decision</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Tiers come from business rules, edited live. Checked live: a ₹42,000 request. The manager approved, finance was emailed right away, and no contract existed yet. Finance approved, and the contract was generated and sent for signature. If a level misses its SLA, the next level is asked.</aside>
+</section>
+
+<!-- 10 -->
+<section class="slide" data-title="Editable email templates">
+  <p class="kicker">Checklist A3 · notification templates</p>
+  <h2>Edit any email without a code change</h2>
+  <div class="body split">
+    <div class="rows" style="gap:40px;padding-top:10px">
+      <div class="row" style="--c:var(--notif)"><span class="disc"><svg class="ic"><use href="#i-pen"/></svg></span><span>Subject and body<small>copy recipients, on or off</small></span></div>
+      <div class="row" style="--c:var(--notif)"><span class="disc"><svg class="ic"><use href="#i-braces"/></svg></span><span>Click-to-insert placeholders<small>unknown ones refused on save</small></span></div>
+      <div class="row" style="--c:var(--notif)"><span class="disc"><svg class="ic"><use href="#i-eye"/></svg></span><span>Preview before saving<small>a broken edit falls back to the built-in</small></span></div>
+      <div class="row" style="--c:var(--notif)"><span class="disc"><svg class="ic"><use href="#i-mail"/></svg></span><span>New templates<small>created and sent by name</small></span></div>
+    </div>
+    <img class="shot" src="showcase/cpanel/04-templates.png" alt="Template editor: templates marked Default, Edited, Custom or Off, and the subject, body, placeholders and copy recipients of the selected one" style="width:940px;height:696px">
+  </div>
+  <aside class="notes">Edited text runs in Jinja's sandbox because it comes from a web form. Live check: the signer template was edited with a copy recipient, and both addresses received the edited email in Mailpit.</aside>
+</section>
+
+<!-- 11 -->
+<section class="slide" data-title="Approval to signed PDF">
+  <p class="kicker">Checklist A4 · A5 · contracts and e-signature</p>
+  <h2>From approval to signed PDF</h2>
+  <div class="body">
+    <svg class="draw" viewBox="0 0 1680 250" style="width:1680px;height:250px" aria-label="Final approval, contract written, risk gate, signed, sealed PDF">
+      <g stroke="#9aa3ad" stroke-width="3" fill="#9aa3ad">
+        <path d="M232 70H372M568 70H708M904 70H1044M1240 70H1380" fill="none"/>
+        <polygon points="380,70 366,61 366,79"/><polygon points="716,70 702,61 702,79"/><polygon points="1052,70 1038,61 1038,79"/><polygon points="1388,70 1374,61 1374,79"/>
+      </g>
+      <g text-anchor="middle">
+        <circle cx="168" cy="70" r="64" fill="#1d4ed8" fill-opacity=".12"/><use href="#i-approve" class="u" x="138" y="40" width="60" height="60" style="color:#1d4ed8"/>
+        <circle cx="504" cy="70" r="64" fill="#be185d" fill-opacity=".12"/><use href="#i-contract" class="u" x="474" y="40" width="60" height="60" style="color:#be185d"/>
+        <circle cx="840" cy="70" r="64" fill="#c2410c" fill-opacity=".12"/><use href="#i-shield" class="u" x="810" y="40" width="60" height="60" style="color:#c2410c"/>
+        <circle cx="1176" cy="70" r="64" fill="#be185d" fill-opacity=".12"/><use href="#i-pen" class="u" x="1146" y="40" width="60" height="60" style="color:#be185d"/>
+        <circle cx="1512" cy="70" r="64" fill="#15803d" fill-opacity=".12"/><use href="#i-lock" class="u" x="1482" y="40" width="60" height="60" style="color:#15803d"/>
+        <g font-size="30" font-weight="600" fill="#14213d"><text x="168" y="180">Final approval</text><text x="504" y="180">Contract written</text><text x="840" y="180">Risk gate</text><text x="1176" y="180">Signer signs</text><text x="1512" y="180">Sealed PDF</text></g>
+        <g font-size="23" fill="#3f4a5a"><text x="168" y="218">last level only</text><text x="504" y="218">emailed to the signer</text><text x="840" y="218">sanctioned: blocked</text><text x="1176" y="218">typed or drawn</text><text x="1512" y="218">SHA-256 seal, certificate</text></g>
+      </g>
+    </svg>
+    <div style="position:absolute;left:0;right:0;top:282px;bottom:0;display:grid;grid-template-columns:1fr 556px;gap:64px;align-items:end">
+      <div style="display:flex;flex-direction:column;gap:26px;align-items:flex-start">
+        <span class="pill" style="--c:var(--amber);font-size:30px;padding:14px 28px"><svg class="ic"><use href="#i-clock"/></svg>Pending E-Signature</span>
+        <svg class="ic" style="width:40px;height:40px;color:#9aa3ad;margin-left:40px;transform:rotate(90deg)"><use href="#i-chevron"/></svg>
+        <span class="pill" style="--c:var(--green);font-size:30px;padding:14px 28px"><svg class="ic"><use href="#i-check"/></svg>E-Signature Complete</span>
+        <p class="t24" style="margin-top:16px">Both PDFs download from the Control Panel.</p>
+      </div>
+      <img class="shot" src="showcase/cpanel/05-esignatures.png" alt="Contracts and e-signatures section: counts by state and a table of contracts with unsigned and signed PDF links" style="width:556px;height:408px">
+    </div>
+  </div>
+  <aside class="notes">Generated only after the final approval level, emailed to the signer, tracked automatically. The built-in e-signature records a typed or drawn signature, consent and a SHA-256 seal, and issues a certificate. Sanctioned vendors can't be signed at all; high-risk vendors need an explicit acknowledgement. No MinIO, no provider site: both PDFs download from the Control Panel.</aside>
+</section>
+
+<!-- 12 -->
+<section class="slide" data-title="Control Panel">
+  <p class="kicker">Checklist A7 · Control Panel</p>
+  <h2>One place to run it</h2>
+  <div class="body" style="display:grid;grid-template-columns:520px 1fr;gap:56px">
+    <div class="rows" style="gap:16px">
+      <div class="row" style="font-size:28px"><span class="disc" style="width:58px;height:58px"><svg class="ic" style="width:28px;height:28px"><use href="#i-grid"/></svg></span>Overview</div>
+      <div class="row" style="font-size:28px;--c:var(--doc)"><span class="disc" style="width:58px;height:58px"><svg class="ic" style="width:28px;height:28px"><use href="#i-doc"/></svg></span>Documents</div>
+      <div class="row" style="font-size:28px;--c:var(--auth)"><span class="disc" style="width:58px;height:58px"><svg class="ic" style="width:28px;height:28px"><use href="#i-pulse"/></svg></span>Processing and logs</div>
+      <div class="row" style="font-size:28px;--c:var(--appr)"><span class="disc" style="width:58px;height:58px"><svg class="ic" style="width:28px;height:28px"><use href="#i-approve"/></svg></span>Approvals</div>
+      <div class="row" style="font-size:28px;--c:var(--notif)"><span class="disc" style="width:58px;height:58px"><svg class="ic" style="width:28px;height:28px"><use href="#i-bell"/></svg></span>Notifications</div>
+      <div class="row" style="font-size:28px;--c:var(--ctr)"><span class="disc" style="width:58px;height:58px"><svg class="ic" style="width:28px;height:28px"><use href="#i-pen"/></svg></span>Contracts and e-signatures</div>
+      <div class="row" style="font-size:28px;--c:var(--chat)"><span class="disc" style="width:58px;height:58px"><svg class="ic" style="width:28px;height:28px"><use href="#i-db"/></svg></span>Storage</div>
+      <div class="row" style="font-size:28px;--c:var(--ink2)"><span class="disc" style="width:58px;height:58px"><svg class="ic" style="width:28px;height:28px"><use href="#i-gear"/></svg></span>Administration</div>
+    </div>
+    <img class="shot" src="showcase/cpanel/01-overview.png" alt="Control Panel overview: figures for the input folder, documents being read, failed, awaiting approval, pending e-signature; status of drop folder, Kafka, MinIO and e-signature" style="width:938px;height:690px;justify-self:end">
+  </div>
+  <aside class="notes">Every figure opens its section; every row links to the item's own page, where its actions live. Each section has a deep link, /app/control-panel?section=documents, so a mentor can be sent straight to one part.</aside>
+</section>
+
+<!-- 13 -->
+<section class="slide" data-title="Technology stack">
+  <p class="kicker">Technology stack</p>
+  <h2>Open source, on one machine</h2>
+  <div class="body stack">
+    <div class="layer"><b><span class="disc"><svg class="ic"><use href="#i-monitor"/></svg></span>Frontend</b><div class="chips"><span>React 18</span><span>TypeScript</span><span>Vite</span><span>Tailwind</span></div></div>
+    <div class="layer"><b><span class="disc" style="--c:var(--appr)"><svg class="ic"><use href="#i-server"/></svg></span>Services</b><div class="chips"><span>Python 3.11</span><span>FastAPI</span><span>SQLAlchemy</span><span>nginx gateway</span></div></div>
+    <div class="layer"><b><span class="disc" style="--c:var(--auth)"><svg class="ic"><use href="#i-zap"/></svg></span>Messaging</b><div class="chips"><span>Kafka API on Redpanda</span><span>Temporal</span></div></div>
+    <div class="layer"><b><span class="disc" style="--c:var(--chat)"><svg class="ic"><use href="#i-db"/></svg></span>Data</b><div class="chips"><span>PostgreSQL 16 + pgvector</span><span>MinIO</span><span>Redis</span></div></div>
+    <div class="layer"><b><span class="disc" style="--c:var(--doc)"><svg class="ic"><use href="#i-scan"/></svg></span>Document AI</b><div class="chips"><span>pdfplumber</span><span>Docling</span><span>PaddleOCR</span><span>LayoutLMv3</span><span>scikit-learn</span></div></div>
+    <div class="layer"><b><span class="disc" style="--c:var(--ctr)"><svg class="ic"><use href="#i-contract"/></svg></span>Contract AI</b><div class="chips"><span>Legal-BERT fine-tuned on CUAD</span></div></div>
+    <div class="layer"><b><span class="disc" style="--c:var(--ink2)"><svg class="ic"><use href="#i-pulse"/></svg></span>Operations</b><div class="chips"><span>Docker Compose</span><span>ClamAV</span><span>Prometheus</span><span>Grafana</span><span>Loki</span></div></div>
+  </div>
+  <aside class="notes">Everything starts with ./run.sh. Only port 8080 is public. Everything is pinned and reproducible from a fresh clone.</aside>
+</section>
+
+<!-- 14 -->
+<section class="slide blue" data-title="Results">
+  <p class="kicker">Results</p>
+  <h2>Tested end to end, measured per model</h2>
+  <div class="body nums" style="top:300px">
+    <div class="num"><svg class="ic"><use href="#i-check"/></svg><strong>1,276</strong><span>automated service tests passing</span></div>
+    <div class="num"><svg class="ic"><use href="#i-layers"/></svg><strong>71 / 71</strong><span>checks in the full-lifecycle run through the gateway</span></div>
+    <div class="num"><svg class="ic"><use href="#i-doc"/></svg><strong>100%</strong><span>of fields read correctly from text PDFs</span></div>
+    <div class="num"><svg class="ic"><use href="#i-contract"/></svg><strong>0.91</strong><span>F1 for contract expiry dates (rules: 0.02), 102 real contracts</span></div>
+    <div class="num"><svg class="ic"><use href="#i-chart"/></svg><strong>0.954</strong><span>ROC-AUC for licence-usage anomalies</span></div>
+    <div class="num"><svg class="ic"><use href="#i-chat"/></svg><strong>20 / 20</strong><span>assistant answers correct, access limits respected</span></div>
+  </div>
+  <aside class="notes">Be honest about the data: the document and licence data are synthetic; the clause model was measured on CUAD's lawyer-annotated contracts. Scanned images are read fully right only about half the time, and those go to review.</aside>
+</section>
+
+<!-- 15 -->
+<section class="slide" data-title="Live demo">
+  <p class="kicker">Live demo</p>
+  <h2>One quote, end to end, in five minutes</h2>
+  <div class="body">
+    <svg class="draw" viewBox="0 0 1680 380" style="width:1680px;height:380px" aria-label="Six demo steps">
+      <path d="M140 110H1540" stroke="#dadfd6" stroke-width="6" stroke-dasharray="2 14" stroke-linecap="round"/>
+      <g text-anchor="middle">
+        <g><circle cx="140" cy="110" r="84" fill="#fbfbf8" stroke="#c2410c" stroke-width="3"/><use href="#i-inbox" class="u" x="106" y="76" width="68" height="68" style="color:#c2410c"/></g>
+        <g><circle cx="420" cy="110" r="84" fill="#fbfbf8" stroke="#6d28d9" stroke-width="3"/><use href="#i-scan" class="u" x="386" y="76" width="68" height="68" style="color:#6d28d9"/></g>
+        <g><circle cx="700" cy="110" r="84" fill="#fbfbf8" stroke="#1d4ed8" stroke-width="3"/><use href="#i-mail" class="u" x="666" y="76" width="68" height="68" style="color:#1d4ed8"/></g>
+        <g><circle cx="980" cy="110" r="84" fill="#fbfbf8" stroke="#be185d" stroke-width="3"/><use href="#i-contract" class="u" x="946" y="76" width="68" height="68" style="color:#be185d"/></g>
+        <g><circle cx="1260" cy="110" r="84" fill="#fbfbf8" stroke="#15803d" stroke-width="3"/><use href="#i-pen" class="u" x="1226" y="76" width="68" height="68" style="color:#15803d"/></g>
+        <g><circle cx="1540" cy="110" r="84" fill="#fbfbf8" stroke="#c2410c" stroke-width="3" stroke-dasharray="8 7"/><use href="#i-folder-x" class="u" x="1506" y="76" width="68" height="68" style="color:#c2410c"/></g>
+        <g font-size="22" font-weight="700" fill="#fff">
+          <circle cx="80" cy="40" r="22" fill="#14213d"/><text x="80" y="48">1</text><circle cx="360" cy="40" r="22" fill="#14213d"/><text x="360" y="48">2</text>
+          <circle cx="640" cy="40" r="22" fill="#14213d"/><text x="640" y="48">3</text><circle cx="920" cy="40" r="22" fill="#14213d"/><text x="920" y="48">4</text>
+          <circle cx="1200" cy="40" r="22" fill="#14213d"/><text x="1200" y="48">5</text><circle cx="1480" cy="40" r="22" fill="#14213d"/><text x="1480" y="48">6</text>
+        </g>
+        <g font-size="30" font-weight="600" fill="#14213d"><text x="140" y="258">Drop a quote</text><text x="420" y="258">Fields read</text><text x="700" y="258">Approver emailed</text><text x="980" y="258">Contract sent</text><text x="1260" y="258">Signed</text><text x="1540" y="258">Blank scan</text></g>
+        <g font-size="24" fill="#3f4a5a"><text x="140" y="298">into ./inbox/input</text><text x="420" y="298">with confidence</text><text x="700" y="298">approves in one click</text><text x="980" y="298">to the signer</text><text x="1260" y="298">E-Signature Complete</text><text x="1540" y="298">lands in failed/</text></g>
+      </g>
+    </svg>
+    <div style="position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
+      <div class="band" style="position:static;font-size:26px"><svg class="ic"><use href="#i-monitor"/></svg><span>App<br><b style="font-family:var(--mono);font-weight:500">localhost:8080</b></span></div>
+      <div class="band" style="position:static;font-size:26px"><svg class="ic"><use href="#i-mail"/></svg><span>Mail (Mailpit)<br><b style="font-family:var(--mono);font-weight:500">localhost:8025</b></span></div>
+      <div class="band" style="position:static;font-size:26px"><svg class="ic"><use href="#i-film"/></svg><span>Backup recording<br><b style="font-family:var(--mono);font-weight:500;font-size:20px;white-space:nowrap">docs/demo/backup-recording.webm</b></span></div>
+    </div>
+  </div>
+  <aside class="notes">Run ./scripts/reset-demo.sh before the session to clear test data. Keep Mailpit open in a second tab. 1: copy a vendor quote into ./inbox/input and watch Control Panel, Documents. 2: open the document: every field, its confidence, each stage's result. 3: the purchase request appears; the approver gets an email and approves. 4: the contract is generated; the signer's email links to the signing page. 5: sign; the signed PDF shows E-Signature Complete. 6: drop a blank scan; it lands in ./inbox/failed with its reason. If anything stalls, switch to the backup recording. The rehearsed script: Team dashboard, Showcase, 5-minute demo.</aside>
+</section>
+
+<!-- 16 -->
+<section class="slide" data-title="Limitations and next steps">
+  <p class="kicker">Limitations and next steps</p>
+  <h2>What we would not claim yet, and what comes next</h2>
+  <div class="body cols">
+    <div>
+      <h3 style="color:var(--orange)">Not yet</h3>
+      <div class="rows">
+        <div class="row" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-scan"/></svg></span>Poor scans read fully right about half the time</div>
+        <div class="row" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-lock"/></svg></span>The e-signature seal is an unkeyed hash</div>
+        <div class="row" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-layers"/></svg></span>Synthetic data for documents and licences</div>
+        <div class="row" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-server"/></svg></span>One machine; no TLS between services</div>
+      </div>
+    </div>
+    <div>
+      <h3 style="color:var(--blue)">Next</h3>
+      <div class="rows">
+        <div class="row"><span class="disc"><svg class="ic"><use href="#i-pen"/></svg></span>A legally recognised e-signature provider</div>
+        <div class="row"><span class="disc"><svg class="ic"><use href="#i-plug"/></svg></span>ERP export of orders and matched invoices</div>
+        <div class="row"><span class="disc"><svg class="ic"><use href="#i-target"/></svg></span>Calibrated review gate from our research</div>
+        <div class="row"><span class="disc"><svg class="ic"><use href="#i-chat"/></svg></span>Teams or Slack alerts; a vendor portal</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The research study (selective automation) shows how to let more invoices skip review while guaranteeing the error rate; that is the most valuable next step.</aside>
+</section>
+
+<!-- 17 -->
+<section class="slide dark" data-title="Thank you">
+  <div style="position:absolute;left:120px;right:120px;top:50%;transform:translateY(-50%)">
+    <h1>Thank you.<br>Questions?</h1>
+    <p class="lead" style="color:#c9d3e3;margin-top:48px;width:1200px">The documentation site has the architecture, the functional flow, every agent, the APIs, deployment and the final checklist.</p>
+  </div>
+  <div class="cover-team">Anjali · Vaidehi · Niraj · Anooj</div>
+  <aside class="notes">Any module can be asked to any member: each of us should be able to walk through the Control Panel and one document end to end.</aside>
+</section>
+
+</div></div>
+
+<div class="notes-panel" id="notesPanel" hidden></div>
+<div class="bar" id="bar">
+  <div class="progress" id="progress"></div>
+  <button type="button" id="prev" aria-label="Previous slide"><svg class="ic"><use href="#i-left"/></svg></button>
+  <span class="count" id="count">1 / 1</span>
+  <button type="button" id="next" aria-label="Next slide"><svg class="ic"><use href="#i-chevron"/></svg></button>
+  <span class="now" id="now"></span>
+  <span class="keys">← → move · F full screen · N notes · G all slides</span>
+  <button type="button" id="gridBtn" aria-pressed="false"><svg class="ic"><use href="#i-grid"/></svg><span class="lbl">All slides</span></button>
+  <button type="button" id="notesBtn" aria-pressed="false"><svg class="ic"><use href="#i-notes"/></svg><span class="lbl">Notes</span></button>
+  <button type="button" id="fsBtn" aria-pressed="false"><svg class="ic"><use href="#i-expand"/></svg><span class="lbl">Present</span></button>
 </div>
+<div class="overview" id="overview" hidden>
+  <header><h1>All slides</h1><button type="button" class="close" id="closeGrid">Close</button></header>
+  <div class="grid" id="thumbs"></div>
+</div>
+
+<script>
+(() => {
+  const slides = [...document.querySelectorAll("#stage > .slide")];
+  const stage = document.getElementById("stage"), viewport = document.getElementById("viewport");
+  const notesPanel = document.getElementById("notesPanel"), overview = document.getElementById("overview");
+  const $ = (id) => document.getElementById(id);
+  let index = 0;
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } },
+  };
+
+  slides.forEach((s, n) => {
+    if (n === 0) return;
+    const f = document.createElement("div");
+    f.className = "foot";
+    f.innerHTML = "<span>Agentic AI Procurement</span><span>" + (n + 1) + " / " + slides.length + "</span>";
+    s.appendChild(f);
+  });
+
+  function fit() {
+    const k = Math.min(viewport.clientWidth / 1920, viewport.clientHeight / 1080);
+    stage.style.transform = "translate(-50%, -50%) scale(" + k + ")";
+  }
+  function go(n) {
+    index = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => { s.classList.toggle("on", k === index); s.setAttribute("aria-hidden", k === index ? "false" : "true"); });
+    $("count").textContent = index + 1 + " / " + slides.length;
+    $("now").textContent = slides[index].dataset.title;
+    $("prev").disabled = index === 0;
+    $("next").disabled = index === slides.length - 1;
+    $("progress").style.width = ((index + 1) / slides.length) * 100 + "%";
+    const note = slides[index].querySelector(".notes");
+    notesPanel.innerHTML = "<b>Speaker notes · " + (index + 1) + "</b>";
+    notesPanel.append(note ? note.textContent : "No notes for this slide.");
+    store.set("deck-slide", index);
+  }
+  function toggleNotes(force) {
+    const open = force !== undefined ? force : notesPanel.hidden;
+    notesPanel.hidden = !open;
+    $("notesBtn").setAttribute("aria-pressed", open ? "true" : "false");
+    store.set("deck-notes", open ? "1" : "0");
+    fit();
+  }
+  function toggleFull() {
+    const el = document.documentElement;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  }
+  document.addEventListener("fullscreenchange", () => {
+    const on = !!document.fullscreenElement;
+    document.body.classList.toggle("fs", on);
+    $("fsBtn").setAttribute("aria-pressed", on ? "true" : "false");
+    fit();
+  });
+  let sleep;
+  document.addEventListener("mousemove", () => {
+    if (!document.body.classList.contains("fs")) return;
+    document.body.classList.add("awake");
+    clearTimeout(sleep);
+    sleep = setTimeout(() => document.body.classList.remove("awake"), 2000);
+  });
+
+  function openGrid() {
+    const grid = $("thumbs");
+    if (!grid.childElementCount) {
+      slides.forEach((s, n) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "thumb";
+        const frame = document.createElement("div");
+        frame.className = "frame";
+        const inner = document.createElement("div");
+        const copy = s.cloneNode(true);
+        copy.removeAttribute("aria-hidden");
+        copy.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+        copy.querySelectorAll("[tabindex]").forEach((el) => el.setAttribute("tabindex", "-1"));
+        inner.appendChild(copy);
+        frame.appendChild(inner);
+        const label = document.createElement("span");
+        label.innerHTML = "<b>" + (n + 1) + "</b>";
+        label.append(s.dataset.title);
+        b.append(frame, label);
+        b.addEventListener("click", () => { go(n); closeGrid(); });
+        grid.appendChild(b);
+      });
+    }
+    overview.hidden = false;
+    $("gridBtn").setAttribute("aria-pressed", "true");
+    const thumbs = [...grid.children];
+    thumbs.forEach((t, n) => t.setAttribute("aria-current", n === index ? "true" : "false"));
+    const w = thumbs[0].querySelector(".frame").clientWidth;
+    thumbs.forEach((t) => { t.querySelector(".frame > div").style.transform = "scale(" + w / 1920 + ")"; });
+    thumbs[index].focus();
+  }
+  function closeGrid() {
+    overview.hidden = true;
+    $("gridBtn").setAttribute("aria-pressed", "false");
+  }
+
+  // architecture slides: click a box to light what it connects to
+  document.querySelectorAll("#stage svg.arch").forEach((svg) => {
+    const cap = svg.closest(".slide").querySelector(".arch-cap > span");
+    const hint = cap.innerHTML;
+    let selected = "";
+    function clear() {
+      selected = "";
+      svg.classList.remove("focus");
+      svg.querySelectorAll(".on").forEach((el) => el.classList.remove("on"));
+      cap.innerHTML = hint;
+    }
+    function pick(node) {
+      const id = node.dataset.id;
+      if (selected === id) return clear();
+      selected = id;
+      svg.classList.add("focus");
+      svg.querySelectorAll("[data-links]").forEach((el) => {
+        el.classList.toggle("on", el.dataset.id === id || el.dataset.links.split(" ").includes(id));
+      });
+      cap.innerHTML = "";
+      const b = document.createElement("b");
+      b.textContent = node.dataset.name + ": ";
+      cap.append(b, node.dataset.info);
+    }
+    svg.addEventListener("click", (e) => { const node = e.target.closest(".node"); node ? pick(node) : clear(); });
+    svg.addEventListener("keydown", (e) => {
+      const node = e.target.closest(".node");
+      if (node && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); pick(node); }
+    });
+  });
+
+  $("prev").addEventListener("click", () => go(index - 1));
+  $("next").addEventListener("click", () => go(index + 1));
+  $("notesBtn").addEventListener("click", () => toggleNotes());
+  $("fsBtn").addEventListener("click", toggleFull);
+  $("gridBtn").addEventListener("click", () => (overview.hidden ? openGrid() : closeGrid()));
+  $("closeGrid").addEventListener("click", closeGrid);
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!overview.hidden) { if (e.key === "Escape" || e.key === "g" || e.key === "G") { e.preventDefault(); closeGrid(); } return; }
+    const k = e.key;
+    if (k === "ArrowRight" || k === "PageDown" || (k === " " && !e.target.closest(".node"))) { e.preventDefault(); go(index + 1); }
+    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); go(index - 1); }
+    else if (k === "Home") go(0);
+    else if (k === "End") go(slides.length - 1);
+    else if (k === "f" || k === "F") toggleFull();
+    else if (k === "n" || k === "N") toggleNotes();
+    else if (k === "g" || k === "G") openGrid();
+  });
+  window.addEventListener("resize", fit);
+
+  go(Number(store.get("deck-slide")) || 0);
+  toggleNotes(store.get("deck-notes") === "1");
+  fit();
+})();
+</script>
 </body></html>
 </template>
 <script>
@@ -824,6 +1924,7 @@ function openPage(id, sub, fromHash) {
   if (!frames[id]) {
     const f = document.createElement("iframe");
     f.title = page.label;
+    f.allowFullscreen = true;  // the Slides tab presents full screen
     f.srcdoc = "<!doctype html>" + document.getElementById("page-" + id).innerHTML + LINKS;
     f.addEventListener("load", () => { setTheme(); if (f.dataset.sub) jump(f, f.dataset.sub); });
     document.getElementById("main").appendChild(f);

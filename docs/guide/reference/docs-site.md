@@ -39,6 +39,7 @@ The site appears at `https://<owner>.github.io/ProcurementAutomation/`.
 
 ```bash
 python docs/assets/make_architecture_svg.py docs/assets/architecture.svg
+python docs/assets/make_architecture_carousel.py       # the two-slide architecture (this site + Slides tab)
 python scripts/render_diagrams.py                       # architecture.png, functional-flow.svg/.png
 python tests/e2e/showcase_screens.py cpanel reliability # screenshots from the running stack
 ```

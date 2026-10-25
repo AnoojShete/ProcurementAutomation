@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="arch" id="arch-1" viewBox="0 0 1440 780" role="group" aria-label="System architecture, part 1: the browser and the e-sign callback reach the nginx gateway, which routes to six agents; the drop folder and mailbox feed the document agent">
+<style>.arch{--ink:var(--arch-ink,#14213d);--ink2:var(--arch-ink2,#3f4a5a);--ink3:var(--arch-ink3,#5d6670);
+--sheet:var(--arch-sheet,#ffffff);--paper:var(--arch-paper,#f4f5f1);--rule:var(--arch-rule,#d5dad2);
+--gate:var(--arch-gate,#14213d);--ongate:var(--arch-ongate,#f5f6f2);--ongate2:var(--arch-ongate2,#c9d3e3);
+font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+.arch .c-doc{--c:var(--arch-doc,#c2410c)}.arch .c-appr{--c:var(--arch-appr,#1d4ed8)}
+.arch .c-ctr{--c:var(--arch-ctr,#be185d)}.arch .c-notif{--c:var(--arch-notif,#15803d)}
+.arch .c-auth{--c:var(--arch-auth,#6d28d9)}.arch .c-chat{--c:var(--arch-chat,#0f766e)}
+.arch .c-infra{--c:var(--ink)}
+.arch text{fill:var(--ink)}.arch .t2{fill:var(--ink2)}.arch .t3{fill:var(--ink3)}.arch .tc{fill:var(--c)}
+.arch .b{font-weight:600}.arch .mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace}
+.arch .box{fill:var(--sheet);stroke:var(--rule);stroke-width:1.5}
+.arch .soft{fill:var(--paper);stroke:var(--rule);stroke-width:1.5}
+.arch .ext{fill:var(--sheet);stroke:var(--ink3);stroke-width:1.5;stroke-dasharray:6 5}
+.arch .band{fill:var(--c)}.arch .tint{fill:var(--c);fill-opacity:.12}
+.arch .gate{fill:var(--gate)}.arch .gate-t{fill:var(--ongate)}.arch .gate-t2{fill:var(--ongate2)}
+.arch .ico{fill:none;stroke:var(--c);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.arch .ico-l{fill:none;stroke:var(--ongate);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.arch .ai{fill:var(--c)}.arch .ai-t{fill:var(--sheet);font-weight:700}
+.arch .edge{fill:none;stroke:var(--ink3);stroke-width:2.2}
+.arch .edge-head{fill:var(--ink3)}
+.arch .node{cursor:pointer;outline:none}
+.arch .node:focus-visible .box,.arch .node:focus-visible .soft,.arch .node:focus-visible .ext{stroke:var(--c);stroke-width:3}
+.arch [data-links]{transition:opacity .2s}
+.arch.focus [data-links]:not(.on){opacity:.16}
+.arch .node.on .box,.arch .node.on .soft,.arch .node.on .ext{stroke:var(--c);stroke-width:3}
+.arch .edge-g.on .edge{stroke:var(--ink);stroke-width:3}.arch .edge-g.on .edge-head{fill:var(--ink)}</style>
+<g class="edge-g" data-links="browser gateway">
+<path class="edge" d="M580,104 V172"/>
+<polygon class="edge-head" points="572,162 588,162 580,174"/>
+<text x="594" y="146" font-size="17" class="t2">HTTPS + login token (JWT)</text>
+</g>
+<g class="edge-g" data-links="esign gateway">
+<path class="edge" d="M1130,104 V172"/>
+<polygon class="edge-head" points="1122,162 1138,162 1130,174"/>
+<text x="1144" y="146" font-size="17" class="t2">signed callback</text>
+</g>
+<g class="edge-g" data-links="doc gateway">
+<path class="edge" d="M111,268 V356"/>
+<polygon class="edge-head" points="103,346 119,346 111,358"/>
+<text x="121" y="322" font-size="17" class="t2">/api/documents</text>
+</g>
+<g class="edge-g" data-links="appr gateway">
+<path class="edge" d="M354,268 V356"/>
+<polygon class="edge-head" points="346,346 362,346 354,358"/>
+<text x="364" y="322" font-size="17" class="t2">/api/requests</text>
+</g>
+<g class="edge-g" data-links="ctr esign gateway">
+<path class="edge" d="M597,268 V356"/>
+<polygon class="edge-head" points="589,346 605,346 597,358"/>
+<text x="607" y="322" font-size="17" class="t2">/api/contracts</text>
+</g>
+<g class="edge-g" data-links="gateway notif">
+<path class="edge" d="M840,268 V356"/>
+<polygon class="edge-head" points="832,346 848,346 840,358"/>
+<text x="850" y="322" font-size="17" class="t2">/api/notifications</text>
+</g>
+<g class="edge-g" data-links="auth gateway">
+<path class="edge" d="M1083,268 V356"/>
+<polygon class="edge-head" points="1075,346 1091,346 1083,358"/>
+<text x="1093" y="322" font-size="17" class="t2">/api/auth</text>
+</g>
+<g class="edge-g" data-links="chat gateway">
+<path class="edge" d="M1326,268 V356"/>
+<polygon class="edge-head" points="1318,346 1334,346 1326,358"/>
+<text x="1336" y="322" font-size="17" class="t2">/api/chat</text>
+</g>
+<g class="edge-g" data-links="doc inputs">
+<path class="edge" d="M111,700 V644"/>
+<polygon class="edge-head" points="103,654 119,654 111,642"/>
+<text x="123" y="678" font-size="17" class="t2">files, mail</text>
+</g>
+<g class="node c-infra" data-id="browser" data-links="gateway" data-name="Web app" data-info="the React app in the browser: one page per item, navigation by role (requester, approver, finance, admin), the admin Control Panel." tabindex="0" role="button" aria-label="Web app: the React app in the browser: one page per item, navigation by role (requester, approver, finance, admin), the admin Control Panel.">
+<rect class="box" x="300" y="0" width="560" height="104" rx="14"/>
+<g class="ico" transform="translate(326 30) scale(1.83333)"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></g>
+<text x="392" y="46" font-size="26" class="b">Web app</text>
+<text x="392" y="78" font-size="18" class="t2">React · requester, approver, finance, admin</text>
+</g>
+<g class="node c-infra" data-id="esign" data-links="ctr gateway" data-name="E-sign callback" data-info="an outside e-signature provider reports a signature; the request is HMAC-signed and replay-protected, and reaches Contract &amp; Risk through the gateway." tabindex="0" role="button" aria-label="E-sign callback: an outside e-signature provider reports a signature; the request is HMAC-signed and replay-protected, and reaches Contract &amp; Risk through the gateway.">
+<rect class="box" x="940" y="0" width="380" height="104" rx="14"/>
+<g class="ico" transform="translate(966 30) scale(1.83333)"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></g>
+<text x="1032" y="46" font-size="26" class="b">E-sign callback</text>
+<text x="1032" y="78" font-size="18" class="t2">signed webhook (HMAC)</text>
+</g>
+<g class="node c-infra" data-id="gateway" data-links="appr auth browser chat ctr doc esign notif" data-name="nginx gateway" data-info="the only public port (8080): serves the app, sends /api/&lt;prefix&gt; to the agent that owns it, rate-limits logins, adds security headers, caps uploads at 25 MB." tabindex="0" role="button" aria-label="nginx gateway: the only public port (8080): serves the app, sends /api/&lt;prefix&gt; to the agent that owns it, rate-limits logins, adds security headers, caps uploads at 25 MB.">
+<rect class="gate" x="0" y="176" width="1440" height="92" rx="14"/>
+<g class="ico-l" transform="translate(28 200) scale(1.83333)"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></g>
+<text x="92" y="216" font-size="26" class="b gate-t">nginx gateway · :8080</text>
+<text x="92" y="248" font-size="18" class="gate-t2">the only public port · serves the app · rate limits · security headers · 25 MB upload cap</text>
+</g>
+<g class="node c-doc" data-id="doc" data-links="gateway inputs" data-name="Document &amp; Vendor" data-info="takes documents in, virus-scans and reads them (OCR, classifier, LayoutLMv3), extracts and checks the fields, matches the vendor." tabindex="0" role="button" aria-label="Document &amp; Vendor: takes documents in, virus-scans and reads them (OCR, classifier, LayoutLMv3), extracts and checks the fields, matches the vendor.">
+<rect class="box" x="0" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M0,370 V374 a14,14 0 0 1 14,-14 H209 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="44" cy="412" r="28"/>
+<g class="ico" transform="translate(28 396) scale(1.33333)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></g>
+<rect class="ai" x="163" y="398" width="42" height="28" rx="8"/>
+<text x="184" y="418" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="20" y="484" font-size="24" class="b">Document</text>
+<text x="20" y="514" font-size="24" class="b">&amp; Vendor</text>
+<text x="20" y="546" font-size="18" class="b tc">:8001 + worker</text>
+<line x1="20" y1="564" x2="203" y2="564" stroke="var(--rule)"/>
+<text x="20" y="594" font-size="18" class="t2">Reads documents</text>
+<text x="20" y="622" font-size="18" class="t2">Checks vendors</text>
+</g>
+<g class="node c-appr" data-id="appr" data-links="gateway" data-name="Approval &amp; Inventory" data-info="turns a quote into a purchase request, routes it by amount, enforces who may approve, keeps budgets, stock, licences (anomaly model) and the invoice ledger." tabindex="0" role="button" aria-label="Approval &amp; Inventory: turns a quote into a purchase request, routes it by amount, enforces who may approve, keeps budgets, stock, licences (anomaly model) and the invoice ledger.">
+<rect class="box" x="243" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M243,370 V374 a14,14 0 0 1 14,-14 H452 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="287" cy="412" r="28"/>
+<g class="ico" transform="translate(271 396) scale(1.33333)"><circle cx="12" cy="12" r="9"/><path d="M8.5 12l2.5 2.5 4.5-5"/></g>
+<rect class="ai" x="406" y="398" width="42" height="28" rx="8"/>
+<text x="427" y="418" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="263" y="484" font-size="24" class="b">Approval</text>
+<text x="263" y="514" font-size="24" class="b">&amp; Inventory</text>
+<text x="263" y="546" font-size="18" class="b tc">:8002 + worker</text>
+<line x1="263" y1="564" x2="446" y2="564" stroke="var(--rule)"/>
+<text x="263" y="594" font-size="18" class="t2">Approvals, budgets</text>
+<text x="263" y="622" font-size="18" class="t2">Stock, licences</text>
+</g>
+<g class="node c-ctr" data-id="ctr" data-links="esign gateway" data-name="Contract &amp; Risk" data-info="writes the contract after the final approval, collects the e-signature, reads clauses (Legal-BERT) and scores vendor risk; a sanctioned vendor can&#x27;t be signed." tabindex="0" role="button" aria-label="Contract &amp; Risk: writes the contract after the final approval, collects the e-signature, reads clauses (Legal-BERT) and scores vendor risk; a sanctioned vendor can&#x27;t be signed.">
+<rect class="box" x="486" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M486,370 V374 a14,14 0 0 1 14,-14 H695 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="530" cy="412" r="28"/>
+<g class="ico" transform="translate(514 396) scale(1.33333)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M8 17c1.5-2.5 2.5-2.5 3 0s1.5 1 3-1"/></g>
+<rect class="ai" x="649" y="398" width="42" height="28" rx="8"/>
+<text x="670" y="418" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="506" y="484" font-size="24" class="b">Contract</text>
+<text x="506" y="514" font-size="24" class="b">&amp; Risk</text>
+<text x="506" y="546" font-size="18" class="b tc">:8003 + worker</text>
+<line x1="506" y1="564" x2="689" y2="564" stroke="var(--rule)"/>
+<text x="506" y="594" font-size="18" class="t2">Contracts, e-sign</text>
+<text x="506" y="622" font-size="18" class="t2">Vendor risk</text>
+</g>
+<g class="node c-notif" data-id="notif" data-links="gateway" data-name="Notification agent" data-info="listens to 17 event topics and emails whoever must act next, from templates admins edit in the Control Panel." tabindex="0" role="button" aria-label="Notification agent: listens to 17 event topics and emails whoever must act next, from templates admins edit in the Control Panel.">
+<rect class="box" x="729" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M729,370 V374 a14,14 0 0 1 14,-14 H938 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="773" cy="412" r="28"/>
+<g class="ico" transform="translate(757 396) scale(1.33333)"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></g>
+<text x="749" y="484" font-size="24" class="b">Notification</text>
+<text x="749" y="514" font-size="24" class="b">agent</text>
+<text x="749" y="546" font-size="18" class="b tc">:8004</text>
+<line x1="749" y1="564" x2="932" y2="564" stroke="var(--rule)"/>
+<text x="749" y="594" font-size="18" class="t2">Emails each step</text>
+<text x="749" y="622" font-size="18" class="t2">Editable templates</text>
+</g>
+<g class="node c-auth" data-id="auth" data-links="gateway" data-name="Auth service" data-info="sign-up, login and roles; serves the business rules every agent reads, changed live without a deploy." tabindex="0" role="button" aria-label="Auth service: sign-up, login and roles; serves the business rules every agent reads, changed live without a deploy.">
+<rect class="box" x="972" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M972,370 V374 a14,14 0 0 1 14,-14 H1181 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="1016" cy="412" r="28"/>
+<g class="ico" transform="translate(1000 396) scale(1.33333)"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></g>
+<text x="992" y="484" font-size="24" class="b">Auth</text>
+<text x="992" y="514" font-size="24" class="b">service</text>
+<text x="992" y="546" font-size="18" class="b tc">:8005</text>
+<line x1="992" y1="564" x2="1175" y2="564" stroke="var(--rule)"/>
+<text x="992" y="594" font-size="18" class="t2">Accounts, roles</text>
+<text x="992" y="622" font-size="18" class="t2">Business rules</text>
+</g>
+<g class="node c-chat" data-id="chat" data-links="gateway" data-name="Assistant (chatbot)" data-info="answers questions from contracts, documents and records (retrieval-augmented, local LLM), only from what the signed-in user may see." tabindex="0" role="button" aria-label="Assistant (chatbot): answers questions from contracts, documents and records (retrieval-augmented, local LLM), only from what the signed-in user may see.">
+<rect class="box" x="1215" y="360" width="223" height="280" rx="14"/>
+<path class="band" d="M1215,370 V374 a14,14 0 0 1 14,-14 H1424 a14,14 0 0 1 14,14 V370 Z"/>
+<circle class="tint" cx="1259" cy="412" r="28"/>
+<g class="ico" transform="translate(1243 396) scale(1.33333)"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></g>
+<rect class="ai" x="1378" y="398" width="42" height="28" rx="8"/>
+<text x="1399" y="418" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="1235" y="484" font-size="24" class="b">Assistant</text>
+<text x="1235" y="514" font-size="24" class="b">(chatbot)</text>
+<text x="1235" y="546" font-size="18" class="b tc">:8006</text>
+<line x1="1235" y1="564" x2="1418" y2="564" stroke="var(--rule)"/>
+<text x="1235" y="594" font-size="18" class="t2">Answers questions</text>
+<text x="1235" y="622" font-size="18" class="t2">Checks access</text>
+</g>
+<g class="node c-doc" data-id="inputs" data-links="doc" data-name="Drop folder and mailbox" data-info="files copied into ./inbox/input are picked up every 3 seconds; the intake mailbox is read every 30 seconds. Both go straight to the document worker, not through the gateway." tabindex="0" role="button" aria-label="Drop folder and mailbox: files copied into ./inbox/input are picked up every 3 seconds; the intake mailbox is read every 30 seconds. Both go straight to the document worker, not through the gateway.">
+<rect class="soft" x="0" y="700" width="223" height="80" rx="14"/>
+<g class="ico" transform="translate(18 722) scale(1.5)"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></g>
+<text x="66" y="734" font-size="21" class="b">Drop folder</text>
+<text x="66" y="762" font-size="18" class="t2">and mailbox</text>
+</g>
+<g class="c-infra">
+<rect class="soft" x="300" y="700" width="1140" height="80" rx="14"/>
+<g class="c-appr"><rect class="ai" x="328" y="726" width="42" height="28" rx="8"/></g>
+<text x="349" y="746" font-size="17" class="ai-t" text-anchor="middle">AI</text>
+<text x="384" y="746" font-size="18" class="t2">uses a trained model</text>
+<rect x="610" y="728" width="44" height="24" rx="6" fill="var(--rule)"/><rect x="610" y="728" width="44" height="7" rx="3" fill="var(--ink2)"/>
+<text x="668" y="746" font-size="18" class="t2">colour = one agent</text>
+<text x="870" y="746" font-size="18" class="t2">+ worker = background jobs</text>
+<text x="1416" y="746" font-size="18" class="b" text-anchor="end">Next: how they talk ›</text>
+</g>
+</svg>

@@ -56,6 +56,12 @@ theme:
 plugins:
   - search
 
+# The architecture carousel (docs/guide/overview/architecture.md)
+extra_css:
+  - stylesheets/architecture.css
+extra_javascript:
+  - javascripts/architecture.js
+
 markdown_extensions:
   - admonition
   - attr_list
@@ -67,7 +73,9 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path: [.]
+      check_paths: true
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.superfences:

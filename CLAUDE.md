@@ -36,7 +36,9 @@ in the four-part agent template, Control Panel, reference). It reuses images
 from `docs/assets/` and `docs/showcase/` through `scripts/mkdocs_hooks.py`;
 `mkdocs build --strict` must stay clean (CI: `.github/workflows/docs.yml`).
 Diagrams: `docs/assets/make_architecture_svg.py`, `docs/assets/functional-flow.mmd`,
-rendered by `scripts/render_diagrams.py`. Update `docs/guide/` with the dashboard.
+rendered by `scripts/render_diagrams.py`; the two-slide clickable architecture
+(MkDocs carousel + the Slides tab's slides 4–5) is
+`docs/assets/make_architecture_carousel.py`, which also refreshes the deck. Update `docs/guide/` with the dashboard.
 Engineering references stay Markdown: TODO, readmeforme (with appendices:
 architecture, model routing, notification coverage, testing strategy),
 business-rules, feature-expansion-plan, design-direction,

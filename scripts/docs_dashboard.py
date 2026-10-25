@@ -51,7 +51,7 @@ PAGES = [
     ("interview", "interview-prep", "Interview prep", "Problem, stack choices and alternatives, Q&A", "team", "chat", "orange"),
     ("status", "project-flow", "Project status", "What is built, agent by agent", "present", "flow", "blue"),
     ("risk", "risk-model", "Vendor risk", "Scorecard, clearance, red team, evaluation", "present", "shield", "pink"),
-    ("slides", "slides", "Slides", "The final-review deck, slide by slide", "present", "screen", "purple"),
+    ("slides", "slides", "Slides", "The final-review deck; press F to present", "present", "screen", "purple"),
 ]
 # Old tab ids and file names → (tab id, anchor inside it)
 ALIASES = {
@@ -225,6 +225,7 @@ function openPage(id, sub, fromHash) {
   if (!frames[id]) {
     const f = document.createElement("iframe");
     f.title = page.label;
+    f.allowFullscreen = true;  // the Slides tab presents full screen
     f.srcdoc = "<!doctype html>" + document.getElementById("page-" + id).innerHTML + LINKS;
     f.addEventListener("load", () => { setTheme(); if (f.dataset.sub) jump(f, f.dataset.sub); });
     document.getElementById("main").appendChild(f);

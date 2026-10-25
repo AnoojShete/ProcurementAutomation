@@ -1,0 +1,58 @@
+/* System architecture page: the two-slide carousel (architecture.js).
+   The diagrams carry their own light colours; dark mode re-points them here. */
+[data-md-color-scheme="slate"] .arch {
+  --arch-ink: #e6ebf1; --arch-ink2: #c3cbd6; --arch-ink3: #98a3b2;
+  --arch-sheet: #1b212b; --arch-paper: #232a35; --arch-rule: #3a4452;
+  --arch-gate: #0b1426; --arch-ongate: #f5f6f2; --arch-ongate2: #b9c5d8;
+  --arch-doc: #fb923c; --arch-appr: #7aa7f2; --arch-ctr: #f472b6;
+  --arch-notif: #4ade80; --arch-auth: #b794f6; --arch-chat: #2dd4bf;
+}
+
+.arch-carousel {
+  margin: 1em 0 1.6em;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 14px;
+  background: var(--md-default-bg-color);
+  overflow: hidden;
+}
+.arch-head {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  padding: .55rem .8rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+.arch-step { font-size: .7rem; font-weight: 600; color: var(--md-default-fg-color--light); white-space: nowrap; }
+.arch-title { font-weight: 700; font-size: .85rem; flex: 1; min-width: 12rem; }
+.arch-head button, .arch-dots button {
+  font: inherit; cursor: pointer; color: var(--md-default-fg-color);
+  background: var(--md-default-bg-color); border: 1px solid var(--md-default-fg-color--lighter);
+}
+.arch-head button {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .3rem .7rem; border-radius: 8px; font-size: .7rem; font-weight: 600;
+}
+.arch-head button:hover:not(:disabled) { border-color: var(--md-accent-fg-color); color: var(--md-accent-fg-color); }
+.arch-head button:disabled { opacity: .4; cursor: default; }
+.arch-track {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.arch-track::-webkit-scrollbar { display: none; }
+.arch-slide { flex: 0 0 100%; margin: 0; padding: 1rem 1rem .6rem; scroll-snap-align: start; }
+.arch-slide svg.arch { display: block; width: 100%; height: auto; }
+.md-typeset .arch-caption {
+  margin: .7rem 0 0; min-height: 2.6em; max-width: none;
+  font-style: normal; text-align: left;
+  font-size: .75rem; line-height: 1.45; color: var(--md-default-fg-color--light);
+}
+.arch-caption b { color: var(--md-default-fg-color); }
+.arch-dots { display: flex; justify-content: center; gap: .5rem; padding: 0 0 .8rem; }
+.arch-dots button { width: .65rem; height: .65rem; padding: 0; border-radius: 50%; }
+.arch-dots button[aria-current="true"] { background: var(--md-accent-fg-color); border-color: var(--md-accent-fg-color); }
+
+/* presenting: the carousel fills the screen, the diagram as large as it fits */
+.arch-carousel:fullscreen { display: flex; flex-direction: column; border: 0; border-radius: 0; }
+.arch-carousel:fullscreen .arch-head { font-size: 1.25em; }
+.arch-carousel:fullscreen .arch-track { flex: 1; }
+.arch-carousel:fullscreen .arch-slide { display: flex; flex-direction: column; justify-content: center; padding: 2vh 3vw; }
+.arch-carousel:fullscreen .arch-slide svg.arch { max-height: calc(100vh - 11rem); }
+.arch-carousel:fullscreen .arch-caption { font-size: 1rem; text-align: center; }
