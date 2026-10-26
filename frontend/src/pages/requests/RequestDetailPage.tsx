@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { InvoiceLedgerCard } from "@/components/controls/InvoiceLedgerCard";
@@ -10,7 +10,7 @@ import { contractsApi } from "@/api/contracts";
 import { documentsApi } from "@/api/documents";
 import { DocumentPreviewCard } from "@/components/documents/DocumentPreviewCard";
 import { Card, CardBody, CardHeader, Section } from "@/components/ui/Card";
-import { StatusBadge, ContractStatusBadge } from "@/components/ui/Badge";
+import { Badge, StatusBadge, ContractStatusBadge } from "@/components/ui/Badge";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LifecycleStepper } from "@/components/ui/LifecycleStepper";
 import { ApprovalChainVisual } from "@/components/requests/ApprovalChainVisual";
@@ -165,11 +165,15 @@ export function RequestDetailPage() {
       : []),
   ];
 
-  const nextAction = useMemo(() => {
-    if (!request) return null;
-
+  // The step waiting on someone, shown above everything else. A plain
+  // expression, not a hook: the page returns early while loading, so a hook
+  // here would change the hook count between renders and crash the page.
+  // `kind` says whose actions the panel holds, so the cards below don't
+  // show a second copy of them.
+  const nextAction = ((): { kind: "approval" | "contract" | "receipt"; title: string; subtitle: string; badge: ReactNode; content: ReactNode } | null => {
     if (request.status === "pending_approval") {
       return {
+        kind: "approval",
         title: "Next Action: Approval Decision",
         subtitle: `Stage ${Math.min(request.current_approver_index + 1, (request.approval_chain ?? []).length)} of ${(request.approval_chain ?? []).length}: Waiting for ${request.approval_chain?.[request.current_approver_index] ? titleCase(request.approval_chain[request.current_approver_index]) : "Approver"}`, 
         badge: <StatusBadge status={request.status} />,
@@ -185,6 +189,7 @@ export function RequestDetailPage() {
     if (request.status === "approved") {
       if (shownContract && shownContract.status !== "signed") {
         return {
+          kind: "contract",
           title: "Next Action: Sign Contract",
           subtitle: `Contract generated (${titleCase(shownContract.template_used)}). Review and execute digital signature.`,
           badge: <ContractStatusBadge status={shownContract.status} />,
@@ -197,9 +202,10 @@ export function RequestDetailPage() {
       }
       if (!shownContract) {
         return {
+          kind: "contract",
           title: "Next Action: Generate Contract",
           subtitle: "Purchase request is fully approved. Generate the legal agreement to proceed.",
-          badge: <span className="rounded bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 border border-brand-200">Ready for Contract</span>,
+          badge: <Badge tone="brand">Ready for contract</Badge>,
           content: (
             <div className="flex flex-col gap-3">
               <ContractActions contract={null} request={request} onChanged={refresh} />
@@ -211,6 +217,7 @@ export function RequestDetailPage() {
 
     if (request.status === "ordered" || request.status === "partially_received") {
       return {
+        kind: "receipt",
         title: "Next Action: Confirm Delivery / Receipt",
         subtitle: "Items have been ordered. Record deliveries as goods and licenses arrive.",
         badge: <StatusBadge status={request.status} />,
@@ -223,7 +230,7 @@ export function RequestDetailPage() {
     }
 
     return null;
-  }, [request, shownContract, params, refresh]);
+  })();
 
   const chain = request.approval_chain ?? [];
   const approvalFigure =
@@ -341,7 +348,9 @@ export function RequestDetailPage() {
             <CardHeader title="Approval"  />
             <CardBody className="flex flex-col gap-4">
               <ApprovalChainVisual request={request} />
-              <ApprovalActions request={request} onDecided={refresh} />
+              {nextAction?.kind !== "approval" && nextAction?.kind !== "receipt" && (
+                <ApprovalActions request={request} onDecided={refresh} />
+              )}
             </CardBody>
           </Card>
         </div>
@@ -370,7 +379,9 @@ export function RequestDetailPage() {
                     </Link>
                   </div>
                 )}
-                <ContractActions contract={contract ?? null} request={request} onChanged={refresh} layout="stack" />
+                {nextAction?.kind !== "contract" && (
+                  <ContractActions contract={contract ?? null} request={request} onChanged={refresh} layout="stack" />
+                )}
               </CardBody>
             </Card>
           )}

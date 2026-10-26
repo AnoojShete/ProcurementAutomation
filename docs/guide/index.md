@@ -16,7 +16,7 @@
   <div class="stat"><b>22</b><span>Docker Services</span></div>
 </div>
 
-> Student team project, Fractal Analytics 2026–27: Anjali, Vaidehi, Niraj, Anooj.
+> Student team project, Fractal Analytics 2026–27: Anjali Dinesh Jayashree More, Vaidehi Jagdeep Sankaye, Niraj Ravindra Sawant, Anooj Vinayak Shete ([System developers](team.md)).
 
 ![System architecture](assets/architecture.png){ .diagram }
 

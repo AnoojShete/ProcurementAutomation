@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { Footer } from "./Footer";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PageHeaderProvider, usePageTitle } from "@/hooks/usePageTitle";
 import { BotMessageSquare } from "lucide-react";
@@ -69,6 +70,7 @@ function AppShellInner() {
         >
           <div className="max-w-[1200px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 2xl:mx-auto">
             <Outlet />
+            <Footer />
           </div>
         </main>
       </div>

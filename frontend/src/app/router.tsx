@@ -9,7 +9,9 @@ import { VerifyEmailPage } from "@/pages/auth/VerifyEmailPage";
 import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { RouteErrorPage } from "@/pages/RouteErrorPage";
 
+const DevelopersPage = lazy(() => import("@/pages/DevelopersPage").then((m) => ({ default: m.DevelopersPage })));
 const ControlsPage = lazy(() => import("@/pages/admin/ControlsPage").then((m) => ({ default: m.ControlsPage })));
 const DashboardPage = lazy(() => import("@/pages/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const RequestsListPage = lazy(() => import("@/pages/requests/RequestsListPage").then((m) => ({ default: m.RequestsListPage })));
@@ -60,6 +62,11 @@ function withSuspense(el: React.ReactNode) {
 }
 
 const router = createBrowserRouter([
+  {
+    // Errors below this route render RouteErrorPage instead of React Router's
+    // default developer screen.
+    errorElement: <RouteErrorPage />,
+    children: [
   { path: "/", element: <Navigate to="/app" replace /> },
   { path: "/login", element: <LoginPage /> },
   // Signed-out account pages. The email links point at the last three.
@@ -75,6 +82,10 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
+      {
+        // A page that crashes keeps the sidebar and top bar around the error.
+        errorElement: <RouteErrorPage inShell />,
+        children: [
       { index: true, element: withSuspense(<DashboardPage />) },
       { path: "requests", element: withSuspense(<RequestsListPage />) },
       {
@@ -158,6 +169,7 @@ const router = createBrowserRouter([
       },
 { path: "notifications", element: withSuspense(<NotificationsPage />) },
       { path: "account", element: withSuspense(<AccountPage />) },
+      { path: "developers", element: withSuspense(<DevelopersPage />) },
       {
         path: "system",
         element: withSuspense(
@@ -282,9 +294,13 @@ const router = createBrowserRouter([
           </RoleGuard>,
         ),
       },
+        ],
+      },
     ],
   },
   { path: "*", element: <NotFoundPage /> },
+    ],
+  },
 ]);
 
 export function AppRouter() {

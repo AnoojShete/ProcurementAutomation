@@ -208,4 +208,4 @@ from [`docs/guide/`](docs/guide/index.md):
 **Frontend** React · TypeScript · Vite · Tailwind &nbsp;·&nbsp;
 **Ops** Docker Compose · nginx · Prometheus · Grafana · Loki · ClamAV
 
-**Team:** Anjali · Vaidehi · Niraj · Anooj
+**Team:** Anjali Dinesh Jayashree More · Vaidehi Jagdeep Sankaye · Niraj Ravindra Sawant · Anooj Vinayak Shete ([contacts](docs/guide/team.md))
