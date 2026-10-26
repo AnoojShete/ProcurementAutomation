@@ -620,12 +620,25 @@ user JWT to forward, so approval-inventory-agent calls contract-risk's
 public route, and any failure still counts as not cleared. nginx has no route
 to `/internal/` (`tests/test_security_config.py`).
 
-Known gaps (25 Oct): the daily digest email that would send an approver one
-batch-approval link isn't built, so `approval.bulk_digest_*` and
-`approval.bulk_email_enabled` have no effect (the batch page and
-`/internal/email-action/mint-batch` exist). The mandate password re-check calls
-`auth-service:8001` (it runs on 8005), so the real password is never checked;
-see docs/index.html (Overview, Needs attention). On 25 Oct `ruff check --select F821` found
+Batch-approval digest (25 Oct, `app/services/bulk_digest.py`): a background
+loop in approval-inventory-agent checks every minute and, once per IST day
+from `approval.bulk_digest_time_ist`, sends each approver with at least
+`approval.bulk_digest_min_items` bulk-eligible requests one email
+(notification.send, template `bulk_approval_digest`) with a batch link to
+`/email-action/batch/<token>`, at most `approval.bulk_approve_max_items`
+requests. Eligibility is `bulk_eligibility`, so the email never offers more
+than the inbox. The batch token and the email commit together (outbox); a new
+digest revokes the approver's older unused links; a Redis key plus "a token was
+minted today" stop a second send after a restart. `approval.bulk_digest_enabled`
+switches the digest; `approval.bulk_email_enabled` switches the whole channel
+(no digest, no minting, batch pages say "turned off").
+
+Signing-mandate password (fixed 25 Oct): contract-risk forwards the caller's
+bearer token to auth-service `POST /auth/verify-password` (rate-limited like
+login at the gateway), which checks the JWT user's password, counts a wrong one
+toward lockout and starts no session. No fallback passwords; auth-service down
+→ 503; wrong password → 400 `wrong_password` (the web client signs out on any
+401). The gateway now routes `/api/mandates` to contract-risk. On 25 Oct `ruff check --select F821` found
 seven undefined names, six of them from this change. The worst was `get_rule`
 in contract-risk's consumer: every final approval failed after its contract
 was generated, so the contract was never sent for signature. The others were

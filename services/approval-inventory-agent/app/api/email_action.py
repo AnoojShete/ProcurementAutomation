@@ -24,6 +24,7 @@ from app.services import bulk_service
 from app.services.approval_service import ApprovalService
 from shared.rules_engine import get_rule
 from app.services.email_action_token_service import (
+    bulk_email_enabled,
     evaluate_step_up,
     get_public_base_url,
     hash_token,
@@ -32,6 +33,8 @@ from app.services.email_action_token_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+BATCH_EMAIL_OFF = "Batch approval by email is turned off. Sign in to the portal to approve these requests."
 
 TEMPLATES_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", "email_action"
@@ -391,6 +394,8 @@ async def get_email_batch_page(
 
     if not batch_tok:
         return _render_status("Invalid Token", "This batch approval link is invalid or malformed.", 404, icon="⚠️")
+    if not bulk_email_enabled():
+        return _render_status("Batch Approval Off", BATCH_EMAIL_OFF, 403, icon="🛑")
     if batch_tok.revoked_at:
         return _render_status("Link Revoked", f"This approval link was revoked ({batch_tok.revoked_reason or 'security policy'}).", 410, icon="🛑")
     if batch_tok.used_at:
@@ -410,6 +415,7 @@ async def get_email_batch_page(
     auto_sign_applicable = False
 
     auto_sign_enabled = get_rule("contract.auto_sign_enabled", fallback=False)
+    approver_role = await bulk_service.approver_role_for(db, batch_tok.approver_id)
 
     for req_id in batch_tok.request_ids:
         req = await db.get(PurchaseRequest, req_id)
@@ -421,9 +427,7 @@ async def get_email_batch_page(
             if v:
                 v_name = v.name
 
-        eligible, codes, labels = await bulk_eligibility(
-            db, req, batch_tok.approver_id, "finance" if "finance" in batch_tok.approver_id.lower() else "approver", now
-        )
+        eligible, codes, labels = await bulk_eligibility(db, req, batch_tok.approver_id, approver_role, now)
         amt = float(req.amount or 0)
         reason = labels[0] if labels else ""
         if eligible:
@@ -475,6 +479,8 @@ async def post_email_batch_decide(
 
     if not tok_row:
         return _render_status("Invalid Token", "This batch approval link is invalid.", 404, icon="⚠️")
+    if not bulk_email_enabled():
+        return _render_status("Batch Approval Off", BATCH_EMAIL_OFF, 403, icon="🛑")
     if tok_row.revoked_at:
         return _render_status("Link Revoked", f"This link was revoked ({tok_row.revoked_reason or 'security policy'}).", 410, icon="🛑")
     if tok_row.used_at:
@@ -505,7 +511,7 @@ async def post_email_batch_decide(
     # 5. Execute bulk decision
     from app.services.bulk_service import execute_bulk_decision
     producer = request.app.state.kafka_producer
-    approver_role = "finance" if "finance" in tok_row.approver_id.lower() else "approver"
+    approver_role = await bulk_service.approver_role_for(db, tok_row.approver_id)
 
     try:
         result = await execute_bulk_decision(

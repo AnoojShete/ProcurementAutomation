@@ -183,13 +183,24 @@ def evaluate_step_up(
     return True, False, None
 
 
+def bulk_email_enabled() -> bool:
+    """approval.bulk_email_enabled: the whole batch-approval-by-email channel
+    (digest links, the batch page and its decide button)."""
+    return bool(get_rule("approval.bulk_email_enabled", fallback=True))
+
+
 async def mint_batch_action_token(
     db: AsyncSession,
     approver_id: str,
     request_ids: list,
+    commit: bool = True,
 ) -> Tuple[str, datetime, str]:
-    """Mints an email batch token for digest approvals (Prompt 10 Section 1.5)."""
+    """Mints an email batch token for digest approvals (Prompt 10 Section 1.5).
+    Refused while approval.bulk_email_enabled is off. commit=False leaves the
+    commit to the caller (the digest stages its email in the same transaction)."""
     from app.models import EmailBatchToken
+    if not bulk_email_enabled():
+        raise ValueError("Batch approval by email is turned off (approval.bulk_email_enabled).")
     now = datetime.now(timezone.utc)
     ttl_hours = int(get_rule("approval.bulk_email_token_ttl_hours", fallback=48))
     expires_at = now + timedelta(hours=ttl_hours)
@@ -206,7 +217,8 @@ async def mint_batch_action_token(
         expires_at=expires_at,
     )
     db.add(batch_token)
-    await db.commit()
+    if commit:
+        await db.commit()
 
     action_url = f"{get_public_base_url()}/email-action/batch/{raw_token}"
     return raw_token, expires_at, action_url

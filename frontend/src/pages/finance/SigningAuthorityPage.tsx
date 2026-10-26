@@ -4,48 +4,30 @@ import { ShieldCheck, ShieldAlert, AlertCircle, CheckCircle2, Clock, Lock, Refre
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
-import { mandatesApi, type SigningMandate } from "@/api/mandates";
-import { businessRulesApi } from "@/api/businessRules";
+import { mandatesApi } from "@/api/mandates";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { InlineError, InlineSuccess } from "@/components/ui/ErrorState";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
-import type { BusinessRule } from "@/types/api";
 
 export function SigningAuthorityPage() {
   usePageHeader("Signing Authority");
   const { user } = useAuth();
 
-  const { data: activeData, loading, reload } = useApi(
-    () => mandatesApi.getActive().catch(() => ({ data: { active: false, mandate: null } })),
-    [],
-  );
-
-  const { data: templateData } = useApi(
-    () => mandatesApi.getTemplate().catch(() => ({ data: { template_text: "", version: "2026-10-v1" } })),
-    [],
-  );
+  const { data: mandate, error: activeError, reload } = useApi(() => mandatesApi.getActive(), []);
+  const { data: templateData, error: templateError } = useApi(() => mandatesApi.getTemplate(), []);
 
   const { data: recentAutoSigned, reload: reloadRecent } = useApi(
     () => mandatesApi.getRecentAutoSigned().catch(() => ({ data: [] })),
     [],
   );
 
-  const { data: rulesData } = useApi<Record<string, BusinessRule[]>>(
-    () => businessRulesApi.getAll().catch(() => ({ data: {} })),
-    [],
-  );
-
-  const maxAutoSignAmount = (() => {
-    const rules = rulesData?.contract ?? [];
-    const r = rules.find((item) => item.rule_key === "contract.auto_sign_max_amount");
-    return typeof r?.current_value === "number" ? r.current_value : 25000;
-  })();
-
-  const mandate = activeData?.mandate;
-  const isActive = activeData?.active && mandate?.status === "active";
+  // Both come from the live rules (contract.auto_sign_max_amount, contract.mandate_max_days).
+  const maxAutoSignAmount = templateData?.max_allowed_amount ?? 25000;
+  const maxDays = templateData?.max_allowed_days ?? 90;
+  const isActive = !!mandate?.is_active;
 
   const daysRemaining = (() => {
     if (!mandate?.valid_until) return 0;
@@ -62,7 +44,6 @@ export function SigningAuthorityPage() {
   // Revoke Modal
   const [revokeModalOpen, setRevokeModalOpen] = useState(false);
   const [revoking, setRevoking] = useState(false);
-  const [revokeReason, setRevokeReason] = useState("");
   const [revokeError, setRevokeError] = useState<string | null>(null);
 
   const handleAuthorize = async (e: React.FormEvent) => {
@@ -74,7 +55,7 @@ export function SigningAuthorityPage() {
     setSubmitting(true);
     setAuthError(null);
     try {
-      await mandatesApi.create(password, templateData?.version ?? "2026-10-v1");
+      await mandatesApi.create(password, maxAutoSignAmount, maxDays);
       setPassword("");
       setAuthModalOpen(false);
       reload();
@@ -91,9 +72,8 @@ export function SigningAuthorityPage() {
     setRevoking(true);
     setRevokeError(null);
     try {
-      await mandatesApi.revoke(mandate.id, revokeReason.trim() || undefined);
+      await mandatesApi.revoke(mandate.id);
       setRevokeModalOpen(false);
-      setRevokeReason("");
       reload();
       reloadRecent();
     } catch (err: any) {
@@ -119,14 +99,15 @@ export function SigningAuthorityPage() {
             ) : (
               <Badge tone="warning">
                 <AlertCircle className="mr-1 size-3.5" />
-                {mandate?.status === "expired" ? "Expired" : mandate?.status === "revoked" ? "Revoked" : "No Active Mandate"}
+                No Active Mandate
               </Badge>
             )
           }
         />
         <CardBody className="flex flex-col gap-4 text-sm">
+          {(activeError || templateError) && <InlineError message={activeError || templateError || ""} />}
           <p className="text-ink-2">
-            Under company policy, Finance officers may authorize an explicit 90-day standing mandate allowing the platform to automatically attach their cryptographic signature to approved contracts meeting strict business rules.
+            Under company policy, Finance officers may authorize an explicit standing mandate (up to {maxDays} days) allowing the platform to automatically attach their cryptographic signature to approved contracts meeting strict business rules.
           </p>
           <div className="rounded-lg border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-900">
             <span className="font-semibold block text-amber-950 mb-0.5">Legal Disclaimer & Compliance Guidance</span>
@@ -141,7 +122,7 @@ export function SigningAuthorityPage() {
             </div>
             <div className="rounded-lg border border-rule bg-sheet-sunk p-3.5">
               <span className="text-xs text-ink-3 block font-medium">Validity Period</span>
-              <span className="text-lg font-semibold text-ink mt-0.5 block">90 Days</span>
+              <span className="text-lg font-semibold text-ink mt-0.5 block">{maxDays} days</span>
               <span className="text-[11px] text-ink-3">
                 {isActive ? `Expires ${formatDate(mandate?.valid_until)}` : "Renewable on expiry"}
               </span>
@@ -156,8 +137,10 @@ export function SigningAuthorityPage() {
           <div className="flex items-center justify-between pt-2 border-t border-rule">
             <div className="text-xs text-ink-3">
               {isActive
-                ? `Mandate #${mandate?.id.slice(0, 8)} authorized on ${formatDate(mandate?.created_at)}`
-                : "No active mandate currently in effect for your account"}
+                ? `Mandate #${mandate?.id.slice(0, 8)} authorized on ${formatDate(mandate?.accepted_at)}`
+                : templateData && !templateData.is_eligible
+                  ? `Your role (${user?.role}) can't hold a signing mandate`
+                  : "No active mandate currently in effect for your account"}
             </div>
             <div className="flex items-center gap-2">
               {isActive ? (
@@ -165,7 +148,7 @@ export function SigningAuthorityPage() {
                   Revoke Mandate
                 </Button>
               ) : (
-                <Button variant="primary" size="sm" onClick={() => setAuthModalOpen(true)}>
+                <Button variant="primary" size="sm" disabled={!templateData?.is_eligible} onClick={() => setAuthModalOpen(true)}>
                   <ShieldCheck className="mr-1.5 size-4" />
                   Authorize Automated Signing
                 </Button>
@@ -179,11 +162,11 @@ export function SigningAuthorityPage() {
       <Card>
         <CardHeader
           title="Verbatim Mandate Authorization Text"
-          subtitle={`Version: ${templateData?.version ?? "2026-10-v1"}`}
+          subtitle={`Version: ${templateData?.version ?? ""}`}
         />
         <CardBody>
           <div className="rounded-md border border-rule bg-sheet-sunk p-4 font-mono text-xs leading-relaxed text-ink-2 whitespace-pre-wrap">
-            {templateData?.template_text || "Loading template text..."}
+            {mandate?.mandate_text || templateData?.sample_text || "Loading template text..."}
           </div>
         </CardBody>
       </Card>
@@ -203,14 +186,14 @@ export function SigningAuthorityPage() {
         <CardBody>
           {recentAutoSigned && recentAutoSigned.length > 0 ? (
             <div className="divide-y divide-rule border-y border-rule text-sm">
-              {recentAutoSigned.map((c: any) => (
-                <div key={c.id} className="flex items-center justify-between py-3">
+              {recentAutoSigned.map((c) => (
+                <div key={c.contract_id} className="flex items-center justify-between py-3">
                   <div>
                     <Link
-                      to={`/app/contracts/${c.id}`}
+                      to={`/app/contracts/${c.contract_id}`}
                       className="font-medium text-accent hover:underline font-mono text-xs"
                     >
-                      CT-{c.id.slice(0, 8)}
+                      CT-{c.contract_id.slice(0, 8)}
                     </Link>
                     <p className="text-xs text-ink-3 mt-0.5">
                       Batch #{c.bulk_batch_id ? c.bulk_batch_id.slice(0, 8) : "—"} · Channel: {c.approval_channel || "portal"} · Signed {formatDateTime(c.signed_at)}
@@ -218,7 +201,7 @@ export function SigningAuthorityPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge tone="success">Auto-Signed</Badge>
-                    <Link to={`/app/contracts/${c.id}`}>
+                    <Link to={`/app/contracts/${c.contract_id}`}>
                       <Button variant="secondary" size="sm">
                         View
                       </Button>
@@ -260,7 +243,7 @@ export function SigningAuthorityPage() {
             </p>
 
             <div className="max-h-48 overflow-y-auto rounded border border-rule bg-sheet-sunk p-3 font-mono text-[11px] leading-relaxed text-ink-2 whitespace-pre-wrap">
-              {templateData?.template_text}
+              {templateData?.sample_text}
             </div>
 
             {authError && <InlineError message={authError} />}
@@ -303,16 +286,6 @@ export function SigningAuthorityPage() {
               Are you sure you want to revoke this signing mandate? Automated contract signing will stop immediately for all future batch approvals.
             </p>
             {revokeError && <InlineError message={revokeError} />}
-            <div>
-              <label className="mb-1 block text-xs font-medium text-ink-2">Reason for Revocation (Optional)</label>
-              <input
-                type="text"
-                value={revokeReason}
-                onChange={(e) => setRevokeReason(e.target.value)}
-                placeholder="e.g. Scheduled rotation, role change"
-                className="w-full rounded border border-rule-strong bg-sheet p-2 text-sm text-ink focus:border-accent focus:outline-none"
-              />
-            </div>
           </div>
         </Modal>
       )}

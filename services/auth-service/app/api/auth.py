@@ -26,6 +26,7 @@ from app.database import get_db
 from app.models import User
 from app.schemas import (
     AccessTokenResponse, ChangePasswordRequest, DataResponse, EmailOnlyRequest, LoginRequest, ProfileUpdateRequest,
+    VerifyPasswordRequest,
     RegisterRequest, ResetPasswordRequest, TokenRequest, TokenResponse, UserResponse, DemoAccountResponse,
 )
 from app.security import (
@@ -342,6 +343,26 @@ async def reset_password(data: ResetPasswordRequest, response: Response, backgro
     clear_session_cookies(response)
     background.add_task(emails.send_quietly, user.email, emails.password_changed_email())
     return DataResponse(data={"message": "Your password has been reset. Sign in with your new password."})
+
+
+@router.post("/verify-password", response_model=DataResponse)
+async def verify_current_password(data: VerifyPasswordRequest,
+                                  current_user: CurrentUser = Depends(get_current_user),
+                                  db: AsyncSession = Depends(get_db)):
+    """Re-checks the signed-in user's password before a sensitive step (a
+    signing mandate). Starts no session; identity comes from the JWT."""
+    user = await _current_db_user(db, current_user)
+    if await lockout.locked_until(db, user.email):
+        raise HTTPException(status_code=429, detail={"code": "account_locked", "message": lockout.LOCKED_MESSAGE})
+    if not verify_password(data.password, user.hashed_password):
+        # Counts like a failed login, same as change-password.
+        await lockout.record_failure(db, user.email)
+        await db.commit()
+        raise HTTPException(status_code=400, detail={"code": "wrong_password",
+                                                     "message": "Your password is incorrect."})
+    await lockout.clear(db, user.email)
+    await db.commit()
+    return DataResponse(data={"verified": True})
 
 
 @router.post("/change-password", response_model=DataResponse)

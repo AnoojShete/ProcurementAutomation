@@ -1,0 +1,24 @@
+Subject: {{ count }} purchase requests ready for batch approval ({{ total_amount }} {{ currency }})
+---
+Hello,
+
+These {{ count }} pending requests passed every check for batch approval
+(within the bulk limit, not over budget, vendor cleared, you are the
+approver at the current step):
+
+{% for item in items %}
+{{ loop.index }}. {{ item.short_id }}  {{ item.amount }} {{ currency }}  {{ item.request_type }}, {{ item.department }}, requested by {{ item.requested_by }}
+{% endfor %}
+
+Total: {{ total_amount }} {{ currency }}
+
+Review and approve them together:
+  {{ batch_url }}
+
+The page re-checks every request before you approve, and you can untick
+any of them. The link works once and expires at {{ expires_at }}. Anything
+you'd rather look at closely is in the portal as usual.
+
+If you were not expecting this email, ignore it and contact IT Security.
+
+— IT Procurement Platform

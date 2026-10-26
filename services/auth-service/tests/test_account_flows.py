@@ -261,6 +261,26 @@ def test_change_password(env):
     assert changed_at is not None
 
 
+def test_verify_password(env):
+    """The re-check before a signing mandate: right password -> 200, wrong
+    -> 400 wrong_password and a lockout failure, and no new session."""
+    client, outbox, db = env
+    email = "mandate@example.com"
+    verified_user(client, outbox, email)
+    r = login(client, email)
+    client.cookies.clear()
+
+    wrong = client.post("/api/auth/verify-password", headers=bearer(r), json={"password": "not my password!!"})
+    assert wrong.status_code == 400 and wrong.json()["error"]["code"] == "wrong_password"
+    [(failures,)] = sql(db, "SELECT count(*) FROM auth_login_attempts WHERE email = %s", email)
+    assert failures >= 1
+
+    ok = client.post("/api/auth/verify-password", headers=bearer(r), json={"password": PASSWORD})
+    assert ok.status_code == 200 and ok.json()["data"] == {"verified": True}
+    assert "refresh_token" not in ok.cookies
+    assert client.post("/api/auth/verify-password", json={"password": PASSWORD}).status_code in (401, 403)
+
+
 # ------------------------------------------------------------ one-time links
 
 def test_verification_link_is_single_use(env):

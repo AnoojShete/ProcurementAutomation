@@ -105,11 +105,17 @@ async def lifespan(app: FastAPI):
     # Phase 3: quotes that quote an RFQ reference become RFQ responses.
     from app.services.sourcing_service import run_quote_sweep
     rfq_quote_task = asyncio.create_task(run_quote_sweep(async_session_factory))
+    # Daily batch-approval digest email (app/services/bulk_digest.py).
+    from app.services.bulk_digest import run_bulk_digest
+    bulk_digest_task = asyncio.create_task(
+        run_bulk_digest(async_session_factory, app.state.kafka_producer, app.state.redis)
+    )
 
     yield
 
     # Shutdown — cancel background tasks gracefully
-    for task in (consumer_task, scanner_task, gauge_task, order_monitor_task, relay_task, rfq_quote_task):
+    for task in (consumer_task, scanner_task, gauge_task, order_monitor_task, relay_task, rfq_quote_task,
+                 bulk_digest_task):
         task.cancel()
         try:
             await task

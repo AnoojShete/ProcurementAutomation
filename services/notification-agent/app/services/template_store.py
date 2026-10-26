@@ -54,6 +54,8 @@ TEMPLATE_INFO: dict[str, tuple[str, str]] = {
     "goods_received": ("goods.received", "The requester"),
     "reminder_due": ("reminder.due", "Whoever must act: the approvers, signer, finance or reviewers"),
     "email_action_confirmation": ("approval decided by email link", "The approver who clicked"),
+    "bulk_approval_digest": ("notification.send from approval-inventory-agent's daily digest",
+                             "Each approver with enough requests eligible for batch approval"),
     "digest_summary": ("digest flush", "Anyone with queued non-urgent updates"),
     "generic_fallback": ("notification.send with an unknown template", "The requested recipient"),
 }

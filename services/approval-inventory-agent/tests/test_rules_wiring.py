@@ -496,6 +496,88 @@ def test_approval_bulk_email_token_ttl_hours(rule):
     assert hours_valid() == 6
 
 
+def _digest_run(groups, sent_today=()):
+    """One bulk_digest.send_digests run over {approver: [requests]}; returns
+    the notification.send calls it staged."""
+    from app.services import bulk_digest
+    publish = AsyncMock()
+    factory = MagicMock()
+    factory.return_value.__aenter__.return_value = MagicMock(commit=AsyncMock())
+    expires = datetime.now(timezone.utc) + timedelta(hours=48)
+    with patch.object(bulk_digest, "eligible_by_approver", AsyncMock(return_value=groups)), \
+         patch.object(bulk_digest, "_already_sent_today", AsyncMock(side_effect=lambda db, a, now: a in sent_today)), \
+         patch.object(bulk_digest.tokens, "revoke_batch_tokens", AsyncMock(return_value=0)), \
+         patch.object(bulk_digest.tokens, "mint_batch_action_token",
+                      AsyncMock(return_value=("raw", expires, "http://localhost:8080/email-action/batch/raw"))), \
+         patch.object(bulk_digest, "staged", MagicMock(return_value=SimpleNamespace(publish_notification=publish))):
+        run(bulk_digest.send_digests(factory, producer=MagicMock()))
+    return publish.await_args_list
+
+
+def _digest_requests(n, prefix="r"):
+    return [SimpleNamespace(id=f"{prefix}-{i}-0000-0000", amount=1000, requested_by="req@company.com",
+                            department="IT", request_type="software") for i in range(n)]
+
+
+def test_approval_bulk_digest_enabled(rule):
+    groups = {"approver@company.com": _digest_requests(3)}
+    rule("approval.bulk_digest_enabled", True)
+    [call] = _digest_run(groups)
+    assert call.kwargs["template_name"] == "bulk_approval_digest"
+    assert call.kwargs["recipient"] == "approver@company.com"
+    assert call.kwargs["template_context"]["count"] == 3
+    rule("approval.bulk_digest_enabled", False)
+    assert _digest_run(groups) == []
+
+
+def test_approval_bulk_digest_min_items(rule):
+    groups = {"a@company.com": _digest_requests(3, "a"), "b@company.com": _digest_requests(1, "b")}
+    rule("approval.bulk_digest_min_items", 1)
+    assert sorted(c.kwargs["recipient"] for c in _digest_run(groups)) == ["a@company.com", "b@company.com"]
+    rule("approval.bulk_digest_min_items", 2)
+    assert [c.kwargs["recipient"] for c in _digest_run(groups)] == ["a@company.com"]
+
+
+def test_approval_bulk_digest_time_ist(rule):
+    from app.services import bulk_digest
+    at_0915_ist = datetime(2026, 10, 26, 3, 45, tzinfo=timezone.utc)
+    rule("approval.bulk_digest_time_ist", "09:00")
+    assert bulk_digest.is_due(at_0915_ist, bulk_digest.digest_time())
+    rule("approval.bulk_digest_time_ist", "10:00")
+    assert not bulk_digest.is_due(at_0915_ist, bulk_digest.digest_time())
+
+
+def test_approval_bulk_email_enabled(rule):
+    from app.api import email_action
+    from app.services.email_action_token_service import mint_batch_action_token
+    db = MagicMock(add=MagicMock(), commit=AsyncMock())
+    token = SimpleNamespace(revoked_at=None, used_at=None, request_ids=[],
+                            expires_at=datetime.now(timezone.utc) - timedelta(hours=1))
+    page_db = MagicMock(execute=AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=token))))
+    groups = {"approver@company.com": _digest_requests(3)}
+
+    rule("approval.bulk_email_enabled", True)
+    raw, _, url = run(mint_batch_action_token(db, "approver@company.com", ["r-1"]))
+    assert url.endswith(f"/email-action/batch/{raw}")
+    assert len(_digest_run(groups)) == 1
+    # Past the on/off check: this token is expired.
+    assert run(email_action.get_email_batch_page("t", MagicMock(), page_db)).status_code == 410
+
+    rule("approval.bulk_email_enabled", False)
+    with pytest.raises(ValueError):
+        run(mint_batch_action_token(db, "approver@company.com", ["r-1"]))
+    assert _digest_run(groups) == []
+    assert run(email_action.get_email_batch_page("t", MagicMock(), page_db)).status_code == 403
+
+
+def test_bulk_digest_caps_items_and_skips_approvers_sent_today(rule):
+    rule("approval.bulk_approve_max_items", 2)
+    groups = {"a@company.com": _digest_requests(5, "a"), "b@company.com": _digest_requests(3, "b")}
+    [call] = _digest_run(groups, sent_today={"b@company.com"})
+    assert call.kwargs["recipient"] == "a@company.com"
+    assert [i["request_id"] for i in call.kwargs["template_context"]["items"]] == ["a-0-0000-0000", "a-1-0000-0000"]
+
+
 def test_reorder_create_request_roles(rule):
     from fastapi import HTTPException
     from app.api.requests import create_request

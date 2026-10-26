@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import DEFAULT_INTERNAL_SERVICE_TOKEN
@@ -66,6 +66,15 @@ async def fetch_vendor_clearance(
     except Exception as e:
         logger.warning(f"Could not reach contract-risk-agent for vendor clearance: {e}")
         return {"cleared": False, "reasons": ["service_unreachable"]}, True
+
+
+async def approver_role_for(db: AsyncSession, email: str) -> str:
+    """The approver's role from auth_users (shared DB), for email batch links,
+    which carry no JWT. Unknown or inactive -> "approver"."""
+    row = (await db.execute(
+        text("SELECT role FROM auth_users WHERE lower(email) = lower(:e) AND is_active"), {"e": email},
+    )).first()
+    return row[0] if row and row[0] in ("approver", "finance", "admin") else "approver"
 
 
 async def bulk_eligibility(

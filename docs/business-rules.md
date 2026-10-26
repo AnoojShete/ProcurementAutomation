@@ -4,7 +4,7 @@ Every rule on the Business Rules page (`/app/business-rules`, admin): what it ch
 
 Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed on `business_rule.updated`); each read has a fallback used when auth-service is unreachable. Tests: `services/<service>/tests/test_rules_wiring.py::test_<rule key with _>` — each sets the rule to two values and checks the behaviour differs.
 
-**Enforced: 74** · **Not enforced: 14** (listed at the end — editing them has no effect until the feature exists).
+**Enforced: 78** · **Not enforced: 10** (listed at the end — editing them has no effect until the feature exists).
 
 | Rule | Default | What it changes | Read in | Test |
 |---|---|---|---|---|
@@ -13,6 +13,10 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `approval.bulk_approve_max_amount` | `25000` | Requests above this amount (INR) must be approved one by one; must not exceed `approval.email_action_max_amount` | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_approve_max_amount` |
 | `approval.bulk_approve_max_batch_total` | `250000` | Most a single batch may approve in total (INR); requests past it are skipped; must be at least `approval.bulk_approve_max_amount` | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_approve_max_batch_total` |
 | `approval.bulk_approve_max_items` | `25` | Most requests in one batch (1–100) | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_approve_max_items` |
+| `approval.bulk_digest_enabled` | `true` | Send the daily batch-approval digest email: each approver's requests eligible for bulk approval, with one batch link | approval-inventory-agent: bulk_digest.py | `approval-inventory-agent` · `test_approval_bulk_digest_enabled` |
+| `approval.bulk_digest_min_items` | `2` | Fewest eligible requests an approver must have to get the digest that day | approval-inventory-agent: bulk_digest.py | `approval-inventory-agent` · `test_approval_bulk_digest_min_items` |
+| `approval.bulk_digest_time_ist` | `"09:00"` | Time of day (IST, HH:MM) the digest goes out; a malformed value means 09:00 | approval-inventory-agent: bulk_digest.py | `approval-inventory-agent` · `test_approval_bulk_digest_time_ist` |
+| `approval.bulk_email_enabled` | `true` | Batch approval by email as a whole: when off, no digest is sent, no batch link is minted, and existing batch links show "turned off" | approval-inventory-agent: email_action_token_service.py, bulk_digest.py, email_action.py | `approval-inventory-agent` · `test_approval_bulk_email_enabled` |
 | `approval.bulk_email_token_ttl_hours` | `48` | How long a batch-approval email link stays valid | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_bulk_email_token_ttl_hours` |
 | `approval.bulk_excluded_request_types` | `[]` | Request types that can never be approved in bulk | approval-inventory-agent: bulk_service.py | `approval-inventory-agent` · `test_approval_bulk_excluded_request_types` |
 | `approval.email_action_allowed_high_risk_vendor` | `false` | Allow email approval when the vendor's risk band is High | approval-inventory-agent: email_action_token_service.py | `approval-inventory-agent` · `test_approval_email_action_allowed_high_risk_vendor` |
@@ -97,10 +101,6 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `risk.adverse_media_article_count_threshold` | `2` | Adverse-media screening isn't built. |
 | `risk.adverse_media_lookback_days` | `90` | Adverse-media screening isn't built. |
 | `risk.adverse_media_negative_confidence` | `0.7` | Adverse-media screening isn't built. |
-| `approval.bulk_digest_enabled` | `true` | The daily digest email that lists an approver's eligible requests with one batch-approval link isn't sent yet; the batch page and `/internal/email-action/mint-batch` exist, but nothing calls them. |
-| `approval.bulk_digest_min_items` | `2` | Same: no digest email is sent yet. |
-| `approval.bulk_digest_time_ist` | `"09:00"` | Same: no digest email is sent yet. |
-| `approval.bulk_email_enabled` | `true` | Same: no digest email is sent yet, so there is nothing to switch off. Read it before minting batch links when the digest is built. |
 
 ## Changes made on 16 Oct (FR-09)
 

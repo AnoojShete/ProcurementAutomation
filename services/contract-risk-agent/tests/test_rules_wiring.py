@@ -338,14 +338,15 @@ def test_contract_auto_sign_max_amount(rule):
 
 
 def _create_mandate(role="finance", amount=10000, days=30):
-    """POST /mandates up to the password check (auth-service answers 401);
+    """POST /mandates up to the password check (auth-service's
+    /auth/verify-password answers 400 wrong_password, and so does create);
     returns the status code and message of the refusal."""
     from fastapi import HTTPException
     from app.api import mandates
     body = SimpleNamespace(password="wrong", max_amount_per_contract=amount, validity_days=days)
     user = SimpleNamespace(role=role, email=f"{role}@company.com")
     client = MagicMock()
-    client.__aenter__.return_value.post = AsyncMock(return_value=SimpleNamespace(status_code=401))
+    client.__aenter__.return_value.post = AsyncMock(return_value=SimpleNamespace(status_code=400, text=""))
     with patch.object(mandates.httpx, "AsyncClient", MagicMock(return_value=client)):
         try:
             run(mandates.create_mandate(body=body, request=MagicMock(), db=AsyncMock(), user=user))
@@ -356,14 +357,14 @@ def _create_mandate(role="finance", amount=10000, days=30):
 
 def test_contract_auto_sign_roles(rule):
     rule("contract.auto_sign_roles", ["finance"])
-    assert _create_mandate(role="finance")[0] == 401       # allowed; stopped at the password
+    assert "password" in _create_mandate(role="finance")[1]   # allowed; stopped at the password
     rule("contract.auto_sign_roles", ["admin"])
     assert _create_mandate(role="finance")[0] == 403
 
 
 def test_contract_mandate_max_days(rule):
     rule("contract.mandate_max_days", 90)
-    assert _create_mandate(days=60)[0] == 401
+    assert "password" in _create_mandate(days=60)[1]
     rule("contract.mandate_max_days", 30)
     status, message = _create_mandate(days=60)
     assert status == 400 and "Validity" in message

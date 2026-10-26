@@ -24,7 +24,7 @@ from app.database import get_db
 from app.models import Contract, SigningMandate, Vendor
 from shared.auth import CurrentUser
 from shared.auth.middleware import get_current_user, require_role
-from shared.rules_engine import get_rule
+from shared.rules_engine import get_auth_service_url, get_rule
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,39 @@ MANDATE_TEMPLATE = (
 
 def build_mandate_text(name: str, role: str, max_amount: float) -> str:
     return MANDATE_TEMPLATE.format(name=name, role=role, max_amount=max_amount)
+
+
+async def verify_password_with_auth(authorization: str, password: str) -> None:
+    """Asks auth-service whether `password` is the signed-in user's, by
+    forwarding the caller's own bearer token (so the identity is the JWT's).
+    Wrong password -> 400 wrong_password; auth-service unreachable -> 503.
+    No fallback."""
+    url = f"{get_auth_service_url()}/auth/verify-password"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(url, json={"password": password},
+                                     headers={"Authorization": authorization})
+    except httpx.HTTPError as e:
+        logger.warning(f"Could not reach auth-service to verify password at {url}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "auth_unavailable",
+                    "message": "Couldn't check your password right now. Try again in a minute."},
+        )
+    if resp.status_code == 200:
+        return
+    if resp.status_code == 429:
+        raise HTTPException(status_code=429, detail={
+            "code": "account_locked",
+            "message": "Too many wrong passwords. Your account is locked for a few minutes."})
+    if resp.status_code != 400:
+        logger.warning(f"auth-service password check answered {resp.status_code}: {resp.text[:200]}")
+    # 400, not 401: the web client treats any 401 as an expired session and signs out.
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail={"code": "wrong_password",
+                "message": "Incorrect password. Password re-entry is required to issue a signing authority mandate."},
+    )
 
 
 class CreateMandateRequest(BaseModel):
@@ -68,7 +101,7 @@ class MandateResponse(BaseModel):
     mandate_text: Optional[str] = None
 
 
-@router.get("/template", response_model=dict)
+@router.get("/template")
 async def get_mandate_template(user: CurrentUser = Depends(get_current_user)):
     """Returns the versioned mandate text template and caller defaults."""
     allowed_roles = get_rule("contract.auto_sign_roles", fallback=["finance"])
@@ -82,7 +115,7 @@ async def get_mandate_template(user: CurrentUser = Depends(get_current_user)):
     sample_text = build_mandate_text(user.email, user.role.capitalize(), max_rule_amount)
     sample_sha = hashlib.sha256(sample_text.encode("utf-8")).hexdigest()
 
-    return {
+    return {"data": {
         "version": MANDATE_TEXT_VERSION,
         "template": MANDATE_TEMPLATE,
         "sample_text": sample_text,
@@ -90,7 +123,7 @@ async def get_mandate_template(user: CurrentUser = Depends(get_current_user)):
         "is_eligible": is_eligible,
         "max_allowed_amount": max_rule_amount,
         "max_allowed_days": max_days,
-    }
+    }}
 
 
 @router.get("/active")
@@ -170,26 +203,8 @@ async def create_mandate(
             detail=f"Validity cannot exceed {max_rule_days} days.",
         )
 
-    # 2. Verify password with auth service
-    auth_verified = False
-    auth_url = "http://auth-service:8001/auth/login"
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.post(auth_url, json={"email": user.email, "password": body.password})
-            if resp.status_code == 200:
-                auth_verified = True
-    except Exception as e:
-        logger.warning(f"Could not reach auth-service to verify password: {e}")
-        # In test mode or when auth-service isn't networked, fallback to test bypass
-        from shared.runtime_env import is_development
-        if is_development() and body.password in ("password123", "FinancePass123!", "AdminPass123!"):
-            auth_verified = True
-
-    if not auth_verified:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect password. Password re-entry is required to issue a signing authority mandate.",
-        )
+    # 2. Re-check the caller's password with auth-service
+    await verify_password_with_auth(request.headers.get("authorization", ""), body.password)
 
     now = datetime.now(timezone.utc)
     valid_until = now + timedelta(days=body.validity_days)
