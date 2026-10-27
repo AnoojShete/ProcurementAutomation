@@ -16,11 +16,10 @@ async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessio
         {"type": "function", "function": {"name": "get_license_anomaly_summary", "description": "Returns counts of SaaS licenses by anomaly status and potential annual savings."}},
         {"type": "function", "function": {"name": "search_vendors", "description": "Searches for vendors by company name to find their vendor ID and status.", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "Vendor name or part of name"}}, "required": ["query"]}}},
         {"type": "function", "function": {"name": "get_vendor_risk", "description": "Fetches the risk score, risk band (low, medium, high), and top risk factors for a specific vendor ID.", "parameters": {"type": "object", "properties": {"vendor_id": {"type": "string", "description": "The exact UUID of the vendor"}}, "required": ["vendor_id"]}}},
-        {"type": "function", "function": {"name": "search_documents", "description": "Perform a semantic search over procurement documents to find specific clauses, item pricing, or historical text.", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "The semantic search query"}}, "required": ["query"]}}}
+        {"type": "function", "function": {"name": "search_documents", "description": "Perform a semantic search over procurement documents to find specific clauses, item pricing, historical text, or summarize invoices.", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "The semantic search query"}}, "required": ["query"]}}}
     ]
 
     messages = [{"role": m.role, "content": m.content} for m in history]
-    
     messages.insert(0, {
         "role": "system", 
         "content": (
@@ -54,7 +53,11 @@ async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessio
                 name = tool.get("function", {}).get("name", "")
                 raw_args = tool.get("function", {}).get("arguments", {})
                 
-                args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+                # FIXED: Protected JSON parsing so hallucinations never crash the server
+                try:
+                    args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
+                except Exception:
+                    args = {}
                 
                 try:
                     if name == "get_procurement_summary": result = await context_service.fetch_procurement_summary(user)

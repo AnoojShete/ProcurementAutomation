@@ -6,17 +6,13 @@ from shared.auth.middleware import CurrentUser
 
 async def get_embedding(text_content: str) -> list[float]:
     url = f"{settings.llm_api_base_url}/api/embeddings"
-    payload = {
-        "model": "nomic-embed-text",
-        "prompt": text_content
-    }
+    payload = {"model": "nomic-embed-text", "prompt": text_content}
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(url, json=payload)
         response.raise_for_status()
         return response.json().get("embedding", [])
 
-# INCREASED LIMIT TO 20 so the AI can read all chunks at once
-async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser, limit: int = 20) -> str:
+async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser, limit: int = 5) -> str:
     try:
         query_embedding = await get_embedding(query)
         if not query_embedding:
@@ -25,7 +21,8 @@ async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser,
         stmt = text("""
             SELECT e.chunk_text, e.document_id
             FROM document_embeddings e
-            JOIN documents d ON e.document_id = d.id
+            -- FIXED: Cast documents.id to TEXT so it ignores the junk data
+            JOIN documents d ON e.document_id = CAST(d.id AS TEXT)
             WHERE 
                 (:role IN ('admin', 'finance')) 
                 OR (d.uploaded_by = :email)
@@ -41,7 +38,6 @@ async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser,
         })
         
         chunks = results.fetchall()
-
         if not chunks:
             return "No relevant documents found in the knowledge base."
 
@@ -50,6 +46,5 @@ async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser,
             context += f"[Doc ID: {chunk.document_id}]\n{chunk.chunk_text}\n---\n"
             
         return context
-
     except Exception as e:
         return f"Error searching knowledge base: {str(e)}"

@@ -9,12 +9,12 @@ async def auto_embed_loop():
     while True:
         try:
             async with async_session_factory() as db:
-                # FIXED: Added CAST(document_id AS uuid) so Postgres can compare the types
+                # FIXED: Cast the strict UUID to TEXT to safely compare against dirty rows
                 query = text("""
                     SELECT id, extracted 
                     FROM documents 
                     WHERE extracted IS NOT NULL 
-                    AND id NOT IN (SELECT DISTINCT CAST(document_id AS uuid) FROM document_embeddings)
+                    AND CAST(id AS TEXT) NOT IN (SELECT DISTINCT document_id FROM document_embeddings)
                 """)
                 result = await db.execute(query)
                 new_docs = result.fetchall()
