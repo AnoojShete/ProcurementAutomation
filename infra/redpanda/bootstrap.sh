@@ -45,7 +45,7 @@ create_user event-monitor            "$KAFKA_PASSWORD_EVENT_MONITOR"
 
 echo "[3/5] topics (services can't create topics themselves)"
 existing="$(rpk_kafka topic list | awk 'NR>1 {print $1}')"
-for topic in $(grep -E '^\s*-\s' "$DIR/kafka-topics.yaml" | sed -E 's/^\s*-\s*//'); do
+for topic in $(grep -E '^\s*-\s' "$DIR/kafka-topics.yaml" | sed -E 's/^\s*-\s*//' | tr -d '\r'); do
   if ! grep -qx "$topic" <<<"$existing"; then
     partitions=1; [ "$topic" = "document.ingested" ] && partitions=6
     rpk_kafka topic create "$topic" -p "$partitions" >/dev/null
@@ -54,7 +54,7 @@ for topic in $(grep -E '^\s*-\s' "$DIR/kafka-topics.yaml" | sed -E 's/^\s*-\s*//
 done
 
 echo "[4/5] permissions from acls.conf"
-grep -vE '^\s*(#|$)' "$DIR/acls.conf" | while read -r user permission resource name; do
+tr -d '\r' < "$DIR/acls.conf" | grep -vE '^\s*(#|$)' | while read -r user permission resource name; do
   case "$resource" in
     topic)   target=(--topic "$name") ;;
     group)   target=(--group "$name") ;;

@@ -19,6 +19,7 @@ const NewRequestWizardPage = lazy(() => import("@/pages/requests/NewRequestWizar
 const RequestDetailPage = lazy(() => import("@/pages/requests/RequestDetailPage").then((m) => ({ default: m.RequestDetailPage })));
 const DocumentsListPage = lazy(() => import("@/pages/documents/DocumentsListPage").then((m) => ({ default: m.DocumentsListPage })));
 const DocumentDetailPage = lazy(() => import("@/pages/documents/DocumentDetailPage").then((m) => ({ default: m.DocumentDetailPage })));
+const BatchDetailPage = lazy(() => import("@/pages/documents/BatchDetailPage").then((m) => ({ default: m.BatchDetailPage })));
 const VendorsListPage = lazy(() => import("@/pages/vendors/VendorsListPage").then((m) => ({ default: m.VendorsListPage })));
 const VendorDetailPage = lazy(() => import("@/pages/vendors/VendorDetailPage").then((m) => ({ default: m.VendorDetailPage })));
 const VendorRiskScorecardPage = lazy(() => import("@/pages/vendors/VendorRiskScorecardPage").then((m) => ({ default: m.VendorRiskScorecardPage })));
@@ -98,6 +99,7 @@ const router = createBrowserRouter([
       },
       { path: "requests/:id", element: withSuspense(<RequestDetailPage />) },
       { path: "documents", element: withSuspense(<DocumentsListPage />) },
+      { path: "documents/batches/:batchId", element: withSuspense(<BatchDetailPage />) },
       { path: "documents/:id", element: withSuspense(<DocumentDetailPage />) },
       { path: "vendors", element: withSuspense(<VendorsListPage />) },
       { path: "vendors/:id", element: withSuspense(<VendorDetailPage />) },

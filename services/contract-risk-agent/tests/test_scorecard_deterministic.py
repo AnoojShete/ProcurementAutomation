@@ -240,6 +240,7 @@ def test_gst_matrix():
             "gstin.verification_level": "live",
             "gstin.number": "29ABCDE1234F1Z5",
             "gstin.legal_name": "Acme Pvt Ltd",
+            "gstin.name_match_level": "exact",
         },
         "provider": "cleartax",
     }]

@@ -187,7 +187,7 @@ def evaluate_risk(
             if o_fetched_at is None:
                 o_fetched_at = assessed_at
 
-            if o_fetched_at and obs_status not in ("not_assessed", "error", "not_checked"):
+            if o_fetched_at:
                 if o_fetched_at.tzinfo is None:
                     o_fetched_at = o_fetched_at.replace(tzinfo=timezone.utc)
                 age = (assessed_at - o_fetched_at).total_seconds()
@@ -243,13 +243,13 @@ def evaluate_risk(
         kind = sig_def.get("kind", "due_diligence")
         coverage_type = sig_def.get("coverage_type", "full")
 
-        # Potential points calculation (9C: detect_only signals never add potential points)
-        if coverage_type == "detect_only":
+        # Potential points calculation (9C: detect_only signals never add potential points, except review_pending per Prompt 11 Section 1.3)
+        if status == "review_pending":
+            potential_points = max(0, max_points - points)
+        elif coverage_type == "detect_only":
             potential_points = 0
         elif status == "not_assessed":
             potential_points = max_points
-        elif status == "review_pending":
-            potential_points = max(0, max_points - points)
         else:
             potential_points = 0
 
@@ -260,6 +260,7 @@ def evaluate_risk(
 
         # Render template context
         tmpl_context = dict(obs_fields)
+        tier_val = vendor_context.get("tier") or vendor_context.get("inherent_tier") or vendor_context.get("spend_tier") or "standard"
         tmpl_context.update({
             "provider": provider,
             "fetched_at": fetched_at_str,
@@ -268,8 +269,16 @@ def evaluate_risk(
             "label": sig_def.get("label", sig_key),
             "country": vendor_context.get("country", "Unknown"),
             "domain": vendor_context.get("website_domain", "vendor domain"),
+            "vendor.tier": tier_val,
+            "vendor.country": vendor_context.get("country", "Unknown"),
         })
         reason_text = render_template(matched_outcome.get("reason", ""), tmpl_context)
+        if not reason_text or reason_text.strip() == "—" or reason_text.strip() == "":
+            reason_text = "(not recorded)"
+        elif "—" in reason_text and reason_text.strip().endswith("—."):
+            reason_text = reason_text.replace("—.", "(not recorded).")
+
+        na_reason_code = matched_outcome.get("na_reason_code") or obs_fields.get("na_reason_code")
 
         # Render remediation actions
         remediation_actions = []
@@ -303,6 +312,7 @@ def evaluate_risk(
             "remediation_target": matched_outcome.get("remediation_target", False),
             "kind": kind,
             "coverage_type": coverage_type,
+            "na_reason_code": na_reason_code,
         }
         rule_results.append(rule_result)
 
@@ -312,9 +322,21 @@ def evaluate_risk(
         if override_band:
             override_rules.append({"rule_id": rule_id, "reason": reason_text})
 
-        # Provisional requirement check (9C: satisfied ONLY when status is assessed or not_applicable)
+        # Provisional requirement check (Prompt 11 Section 2.4, 3.5: GST requires exact/confirmed; not_applicable requires na_reason_code)
         if sig_key in required_signals:
-            if status not in ("assessed", "not_applicable"):
+            satisfied = False
+            if sig_key == "gst":
+                match_level = obs_fields.get("gstin.name_match_level")
+                if status == "assessed" and match_level in ("exact", "confirmed"):
+                    satisfied = True
+                elif status == "not_applicable" and na_reason_code:
+                    satisfied = True
+            else:
+                if status == "assessed":
+                    satisfied = True
+                elif status == "not_applicable" and na_reason_code:
+                    satisfied = True
+            if not satisfied:
                 provisional_reasons.append({
                     "code": f"required_signal_{status}",
                     "signal": sig_key,
@@ -361,20 +383,26 @@ def evaluate_risk(
 
     applicable_max_points = sum(r["max_points"] for r in rule_results if r["status"] != "not_applicable")
 
-    # Rating status determination (Section C1)
+    # Rating status determination (Prompt 11 Section 2.4, 3.5 & Mandatory Fix 3)
     all_required_satisfied = True
     for r in rule_results:
         if r["signal_key"] in required_signals:
-            if r["status"] not in ("assessed", "not_applicable"):
-                all_required_satisfied = False
-                break
+            sk = r["signal_key"]
+            st = r["status"]
+            na_code = r.get("na_reason_code")
+            if sk == "gst":
+                ml = r.get("observed_fields", {}).get("gstin.name_match_level")
+                if not ((st == "assessed" and ml in ("exact", "confirmed")) or (st == "not_applicable" and na_code)):
+                    all_required_satisfied = False
+                    break
+            else:
+                if not (st == "assessed" or (st == "not_applicable" and na_code)):
+                    all_required_satisfied = False
+                    break
 
     if assessed_share_pct == 0:
         rating_status = "not_rated"
-    elif assessed_share_pct == 100 and all_required_satisfied and vendor_country:
-        # Without the country of incorporation the jurisdiction and GST rules
-        # can't be trusted, so the rating stays provisional (red-team finding:
-        # it used to be noted as a reason yet rated assessed Low).
+    elif assessed_share_pct >= min_share_pct and all_required_satisfied and vendor_country and not provisional_reasons:
         rating_status = "assessed"
     else:
         rating_status = "provisional"
@@ -383,7 +411,7 @@ def evaluate_risk(
     worst_case_points = min(100, total_points + due_diligence_potential_points)
     points_band = determine_band(total_points, bands_def)
     worst_case_band = determine_band(worst_case_points, bands_def)
-    points_is_lower_bound = (rating_status == "provisional")
+    points_is_lower_bound = (due_diligence_potential_points > 0)
 
     has_override = len(override_rules) > 0
     if has_override:
@@ -394,7 +422,12 @@ def evaluate_risk(
         final_band = "Low" if rating_status == "assessed" else "Unrated"
 
     blocked_by = [
-        r["rule_id"] for r in rule_results if r.get("override_band")
+        {
+            "rule_id": r["rule_id"],
+            "short_label": r["label"],
+            "remediable": r.get("remediable", True),
+        }
+        for r in rule_results if r.get("override_band")
     ]
 
     # Section 7.3 Headline selection (first match wins)
@@ -428,7 +461,7 @@ def evaluate_risk(
 
         headline = f"{final_band}: {total_points}/100.{top_str}{unassessed_clause}"
 
-    # Section 7.4 Thought process generation
+    # Section 7.4 Thought process generation (Prompt 11 Section 3.1, 3.3, 3.4)
     thought_steps: List[Dict[str, Any]] = []
     groups_def = ruleset.get("groups", [])
     for g_idx, g in enumerate(groups_def, start=1):
@@ -437,28 +470,48 @@ def evaluate_risk(
         g_results = [r for r in rule_results if r["group_key"] == g_key]
         g_points = sum(r["points"] for r in g_results)
         g_max = sum(r["max_points"] for r in g_results)
+        g_potential = sum(r["potential_points"] for r in g_results)
 
-        sig_checked = ", ".join(r["label"] for r in g_results)
-        sentences = [r["reason_text"] for r in g_results if r["reason_text"]]
-        narrative = f"Step {g_idx} {g_label}: we checked {sig_checked}. " + " ".join(sentences) + f" Subtotal {g_points}/{g_max}."
+        applicable = len([r for r in g_results if r["status"] != "not_applicable"])
+        completed = len([r for r in g_results if r["status"] in ("assessed", "assessed_no_finding", "not_applicable")])
+
+        header = f"{g_label}: {g_points} points found, {completed} of {applicable} checks completed, up to {g_potential} points still possible"
+        signal_lines = [f"{r['label']}: {r['reason_text']}" for r in g_results if r["reason_text"]]
+        narrative = header + ("\n" + "\n".join(signal_lines) if signal_lines else "")
         thought_steps.append({
             "step": g_idx,
             "group_key": g_key,
             "group_label": g_label,
             "points": g_points,
             "max_points": g_max,
+            "potential_points": g_potential,
+            "checks_completed": completed,
+            "checks_applicable": applicable,
             "narrative": narrative,
         })
 
-    # Arithmetic final step
-    non_zero_signals = [f"{r['label']} ({r['points']})" for r in rule_results if r["points"] > 0]
-    non_zero_str = " + ".join(non_zero_signals) if non_zero_signals else "0"
-    override_sentence = f" Override rule {override_rules[0]['rule_id']} triggered, setting rating to High." if has_override else ""
-    unassessed_sentence = f" {unassessed_potential_points} unassessed potential points remaining." if unassessed_potential_points > 0 else ""
-    arithmetic_line = (
-        f"Total = {non_zero_str} = {total_points}. Bands: Low 0-24, Medium 25-49, High 50+. "
-        f"Points band {points_band}; result {final_band}.{override_sentence}{unassessed_sentence}"
-    )
+    # Arithmetic final step (Prompt 11 Section 3.4)
+    non_zero_signals = [f"{r['label']} (+{r['points']})" for r in rule_results if r["points"] > 0]
+    done_req = sum(1 for r in rule_results if r["signal_key"] in required_signals and (r["status"] == "assessed" or (r["status"] == "not_applicable" and r.get("na_reason_code"))))
+    total_req = len(required_signals)
+
+    if not non_zero_signals:
+        assessed_nf = [r["label"] for r in rule_results if r["status"] == "assessed_no_finding"]
+        not_assessed_lbls = [r["label"] for r in rule_results if r["status"] == "not_assessed"]
+        arithmetic_line = (
+            f"Total points found: 0 of 100. No signal added points. "
+            f"Assessed with no finding: {', '.join(assessed_nf) if assessed_nf else 'none'}. "
+            f"Not assessed: {', '.join(not_assessed_lbls) if not_assessed_lbls else 'none'}."
+        )
+    else:
+        arithmetic_line = f"Total points found: {total_points} of 100. Breakdown: {', '.join(non_zero_signals)}."
+
+    if rating_status != "assessed":
+        arithmetic_line += (
+            f" This is not a safe score: {done_req} of {total_req} required checks are complete "
+            f"and up to {due_diligence_potential_points} points are still possible."
+        )
+
     thought_steps.append({
         "step": len(groups_def) + 1,
         "group_key": "total",
@@ -500,6 +553,44 @@ def evaluate_risk(
     snapshot_hash = canonical_json_hash(snapshot)
     definition_hash = canonical_json_hash(ruleset)
 
+    # Build Prompt 11 honest groups with headers and short_label prefixed sentences
+    groups_output = []
+    for g in groups_def:
+        g_results = [r for r in rule_results if r["group_key"] == g["key"]]
+        g_app = [r for r in g_results if r["status"] != "not_applicable"]
+        g_done = [r for r in g_results if r["status"] in ("assessed", "assessed_no_finding")]
+        checks_completed = len(g_done)
+        applicable_checks = len(g_app)
+        potential = sum(r.get("potential_points", 0) for r in g_results)
+        if potential > 0:
+            hdr = f"{checks_completed} of {applicable_checks} checks completed; up to {potential} points may be added"
+        else:
+            hdr = f"{checks_completed} of {applicable_checks} checks completed"
+
+        sentences = [f"{r['label']}: {r['reason_text']}" for r in g_results]
+        groups_output.append({
+            "key": g["key"],
+            "label": g["label"],
+            "points": sum(r["points"] for r in g_results),
+            "max_points": sum(r["max_points"] for r in g_results),
+            "header": hdr,
+            "sentences": sentences,
+        })
+
+    # Arithmetic line and safety notice (Prompt 11 Section 3)
+    if due_diligence_potential_points > 0:
+        arithmetic_line = f"Total = {total_points} assessed + {due_diligence_potential_points} potential points = {total_points + due_diligence_potential_points} maximum"
+    elif total_points == 0:
+        arithmetic_line = "Total = 0 points"
+    else:
+        arithmetic_line = f"Total = {total_points} points"
+
+    unassessed_req = [p["message"] for p in provisional_reasons if p.get("code", "").startswith("required_signal_")]
+    if unassessed_req:
+        safety_notice = "Required checks incomplete: " + "; ".join(unassessed_req) + " must be completed before rating is final."
+    else:
+        safety_notice = None
+
     # Compile structured explanation payload (Section 7.1 & Prompt 9C)
     explanation = {
         "headline": headline,
@@ -534,15 +625,10 @@ def evaluate_risk(
             "tier": inherent_tier,
             "spend_tier": spend_tier,
         },
-        "groups": [
-            {
-                "key": g["key"],
-                "label": g["label"],
-                "points": sum(r["points"] for r in rule_results if r["group_key"] == g["key"]),
-                "max_points": sum(r["max_points"] for r in rule_results if r["group_key"] == g["key"]),
-            }
-            for g in groups_def
-        ],
+        "groups": groups_output,
+        "arithmetic_line": arithmetic_line,
+        "safety_notice": safety_notice,
+        "attribution": "Breach data from Have I Been Pwned",
         "signals": [
             {
                 "signal_key": r["signal_key"],
@@ -586,7 +672,7 @@ def evaluate_risk(
         },
     }
 
-    score_float = round(total_points / 100.0, 4) if rating_status != "not_rated" else None
+    score_float = round(total_points / 100.0, 4) if rating_status == "assessed" else None
 
     return {
         "total_points": total_points,

@@ -12,7 +12,7 @@ from shared.http.correlation import CorrelationMiddleware
 configure_logging(settings.service_name)
 from app.database import async_session_factory, init_db, get_db
 from app.kafka.producer import KafkaEventProducer
-from app.api import health, documents, vendors, admin, showcase, control_panel, gst
+from app.api import health, documents, vendors, admin, showcase, control_panel, gst, batches
 from app.services.event_monitor import EventMonitor
 from app.models import AuditLog
 from app.services.storage import ensure_bucket
@@ -92,6 +92,9 @@ app.include_router(health.router)
 app.include_router(
     build_audit_router(AuditLog, get_db, entity_types=["document", "vendor"]),
     prefix="/documents", tags=["Audit"], dependencies=[Depends(get_current_user)],
+)
+app.include_router(
+    batches.router, prefix="/documents", tags=["Batches"], dependencies=[Depends(get_current_user)]
 )
 app.include_router(
     documents.router, prefix="/documents", tags=["Documents"], dependencies=[Depends(get_current_user)]

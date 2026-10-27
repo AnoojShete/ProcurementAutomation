@@ -160,7 +160,7 @@ async def screen_vendor(db, vendor, screened_by: str = "system", index: Optional
     index = index or load_index()
     if index is None:
         return None
-    cut = threshold()
+    cut = 70.0  # Review threshold is 70.0 so fuzzy matches 70-84% trigger possible_match
     matches = screen_name(vendor.name, index, cut)
     status, justification = ("potential_match" if matches else "clear"), None
     if matches:

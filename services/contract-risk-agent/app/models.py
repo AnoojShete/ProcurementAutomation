@@ -1,3 +1,5 @@
+from uuid import uuid4
+import uuid
 """SQLAlchemy ORM models mapping to the shared database schema
 (shared/db/init.sql), extended by this service's own Alembic migrations
 under migrations/versions/ (never edit init.sql directly).
@@ -36,6 +38,19 @@ class Vendor(Base):
     bank_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     website: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     contact_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    bank_account_number: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    routing_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    payment_beneficiary_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ifsc_verification_status: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    gstin: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
+    gstin_verification_status: Mapped[Optional[str]] = mapped_column(String(20), default="unverified")
+    gstin_data_source: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    gstin_cached_response: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    gstin_cached_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    no_gstin_confirmed_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    no_gstin_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    onboarded_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     activation_exempt_reason: Mapped[Optional[str]] = mapped_column(Text)
     portal_access_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     data_retention_flag: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -461,3 +476,63 @@ class VendorInherentTierHistory(Base):
     justification: Mapped[str] = mapped_column(Text, nullable=False)
     changed_by: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+
+class BreachCatalogue(Base):
+    __tablename__ = "breach_catalogue"
+
+    name: Mapped[str] = mapped_column(Text, primary_key=True)
+    title: Mapped[Optional[str]] = mapped_column(Text)
+    domain: Mapped[Optional[str]] = mapped_column(Text)
+    breach_date: Mapped[Optional[date]] = mapped_column(Date)
+    added_date: Mapped[Optional[date]] = mapped_column(Date)
+    pwn_count: Mapped[Optional[int]] = mapped_column(Integer)
+    data_classes: Mapped[Optional[list]] = mapped_column(JSON)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_fabricated: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_sensitive: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_retired: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_spam_list: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_malware: Mapped[bool] = mapped_column(Boolean, default=False)
+    catalogue_version: Mapped[Optional[str]] = mapped_column(Text)
+    fetched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class BreachCatalogueMeta(Base):
+    __tablename__ = "breach_catalogue_meta"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid4()))
+    version_sha256: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    record_count: Mapped[Optional[int]] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(50), default="download")
+    uploaded_by: Mapped[Optional[str]] = mapped_column(String(255))
+    raw_object_key: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class BreachVendorReview(Base):
+    __tablename__ = "breach_vendor_reviews"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid4()))
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"), nullable=False)
+    breach_name: Mapped[str] = mapped_column(Text, nullable=False)
+    decision: Mapped[str] = mapped_column(Text, nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    reviewer_id: Mapped[str] = mapped_column(Text, nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class VendorWaiver(Base):
+    __tablename__ = "vendor_waivers"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid4()))
+    vendor_id: Mapped[str] = mapped_column(Uuid, ForeignKey("vendors.id"), nullable=False)
+    waiver_type: Mapped[str] = mapped_column(Text, nullable=False, default="certification")
+    certification_name: Mapped[Optional[str]] = mapped_column(Text)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    approved_by: Mapped[str] = mapped_column(Text, nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)

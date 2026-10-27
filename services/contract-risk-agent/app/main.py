@@ -13,7 +13,7 @@ from app.database import async_session_factory, init_db, get_db
 from shared.eventing import kafka_sender, run_relay
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
-from app.api import health, contracts, vendors, webhooks, ops, obligations, rulesets, mandates, internal
+from app.api import health, contracts, vendors, webhooks, ops, obligations, rulesets, mandates, internal, admin
 from app.services.docusign_client import run_status_poller
 from app.services.reminder_sweep import run_reminder_sweeps
 from app.models import AuditLog
@@ -52,6 +52,8 @@ async def lifespan(app: FastAPI):
     # FR-14: refresh a downloaded sanctions list daily (never downloads first).
     from app.services.sanctions import run_daily_refresh
     sanctions_task = asyncio.create_task(run_daily_refresh())
+    from app.services.breach_catalogue import run_daily_breach_refresh
+    breach_task = asyncio.create_task(run_daily_breach_refresh(async_session_factory))
     # Phase 2: read signed contracts' obligations; reminders and licence limits.
     from app.services.obligation_service import run_obligation_sweeps
     obligation_task = asyncio.create_task(run_obligation_sweeps(async_session_factory, app.state.kafka_producer))
@@ -65,7 +67,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task, sanctions_task, obligation_task, scorecard_task):
+    for task in (consumer_task, relay_task, docusign_task, reminder_task, rescore_task, sanctions_task, breach_task, obligation_task, scorecard_task):
         task.cancel()
         try:
             await task

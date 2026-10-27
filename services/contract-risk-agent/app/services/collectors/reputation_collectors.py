@@ -71,12 +71,13 @@ async def collect_adverse_media(
     cleared_rows = (await db.execute(cleared_query, {"vid": vendor.id})).all()
     cleared_urls = {r.url for r in cleared_rows if r.url}
 
-    sources_reachable = True
+    from shared.live_mode.checker import is_live_verification_enabled
+    live_enabled = await is_live_verification_enabled(db)
+
+    sources_reachable = True if live_enabled else False
     cb = CircuitBreaker("guardian")
 
     retrieved_articles: List[Dict[str, Any]] = []
-    from shared.live_mode.checker import is_live_verification_enabled
-    live_enabled = await is_live_verification_enabled(db)
 
     if live_enabled:
         if not await cb.can_execute():
@@ -118,7 +119,8 @@ async def collect_adverse_media(
     matched_categories_set = set()
     high_severity_count = 0
 
-    vendor_name_clean = (vendor.name or "").lower().strip()
+    from app.services import sanctions
+    vendor_name_clean = sanctions.normalise(vendor.name or "")
     two_years_ago = (now - timedelta(days=730)).date()
 
     for art in retrieved_articles:
@@ -182,6 +184,7 @@ async def collect_adverse_media(
         "media.high_severity_count": high_severity_count,
         "media.categories": distinct_categories,
         "media.headlines": matching_headlines,
+        "media.not_checked_reason": "Live verification mode is off" if not live_enabled else ("Sources unreachable" if not sources_reachable else ""),
     }
 
     extraction = {
@@ -214,7 +217,7 @@ async def collect_adverse_media(
         {"label": "High severity count", "value": str(high_severity_count)},
     ]
 
-    obs_status = "ok" if sources_reachable else "error"
+    obs_status = "ok" if (sources_reachable and live_enabled) else ("not_checked" if not live_enabled else "error")
     obs = await record_observation(
         db=db,
         vendor_id=vendor.id,
