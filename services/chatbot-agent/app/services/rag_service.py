@@ -19,9 +19,11 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.services import indexer
 from shared.auth.middleware import CurrentUser
 
@@ -57,6 +59,19 @@ def _ref(source_type: str, source_id: str) -> str:
     if source_type in ("vendor", "licence", "budget", "summary"):
         return f"{source_type}:{source_id[:8]}"
     return source_id
+
+
+async def get_embedding(text_content: str) -> list[float]:
+    """Fetch embeddings from the external Ollama server."""
+    url = f"{settings.llm_api_base_url}/api/embeddings"
+    payload = {
+        "model": "nomic-embed-text",
+        "prompt": text_content
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        return response.json().get("embedding", [])
 
 
 async def retrieve(db: AsyncSession, user: CurrentUser, query: str, k: int = TOP_K) -> list[Hit]:
@@ -107,9 +122,9 @@ def as_context(hits: list[Hit]) -> str:
     return "\n\n".join(f"[{h.ref}] {h.text}" for h in hits)
 
 
-async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser) -> str:
-    """The search_documents tool: another retrieval with the model's own query."""
+async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser, limit: int = 3) -> str:
+    """The search_documents tool: retrieval with the model's own query."""
     try:
-        return as_context(await retrieve(db, user, query))
+        return as_context(await retrieve(db, user, query, k=limit))
     except Exception as e:
         return f"Error searching the knowledge base: {e}"

@@ -11,7 +11,8 @@ from app.services.indexer import sync
 
 async def main():
     await init_db()
-    print(await sync(async_session_factory))
+    result = await sync(async_session_factory)
+    print(f"RAG sync complete: {result}")
 
 
 if __name__ == "__main__":
