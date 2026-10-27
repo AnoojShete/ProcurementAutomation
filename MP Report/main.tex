@@ -18,7 +18,7 @@
 \usepackage{listings}
 \usepackage[font=small,labelfont=bf]{caption}
 \usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta,shapes.geometric,shapes.misc,fit,calc,backgrounds}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,shapes.misc,fit,calc,backgrounds,external}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usepackage{hyperref}
@@ -118,6 +118,11 @@
 % Anything the team still has to add, decide or finish: red and bold, so it
 % stands out in the PDF. Search for \todo before submission.
 \newcommand{\todo}[1]{\textcolor{red}{\textbf{#1}}}
+
+% Figures are pre-rendered to figures/tikz/*.pdf so Overleaf's 20 s free-tier limit is not hit.
+% 'graphics if exists' = use the cached PDF if present, draw it only if missing.
+% To redraw a figure after editing it: delete its PDF in figures/tikz/ and recompile.
+\tikzexternalize[prefix=figures/tikz/, figure name=fig, mode=graphics if exists]
 
 \begin{document}
 \pagestyle{plain}
