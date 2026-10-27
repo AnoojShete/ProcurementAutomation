@@ -9,12 +9,12 @@ async def auto_embed_loop():
     while True:
         try:
             async with async_session_factory() as db:
-                # Find documents that have extracted data BUT are not yet in the embeddings table
+                # FIXED: Added CAST(document_id AS uuid) so Postgres can compare the types
                 query = text("""
-                    SELECT id, extracted_fields 
+                    SELECT id, extracted 
                     FROM documents 
-                    WHERE extracted_fields IS NOT NULL 
-                    AND id NOT IN (SELECT DISTINCT document_id FROM document_embeddings)
+                    WHERE extracted IS NOT NULL 
+                    AND id NOT IN (SELECT DISTINCT CAST(document_id AS uuid) FROM document_embeddings)
                 """)
                 result = await db.execute(query)
                 new_docs = result.fetchall()
@@ -22,8 +22,8 @@ async def auto_embed_loop():
                 for doc_id, extracted_json in new_docs:
                     print(f"New document detected ({doc_id}). Embedding automatically...")
                     
-                    extracted = json.loads(extracted_json) if isinstance(extracted_json, str) else extracted_json
-                    full_text = json.dumps(extracted, indent=2)
+                    extracted_data = json.loads(extracted_json) if isinstance(extracted_json, str) else extracted_json
+                    full_text = json.dumps(extracted_data, indent=2)
                     chunks = [full_text[i:i+1000] for i in range(0, len(full_text), 1000)]
                     
                     for chunk in chunks:
@@ -41,5 +41,4 @@ async def auto_embed_loop():
         except Exception as e:
             print(f"Auto-embedder error: {e}")
         
-        # Sleep for 10 seconds before checking again
         await asyncio.sleep(10)

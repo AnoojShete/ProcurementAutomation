@@ -1,0 +1,38 @@
+{
+  "ignore": {
+    "customPatterns": [
+      "data/**",
+      "secrets/**",
+      "inbox/**",
+      "MP Report/**",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/.next/**",
+      "**/coverage/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/*.log",
+      "**/*.lock",
+      "**/*.pdf",
+      "**/*.png",
+      "**/*.jpg",
+      "**/*.jpeg",
+      "**/*.webp",
+      "**/*.svg",
+      "**/*.ico",
+      "**/*.woff",
+      "**/*.woff2",
+      "**/*.ttf",
+      "**/*.mp4",
+      "**/*.zip",
+      "**/*.env",
+      "**/.env",
+      "**/.env.*",
+      "repomix-output.xml",
+      "docs/site/**",
+      "frontend/public/**",
+      "frontend/assets/**"
+    ]
+  }
+}
