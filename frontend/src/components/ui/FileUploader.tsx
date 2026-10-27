@@ -54,7 +54,7 @@ export function FileUploader({
   onFileSelected,
   onFilesSelected,
   onFilesWithPathSelected,
-  multiple,
+  multiple = true,
   allowFolder = true,
   accept,
   disabled,
@@ -86,17 +86,17 @@ export function FileUploader({
 
       if (onFilesWithPathSelected) {
         onFilesWithPathSelected(items);
-      } else if (multiple) {
-        onFilesSelected?.(files);
-      } else {
-        setFileName(files[0].name);
-        onFileSelected?.(files[0]);
+      } else if (onFilesSelected) {
+        onFilesSelected(files);
+      } else if (onFileSelected) {
+        setFileName(files.length > 1 ? `${files.length} files selected` : files[0].name);
+        files.forEach((f) => onFileSelected(f));
       }
 
       if (fileInputRef.current) fileInputRef.current.value = "";
       if (folderInputRef.current) folderInputRef.current.value = "";
     },
-    [multiple, onFileSelected, onFilesSelected, onFilesWithPathSelected],
+    [onFileSelected, onFilesSelected, onFilesWithPathSelected],
   );
 
   const handleDrop = useCallback(
@@ -118,11 +118,11 @@ export function FileUploader({
         if (collected.length > 0) {
           if (onFilesWithPathSelected) {
             onFilesWithPathSelected(collected);
-          } else if (multiple) {
-            onFilesSelected?.(collected.map((c) => c.file));
-          } else {
-            setFileName(collected[0].file.name);
-            onFileSelected?.(collected[0].file);
+          } else if (onFilesSelected) {
+            onFilesSelected(collected.map((c) => c.file));
+          } else if (onFileSelected) {
+            setFileName(collected.length > 1 ? `${collected.length} files selected` : collected[0].file.name);
+            collected.forEach((c) => onFileSelected(c.file));
           }
           return;
         }
@@ -130,12 +130,15 @@ export function FileUploader({
 
       handleFileList(e.dataTransfer.files);
     },
-    [disabled, handleFileList, multiple, onFileSelected, onFilesSelected, onFilesWithPathSelected],
+    [disabled, handleFileList, onFileSelected, onFilesSelected, onFilesWithPathSelected],
   );
 
   return (
     <div className="space-y-2">
       <div
+        onClick={() => {
+          if (!disabled) fileInputRef.current?.click();
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           if (!disabled) setDragging(true);
@@ -145,8 +148,8 @@ export function FileUploader({
         role="region"
         aria-label={multiple ? "Choose documents to upload" : "Choose a document to upload"}
         className={cn(
-          "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition-colors",
-          dragging ? "border-brand-500 bg-brand-50" : "border-slate-300 bg-surface-subtle hover:border-slate-400",
+          "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition-colors cursor-pointer",
+          dragging ? "border-brand-500 bg-brand-50" : "border-slate-300 bg-surface-subtle hover:border-brand-400 hover:bg-slate-50/50",
           disabled && "cursor-not-allowed opacity-60",
         )}
       >
@@ -181,12 +184,12 @@ export function FileUploader({
           {fileName && !multiple ? (
             <>
               <p className="font-medium text-slate-900">{fileName}</p>
-              <p className="text-xs text-slate-500">Drop another file to replace</p>
+              <p className="text-xs text-slate-500">Click or drop another file to replace</p>
             </>
           ) : (
             <>
               <p className="text-sm text-slate-700">
-                Drag and drop files or folders here, or
+                Drag and drop files or folders here, or click to browse
               </p>
               <div className="flex items-center justify-center gap-2 pt-1">
                 <button
@@ -199,7 +202,7 @@ export function FileUploader({
                   className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
                 >
                   <Upload className="size-3.5 text-slate-500" />
-                  Browse Files
+                  Browse Files (Multi-Select)
                 </button>
                 {allowFolder && (
                   <button
@@ -224,7 +227,7 @@ export function FileUploader({
 
       {allowFolder && (
         <p className="text-center text-[11px] text-slate-400">
-          Folder upload is supported on desktop Chromium, Firefox, and Edge browsers.
+          Hold Shift or Ctrl to select multiple files. Folder upload is supported on desktop Chromium, Firefox, and Edge browsers.
         </p>
       )}
     </div>

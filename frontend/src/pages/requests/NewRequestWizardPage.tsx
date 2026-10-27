@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Building2, CheckCircle2, Info, Lock, Search, ShoppingCart, Sparkles, UploadCloud } from "lucide-react";
+import { Building2, CheckCircle2, FileText, Info, Lock, Search, ShoppingCart, Sparkles, UploadCloud } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useAuth } from "@/hooks/useAuth";
 import { useApi } from "@/hooks/useApi";
@@ -375,39 +375,49 @@ function StepDocuments({
   const [error, setError] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
 
-  const handleFile = async (file: File) => {
+  const [uploadedDocs, setUploadedDocs] = useState<DocumentRecord[]>([]);
+
+  const handleFiles = async (files: File[]) => {
+    if (!files.length) return;
     setError(null);
     setUploading(true);
-    try {
-      const res = await documentsApi.upload(file, user!.email);
-      setUploading(false);
-      setPolling(true);
-      let attempts = 0;
-      const poll = async () => {
-        attempts += 1;
-        try {
-          const doc = await documentsApi.get(res.data.document_id);
-          setState((s) => applyDocument(s, doc.data, vendors));
+    for (const file of files) {
+      try {
+        const res = await documentsApi.upload(file, user!.email);
+        setPolling(true);
+        let attempts = 0;
+        const poll = async () => {
+          attempts += 1;
+          try {
+            const doc = await documentsApi.get(res.data.document_id);
+            setUploadedDocs((prev) => {
+              const next = prev.filter((d) => d.id !== doc.data.id);
+              return [...next, doc.data];
+            });
+            setState((s) => (!s.document ? applyDocument(s, doc.data, vendors) : s));
 
-          if (doc.data.status === "classified" || doc.data.status === "failed") {
+            if (doc.data.status === "classified" || doc.data.status === "failed") {
+              setPolling(false);
+              return;
+            }
+          } catch {
+            // ignore
+          }
+          if (attempts >= 40) {
             setPolling(false);
             return;
           }
-        } catch {
-          // ignore transient poll error
-        }
-        if (attempts >= 40) {
-          setPolling(false);
-          return;
-        }
-        setTimeout(poll, 1500);
-      };
-      poll();
-    } catch (e) {
-      setUploading(false);
-      setError(e instanceof ApiError ? e.message : "Upload failed.");
+          setTimeout(poll, 1500);
+        };
+        poll();
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Upload failed.");
+      }
     }
+    setUploading(false);
   };
+
+  const handleFile = (file: File) => handleFiles([file]);
 
   const pipeline = deriveUploadPipeline(state.document, uploading);
 
@@ -417,7 +427,27 @@ function StepDocuments({
         title="Supporting Documents"
       />
       <CardBody className="flex flex-col gap-4">
-        <FileUploader onFileSelected={handleFile} accept=".pdf,.png,.jpg,.jpeg" disabled={uploading || polling} />
+        <FileUploader
+          multiple
+          onFilesSelected={handleFiles}
+          onFileSelected={handleFile}
+          accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif"
+          disabled={uploading || polling}
+        />
+        {uploadedDocs.length > 1 && (
+          <div className="space-y-2 rounded-lg border border-surface-border bg-surface-subtle p-3">
+            <p className="text-xs font-semibold text-slate-700">Uploaded Supporting Documents ({uploadedDocs.length})</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {uploadedDocs.map((d) => (
+                <div key={d.id} className="flex items-center gap-2 rounded border border-surface-border bg-white p-2 text-xs">
+                  <FileText className="size-4 shrink-0 text-brand-600" />
+                  <span className="truncate font-medium text-slate-800">{d.original_filename}</span>
+                  <span className="ml-auto text-slate-500 capitalize">{d.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {error && <InlineError message={error} />}
         {(uploading || state.document) && (
           <div className="rounded-lg border border-surface-border p-4">

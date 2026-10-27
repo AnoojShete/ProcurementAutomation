@@ -1160,9 +1160,10 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-ink mb-1">Select File (PDF / Image)</label>
+            <label className="block text-xs font-semibold text-ink mb-1">Select File(s) (PDF / Image)</label>
             <input
               type="file"
+              multiple
               className="w-full text-xs text-ink file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
               onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
             />
