@@ -1,0 +1,28 @@
+% Appendix D: Project Outcomes
+
+\vspace*{5cm}
+\begin{centering}
+{\LARGE\bfseries Appendix D: Project Outcomes}\\
+\end{centering}
+
+\newpage
+
+\section*{Publications and Competitions}
+\begin{center}
+\tablestyle
+\begin{tabularx}{\textwidth}{|L{0.22\textwidth}|Y|L{0.18\textwidth}|}
+\hline
+\textbf{Outcome} & \textbf{Details} & \textbf{Status} \\ \hline
+Research paper & A paper on calibrated, evidence-based review gates for procurement documents (provisional title: \emph{Agentic AI Procurement Solution}) & Draft submitted to the Project Guide \\ \hline
+\end{tabularx}
+\end{center}
+
+\section*{Technical Outcomes}
+\begin{itemize}
+  \item A working, containerised platform of six services and three workers that takes a procurement document or request from intake to a signed contract, receipt and invoice match.
+  \item Two trained models (document classifier, licence-anomaly detector) and one adopted language model (Legal-BERT for clauses), each kept only after beating a baseline on held-out data (Section~\ref{sec:eval}); a deterministic, replayable vendor risk scorecard, which replaced an evaluated Random Forest.
+  \item Budget control, contract-obligation tracking, an IT catalog, request-for-quotation events with weighted comparison, partial goods receipts and vendor scorecards, added after the competitive analysis (Section~\ref{sec:extensions}).
+  \item 1,282 service unit tests, a shared-code suite and end-to-end suites through the gateway, with a regression test for every defect fixed.
+  \item A seeded procurement-world generator and evaluation harness for risk-controlled document automation.
+  \item Documentation for reproduction: setup and run scripts, backup and restore scripts, a deployment checklist, a technical reference, a business-rules register and dated evaluation results.
+\end{itemize}

@@ -1,0 +1,189 @@
+% Project report: Agentic AI Procurement Solution
+% Fr. C. Rodrigues Institute of Technology, Vashi -- report template by Dr. Smita Dange.
+% Every package and style lives in this file; the other .tex files hold content only.
+% Build: tectonic main.tex   (or: latexmk -pdf main.tex)
+
+\documentclass[12pt]{report}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{ragged2e}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,shapes.misc,fit,calc,backgrounds,external}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{hyperref}
+% Cross-references stay black; links to papers and web pages are blue so
+% that a reader can see they are clickable.
+\definecolor{linkblue}{HTML}{1F4E9C}
+\hypersetup{colorlinks=true, linkcolor=black, citecolor=black, urlcolor=linkblue}
+
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\centering}
+  {\chaptertitlename\ \thechapter}{24pt}{\Huge}
+\geometry{verbose,a4paper,tmargin=15mm,bmargin=30mm,lmargin=30mm,rmargin=20mm}
+
+% Header and footer
+\geometry{headheight=15pt}
+\setcounter{tocdepth}{3}
+\setcounter{secnumdepth}{3}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Agentic AI Procurement Solution}
+\lfoot{F.C.R.I.T, Vashi}
+\rfoot{\thepage}
+\renewcommand{\footrulewidth}{0.6pt}
+\renewcommand{\headrulewidth}{1.pt}
+
+% ---------------------------------------------------------------
+% Tables: one style for every table in the report
+% ---------------------------------------------------------------
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\tablestyle}{\footnotesize\renewcommand{\arraystretch}{1.25}}
+\setlength{\LTpre}{6pt}\setlength{\LTpost}{6pt}
+
+% ---------------------------------------------------------------
+% Figures: one visual standard for every diagram and chart
+% Each agent keeps the same colour in every figure.
+% ---------------------------------------------------------------
+\definecolor{ink}{HTML}{2B2B2B}
+\definecolor{agAfill}{HTML}{E4F2E1}\definecolor{agAline}{HTML}{3E7D3A} % Agent 1 Document & Vendor
+\definecolor{agBfill}{HTML}{FCEBD5}\definecolor{agBline}{HTML}{B8701D} % Agent 2 Approval & Inventory
+\definecolor{agCfill}{HTML}{EEE4F4}\definecolor{agCline}{HTML}{6E4A8E} % Agent 3 Contract & Risk
+\definecolor{agDfill}{HTML}{FBE4E4}\definecolor{agDline}{HTML}{A8474B} % Agent 4 Platform
+\definecolor{infill}{HTML}{E8EDF6}\definecolor{inline}{HTML}{4F6188}    % infrastructure / data
+\definecolor{exfill}{HTML}{F2F2F2}\definecolor{exline}{HTML}{6F6F6F}    % people and external systems
+\definecolor{humfill}{HTML}{FFF6D6}\definecolor{humline}{HTML}{9A7B12}  % human decision points
+\definecolor{chartA}{HTML}{9AA5B1}\definecolor{chartB}{HTML}{3F5E8C}    % chart: baseline / shipped
+
+\tikzset{
+  >={Stealth[length=2mm]},
+  every picture/.style={font=\footnotesize, line width=0.6pt, draw=ink, text=ink},
+  nohyph/.style={execute at begin node={\hyphenpenalty=10000\exhyphenpenalty=10000}},
+  box/.style={nohyph, draw, rounded corners=2pt, align=center, inner sep=3pt, minimum height=8mm},
+  agA/.style={box, fill=agAfill, draw=agAline},
+  agB/.style={box, fill=agBfill, draw=agBline},
+  agC/.style={box, fill=agCfill, draw=agCline},
+  agD/.style={box, fill=agDfill, draw=agDline},
+  infra/.style={box, fill=infill, draw=inline},
+  ext/.style={box, fill=exfill, draw=exline},
+  human/.style={box, fill=humfill, draw=humline},
+  decision/.style={nohyph, diamond, aspect=2.2, draw=humline, fill=humfill, align=center, inner sep=1pt},
+  flow/.style={->, draw=ink},
+  dflow/.style={->, draw=ink, dashed},
+  lbl/.style={font=\scriptsize\itshape, fill=white, inner sep=1pt},
+  note/.style={font=\scriptsize\itshape, align=center},
+}
+\pgfplotsset{
+  reportbars/.style={
+    ybar, width=0.95\textwidth, height=6cm, ymin=0,
+    enlarge x limits=0.18, bar width=11pt,
+    ymajorgrids, grid style={draw=black!12},
+    axis line style={draw=black!60}, tick style={draw=black!60},
+    legend style={draw=none, font=\footnotesize, legend columns=-1, at={(0.5,1.03)}, anchor=south},
+    tick label style={font=\footnotesize}, label style={font=\footnotesize},
+    nodes near coords, every node near coord/.append style={font=\scriptsize},
+    /tikz/every even column/.append style={column sep=0.6cm},
+    legend image code/.code={\draw[#1, draw=none] (0cm,-0.1cm) rectangle (0.3cm,0.1cm);},
+  },
+}
+
+% Code listings
+\lstset{
+  basicstyle=\ttfamily\scriptsize, columns=fullflexible, keepspaces=true,
+  frame=single, rulecolor=\color{black!40}, framesep=4pt, xleftmargin=6pt, xrightmargin=6pt,
+  numbers=left, numberstyle=\tiny\color{black!50}, numbersep=6pt,
+  commentstyle=\color{black!55}\itshape, keywordstyle=\bfseries, stringstyle=\color{black!75},
+  showstringspaces=false, breaklines=true, language=Python, captionpos=b,
+}
+\renewcommand{\lstlistingname}{Listing}
+\captionsetup[lstlisting]{justification=raggedright,singlelinecheck=false}
+\renewcommand{\bibname}{References}
+
+\setlength{\emergencystretch}{2.5em}
+\newcommand{\Rs}{Rs.\,}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+% Anything the team still has to add, decide or finish: red and bold, so it
+% stands out in the PDF. Search for \todo before submission.
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{#1}}}
+
+% Figures are pre-rendered to figures/tikz/*.pdf so Overleaf's 20 s free-tier limit is not hit.
+% 'graphics if exists' = use the cached PDF if present, draw it only if missing.
+% To redraw a figure after editing it: delete its PDF in figures/tikz/ and recompile.
+\tikzexternalize[prefix=figures/tikz/, figure name=fig, mode=graphics if exists]
+
+\begin{document}
+\pagestyle{plain}
+\include{1Title}
+\pagenumbering{roman}
+
+\include{2Approval}
+\include{3Declaration}
+
+\newpage
+\addcontentsline{toc}{chapter}{Abstract}
+\include{Abstract}
+
+\tableofcontents
+\newpage
+
+\addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
+\newpage
+
+\addcontentsline{toc}{chapter}{List of Tables}
+\listoftables
+\newpage
+
+\renewcommand{\lstlistlistingname}{List of Listings}
+\addcontentsline{toc}{chapter}{List of Listings}
+\lstlistoflistings
+\newpage
+
+\pagenumbering{arabic}
+\pagestyle{fancy}
+\include{Chapter1Introduction}
+\include{Chapter2LiteratureSurvey}
+\include{Chapter3ProposedSystem}
+\include{Chapter4Design}
+\include{Chapter5ResultandDiscussion}
+\include{Chapter6Conclusion}
+
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{References}
+\include{References}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Acknowledgement}
+\include{Acknowledgment}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Appendix A: Timeline Chart}
+\include{appendixA}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Appendix B: Sustainable Development Goal (SDG) Mapping}
+\include{appendixB}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Appendix C: Complex Engineering Problem Identification and Evaluation}
+\include{appendixC}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Appendix D: Project Outcomes}
+\include{appendixD}
+
+\end{document}
