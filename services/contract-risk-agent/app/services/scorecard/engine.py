@@ -418,8 +418,10 @@ def evaluate_risk(
         final_band = "High"
     elif points_band in ("Medium", "High"):
         final_band = points_band
+    elif rating_status == "not_rated":
+        final_band = "Unrated"
     else:
-        final_band = "Low" if rating_status == "assessed" else "Unrated"
+        final_band = "Low"
 
     blocked_by = [
         {
@@ -672,7 +674,7 @@ def evaluate_risk(
         },
     }
 
-    score_float = round(total_points / 100.0, 4) if rating_status == "assessed" else None
+    score_float = round(total_points / 100.0, 4) if rating_status != "not_rated" else None
 
     return {
         "total_points": total_points,
