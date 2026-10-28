@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     # BR-7: re-score vendors after a delivery so on-time rate stays current.
     from app.services.risk_service import run_delivery_rescore
     rescore_task = asyncio.create_task(run_delivery_rescore(async_session_factory, app.state.kafka_producer))
-    # FR-14: refresh a downloaded sanctions list daily (never downloads first).
+    # FR-14: refresh a downloaded sanctions list daily (auto-downloads in background if missing).
     from app.services.sanctions import run_daily_refresh
     sanctions_task = asyncio.create_task(run_daily_refresh())
     from app.services.breach_catalogue import run_daily_breach_refresh

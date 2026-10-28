@@ -62,3 +62,59 @@ export function deriveUploadPipeline(doc: DocumentRecord | null, uploading: bool
   ];
   return steps.map((s) => ({ ...s, working: s.state === "current" }));
 }
+
+/**
+ * Pipeline state derivation for one or more documents being uploaded and processed in batch.
+ * Steps move to completed only when all documents finish their processing.
+ */
+export function deriveMultiUploadPipeline(
+  docs: (DocumentRecord | null)[],
+  uploading: boolean,
+): PipelineStep[] {
+  const validDocs = docs.filter((d): d is DocumentRecord => d !== null);
+  if (validDocs.length === 0 && !uploading) {
+    return [
+      { key: "upload", label: "Uploading", state: "pending" },
+      { key: "scan", label: "Malware scan", state: "pending" },
+      { key: "extract", label: "Classifying & extracting", state: "pending" },
+      { key: "validate", label: "Validation", state: "pending" },
+      { key: "done", label: "Completed", state: "pending" },
+    ];
+  }
+
+  if (uploading) {
+    return [
+      { key: "upload", label: "Uploading", state: "current", working: true },
+      { key: "scan", label: "Malware scan", state: "pending" },
+      { key: "extract", label: "Classifying & extracting", state: "pending" },
+      { key: "validate", label: "Validation", state: "pending" },
+      { key: "done", label: "Completed", state: "pending" },
+    ];
+  }
+
+  const anyProcessing = validDocs.length === 0 || validDocs.some((d) => d.status === "pending" || d.status === "processing");
+  const allFailed = validDocs.length > 0 && validDocs.every((d) => d.status === "failed");
+  const anyNeedsReview = validDocs.some((d) => d.needs_review);
+
+  const steps: PipelineStep[] = [
+    { key: "upload", label: "Uploading", state: "completed" },
+    { key: "scan", label: "Malware scan", state: allFailed ? "failed" : "completed" },
+    {
+      key: "extract",
+      label: "Classifying & extracting",
+      state: anyProcessing ? "current" : allFailed ? "failed" : "completed",
+    },
+    {
+      key: "validate",
+      label: "Validation",
+      state: anyProcessing ? "pending" : allFailed ? "failed" : "completed",
+    },
+    {
+      key: "done",
+      label: anyNeedsReview ? "Needs review" : "Completed",
+      state: anyProcessing ? "pending" : allFailed ? "blocked" : "completed",
+    },
+  ];
+
+  return steps.map((s) => ({ ...s, working: s.state === "current" }));
+}

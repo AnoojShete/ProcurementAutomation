@@ -135,7 +135,7 @@ async def collect_sanctions(
     list_name = index.get("list_name", "OpenSanctions Consolidated") if index else "Consolidated Sanctions List"
     list_version = index.get("version", "v2026.10") if index else "v1"
     review_threshold = 70
-    match_threshold = 85
+    match_threshold = int(sanctions.threshold())
     matches = []
 
     SANCTIONED_BIC_PREFIXES = {"MELIIR", "BKCHIR", "SNDXIR", "EBIRIR", "SEPBIR"}
