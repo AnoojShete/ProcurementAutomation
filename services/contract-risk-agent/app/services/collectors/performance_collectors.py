@@ -251,8 +251,6 @@ async def collect_incidents(
     """)
     delivered_orders = (await db.execute(delivered_count_query, {"vid": vendor.id})).scalar() or 0
 
-    history_available = (delivered_orders >= 1 or rel_age_days >= min_rel_days)
-
     # Query audit log or incident records
     incident_query = text("""
         SELECT al.id, al.created_at, al.payload
@@ -265,6 +263,8 @@ async def collect_incidents(
     rows = (await db.execute(incident_query, {"vid": vendor.id, "since": two_years_ago})).all()
 
     count_24m = len(rows)
+    # A recorded incident is itself a track record, whatever the relationship's age.
+    history_available = (delivered_orders >= 1 or rel_age_days >= min_rel_days or count_24m > 0)
     latest_date = rows[0].created_at.strftime("%d %b %Y") if rows else "—"
     records_used = [{"id": str(r.id), "date": r.created_at.isoformat(), "payload": r.payload} for r in rows]
 

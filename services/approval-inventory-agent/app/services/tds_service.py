@@ -27,7 +27,7 @@ and must be confirmed by the finance team or a chartered accountant.
 """
 import re
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import text
@@ -138,6 +138,15 @@ def compute(section: Optional[Section], vendor: VendorTax, *, total: float, taxa
     return TdsResult(section.section, rate, base, amount, round(total - amount, 2), notes)
 
 
+# Tax and MSME dates are Indian calendar dates; the servers run in UTC, so
+# between 00:00 and 05:30 IST "today" would otherwise be yesterday.
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def today_ist() -> date:
+    return datetime.now(IST).date()
+
+
 def msme_due(acceptance: date, today: date, payment_days: Optional[int] = None,
              warning_days: Optional[int] = None) -> dict:
     payment_days = int(payment_days if payment_days is not None else get_rule("msme.payment_days", fallback=45))
@@ -174,7 +183,7 @@ async def tds_for_invoice(db, *, vendor_id: str, document_id: str, request_type:
     vendor = VendorTax(v.pan, v.tds_section, float(v.ldc_rate_pct) if v.ldc_rate_pct is not None else None,
                        v.ldc_valid_until, v.country) if v else VendorTax()
     section = await load_section(db, vendor.tds_section or section_for_category(category_for(request_type)))
-    when = invoice_date or date.today()
+    when = invoice_date or today_ist()
     ytd = 0.0
     if section is not None:
         _, start, end = financial_year(when)

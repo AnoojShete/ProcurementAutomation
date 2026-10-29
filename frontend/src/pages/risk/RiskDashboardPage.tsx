@@ -11,6 +11,7 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { RiskBadge } from "@/components/ui/Badge";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ScorecardMonitoringCard } from "@/components/risk/ScorecardMonitoringCard";
+import { RiskParametersMatrix } from "@/components/risk/RiskParametersMatrix";
 import type { VendorSummary } from "@/types/api";
 
 export function RiskDashboardPage() {
@@ -32,7 +33,7 @@ export function RiskDashboardPage() {
   const columns: Column<VendorSummary>[] = [
     { key: "name", header: "Vendor", render: (v) => <span className="font-medium text-slate-800">{v.name}</span> },
     { key: "score", header: "Risk Score", render: (v) => (v.risk_score != null ? v.risk_score.toFixed(2) : "—"), sortValue: (v) => v.risk_score ?? -1 },
-    { key: "band", header: "Risk Band", render: (v) => <RiskBadge band={v.risk_band} /> },
+    { key: "band", header: "Risk Band", render: (v) => <RiskBadge band={v.risk_band} ratingStatus={v.rating_status} /> },
   ];
 
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -69,6 +70,8 @@ export function RiskDashboardPage() {
           <p className="mt-2 text-caption text-ink-3">{scored.length} of {vendors?.length ?? 0} vendors have been risk-scored.</p>
         </CardBody>
       </Card>
+
+      <RiskParametersMatrix />
 
       <Card>
         <CardHeader title="Vendor Risk" />

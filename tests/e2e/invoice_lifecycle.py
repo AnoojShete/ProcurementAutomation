@@ -233,13 +233,17 @@ def main():
     r = requests.post(f"{GW}/vendors/{vendor_id}/risk/recompute", headers=H(fin_t))
     check("finance recomputes vendor risk -> 202", r.status_code in (200, 202), r.text[:150])
     risk = requests.get(f"{GW}/vendors/{vendor_id}/risk", headers=H(adm_t)).json().get("data") or {}
-    # Deterministic scorecard (merged from updated_risk): a band, integer
-    # points and a rating status; a vendor with checks missing never looks Low.
+    # Deterministic scorecard: every vendor gets a band (missing checks are
+    # re-weighted out, 30 Oct 2026), integer points and a rating status; a
+    # vendor with checks missing is provisional and is not cleared.
     check("risk band, points and rating status reported",
-          risk.get("final_band") in ("Low", "Medium", "High", "Unrated") and isinstance(risk.get("total_points"), int)
+          risk.get("final_band") in ("Low", "Medium", "High") and isinstance(risk.get("total_points"), int)
           and risk.get("rating_status") in ("assessed", "provisional", "not_rated"), risk)
-    check("no false Low: an incompletely checked vendor isn't Low",
-          risk.get("rating_status") == "assessed" or risk.get("final_band") != "Low", risk)
+    if risk.get("rating_status") != "assessed":
+        cl = requests.get(f"{GW}/vendors/{vendor_id}/clearance?purpose=contract", headers=H(fin_t)).json().get("data") or {}
+        check("no false clearance: an incompletely checked vendor is provisional and not cleared",
+              risk.get("provisional", {}).get("is_provisional") is True and cl.get("cleared") is False
+              and "provisional" in (risk.get("headline") or "").lower(), {"risk": risk.get("headline"), "clearance": cl})
     exp = requests.get(f"{GW}/vendors/{vendor_id}/risk/explanation", headers=H(adm_t)).json().get("data") or {}
     keys = {sig["signal_key"] for sig in exp.get("signals", [])}
     check("hard checks are part of the scorecard (gst, sanctions, bank)", {"gst", "sanctions", "bank"} <= keys, sorted(keys))

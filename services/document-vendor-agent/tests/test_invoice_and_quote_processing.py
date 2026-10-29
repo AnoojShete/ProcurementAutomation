@@ -132,6 +132,7 @@ class TestQuoteProcessing:
             },
         }
         mock_db = AsyncMock()
+        mock_db.execute.return_value = MagicMock(scalar=MagicMock(return_value=None))  # no byte-identical copy
 
         result = await duplicate_detection_agent(mock_db, envelope)
         assert result["is_duplicate"] is False

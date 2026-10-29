@@ -111,6 +111,91 @@ async def list_vendors(limit: int = Query(100, ge=1, le=1000), db: AsyncSession 
     return DataResponse(data=rows, meta={"count": len(rows)})
 
 
+@router.get("/risk-parameters", response_model=DataResponse,
+            dependencies=[Depends(require_role("approver", "finance", "admin"))])
+async def risk_parameters(limit: int = Query(200, ge=1, le=1000), db: AsyncSession = Depends(get_db)):
+    """Every vendor's latest score broken down by the parameters (signals)
+    the ruleset considered: weight, status, points and the reason, so the
+    Risk page can show why each vendor got its band."""
+    ruleset = (await risk_service.get_active_ruleset(db)).definition
+    groups = {g["key"]: g["label"] for g in ruleset.get("groups", [])}
+    params = [{"key": s["key"], "label": s.get("label", s["key"]), "group": groups.get(s.get("group"), s.get("group")),
+               "max_points": s.get("max_points", 0), "kind": s.get("kind", "due_diligence")}
+              for s in ruleset.get("signals", [])]
+    vendors = (await db.execute(select(Vendor).order_by(Vendor.created_at.desc().nulls_last()).limit(limit))).scalars().all()
+    rows = []
+    for v in vendors:
+        score = await risk_service.latest_risk_score(db, v.id)
+        if score is None:
+            continue
+        results = (await db.execute(select(RiskScoreRuleResult).where(RiskScoreRuleResult.score_id == score.id)
+                                    .order_by(RiskScoreRuleResult.order_index))).scalars().all()
+        explanation = score.explanation or {}
+        rows.append({
+            "vendor_id": v.id, "name": v.name, "country": v.country,
+            "inherent_tier": getattr(v, "inherent_tier", None),
+            "final_band": score.final_band or score.band, "rating_status": score.rating_status,
+            "total_points": score.total_points,
+            "weighted_points": explanation.get("weighted_points"),
+            "checked_max_points": explanation.get("checked_max_points"),
+            "headline": explanation.get("headline"),
+            "scored_at": score.scored_at.isoformat() if score.scored_at else None,
+            "parameters": {r.signal_key: {"rule_id": r.rule_id, "status": r.status, "points": r.points,
+                                          "override": bool(r.override_band), "reason": r.reason_text}
+                           for r in results},
+        })
+    return DataResponse(data={"parameters": params, "vendors": rows})
+
+
+class FeedbackCreate(BaseModel):
+    overall_rating: int = Field(ge=1, le=5)
+    dimension: str = Field(default="service_quality", pattern="^(service_quality|delivery|support|invoicing)$")
+    comment: Optional[str] = Field(default=None, max_length=1000)
+
+
+class IncidentCreate(BaseModel):
+    description: str = Field(min_length=10, max_length=2000)
+    occurred_on: Optional[str] = None
+
+
+@router.post("/{vendor_id}/feedback", response_model=DataResponse, status_code=201,
+             dependencies=[Depends(require_role("approver", "finance", "admin"))])
+async def record_vendor_feedback(vendor_id: str, body: FeedbackCreate, db: AsyncSession = Depends(get_db),
+                                 user: CurrentUser = Depends(get_current_user)):
+    """A 1-5 rating of the vendor (the feedback parameter reads these). Who
+    rated comes from the token."""
+    if await db.get(Vendor, vendor_id) is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    from app.services.audit import write_audit_log
+    await write_audit_log(db, "vendor_feedback", vendor_id, "vendor_feedback_recorded", {
+        "vendor_id": vendor_id, "overall_rating": body.overall_rating, "dimension": body.dimension,
+        "comment": body.comment, "rated_by": user.email})
+    await db.commit()
+    return DataResponse(data={"vendor_id": vendor_id, "overall_rating": body.overall_rating, "dimension": body.dimension})
+
+
+@router.post("/{vendor_id}/incidents", response_model=DataResponse, status_code=201,
+             dependencies=[Depends(require_role("approver", "finance", "admin"))])
+async def record_vendor_incident(vendor_id: str, body: IncidentCreate, db: AsyncSession = Depends(get_db),
+                                 user: CurrentUser = Depends(get_current_user)):
+    """A major operational incident with this vendor (the incidents parameter
+    counts these over 24 months). Who reported it comes from the token."""
+    if await db.get(Vendor, vendor_id) is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    if body.occurred_on:
+        try:
+            if datetime.strptime(body.occurred_on, "%Y-%m-%d").date() > datetime.now(timezone.utc).date():
+                raise HTTPException(status_code=400, detail="occurred_on can't be in the future")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="occurred_on must be YYYY-MM-DD")
+    from app.services.audit import write_audit_log
+    await write_audit_log(db, "vendor_incident", vendor_id, "vendor_incident_recorded", {
+        "vendor_id": vendor_id, "severity": "major", "description": body.description,
+        "occurred_on": body.occurred_on, "reported_by": user.email})
+    await db.commit()
+    return DataResponse(data={"vendor_id": vendor_id, "severity": "major"})
+
+
 @router.get("/{vendor_id}/scorecard", response_model=DataResponse)
 async def get_vendor_scorecard(vendor_id: str, db: AsyncSession = Depends(get_db)):
     """Phase 3c: on-time deliveries, invoice accuracy, RFQ response rate,

@@ -259,3 +259,21 @@ def test_paid_is_recorded_once_and_never_in_the_future():
 
     db.execute = AsyncMock(side_effect=paid)
     assert c.post(f"/tds/invoices/{doc}/paid", json={}).status_code == 409
+
+
+def test_msme_and_tds_dates_are_indian_calendar_dates(monkeypatch):
+    """The servers run in UTC: at 00:30 IST on 30 Oct it is still 29 Oct in
+    UTC, and an MSME deadline counted from the UTC date is a day early."""
+    from datetime import datetime as real_datetime, timezone as tz
+    from app.services import tds_service
+
+    class Clock(real_datetime):
+        @classmethod
+        def now(cls, tzinfo=None):
+            return real_datetime(2026, 10, 29, 19, 0, tzinfo=tz.utc).astimezone(tzinfo) if tzinfo else \
+                real_datetime(2026, 10, 29, 19, 0)
+
+    monkeypatch.setattr(tds_service, "datetime", Clock)
+    assert tds_service.today_ist() == date(2026, 10, 30)
+    due = tds_service.msme_due(tds_service.today_ist(), tds_service.today_ist(), payment_days=45, warning_days=7)
+    assert due["due_date"] == "2026-12-14" and due["days_left"] == 45

@@ -164,7 +164,7 @@ async def save_vendor_profile(vendor_id: uuid.UUID, body: VendorTaxBody, db: Asy
 async def register(fy: Optional[str] = None, db: AsyncSession = Depends(get_db)):
     """Booked invoices of a financial year (e.g. 2026-27) with their TDS,
     and totals per quarter and section (what the quarterly TDS return needs)."""
-    label, start, end = tds_service.financial_year(date.today())
+    label, start, end = tds_service.financial_year(tds_service.today_ist())
     if fy:
         try:
             y = int(fy[:4])
@@ -207,12 +207,13 @@ async def msme_deadlines(include_paid: bool = False, db: AsyncSession = Depends(
     rows = (await db.execute(text(
         "SELECT m.document_id, m.invoice_number, m.vendor_id, v.name AS vendor_name, v.msme_category, "
         "v.msme_udyam_number, m.purchase_request_id, m.amount, m.net_payable, m.paid_at, m.paid_by, "
-        "m.created_at::date AS booked, (SELECT max(g.received_at)::date FROM goods_receipts g "
+        "(m.created_at AT TIME ZONE 'Asia/Kolkata')::date AS booked, "
+        "(SELECT max(g.received_at AT TIME ZONE 'Asia/Kolkata')::date FROM goods_receipts g "
         "WHERE g.request_id = m.purchase_request_id) AS received "
         "FROM invoice_matches m JOIN vendors v ON v.id = m.vendor_id "
         "WHERE m.status IN ('matched', 'partial') AND v.msme_category IN ('micro', 'small') "
         + ("" if include_paid else "AND m.paid_at IS NULL ") + "ORDER BY m.created_at"))).all()
-    today = date.today()
+    today = tds_service.today_ist()
     items = []
     for r in rows:
         due = tds_service.msme_due(max(d for d in (r.booked, r.received) if d), today)
@@ -245,8 +246,8 @@ async def record_paid(document_id: uuid.UUID, body: PaidBody, db: AsyncSession =
         raise HTTPException(status_code=404, detail="no booked invoice with that document id")
     if row.paid_at is not None:
         raise HTTPException(status_code=409, detail={"code": "already_paid", "message": "already recorded as paid"})
-    paid_on = body.paid_on or date.today()
-    if paid_on > date.today():
+    paid_on = body.paid_on or tds_service.today_ist()
+    if paid_on > tds_service.today_ist():
         _bad("future_date", "a payment can't be recorded in the future")
     paid_at = datetime(paid_on.year, paid_on.month, paid_on.day, tzinfo=timezone.utc)
     await db.execute(text("UPDATE invoice_matches SET paid_at = :t, paid_by = :u WHERE document_id = :d"),

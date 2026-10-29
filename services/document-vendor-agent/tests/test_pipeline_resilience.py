@@ -124,11 +124,32 @@ async def test_duplicate_check_is_serialised_per_vendor():
     # Two copies processed at once must not both miss each other.
     from app.services import pipeline
     db = AsyncMock()
+    db.execute.return_value = MagicMock(scalar=MagicMock(return_value=None))  # no byte-identical copy
     env = {"document_id": "d1", "document_type": "invoice", "vendor_id": "v1",
            "extracted_fields": {"total": 10.0}, "_agent_trail": []}
-    with patch.object(pipeline, "check_duplicate_invoice",
-                      AsyncMock(return_value=SimpleNamespace(is_duplicate=False, duplicate_of_document_id=None, reason=None))):
+    checker = AsyncMock(return_value=SimpleNamespace(is_duplicate=False, duplicate_of_document_id=None, reason=None))
+    with patch.object(pipeline, "check_duplicate_invoice", checker):
         await pipeline.duplicate_detection_agent(db, env)
-    first_sql = str(db.execute.call_args_list[0].args[0])
-    assert "pg_advisory_xact_lock" in first_sql
-    assert db.execute.call_args_list[0].args[1] == {"k": "duplicate-check:v1"}
+    # The per-vendor lock is taken before the fuzzy check reads other invoices.
+    lock = next(c for c in db.execute.call_args_list if "pg_advisory_xact_lock" in str(c.args[0]))
+    assert lock.args[1] == {"k": "duplicate-check:v1"}
+    checker.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_exact_copy_wins_over_a_fuzzy_match():
+    """A byte-identical earlier upload is the duplicate, even when a similar
+    invoice (same vendor and total) finished processing first."""
+    from app.services import pipeline
+    db = AsyncMock()
+    db.execute.return_value = MagicMock(scalar=MagicMock(return_value="original-doc"))
+    env = {"document_id": "d2", "document_type": "invoice", "vendor_id": "v1",
+           "extracted_fields": {"total": 10.0}, "_agent_trail": []}
+    fuzzy = AsyncMock(return_value=SimpleNamespace(is_duplicate=True, duplicate_of_document_id="similar-doc", reason=None))
+    with patch.object(pipeline, "check_duplicate_invoice", fuzzy):
+        out = await pipeline.duplicate_detection_agent(db, env)
+    assert out["is_duplicate"] is True and out["duplicate_of_document_id"] == "original-doc"
+    fuzzy.assert_not_awaited()
+    # A re-uploaded quote keeps its exact-copy flag instead of having it wiped.
+    out = await pipeline.duplicate_detection_agent(db, {**env, "document_type": "quote", "_agent_trail": []})
+    assert out["is_duplicate"] is True and out["duplicate_of_document_id"] == "original-doc"

@@ -566,11 +566,26 @@ async def invoice_matching_agent(db: AsyncSession, kafka_producer, envelope: dic
 async def duplicate_detection_agent(db: AsyncSession, envelope: dict) -> dict:
     """Fuzzy-matches a new invoice against existing ones for the same
     vendor on (amount tolerance, date window, document-number similarity)
-    instead of silently accepting a possible duplicate."""
+    instead of silently accepting a possible duplicate. A byte-identical
+    earlier upload (same SHA-256) is the strongest evidence and wins over a
+    fuzzy match, which could otherwise point at whichever similar invoice
+    happened to finish first."""
+    from sqlalchemy import text as _sql
+    exact = (await db.execute(_sql(
+        "SELECT o.id FROM documents d JOIN documents o ON o.sha256_hash = d.sha256_hash AND o.id <> d.id "
+        "AND o.created_at <= d.created_at WHERE d.id = :id AND d.sha256_hash IS NOT NULL "
+        "ORDER BY o.created_at LIMIT 1"), {"id": envelope["document_id"]})).scalar()
     if envelope["document_type"] != "invoice":
-        envelope["is_duplicate"] = False
-        envelope["duplicate_of_document_id"] = None
+        envelope["is_duplicate"] = exact is not None
+        envelope["duplicate_of_document_id"] = str(exact) if exact else None
         record_agent_result(envelope, "duplicate_detection_agent", next_action="skipped_non_invoice")
+        return envelope
+    if exact is not None:
+        envelope["is_duplicate"] = True
+        envelope["duplicate_of_document_id"] = str(exact)
+        logger.info(f"[duplicate_detection_agent] document_id={envelope['document_id']} exact copy of {exact}")
+        record_agent_result(envelope, "duplicate_detection_agent", validation_status="needs_review",
+                            warnings=[f"exact copy of {exact}"])
         return envelope
 
     fields = envelope["extracted_fields"]
@@ -580,7 +595,6 @@ async def duplicate_detection_agent(db: AsyncSession, envelope: dict) -> dict:
         # duplicate before the other is saved, and neither is flagged. The
         # lock is per vendor and held until this document's results commit,
         # so the second copy checks after the first is visible.
-        from sqlalchemy import text as _sql
         await db.execute(_sql("SELECT pg_advisory_xact_lock(hashtext(:k))"),
                          {"k": f"duplicate-check:{envelope['vendor_id']}"})
     result = await check_duplicate_invoice(

@@ -112,7 +112,40 @@ export interface SanctionsState {
   latest: SanctionsScreening | null;
 }
 
+export interface RiskParameter {
+  key: string;
+  label: string;
+  group: string;
+  max_points: number;
+  kind: string;
+}
+
+export interface RiskParameterResult {
+  rule_id: string;
+  status: "assessed" | "assessed_no_finding" | "not_assessed" | "not_applicable" | "review_pending" | string;
+  points: number;
+  override: boolean;
+  reason: string;
+}
+
+export interface VendorRiskParameters {
+  vendor_id: string;
+  name: string;
+  country: string | null;
+  inherent_tier: string | null;
+  final_band: string | null;
+  rating_status: string | null;
+  total_points: number;
+  weighted_points: number | null;
+  checked_max_points: number | null;
+  headline: string | null;
+  scored_at: string | null;
+  parameters: Record<string, RiskParameterResult>;
+}
+
 export const vendorsApi = {
+  riskParameters: () =>
+    api.get<{ parameters: RiskParameter[]; vendors: VendorRiskParameters[] }>("/vendors/risk-parameters"),
   sanctions: (vendorId: string) => api.get<SanctionsState>(`/vendors/${vendorId}/sanctions`),
   screenSanctions: (vendorId: string) =>
     api.post<{ screening: SanctionsScreening; risk: VendorRisk }>(`/vendors/${vendorId}/screen-sanctions`),
