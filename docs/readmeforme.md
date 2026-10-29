@@ -871,9 +871,14 @@ it with a reason (`POST /vendors/{id}/clear-sanctions-flag`, audit-logged).
 identity and compliance 39, operational performance 35, cyber 17, company standing 6, reputation 3 —
 over observations gathered by collectors (local records first, then format checks, then external
 sources behind a circuit breaker). Bands: Low 0–24, Medium 25–49, High 50+. Hard overrides
-(a sanctions match, a cancelled GSTIN, an invalid bank route) force High. A vendor whose checks are
-incomplete is `provisional` and is never shown as Low (its band becomes `Unrated` instead);
-`not_rated` means nothing could be assessed. Every score stores its snapshot and SHA-256, so it can
+(a sanctions match, a cancelled GSTIN, an invalid bank route) force High. Every vendor gets a band
+(owner decision, 30 Oct 2026): a check whose status is `not_assessed` is left out and the
+remaining points are re-weighted to 100 (`weighted_points = total_points × all_max / checked_max`,
+e.g. 7 points over the 57 points checked = 12/100; `risk_scores.score` stores it / 100), and a
+vendor with no check done is High until one completes. Detect-only checks that couldn't run (news,
+breach) don't count against coverage. A vendor whose required checks are incomplete is
+`provisional` and is never cleared, whatever its band (clearance reads `rating_status`, not the
+band); `not_rated` means nothing could be assessed. Every score stores its snapshot and SHA-256, so it can
 be replayed exactly (`GET /vendors/{id}/risk/{score_id}/replay`). `GET /vendors/{id}/clearance?purpose=`
 answers whether a vendor may be used for activation, a purchase or a contract, taking post-score
 decisions (approve, approve with conditions, accept risk — admin only, reject) and vendor status into
@@ -881,11 +886,11 @@ account. Evidence, disputes, a remediation plan and what-if simulation are on th
 page (`/app/vendors/{id}/risk`); admins manage rulesets (draft, validate, dry-run, activate) under
 Business Rules, and a weekly monitoring report replaces PSI drift monitoring (retired; the worker
 ends the old schedule). The earlier random forest is archived in `ml/archive/`. The red-team set
-(`ml/redteam_scorecard.py`, 25 profiles through the real engine and clearance, run by
+(`ml/redteam_scorecard.py`, 27 profiles through the real engine and clearance, run by
 `tests/test_risk_redteam.py`) and the ruleset's evaluation on the forest's test split
 (`ml/evaluate_scorecard.py`, ROC-AUC 0.738 vs 0.715) are written up in `docs/index.html#risk`, with
 the merge review (G1–G11, all closed or decided). Rule `approval.unrated_vendor_requires_finance`
-(off) gives purchases from Unrated vendors a finance step.
+(off) gives purchases from vendors whose checks are incomplete (provisional Low/Medium) a finance step.
 A sweep re-scores vendors after a delivery. `tests/e2e/risk_flow.py` checks the module and
 everything that reads it (signing, budget routing, RFQ scoring, notifications, onboarding).
 

@@ -42,10 +42,33 @@ def test_red_team_covers_every_hard_override_and_gate_reason():
             "condition_overdue", "cleared_under_petty_exception", "risk_accepted"} <= reasons
 
 
-def test_missing_data_is_never_shown_as_low():
+def test_missing_data_is_never_cleared():
+    """Every vendor gets a band now (missing checks re-weighted, owner
+    decision 30 Oct 2026), so the protection moved to clearance: a vendor
+    whose checks are incomplete is marked provisional and is never cleared,
+    except under the documented petty or accept-risk exceptions."""
+    exceptions = ("cleared_under_petty_exception", "risk_accepted", "approve")
     for r in rt.run_all():
-        if r["got"]["rating_status"] != "assessed":
-            assert r["got"]["final_band"] in ("Unrated", "Medium", "High"), r["name"]
+        assert r["got"]["final_band"] in ("Low", "Medium", "High"), r["name"]
+        if r["got"]["rating_status"] != "assessed" and r["got"]["cleared"]:
+            assert any(x.startswith(exceptions) for x in r["got"]["reasons"]) or not r["got"]["reasons"], r["name"]
+            assert r["expected"].get("cleared") is True, r["name"]
+
+
+def test_missing_checks_are_left_out_and_the_rest_re_weighted():
+    """7 points over the 57 points that were checked score 12/100 (Hathway,
+    30 Oct): the band comes from the share of what was actually checked."""
+    from app.services.scorecard.default_ruleset import get_default_ruleset
+    from app.services.scorecard.engine import evaluate_risk
+    observed = rt.obs(bank=None, adverse_media=None, delivery_sla=None, feedback=None, incidents=None,
+                      email={"email.dmarc_policy": "quarantine", "email.spf_present": True},
+                      breach={"breach.catalogue_loaded": True, "breach.count_5y": 1, "breach.latest_within_12m": False},
+                      certification={"cert.required": True, "cert.status": "none"})
+    obs = {k: {"signal_key": k, "status": "ok", "fields": f, "fetched_at": rt.NOW.isoformat()} for k, f in observed.items()}
+    res = evaluate_risk(get_default_ruleset(), obs, rt.NOW, vendor_context={"name": "Hathway", "country": "IN",
+                                                                             "inherent_tier": "high"})
+    assert res["total_points"] == 7 and res["checked_max_points"] == 57
+    assert res["weighted_points"] == 12 and res["final_band"] == "Low" and res["score_float"] == 0.12
 
 
 def test_the_engine_is_deterministic():

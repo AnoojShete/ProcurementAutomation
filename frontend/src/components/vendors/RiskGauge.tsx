@@ -6,9 +6,11 @@ const BAND_COLOR: Record<string, string> = { Low: "bg-success-500", Medium: "bg-
 
 // score is null while checks are outstanding: show "Unrated" and the points
 // found so far, never a number that looks like a rating.
-export function RiskGauge({ score, band, scoredAt, pointsSoFar }: {
-  score: number | null; band: RiskBand; scoredAt?: string | null; pointsSoFar?: number;
+export function RiskGauge({ score, band, scoredAt, pointsSoFar, ratingStatus }: {
+  score: number | null; band: RiskBand; scoredAt?: string | null; pointsSoFar?: number; ratingStatus?: string;
 }) {
+  // A band from incomplete checks (missing ones re-weighted out) is labelled, never shown as settled.
+  const provisional = ratingStatus != null && ratingStatus !== "assessed";
   const pct = score == null ? 0 : Math.round(Math.min(Math.max(score, 0), 1) * 100);
   return (
     <div>
@@ -24,7 +26,7 @@ export function RiskGauge({ score, band, scoredAt, pointsSoFar }: {
           <span className="text-3xl font-semibold tabular text-slate-900">{score.toFixed(2)}</span>
         )}
         <span className={cn("text-sm font-medium", band === "High" ? "text-danger-600" : band === "Medium" ? "text-warning-700" : "text-success-700")}>
-          {score == null ? "Checks outstanding" : `${band} Risk`}
+          {score == null ? "Checks outstanding" : `${band} Risk${provisional ? " (provisional)" : ""}`}
         </span>
       </div>
       <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">

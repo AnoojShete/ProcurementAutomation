@@ -105,6 +105,7 @@ async def list_vendors(limit: int = Query(100, ge=1, le=1000), db: AsyncSession 
             "risk_score": float(latest.score) if latest and latest.score is not None else None,
             "total_points": latest.total_points if latest else None,
             "final_band": (latest.final_band or latest.band) if latest else None,
+            "rating_status": latest.rating_status if latest else None,
             "created_at": v.created_at.isoformat() if v.created_at else None,
         })
     return DataResponse(data=rows, meta={"count": len(rows)})

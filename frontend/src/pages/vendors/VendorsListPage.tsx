@@ -40,7 +40,7 @@ export function VendorsListPage() {
   const columns: Column<VendorSummary>[] = [
     { key: "name", header: "Vendor", render: (v) => <span className="font-medium text-slate-800">{v.name}</span> },
     { key: "status", header: "Status", render: (v) => <Badge tone={v.status === "active" ? "success" : "neutral"}>{v.status}</Badge> },
-    { key: "risk", header: "Risk", render: (v) => <RiskBadge band={v.risk_band} /> },
+    { key: "risk", header: "Risk", render: (v) => <RiskBadge band={v.risk_band} ratingStatus={v.rating_status} /> },
     { key: "score", header: "Score", render: (v) => (v.risk_score != null ? v.risk_score.toFixed(2) : "—"), sortValue: (v) => v.risk_score ?? -1 },
     { key: "portal", header: "Portal Access", render: (v) => (v.portal_access_revoked ? <Badge tone="danger">Revoked</Badge> : <Badge tone="success">Active</Badge>) },
     { key: "created", header: "Onboarded", render: (v) => formatDate(v.created_at), sortValue: (v) => v.created_at ?? "" },

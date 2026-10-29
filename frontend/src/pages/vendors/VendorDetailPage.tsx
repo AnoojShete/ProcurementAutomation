@@ -106,7 +106,7 @@ export function VendorDetailPage() {
         status={
           <>
             <Badge tone={vendor.status === "active" ? "success" : "neutral"}>{vendor.status}</Badge>
-            <RiskBadge band={vendor.risk_band} />
+            <RiskBadge band={risk?.final_band ?? vendor.risk_band} ratingStatus={risk?.rating_status} />
           </>
         }
         actions={
@@ -223,7 +223,7 @@ export function VendorDetailPage() {
               <p className="py-6 text-center text-sm text-slate-500">This vendor hasn't been risk-scored yet.</p>
             ) : (
               <>
-                <RiskGauge score={risk.risk_score} band={risk.risk_band} scoredAt={risk.scored_at} pointsSoFar={risk.total_points} />
+                <RiskGauge score={risk.risk_score} band={risk.risk_band} scoredAt={risk.scored_at} pointsSoFar={risk.total_points} ratingStatus={risk.rating_status} />
                 {risk.signals_total != null && (
                   <p className="mt-2 text-xs text-slate-500">
                     Based on <span className="font-medium text-slate-700">{risk.signals_used} of {risk.signals_total}</span> signals on file

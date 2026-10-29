@@ -181,12 +181,16 @@ async def check_request(db: AsyncSession, *, request_type: Optional[str], depart
 
 async def vendor_risk_band(db: AsyncSession, vendor_id: Optional[str]) -> Optional[str]:
     """Latest risk band from contract-risk-agent's risk_scores (shared DB):
-    Low, Medium, High, or Unrated while the scorecard's checks are
-    incomplete."""
+    Low, Medium or High; "Unrated" here means the scorecard's checks are
+    incomplete (every vendor now gets a band, but a provisional Low/Medium
+    isn't known to be safe, so rule approval.unrated_vendor_requires_finance
+    still applies to it)."""
     if not vendor_id:
         return None
     row = (await db.execute(text(
-        "SELECT COALESCE(final_band, band) FROM risk_scores WHERE vendor_id = :v ORDER BY scored_at DESC NULLS LAST LIMIT 1"
+        "SELECT CASE WHEN COALESCE(final_band, band) <> 'High' AND COALESCE(rating_status, 'assessed') <> 'assessed' "
+        "THEN 'Unrated' ELSE COALESCE(final_band, band) END "
+        "FROM risk_scores WHERE vendor_id = :v ORDER BY scored_at DESC NULLS LAST LIMIT 1"
     ), {"v": vendor_id})).first()
     return row[0] if row else None
 

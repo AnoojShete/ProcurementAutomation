@@ -85,8 +85,9 @@ def test_brand_new_vendor_unrated():
     res = evaluate_risk(RULESET_V2, {}, now)
 
     assert res["rating_status"] == "not_rated"
-    assert res["final_band"] == "Unrated"
-    assert res["risk_score"] is None
+    # Nothing checked: the worst case applies until a check completes (30 Oct 2026)
+    assert res["final_band"] == "High"
+    assert res["risk_score"] == 1.0
     assert res["assessed_share_pct"] == 0
     assert res["points_is_lower_bound"] is False
 
@@ -262,6 +263,7 @@ def test_pure_what_if_simulation():
     hypothetical = {
         "gstin.status": "active",
         "gstin.verification_level": "live",
+        "gstin.name_match_level": "exact",
     }
     sim_res = simulate_what_if(RULESET_V2, base_obs, hypothetical, now)
 

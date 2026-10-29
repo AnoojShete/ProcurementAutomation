@@ -36,7 +36,7 @@ export function ContractsListPage() {
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const vendorName = (id: string | null) => vendors?.find((v) => v.id === id)?.name ?? (id ? "Unknown vendor" : "—");
-  const vendorRisk = useMemo(() => new Map(vendors?.map((v) => [v.id, v.risk_band]) ?? []), [vendors]);
+  const vendorRisk = useMemo(() => new Map(vendors?.map((v) => [v.id, v]) ?? []), [vendors]);
 
   const renewalIds = useMemo(() => new Set((renewals ?? []).map((c) => c.id)), [renewals]);
   const rows = (contracts ?? []).filter(
@@ -60,7 +60,7 @@ export function ContractsListPage() {
     { key: "end", header: "End Date", render: (c) => formatDate(c.contract_end_date), sortValue: (c) => c.contract_end_date ?? "" },
     { key: "renewal", header: "Renewal", render: (c) => <span className="capitalize">{c.renewal_type ?? "—"}</span> },
     { key: "status", header: "Status", render: (c) => <ContractStatusBadge status={c.status} /> },
-    { key: "risk", header: "Vendor Risk", render: (c) => <RiskBadge band={vendorRisk.get(c.vendor_id ?? "") ?? null} /> },
+    { key: "risk", header: "Vendor Risk", render: (c) => <RiskBadge band={vendorRisk.get(c.vendor_id ?? "")?.risk_band ?? null} ratingStatus={vendorRisk.get(c.vendor_id ?? "")?.rating_status} /> },
     {
       key: "download",
       header: "",

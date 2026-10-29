@@ -221,7 +221,10 @@ in `docs/readmeforme.md` (Research experiment).
   prohibited country) is never cleared, can't be risk-accepted and blocks
   signing. The red-team set `ml/redteam_scorecard.py` (run by
   `tests/test_risk_redteam.py`) must stay green; add a profile for any new
-  rule. Write-up: `docs/index.html#risk`.
+  rule. Write-up: `docs/index.html#risk`. **No vendor is Unrated** (owner,
+  30 Oct): missing checks are re-weighted out of the score (`weighted_points`),
+  nothing checked = High; the protection is that a provisional rating is never
+  cleared, so don't make clearance read the band instead of `rating_status`.
 - **The assistant decides intent before retrieving** (`chatbot-agent/app/services/intent.py`):
   greetings, "like what", remarks and topic-only messages get direct replies;
   licence anomalies come from live scores (`topics.py`); only real questions

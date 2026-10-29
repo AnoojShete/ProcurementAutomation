@@ -1,7 +1,7 @@
 {
   "run_at": "2026-10-21T09:00:00+00:00",
-  "passed": 25,
-  "total": 25,
+  "passed": 27,
+  "total": 27,
   "profiles": [
     {
       "name": "Clean, established vendor",
@@ -15,6 +15,7 @@
         "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": true,
@@ -53,6 +54,7 @@
         "final_band": "High",
         "points": 10,
         "points_band": "Low",
+        "weighted_points": 10,
         "rating_status": "assessed",
         "overrides": [
           "R-SAN-01"
@@ -94,6 +96,7 @@
         "final_band": "High",
         "points": 10,
         "points_band": "Low",
+        "weighted_points": 10,
         "rating_status": "assessed",
         "overrides": [
           "R-SAN-01"
@@ -134,6 +137,7 @@
         "final_band": "High",
         "points": 4,
         "points_band": "Low",
+        "weighted_points": 4,
         "rating_status": "assessed",
         "overrides": [
           "R-JUR-01"
@@ -174,6 +178,7 @@
         "final_band": "High",
         "points": 20,
         "points_band": "Low",
+        "weighted_points": 20,
         "rating_status": "provisional",
         "overrides": [
           "R-GST-01"
@@ -214,6 +219,7 @@
         "final_band": "High",
         "points": 20,
         "points_band": "Low",
+        "weighted_points": 20,
         "rating_status": "provisional",
         "overrides": [
           "R-GST-01"
@@ -246,14 +252,16 @@
       "name": "Brand-new vendor, nothing checked",
       "attack": "no data at all, hoping for a default Low",
       "expected": {
-        "final_band": "Unrated",
+        "final_band": "High",
+        "points": 0,
         "rating_status": "not_rated",
         "cleared": false
       },
       "got": {
-        "final_band": "Unrated",
+        "final_band": "High",
         "points": 0,
-        "points_band": "Low",
+        "points_band": "High",
+        "weighted_points": 100,
         "rating_status": "not_rated",
         "overrides": [],
         "cleared": false,
@@ -267,17 +275,18 @@
     },
     {
       "name": "Only identity checked",
-      "attack": "partial checks, 0 points, hoping to show as Low",
+      "attack": "partial checks, 0 points, hoping a Low band means cleared",
       "expected": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "rating_status": "provisional",
         "cleared": false,
         "reason": "rating_provisional"
       },
       "got": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "provisional",
         "overrides": [],
         "cleared": false,
@@ -297,14 +306,15 @@
       "name": "Stale sanctions check",
       "attack": "a clear sanctions result from three days ago (valid for one)",
       "expected": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "rating_status": "provisional",
         "cleared": false
       },
       "got": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "provisional",
         "overrides": [],
         "cleared": false,
@@ -334,14 +344,15 @@
       "name": "Country of incorporation missing",
       "attack": "leave the country blank to skip jurisdiction rules",
       "expected": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "rating_status": "provisional",
         "cleared": false
       },
       "got": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "provisional",
         "overrides": [],
         "cleared": false,
@@ -372,14 +383,15 @@
       "name": "Petty vendor, small purchase, checks incomplete",
       "attack": "control: the petty exception for a small purchase",
       "expected": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "cleared": true,
         "reason": "cleared_under_petty_exception"
       },
       "got": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "provisional",
         "overrides": [],
         "cleared": true,
@@ -403,9 +415,10 @@
         "reason": "rating_provisional"
       },
       "got": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "points": 5,
         "points_band": "Low",
+        "weighted_points": 14,
         "rating_status": "provisional",
         "overrides": [],
         "cleared": false,
@@ -428,9 +441,10 @@
         "reason": "rating_provisional"
       },
       "got": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "provisional",
         "overrides": [],
         "cleared": false,
@@ -459,6 +473,7 @@
         "final_band": "Medium",
         "points": 35,
         "points_band": "Medium",
+        "weighted_points": 35,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": true,
@@ -498,6 +513,7 @@
         "final_band": "High",
         "points": 53,
         "points_band": "High",
+        "weighted_points": 53,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": false,
@@ -536,6 +552,7 @@
         "final_band": "High",
         "points": 53,
         "points_band": "High",
+        "weighted_points": 53,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": false,
@@ -575,6 +592,7 @@
         "final_band": "Medium",
         "points": 35,
         "points_band": "Medium",
+        "weighted_points": 35,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": false,
@@ -613,6 +631,7 @@
         "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": false,
@@ -652,6 +671,7 @@
         "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": true,
@@ -687,6 +707,7 @@
         "final_band": "Low",
         "points": 3,
         "points_band": "Low",
+        "weighted_points": 3,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": true,
@@ -725,6 +746,7 @@
         "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": false,
@@ -762,6 +784,7 @@
         "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": false,
@@ -793,7 +816,6 @@
       "attack": "sanctioned vendor in a prohibited country; short-circuit skips GST and every external check",
       "expected": {
         "points": 14,
-        "points_band": "Low",
         "final_band": "High",
         "override": [
           "R-SAN-01",
@@ -805,7 +827,8 @@
       "got": {
         "final_band": "High",
         "points": 14,
-        "points_band": "Low",
+        "points_band": "High",
+        "weighted_points": 100,
         "rating_status": "provisional",
         "overrides": [
           "R-SAN-01",
@@ -830,7 +853,6 @@
       "attack": "Indian GSTIN and CIN on file, bank and web unverified; a confirmed sanctions match",
       "expected": {
         "points": 10,
-        "points_band": "Low",
         "final_band": "High",
         "override": [
           "R-SAN-01"
@@ -841,7 +863,8 @@
       "got": {
         "final_band": "High",
         "points": 10,
-        "points_band": "Low",
+        "points_band": "High",
+        "weighted_points": 71,
         "rating_status": "provisional",
         "overrides": [
           "R-SAN-01"
@@ -864,7 +887,7 @@
       "attack": "Critical vendor with GST, bank and sanctions pending; a reported breach not yet matched to the entity",
       "expected": {
         "points": 0,
-        "final_band": "Unrated",
+        "final_band": "Low",
         "rating_status": "provisional",
         "cleared": false,
         "unscored": [
@@ -872,9 +895,10 @@
         ]
       },
       "got": {
-        "final_band": "Unrated",
+        "final_band": "Low",
         "points": 0,
         "points_band": "Low",
+        "weighted_points": 0,
         "rating_status": "provisional",
         "overrides": [],
         "cleared": false,
@@ -884,6 +908,88 @@
         ],
         "scored": {
           "jurisdiction": "assessed"
+        }
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "News search unavailable",
+      "attack": "control: a detect-only check that couldn't run doesn't keep a fully checked vendor unrated",
+      "expected": {
+        "final_band": "Low",
+        "rating_status": "assessed",
+        "cleared": true,
+        "unscored": [
+          "adverse_media"
+        ]
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "points_band": "Low",
+        "weighted_points": 0,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": true,
+        "reasons": [
+          "assessed_low"
+        ],
+        "scored": {
+          "sanctions": "assessed",
+          "gst": "assessed",
+          "bank": "assessed",
+          "jurisdiction": "assessed",
+          "web": "assessed",
+          "email": "assessed",
+          "breach": "assessed_no_finding",
+          "certification": "assessed",
+          "financial": "assessed",
+          "company_age": "assessed",
+          "delivery_sla": "assessed",
+          "feedback": "assessed",
+          "incidents": "assessed"
+        }
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Missing check re-weighted, still not cleared",
+      "attack": "skip the financial check so its weight can't add risk, hoping to be cleared on a re-weighted Low",
+      "expected": {
+        "points": 3,
+        "weighted_points": 3,
+        "final_band": "Low",
+        "rating_status": "provisional",
+        "cleared": false,
+        "reason": "rating_provisional"
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 3,
+        "points_band": "Low",
+        "weighted_points": 3,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ],
+        "scored": {
+          "sanctions": "assessed",
+          "gst": "assessed",
+          "bank": "assessed",
+          "jurisdiction": "assessed",
+          "web": "assessed",
+          "email": "assessed",
+          "breach": "assessed_no_finding",
+          "certification": "assessed",
+          "company_age": "assessed",
+          "delivery_sla": "assessed",
+          "feedback": "assessed",
+          "incidents": "assessed",
+          "adverse_media": "assessed_no_finding"
         }
       },
       "passed": true,

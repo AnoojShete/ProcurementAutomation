@@ -97,21 +97,21 @@ PROFILES = [
      "observations": obs(gst={"gstin.status": "cancelled", "gstin.verification_level": "live"}),
      "decision": ACCEPT_RISK, "expected": {"final_band": "High", "cleared": True, "reason": "risk_accepted_until_"}},
     {"name": "Brand-new vendor, nothing checked", "attack": "no data at all, hoping for a default Low",
-     "observations": {}, "expected": {"final_band": "Unrated", "rating_status": "not_rated", "cleared": False}},
-    {"name": "Only identity checked", "attack": "partial checks, 0 points, hoping to show as Low",
+     "observations": {}, "expected": {"final_band": "High", "points": 0, "rating_status": "not_rated", "cleared": False}},
+    {"name": "Only identity checked", "attack": "partial checks, 0 points, hoping a Low band means cleared",
      "observations": {k: CLEAN[k] for k in ("sanctions", "gst", "bank")},
-     "expected": {"final_band": "Unrated", "rating_status": "provisional", "cleared": False,
+     "expected": {"final_band": "Low", "rating_status": "provisional", "cleared": False,
                   "reason": "rating_provisional"}},
     {"name": "Stale sanctions check", "attack": "a clear sanctions result from three days ago (valid for one)",
      "observations": obs(), "stale": {"sanctions": 3},
-     "expected": {"final_band": "Unrated", "rating_status": "provisional", "cleared": False}},
+     "expected": {"final_band": "Low", "rating_status": "provisional", "cleared": False}},
     {"name": "Country of incorporation missing", "attack": "leave the country blank to skip jurisdiction rules",
      "country": None, "observations": obs(),
-     "expected": {"final_band": "Unrated", "rating_status": "provisional", "cleared": False}},
+     "expected": {"final_band": "Low", "rating_status": "provisional", "cleared": False}},
     {"name": "Petty vendor, small purchase, checks incomplete",
      "attack": "control: the petty exception for a small purchase", "tier": "petty", "spend": 40000,
      "observations": {k: CLEAN[k] for k in ("sanctions", "gst", "bank")},
-     "expected": {"final_band": "Unrated", "cleared": True, "reason": "cleared_under_petty_exception"}},
+     "expected": {"final_band": "Low", "cleared": True, "reason": "cleared_under_petty_exception"}},
     {"name": "Petty vendor with a possible sanctions match",
      "attack": "use the petty exception while a sanctions match awaits review", "tier": "petty", "spend": 40000,
      "observations": {"sanctions": {"sanctions.status": "possible_match"}, "gst": CLEAN["gst"], "bank": CLEAN["bank"]},
@@ -161,22 +161,32 @@ PROFILES = [
      "observations": {"sanctions": {"sanctions.status": "match"},
                       "jurisdiction": {"country.prohibited": True, "country.is_domestic": False}},
      "skipped": SHORT_CIRCUITED,
-     "expected": {"points": 14, "points_band": "Low", "final_band": "High", "override": ["R-SAN-01", "R-JUR-01"],
+     "expected": {"points": 14, "final_band": "High", "override": ["R-SAN-01", "R-JUR-01"],
                   "cleared": False, "reason": "override_R-SAN-01"}},
     {"name": "SSPL Solutions Private Limited (sanctions override)",
      "attack": "Indian GSTIN and CIN on file, bank and web unverified; a confirmed sanctions match",
      "inherent_tier": "critical", "status": "onboarding",
      "observations": {"sanctions": {"sanctions.status": "match"}, "jurisdiction": {"country.is_domestic": True}},
      "skipped": SHORT_CIRCUITED,
-     "expected": {"points": 10, "points_band": "Low", "final_band": "High", "override": ["R-SAN-01"],
+     "expected": {"points": 10, "final_band": "High", "override": ["R-SAN-01"],
                   "cleared": False, "reason": "override_R-SAN-01"}},
     {"name": "3Five8 Technologies / ADDA (historical breach reported)",
      "attack": "Critical vendor with GST, bank and sanctions pending; a reported breach not yet matched to the entity",
      "inherent_tier": "critical", "status": "onboarding",
      "observations": {"jurisdiction": {"country.is_domestic": True}, "bank": {"bank.status": "pending"}},
      "skipped": ["breach"],
-     "expected": {"points": 0, "final_band": "Unrated", "rating_status": "provisional", "cleared": False,
+     "expected": {"points": 0, "final_band": "Low", "rating_status": "provisional", "cleared": False,
                   "unscored": ["breach"]}},
+    # Owner decision 30 Oct 2026: a check that can't run is left out and the rest re-weighted.
+    {"name": "News search unavailable",
+     "attack": "control: a detect-only check that couldn't run doesn't keep a fully checked vendor unrated",
+     "observations": obs(adverse_media=None),
+     "expected": {"final_band": "Low", "rating_status": "assessed", "cleared": True, "unscored": ["adverse_media"]}},
+    {"name": "Missing check re-weighted, still not cleared",
+     "attack": "skip the financial check so its weight can't add risk, hoping to be cleared on a re-weighted Low",
+     "observations": obs(financial=None, email={"email.dmarc_policy": "none", "email.spf_present": False}),
+     "expected": {"points": 3, "weighted_points": 3, "final_band": "Low", "rating_status": "provisional",
+                  "cleared": False, "reason": "rating_provisional"}},
 ]
 
 
@@ -207,12 +217,13 @@ def run_profile(p: dict) -> dict:
                             vendor_tier=p.get("tier", "standard"), vendor_status=p.get("status", "active"),
                             petty_threshold=PETTY_THRESHOLD, now=NOW)
     got = {"final_band": result["final_band"], "points": result["total_points"], "points_band": result["points_band"],
+           "weighted_points": result["weighted_points"],
            "rating_status": result["rating_status"], "overrides": result["override_rule_ids"],
            "cleared": gate["cleared"], "reasons": gate["reasons"],
            "scored": {r["signal_key"]: r["status"] for r in result["rule_results"] if r["status"].startswith("assessed")}}
     exp = p["expected"]
     problems = []
-    for key in ("final_band", "points", "points_band", "rating_status", "cleared"):
+    for key in ("final_band", "points", "weighted_points", "points_band", "rating_status", "cleared"):
         if key in exp and exp[key] != got[key]:
             problems.append(f"{key}: expected {exp[key]}, got {got[key]}")
     for rule in ([exp["override"]] if isinstance(exp.get("override"), str) else exp.get("override", [])):

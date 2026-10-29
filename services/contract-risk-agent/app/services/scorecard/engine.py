@@ -360,11 +360,14 @@ def evaluate_risk(
     # Section C1 & User Correction 1: assessed_share_pct
     due_diligence_signals = [r for r in rule_results if r["kind"] == "due_diligence"]
     assessed_max = sum(r["max_points"] for r in due_diligence_signals if r["status"] == "assessed")
+    # Detect-only checks (news, breach) can only find problems, never confirm
+    # their absence, so one that found nothing or couldn't run doesn't count
+    # against coverage; its weight goes to the checks that ran (below).
     applicable_dd_max = sum(
         r["max_points"]
         for r in due_diligence_signals
         if r["status"] != "not_applicable"
-        and not (r["coverage_type"] == "detect_only" and r["status"] == "assessed_no_finding")
+        and not (r["coverage_type"] == "detect_only" and r["status"] in ("assessed_no_finding", "not_assessed"))
     )
     assessed_share_pct = int(100 * assessed_max // applicable_dd_max) if applicable_dd_max > 0 else 0
 
@@ -414,17 +417,25 @@ def evaluate_risk(
 
     is_provisional = (rating_status == "provisional")
     worst_case_points = min(100, total_points + due_diligence_potential_points)
-    points_band = determine_band(total_points, bands_def)
     worst_case_band = determine_band(worst_case_points, bands_def)
     points_is_lower_bound = (rating_status == "provisional")
 
-    has_override = len(override_rules) > 0
-    if has_override:
-        final_band = "High"
-    elif points_band in ("Medium", "High"):
-        final_band = points_band
+    # Every vendor gets a band (owner decision, 30 Oct 2026): a check that
+    # couldn't run is left out and the others are scaled back up to 100, so
+    # 7 points over the 57 points that were checked score 12/100. With no
+    # check done at all the worst case applies (High) until one is. Clearance
+    # still reads rating_status, so a provisional vendor is banded, not cleared.
+    all_max_points = sum(r["max_points"] for r in rule_results)
+    missing_max_points = sum(r["max_points"] for r in rule_results if r["status"] == "not_assessed")
+    checked_max_points = all_max_points - missing_max_points
+    if checked_max_points > 0:
+        weighted_points = min(100, round(total_points * all_max_points / checked_max_points))
     else:
-        final_band = "Low" if rating_status == "assessed" else "Unrated"
+        weighted_points = 100
+    points_band = determine_band(weighted_points, bands_def)
+
+    has_override = len(override_rules) > 0
+    final_band = "High" if has_override else points_band
 
     blocked_by = [
         {
@@ -442,13 +453,15 @@ def evaluate_risk(
             f"High rating (override): {first_ov['reason']} "
             f"The points total is {total_points}/100 ({points_band}), but rule {first_ov['rule_id']} forces High."
         )
-    elif final_band == "Unrated":
-        n_out = len([r for r in provisional_reasons if r.get("signal") != "inherent"])
-        headline = f"Unrated - {total_points} points found so far, {n_out} required checks outstanding"
+    elif checked_max_points == 0:
+        headline = "High until checked: no risk check has completed yet, so the worst case applies."
     elif is_provisional:
-        outstanding_labels = ", ".join(f"'{r['signal']}'" for r in provisional_reasons if r.get("signal") != "inherent")
-        n_out = len([r for r in provisional_reasons if r.get("signal") != "inherent"])
-        headline = f"Provisional {final_band}: {total_points}/100. {n_out} required check(s) are outstanding: {outstanding_labels}."
+        labels = {r["signal_key"]: r["label"] for r in rule_results}
+        labels["coverage"] = "the remaining due-diligence checks"
+        outstanding = list(dict.fromkeys(labels.get(r["signal"], r["signal"])
+                                         for r in provisional_reasons if r.get("signal") != "inherent"))
+        headline = (f"Provisional {final_band}: {weighted_points}/100 ({total_points} points over the "
+                    f"{checked_max_points} points checked). Not cleared until these are done: {', '.join(outstanding)}.")
     else:
         # Top 2 contributors
         assessed_contributors = [r for r in rule_results if r["points"] > 0]
@@ -464,7 +477,9 @@ def evaluate_risk(
         if unassessed_potential_points > 0 and na_count > 0:
             unassessed_clause = f" {na_count} signal(s) not assessed could add up to {unassessed_potential_points} points, so the worst case is {worst_case_band}."
 
-        headline = f"{final_band}: {total_points}/100.{top_str}{unassessed_clause}"
+        weighting = (f" Weighted from {total_points} points over the {checked_max_points} points checked "
+                     f"({missing_max_points} points of checks couldn't run)." if missing_max_points else "")
+        headline = f"{final_band}: {weighted_points}/100.{weighting}{top_str}{unassessed_clause}"
 
     # Section 7.4 Thought process generation (Prompt 11 Section 3.1, 3.3, 3.4)
     thought_steps: List[Dict[str, Any]] = []
@@ -603,6 +618,9 @@ def evaluate_risk(
         "points_band": points_band,
         "rating_status": rating_status,
         "total_points": total_points,
+        "weighted_points": weighted_points,
+        "checked_max_points": checked_max_points,
+        "missing_max_points": missing_max_points,
         "max_points": 100,
         "applicable_max_points": applicable_max_points,
         "assessed_share_pct": assessed_share_pct,
@@ -677,10 +695,13 @@ def evaluate_risk(
         },
     }
 
-    score_float = round(total_points / 100.0, 4) if rating_status == "assessed" else None
+    score_float = round(weighted_points / 100.0, 4)
 
     return {
         "total_points": total_points,
+        "weighted_points": weighted_points,
+        "checked_max_points": checked_max_points,
+        "missing_max_points": missing_max_points,
         "points_band": points_band,
         "final_band": final_band,
         "rating_status": rating_status,

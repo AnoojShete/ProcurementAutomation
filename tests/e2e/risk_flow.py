@@ -181,7 +181,17 @@ def integration():
 
     step("Contract signing asks for an acknowledgement exactly when needed")
     contracts = get("/contracts/?limit=200", "admin").json()["data"]
-    unsigned = next((c for c in contracts if c["status"] == "pending_signature" and c.get("vendor_id")), None)
+    pending = [c for c in contracts if c["status"] == "pending_signature" and c.get("vendor_id")]
+    # A sanctions match or prohibited country blocks signing outright, even
+    # with an acknowledgement (the reset demo data has one such contract).
+    blocked = [c for c in pending
+               if (get(f"/contracts/{c['id']}", "approver").json()["data"].get("vendor_risk") or {}).get("signing_blocked")]
+    for c in blocked[:1]:
+        r = post(f"/contracts/{c['id']}/sign", {"signer_name": "Vaidehi", "signer_email": "approver@demo.example.com",
+                                                "legal_consent": True, "risk_acknowledged": True}, role="approver")
+        check("hard-blocked vendor: refused even with the acknowledgement", r.status_code == 409
+              and "vendor_blocked" in r.text, f"{r.status_code} {r.text[:150]}")
+    unsigned = next((c for c in pending if c not in blocked), None)
     if unsigned is None:
         r = post("/contracts/generate", {"purchase_request_id": "22222222-2222-2222-2222-222222222222", "template_name": "hardware_purchase"})
         unsigned = r.json().get("data")

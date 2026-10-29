@@ -22,7 +22,7 @@ export function VendorRiskPanel({ risk, compact = false }: { risk: SigningRisk; 
       <div className="flex flex-wrap items-center gap-2">
         <Icon className={cn("size-4", alarming ? "text-danger-600" : "text-success-600")} />
         <span className="font-medium text-slate-800">Vendor risk</span>
-        <RiskBadge band={risk.risk_band} />
+        <RiskBadge band={risk.risk_band} ratingStatus={risk.rating_status} />
         {risk.risk_score != null && <span className="text-xs text-slate-500">score {risk.risk_score.toFixed(2)}</span>}
         {risk.scored_at && <span className="text-xs text-slate-400">· scored {formatDate(risk.scored_at)}</span>}
       </div>

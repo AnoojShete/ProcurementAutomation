@@ -402,6 +402,8 @@ export interface VendorSummary {
   portal_access_revoked: boolean;
   risk_band: RiskBand | null;
   risk_score: number | null;
+  // "assessed" | "provisional" | "not_rated": a provisional band is shown as such, never green
+  rating_status?: string | null;
   created_at: string | null;
 }
 
@@ -725,6 +727,7 @@ export interface Contract {
 
 export interface SigningRisk {
   risk_band: string | null;
+  rating_status?: string | null;
   risk_score: number | null;
   reasons: { feature: string; contribution: number }[];
   overrides: { check: string; status: string; reason: string | null }[];

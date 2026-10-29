@@ -51,8 +51,8 @@ class VendorBlocked(ContractGenerationError):
 
 
 ACK_MESSAGES = {
-    "vendor_not_rated": "Vendor risk checks are incomplete (Unrated).",
-    "rating_provisional": "Vendor risk checks are incomplete (Unrated).",
+    "vendor_not_rated": "No vendor risk check has completed yet (rated High until checked).",
+    "rating_provisional": "Vendor risk checks are incomplete (provisional rating).",
     "high_risk_band": "The vendor's risk band is High.",
     "decision_rejected": "A risk reviewer rejected this vendor.",
     "approval_ineligible": "The vendor's approval no longer applies: its latest score is not assessed Low or Medium.",

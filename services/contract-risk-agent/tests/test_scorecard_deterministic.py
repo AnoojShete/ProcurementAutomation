@@ -305,7 +305,8 @@ def test_overrides():
     }]
     res = evaluate_risk(ruleset, obs, assessed_at=assessed_at)
     assert res["total_points"] == 20
-    assert res["points_band"] == "Low"
+    # Only the GST check ran, so its 20 of 20 points weigh as 100 (30 Oct 2026)
+    assert res["weighted_points"] == 100 and res["points_band"] == "High"
     assert res["final_band"] == "High"
     assert "R-GST-01" in res["override_rule_ids"]
 
@@ -321,9 +322,9 @@ def test_not_assessed_and_provisional():
     res = evaluate_risk(ruleset, [], assessed_at=assessed_at, vendor_context={"spend_tier": "strategic", "inherent_tier": "critical"})
 
     assert res["total_points"] == 0
-    assert res["points_band"] == "Low"
-    # Prompt 9C: unassessed vendor must never look Low
-    assert res["final_band"] == "Unrated"
+    assert res["weighted_points"] == 100 and res["points_band"] == "High"
+    # Prompt 9C: unassessed vendor must never look Low; nothing checked = worst case (30 Oct 2026)
+    assert res["final_band"] == "High"
     assert res["rating_status"] == "not_rated"
     assert res["unassessed_potential_points"] > 0
     assert res["worst_case_points"] > 0
@@ -404,10 +405,12 @@ def test_remediation_and_vendor_safe_filter():
         assert step.get("shareable_with_vendor") is not False
 
     # 3. What-if simulator
-    what_if = simulate_what_if(ruleset, {"gst": obs[0]}, {"gstin.status": "active", "gstin.return_filed_within_60d": True}, assessed_at)
+    what_if = simulate_what_if(ruleset, {"gst": obs[0]}, {"gstin.status": "active", "gstin.return_filed_within_60d": True,
+                                                         "gstin.verification_level": "live",
+                                                         "gstin.name_match_level": "exact"}, assessed_at)
     assert what_if["total_points"] == 0
     assert what_if["points_band"] == "Low"
-    assert what_if["final_band"] in ("Low", "Unrated")
+    assert what_if["final_band"] == "Low"
 
 
 # =====================================================================
