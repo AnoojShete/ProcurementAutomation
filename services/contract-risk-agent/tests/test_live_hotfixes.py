@@ -221,7 +221,8 @@ async def test_real_domain_tls_and_dns_probe():
     # Web probe
     web_obs, _ = await collect_web(db, vendor, now)
     assert web_obs.fields["web.reachable"] is True
-    assert web_obs.fields["web.ssl_grade"] in ("A", "B")
+    # Prompt 11: a grade only ever comes from a real SSL Labs result; the probe fills TLS facts.
+    assert web_obs.fields["web.ssl_grade"] is None
     assert web_obs.fields["web.cert_valid"] is True
     assert web_obs.fields["web.cert_days_left"] > 0
 
@@ -251,7 +252,7 @@ async def test_demo_safe_mode_on_synthetic_domains():
 
     web_obs, _ = await collect_web(db, vendor, now)
     assert web_obs.fields["web.reachable"] is True
-    assert web_obs.fields["web.ssl_grade"] == "A"
+    assert web_obs.fields["web.ssl_grade"] is None
     assert web_obs.fields["web.cert_valid"] is True
 
     email_obs, _ = await collect_email(db, vendor, now)

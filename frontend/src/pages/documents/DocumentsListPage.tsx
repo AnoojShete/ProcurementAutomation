@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Eye, FileText, Loader2, Upload, X } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
@@ -18,6 +18,8 @@ import { DocumentPreviewModal } from "@/components/documents/DocumentPreviewModa
 import { documentTypeLabel, formatDateTime } from "@/lib/format";
 import type { BatchUploadResult, DocumentRecord } from "@/types/api";
 import { ApiError } from "@/api/client";
+import { batchesApi } from "@/api/batches";
+import type { FileWithPath } from "@/components/ui/FileUploader";
 
 export function DocumentsListPage() {
   usePageHeader("Documents");
@@ -110,13 +112,14 @@ export function DocumentsListPage() {
   );
 }
 
-const MAX_FILES = 20;
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_FILES = 500;
+const MAX_FILE_BYTES = 30 * 1024 * 1024;
 const TERMINAL = new Set(["classified", "failed"]);
 
 type QueueItem = {
   key: string;
   file: File;
+  relativePath?: string;
   documentId?: string;
   status: "queued" | "rejected" | "pending" | "processing" | "classified" | "failed";
   detail?: string;
@@ -140,22 +143,24 @@ function UploadModal({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const tracking = queue.filter((q) => q.documentId && !TERMINAL.has(q.status));
 
-  const addFiles = (files: File[]) => {
+  const addFilesWithPath = (items: FileWithPath[]) => {
     setError(null);
     setQueue((prev) => {
       const next = [...prev];
-      for (const file of files) {
-        if (next.some((q) => q.file.name === file.name && q.file.size === file.size)) continue;
+      for (const item of items) {
+        if (next.some((q) => (q.relativePath || q.file.name) === item.relativePath && q.file.size === item.file.size)) continue;
         if (next.length >= MAX_FILES) {
           setError(`Up to ${MAX_FILES} files per upload.`);
           break;
         }
-        const problem = file.size === 0 ? "File is empty" : file.size > MAX_FILE_BYTES ? "Larger than 25 MB" : undefined;
+        const problem = item.file.size === 0 ? "File is empty" : item.file.size > MAX_FILE_BYTES ? "Larger than 30 MB" : undefined;
         next.push({
-          key: `${file.name}-${file.size}-${file.lastModified}`,
-          file,
+          key: `${item.relativePath}-${item.file.size}-${item.file.lastModified}`,
+          file: item.file,
+          relativePath: item.relativePath,
           status: problem ? "rejected" : "queued",
           detail: problem,
         });
@@ -164,36 +169,64 @@ function UploadModal({
     });
   };
 
+  const addFiles = (files: File[]) => {
+    addFilesWithPath(files.map((f) => ({ file: f, relativePath: f.name })));
+  };
+
   const upload = async () => {
     const pending = queue.filter((q) => q.status === "queued");
     if (!pending.length) return;
     setUploading(true);
     setError(null);
     setSubmitted(true);
-    const apply = (results: BatchUploadResult[]) => {
-      setQueue((prev) =>
-        prev.map((q) => {
-          const i = pending.indexOf(q);
-          if (i < 0) return q;
-          const r = results[i];
-          if (!r) return q;
-          return r.document_id
-            ? { ...q, documentId: r.document_id, status: "pending" }
-            : { ...q, status: "rejected", detail: r.error };
-        }),
-      );
-    };
+
     try {
-      const res = await documentsApi.uploadBatch(pending.map((q) => q.file));
-      apply(res.data);
-      onUploaded();
-    } catch (e) {
-      const body = e instanceof ApiError ? (e.body as { data?: BatchUploadResult[] } | undefined) : undefined;
-      if (body?.data) apply(body.data);
-      else {
-        setError(e instanceof ApiError ? e.message : "Upload failed.");
-        setSubmitted(false);
+      // Initialize batch session in backend
+      const batchFiles = pending.map((q, idx) => ({
+        client_file_id: `file-${idx + 1}`,
+        client_relative_path: q.relativePath || q.file.name,
+        filename: q.file.name,
+        file_size_bytes: q.file.size,
+      }));
+
+      const batch = await batchesApi.createBatch({
+        total_files: batchFiles.length,
+        files: batchFiles,
+      });
+      setActiveBatchId(batch.batch_id);
+
+      // Upload each file with its batch metadata
+      for (let i = 0; i < pending.length; i++) {
+        const item = pending[i];
+        const bf = batchFiles[i];
+        try {
+          const res = await batchesApi.uploadBatchFile(
+            item.file,
+            batch.batch_id,
+            bf.client_file_id,
+            bf.client_relative_path,
+          );
+          setQueue((prev) =>
+            prev.map((q) =>
+              q.key === item.key
+                ? { ...q, documentId: res.document_id, status: "pending" }
+                : q,
+            ),
+          );
+        } catch (err: any) {
+          setQueue((prev) =>
+            prev.map((q) =>
+              q.key === item.key
+                ? { ...q, status: "rejected", detail: err?.message || "Upload failed" }
+                : q,
+            ),
+          );
+        }
       }
+      onUploaded();
+    } catch (e: any) {
+      setError(e?.message || "Failed to initialize batch upload.");
+      setSubmitted(false);
     } finally {
       setUploading(false);
     }
@@ -274,7 +307,7 @@ function UploadModal({
               Each file is scanned for malware, then classified and field-extracted. Files are processed in
               parallel. Up to {MAX_FILES} files, 25 MB each.
             </p>
-            <FileUploader multiple onFilesSelected={addFiles} accept=".pdf,.png,.jpg,.jpeg" disabled={uploading} />
+            <FileUploader multiple allowFolder onFilesSelected={addFiles} onFilesWithPathSelected={addFilesWithPath} accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif" disabled={uploading} />
           </>
         )}
         {error && <InlineError message={error} />}

@@ -227,8 +227,10 @@ async def test_unchecked_breach_history_is_not_reported_as_clean():
 
     vendor = _team_vendor("3Five8 Technologies Pvt. Ltd.", "IN", "support@adda.io")
     db = AsyncMock()
+    no_catalogue = AsyncMock(return_value={"catalogue_loaded": False, "not_assessed_reason": "catalogue not loaded"})
     with patch.object(cc, "record_raw_response", AsyncMock(return_value=SimpleNamespace(id="raw"))), \
-            patch.object(cc, "record_observation", observation):
+            patch.object(cc, "record_observation", observation), \
+            patch.object(cc, "match_vendor_breaches", no_catalogue):
         obs, _ = await cc.collect_breach(db, vendor, rt.NOW)
     assert recorded["fields"]["breach.domain"] == "adda.io"
     assert recorded["status"] == "not_checked"
@@ -236,3 +238,66 @@ async def test_unchecked_breach_history_is_not_reported_as_clean():
                            vendor_context={"name": vendor.name, "inherent_tier": "critical", "country": "IN"})
     breach = next(r for r in result["rule_results"] if r["signal_key"] == "breach")
     assert breach["status"] == "not_assessed" and breach["points"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key,http_status", [("", None), ("bad-key", 401), ("good-key", 429), ("good-key", 503)])
+async def test_refused_news_search_is_not_reported_as_no_adverse_media(api_key, http_status, monkeypatch):
+    """The Guardian answers a keyless or rejected call with an error, not
+    results. That must read "not assessed", never "no adverse media found"."""
+    from app.services.collectors import reputation_collectors as rc
+    from app.services.scorecard.default_ruleset import get_default_ruleset
+    from app.services.scorecard.engine import evaluate_risk
+    monkeypatch.setenv("GUARDIAN_API_KEY", api_key)
+    recorded = {}
+
+    async def observation(**kw):
+        recorded.update(kw)
+        return SimpleNamespace(**kw)
+
+    client = MagicMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    client.get = AsyncMock(return_value=SimpleNamespace(status_code=http_status, json=lambda: {}))
+    breaker = MagicMock(can_execute=AsyncMock(return_value=True), record_success=AsyncMock(),
+                        record_failure=AsyncMock())
+    db = AsyncMock()
+    db.execute.return_value = MagicMock(all=MagicMock(return_value=[]))
+    with patch("shared.live_mode.checker.is_live_verification_enabled", AsyncMock(return_value=True)), \
+            patch.object(rc.httpx, "AsyncClient", return_value=client), \
+            patch.object(rc, "CircuitBreaker", return_value=breaker), \
+            patch.object(rc, "record_raw_response", AsyncMock(return_value=SimpleNamespace(id="raw"))), \
+            patch.object(rc, "record_observation", observation):
+        obs, _ = await rc.collect_adverse_media(db, _team_vendor("Infosys Limited", "IN", None), rt.NOW)
+    assert recorded["fields"]["media.sources_reachable"] is False
+    result = evaluate_risk(get_default_ruleset(), {"adverse_media": obs}, rt.NOW,
+                           vendor_context={"name": "Infosys Limited", "country": "IN"})
+    media = next(r for r in result["rule_results"] if r["signal_key"] == "adverse_media")
+    assert media["status"] == "not_assessed"
+
+
+@pytest.mark.asyncio
+async def test_what_if_with_no_changes_reproduces_the_stored_score():
+    """The stored snapshot is {signal: fields}. Fed to the engine unconverted,
+    every signal read as empty and the what-if showed "not rated" for a rated
+    vendor; the remediation plan started from the same empty state."""
+    from app.api import vendors as api
+    from app.services.scorecard.default_ruleset import get_default_ruleset
+    from app.services.scorecard.engine import evaluate_risk
+    ruleset = get_default_ruleset()
+    observations = {k: {"signal_key": k, "status": "ok", "fields": f, "fetched_at": rt.NOW.isoformat()}
+                    for k, f in rt.obs(feedback={"fbk.count_12m": 8, "fbk.mean_12m": 2.5}).items()}
+    context = {"name": "Acme", "spend_tier": "standard", "inherent_tier": "moderate", "country": "IN"}
+    stored = evaluate_risk(ruleset, observations, rt.NOW, vendor_context=context)
+    assert stored["rating_status"] == "assessed" and stored["total_points"] == 8
+    score = SimpleNamespace(snapshot=stored["snapshot"])
+    vendor = SimpleNamespace(name="Acme", vendor_tier="standard", inherent_tier="moderate", country="IN")
+    db = AsyncMock()
+    db.get.return_value = vendor
+    with patch.object(api.risk_service, "latest_risk_score", AsyncMock(return_value=score)), \
+            patch.object(api.risk_service, "get_active_ruleset", AsyncMock(return_value=SimpleNamespace(definition=ruleset))):
+        same = (await api.what_if_simulation("v1", api.WhatIfBody(hypothetical_fields={}), db=db, user=None)).data
+        worse = (await api.what_if_simulation("v1", api.WhatIfBody(hypothetical_fields={"fin.rating_class": "non_investment"}),
+                                              db=db, user=None)).data
+    assert (same["total_points"], same["final_band"], same["rating_status"]) == (8, "Low", "assessed")
+    assert (worse["total_points"], worse["final_band"]) == (10, "Low")

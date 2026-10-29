@@ -50,7 +50,8 @@ def test_ruleset_validator_detect_only_constraints():
     invalid_rs = copy.deepcopy(RULESET_V2)
     for s in invalid_rs["signals"]:
         if s["key"] == "breach":
-            s["outcomes"][0]["potential_points"] = 4
+            # R-BRC-08 (review_pending) may carry potential points; a scored outcome may not.
+            next(o for o in s["outcomes"] if o["status"] == "assessed")["potential_points"] = 4
     valid, errs = validate_ruleset(invalid_rs)
     assert valid is False
     assert any("potential_points" in e.get("message", "") for e in errs)
@@ -98,7 +99,7 @@ def test_clean_vendor_reaches_100_percent_assessed():
     # Fully assessed clean domestic vendor
     obs = {
         "sanctions": {"fields": {"sanctions.status": "no_match"}},
-        "gst": {"fields": {"gstin.status": "active", "gstin.verification_level": "live"}},
+        "gst": {"fields": {"gstin.status": "active", "gstin.verification_level": "live", "gstin.name_match_level": "exact"}},
         "bank": {"fields": {"bank.status": "valid", "bank.change_pending": False}},
         "jurisdiction": {"fields": {"country.is_domestic": True, "country.prohibited": False, "country.high_risk": False}},
         "delivery_sla": {"fields": {"sla.orders_delivered": 10, "sla.on_time_pct": 95}},
@@ -106,7 +107,7 @@ def test_clean_vendor_reaches_100_percent_assessed():
         "incidents": {"fields": {"inc.history_available": True, "inc.count_24m": 0}},
         "web": {"fields": {"web.reachable": True, "web.ssl_grade": "A", "web.cert_valid": True}},
         "email": {"fields": {"email.dmarc_policy": "reject", "email.spf_present": True}},
-        "breach": {"fields": {"breach.source_reachable": True, "breach.count_5y": 0, "breach.domain": "acme.com"}},
+        "breach": {"fields": {"breach.source_reachable": True, "breach.catalogue_loaded": True, "breach.count_5y": 0, "breach.domain": "acme.com"}},
         "certification": {"fields": {"cert.required": True, "cert.status": "valid"}},
         "financial": {"fields": {"fin.basis": "rating", "fin.rating_class": "investment", "fin.evidence_age_days": 30}},
         "company_age": {"fields": {"age.years": 5.0, "age.basis": "incorporation"}},
@@ -171,7 +172,7 @@ def test_remediation_cumulative_override_priority():
         "jurisdiction": {"fields": {"country.is_domestic": True, "country.prohibited": False, "country.high_risk": False}},
         "web": {"fields": {"web.reachable": True, "web.ssl_grade": "A", "web.cert_valid": True}},
         "email": {"fields": {"email.dmarc_policy": "reject", "email.spf_present": True}},
-        "breach": {"fields": {"breach.source_reachable": True, "breach.count_5y": 0}},
+        "breach": {"fields": {"breach.source_reachable": True, "breach.catalogue_loaded": True, "breach.count_5y": 0}},
         "certification": {"fields": {"cert.required": True, "cert.status": "valid"}},
         "financial": {"fields": {"fin.basis": "rating", "fin.rating_class": "investment"}},
         "company_age": {"fields": {"age.years": 5.0, "age.basis": "incorporation"}},
@@ -184,7 +185,7 @@ def test_remediation_cumulative_override_priority():
     domestic = {"spend_tier": "standard", "country": "IN"}
     eval_res = evaluate_risk(RULESET_V2, obs, now, vendor_context=domestic)
     assert eval_res["final_band"] == "High"
-    assert "R-GST-01" in eval_res["blocked_by"]
+    assert "R-GST-01" in [b["rule_id"] for b in eval_res["blocked_by"]]
 
     plan = build_remediation_plan(RULESET_V2, eval_res, obs, now, vendor_context=domestic)
     steps = plan["steps"]

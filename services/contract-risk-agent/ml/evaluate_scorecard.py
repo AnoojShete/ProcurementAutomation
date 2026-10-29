@@ -50,7 +50,7 @@ def split(df: pd.DataFrame):
 def observations(row) -> dict:
     clear = {
         "sanctions": {"sanctions.status": "no_match"},
-        "gst": {"gstin.status": "active", "gstin.verification_level": "live"},
+        "gst": {"gstin.status": "active", "gstin.verification_level": "live", "gstin.name_match_level": "exact"},
         "bank": {"bank.status": "valid"},
         "web": {"web.ssl_grade": "A"},
         "email": {"email.dmarc_policy": "reject", "email.spf_present": True},
@@ -62,7 +62,7 @@ def observations(row) -> dict:
         "company_age": {"age.basis": "incorporation", "age.years": float(row.vendor_tenure_months) / 12},
         "delivery_sla": {"sla.orders_delivered": 20, "sla.on_time_pct": float(row.on_time_delivery_rate) * 100},
         "financial": {"fin.basis": "score", "fin.score": float(row.financial_stability_score)},
-        "breach": {"breach.count_5y": int(row.breach_disclosure_count), "breach.latest_within_12m": False},
+        "breach": {"breach.catalogue_loaded": True, "breach.count_5y": int(row.breach_disclosure_count), "breach.latest_within_12m": False},
         "certification": {"cert.required": True, "cert.status": "valid" if row.security_cert_flag else "none"},
         "jurisdiction": ({"country.is_domestic": False, "country.high_risk": True} if row.geo_risk_flag
                          else {"country.is_domestic": True}),

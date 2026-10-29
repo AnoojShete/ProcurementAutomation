@@ -176,7 +176,8 @@ async def bulk_eligibility(
     # 10. Open invoice mismatch check
     if request.document_id:
         doc = await db.get(Document, request.document_id)
-        if doc and doc.extracted and doc.extracted.get("unmatched_invoice"):
+        extracted = getattr(doc, "extracted", None)
+        if doc and extracted and isinstance(extracted, dict) and extracted.get("unmatched_invoice"):
             reason_codes.append("unmatched_invoice")
             reason_labels.append("Invoice has unmatched lines or variance")
 

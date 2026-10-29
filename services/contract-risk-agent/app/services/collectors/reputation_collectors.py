@@ -6,6 +6,7 @@ Stores title, URL, date, source and snippet only (no full articles).
 """
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
@@ -71,15 +72,20 @@ async def collect_adverse_media(
     cleared_rows = (await db.execute(cleared_query, {"vid": vendor.id})).all()
     cleared_urls = {r.url for r in cleared_rows if r.url}
 
-    sources_reachable = True
-    cb = CircuitBreaker("guardian")
-
-    retrieved_articles: List[Dict[str, Any]] = []
     from shared.live_mode.checker import is_live_verification_enabled
     live_enabled = await is_live_verification_enabled(db)
 
+    sources_reachable = True if live_enabled else False
+    cb = CircuitBreaker("guardian")
+
+    retrieved_articles: List[Dict[str, Any]] = []
+
+    guardian_key = os.getenv("GUARDIAN_API_KEY", "").strip()
     if live_enabled:
-        if not await cb.can_execute():
+        if not guardian_key:
+            # The Guardian refuses keyless calls (HTTP 401); without a key nothing is searched.
+            sources_reachable = False
+        elif not await cb.can_execute():
             sources_reachable = False
         else:
             try:
@@ -87,7 +93,7 @@ async def collect_adverse_media(
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.get(
                         "https://content.guardianapis.com/search",
-                        params={"q": vendor.name, "show-fields": "headline,trailText"},
+                        params={"q": vendor.name, "show-fields": "headline,trailText", "api-key": guardian_key},
                     )
                     if resp.status_code == 200:
                         data = resp.json().get("response", {})
@@ -102,9 +108,10 @@ async def collect_adverse_media(
                             })
                         await cb.record_success()
                     else:
+                        # Any refusal (401 bad key, 429 quota, 5xx) means nothing was searched:
+                        # never report that as "no adverse media found".
                         await cb.record_failure()
-                        if resp.status_code >= 500:
-                            sources_reachable = False
+                        sources_reachable = False
             except Exception as e:
                 logger.warning(f"Live adverse media lookup failed: {e}")
                 await cb.record_failure()
@@ -118,7 +125,8 @@ async def collect_adverse_media(
     matched_categories_set = set()
     high_severity_count = 0
 
-    vendor_name_clean = (vendor.name or "").lower().strip()
+    from app.services import sanctions
+    vendor_name_clean = sanctions.normalise(vendor.name or "")
     two_years_ago = (now - timedelta(days=730)).date()
 
     for art in retrieved_articles:
@@ -182,6 +190,7 @@ async def collect_adverse_media(
         "media.high_severity_count": high_severity_count,
         "media.categories": distinct_categories,
         "media.headlines": matching_headlines,
+        "media.not_checked_reason": "Live verification mode is off" if not live_enabled else ("Sources unreachable" if not sources_reachable else ""),
     }
 
     extraction = {
@@ -214,7 +223,7 @@ async def collect_adverse_media(
         {"label": "High severity count", "value": str(high_severity_count)},
     ]
 
-    obs_status = "ok" if sources_reachable else "error"
+    obs_status = "ok" if (sources_reachable and live_enabled) else ("not_checked" if not live_enabled else "error")
     obs = await record_observation(
         db=db,
         vendor_id=vendor.id,

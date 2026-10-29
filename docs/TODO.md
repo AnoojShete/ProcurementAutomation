@@ -242,6 +242,12 @@ evidence for FR/BR items are in Part B under the same ID.
 | FR-17/18/19 | DB & storage pages, trace view, re-verify minutes | PENDING | P2 | — | frontend | Part B "Done when" | Core |
 | FR-20…24 | R2 competitive features (delivery alerts, scorecard, report, SaaS overlap, MCP) | PENDING | P3 | R0 + R1 done, and only if asked | — | Part B "Done when" | Core |
 | UX-1 | UI pass: dark mode, clickable figures, one System page, names not emails, lavender Fulfilled, less text, unread-only bell | COMPLETE (Oct 18; see Part B) | P1 | — | frontend, auth-service `0013`, notification-agent feed | Each item verified live; badge counts unread only | Core |
+| MERGE-4 | Merging `risk` (Niraj/Anooj, Oct 28: Prompt 11 breach catalogue, GST identity, batch upload, wizard) into `anjali` | COMPLETE (Oct 29). Found and fixed: `document_batches` migration never applied (not in `MIGRATIONS`) and `models.py` missing `uuid4`/`timezone`, so every batch upload would fail; `279b017` showed a provisional vendor as Low and the min assessed share was lowered to 50 % (red team failed 20 profiles: missing data shown as Low) — both restored (100 %, provisional stays Unrated); "inherent profile missing" made every vendor without a tier unrateable — now advisory again; remediation plan's GST target lacked the name match the engine now needs; `chatbot2` (Oct 20) overwrote the newer RAG (17 chatbot tests) — chatbot kept at `anjali`'s version; four rules read but never seeded (auth-service `0022`, `business-rules.md`, wiring tests); README arrived with CRLF line endings. After: service tests 1,382 passed, root 185, e2e bash 17/17, risk_flow 49/49, invoice_lifecycle 71/71, budget_flow 30/30 | P0 | — | as listed | All suites green, red team green | Core |
+| RISK-5 | Adverse media called the Guardian API without a key; it answers 401 and the collector reported "no adverse media found" (any non-5xx refusal counted as searched) | FIXED Oct 29 (`GUARDIAN_API_KEY`, any refusal = not assessed; `test_refused_news_search_is_not_reported_as_no_adverse_media` fails on the old code). Left: decide whether an unassessed detect-only check (media, breach) should block the 100 % coverage a rating needs — today no vendor can be "assessed" without a Guardian key | P1 | user | contract-risk `reputation_collectors.py`, `engine.py` | Decision recorded; key added or rule changed | Core |
+| RISK-6 | What-if and the remediation plan fed the stored snapshot (`{signal: fields}`) to the engine unconverted, so every signal read empty: what-if with no changes showed "not rated 0/100" for a scored vendor | FIXED Oct 29 (`traceability.snapshot_observations`, used by replay, what-if and remediation plan; `test_what_if_with_no_changes_reproduces_the_stored_score` fails on the old code) | P1 | — | contract-risk `api/vendors.py`, `scorecard/traceability.py` | No-change what-if equals the stored score | Core |
+| VEND-1 | Real rated vendors for the demo | IN PROGRESS (Oct 29): `scripts/seed_real_vendors.py` onboards Infosys, Redington and Hathway with sourced public facts (GSTIN, CIN/incorporation, CRISIL rating, ISO 27001) and scores them. All three stay provisional until (a) a reviewer clears the fuzzy sanctions hits (Infosys ~ "OOO Inforos" 71 %, Redington ~ "Carlington Ltd" 73 %) in the app, (b) RISK-5 is decided, (c) Hathway gets financial evidence (its rating was withdrawn in 2022). What-if shows Infosys Low 0, Redington Low 1, Hathway Low 9 once (a)–(c) are done | P1 | user | `scripts/seed_real_vendors.py` | Three vendors "assessed" with a written explanation | Core |
+| PERF-1 | Document throughput | MEASURED Oct 29: 50 digital invoices all finished within 32 s of upload (~93/min); 30 scanned ones 16 in 60 s, all in 98 s (~18/min). The e-invoice QR search renders up to 2 pages at 4x and runs two detectors on every document: ~1.5 s per digital invoice, ~10 s per scan (more than the rest of the pipeline). Upload limit 60/min per user caps intake | P2 | — | `einvoice.py`, worker config, nginx | See A.6 phase 3 | Core |
+| DB-1 | Temporal held ~72 of Postgres's 100 connections; a second document worker and the auth test suite hit "too many clients", and in-flight documents waited for the 5-minute stranded sweep | FIXED Oct 29 (`SQL_MAX_CONNS=10`, `SQL_MAX_IDLE_CONNS=2` on temporal: 100 → 40 connections; auth 116/116, budget_flow 30/30) | P1 | — | `docker-compose.yml` | Connections well under the limit with all services up | Core |
 
 ### Testing, deployment and documentation (R3, November)
 
@@ -275,6 +281,18 @@ better vendor-risk model, invoice-fraud detector, counterfactual
 explanations, LLM agent orchestration.
 
 ## A.6 Immediate next actions
+
+**Oct 29 phases (after MERGE-4):**
+- *Phase 1 — decisions (user/team):* RISK-5 coverage rule (or get a free
+  Guardian key); clear or uphold the two sanctions hits in VEND-1 in the
+  app; E2E-1 fixture.
+- *Phase 2 — data:* Hathway financial evidence; re-run
+  `scripts/seed_real_vendors.py --rescore`; `./scripts/reset-demo.sh` before
+  the review (benchmark and e2e documents are in the stack).
+- *Phase 3 — throughput (PERF-1):* run the QR search only on text that looks
+  like an e-invoice (IRN / Ack No) and render at 2x first; then raise
+  `worker_concurrency` or add a worker replica (6 partitions, DB-1 makes room);
+  then a per-batch upload allowance instead of 60/min per user.
 
 0. **ENC-1** — before any shared deployment: treat a missing `APP_ENV` as
    production in `shared/security/encryption.py` and pass

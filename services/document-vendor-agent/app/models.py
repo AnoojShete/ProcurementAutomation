@@ -3,7 +3,8 @@
 (migrations/0001_schema_extensions.sql, applied idempotently at startup —
 see app/database.py). Never edit init.sql directly.
 """
-from datetime import datetime, date
+from datetime import datetime, date, timezone
+from uuid import uuid4
 from typing import Optional
 from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, Text, JSON, Numeric, Integer
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -63,6 +64,8 @@ class Vendor(Base):
     # No-GSTIN attestation (required when vendor is below GST threshold)
     no_gstin_confirmed_by: Mapped[Optional[str]] = mapped_column(String(255))
     no_gstin_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    onboarded_by: Mapped[Optional[str]] = mapped_column(String(255))
+    created_by: Mapped[Optional[str]] = mapped_column(String(255))
 
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -138,6 +141,11 @@ class Document(Base):
     source_sender: Mapped[Optional[str]] = mapped_column(Text)
     # Added by migration 0012: the GST check (app/services/tax_check.py).
     tax_check: Mapped[Optional[dict]] = mapped_column(JSON)
+    # Added by migration 0014: multi-file/folder batch link.
+    batch_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("document_batches.id"))
+    client_file_id: Mapped[Optional[str]] = mapped_column(String(255))
+    client_relative_path: Mapped[Optional[str]] = mapped_column(Text)
+    sha256_hash: Mapped[Optional[str]] = mapped_column(String(64))
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
@@ -203,3 +211,38 @@ class VendorQuote(Base):
     is_binding: Mapped[bool] = mapped_column(Boolean, default=False)
     raw_text: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+
+class DocumentBatch(Base):
+    __tablename__ = "document_batches"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="in_progress", nullable=False)
+    total_files: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    processed_files: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed_files: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cancelled_files: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    metadata_json: Mapped[Optional[dict]] = mapped_column("metadata", JSON)
+
+
+class DocumentBatchFile(Base):
+    __tablename__ = "document_batch_files"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid4()))
+    batch_id: Mapped[str] = mapped_column(Uuid, ForeignKey("document_batches.id", ondelete="CASCADE"), nullable=False)
+    client_file_id: Mapped[str] = mapped_column(Text, nullable=False)
+    client_relative_path: Mapped[str] = mapped_column(Text, nullable=False)
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256_hash: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="queued", nullable=False)
+    document_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("documents.id", ondelete="SET NULL"))
+    error_code: Mapped[Optional[str]] = mapped_column(Text)
+    error_detail: Mapped[Optional[str]] = mapped_column(Text)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

@@ -83,6 +83,7 @@ placeholder role or vendor addresses).
 ```bash
 ./run.sh [--build|--no-build|--verbose]   # whole stack; rebuilds only changed images; full log in .run/run.log
 ./scripts/seed-demo-data.sh               # demo vendor, request, licenses, inventory
+python scripts/seed_real_vendors.py [--rescore]  # Infosys, Redington, Hathway with sourced public facts, scored (no HIBP calls)
 ./scripts/test-service.sh <svc>|all       # service pytest suite inside its image (mounts source)
 ./scripts/test-root.sh                    # root tests (shared/ code, config checks), each in the right image
 make e2e                                  # bash e2e through the gateway

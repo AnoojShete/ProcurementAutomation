@@ -192,6 +192,8 @@ footer { margin-top:30px; color:var(--muted); font-size:12.5px; }
     <tr><td>A teammate</td><td>Rehearse the 5-minute demo by hand after <code>./scripts/reset-demo.sh</code> (FR-05; the scripts pass, a person's run is left).</td></tr>
     <tr><td>Whoever has it</td><td>The red-team vendor list from the submitted Agent doc isn't in the repo. Send it and we'll compare it with our 25 profiles (FR-04 is done without it).</td></tr>
     <tr><td>Before a shared deploy</td><td>Set <code>MASTER_ENCRYPTION_KEY</code> (32+ characters) for saved SMTP passwords. The encryption code treats a missing <code>APP_ENV</code> as development and falls back to a key that is public in the repo, while every other service treats it as production.</td></tr>
+    <tr><td>Anjali (finance reviewer)</td><td>Real vendors (Infosys, Redington, Hathway) are seeded by <code>scripts/seed_real_vendors.py</code> but stay Unrated. Open each in the app and decide the fuzzy sanctions hits (Infosys vs "OOO Inforos" 71 %, Redington vs "Carlington Ltd" 73 %). A person must clear these, not a script.</td></tr>
+    <tr><td>Team decision</td><td>Adverse media needs a free Guardian API key (<code>GUARDIAN_API_KEY</code>; it used to report "no adverse media" when the API refused the call). Without it no vendor reaches 100 % coverage. Get a key, or agree that unchecked news and breach checks shouldn't block a rating.</td></tr>
     <tr><td>Before the review</td><td>Run <code>./scripts/reset-demo.sh</code>: the test suites leave test vendors and requests in the stack.</td></tr>
   </table>
 

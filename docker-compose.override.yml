@@ -48,6 +48,9 @@ services:
       APP_ESIGN_AUTO_SEND: ${APP_ESIGN_AUTO_SEND:-true}
       APP_ESIGN_AUTO_SIGNER_EMAIL: ${APP_ESIGN_AUTO_SIGNER_EMAIL:-}
       APP_ESIGN_AUTO_SIGNER_NAME: ${APP_ESIGN_AUTO_SIGNER_NAME:-Authorized Signer}
+      # Optional Guardian Open Platform key for the adverse-media check
+      # (open-platform.theguardian.com); unset = that check is "not assessed".
+      GUARDIAN_API_KEY: ${GUARDIAN_API_KEY:-}
       # FR-13: Legal-BERT clause model, pre-downloaded into hf-cache
       # (scripts/download-models.sh); never fetched while generating a contract.
       HF_HOME: /app/.cache/huggingface
@@ -119,6 +122,9 @@ services:
       APP_ESIGN_AUTO_SEND: ${APP_ESIGN_AUTO_SEND:-true}
       APP_ESIGN_AUTO_SIGNER_EMAIL: ${APP_ESIGN_AUTO_SIGNER_EMAIL:-}
       APP_ESIGN_AUTO_SIGNER_NAME: ${APP_ESIGN_AUTO_SIGNER_NAME:-Authorized Signer}
+      # Optional Guardian Open Platform key for the adverse-media check
+      # (open-platform.theguardian.com); unset = that check is "not assessed".
+      GUARDIAN_API_KEY: ${GUARDIAN_API_KEY:-}
     depends_on:
       redpanda-init:
         condition: service_completed_successfully

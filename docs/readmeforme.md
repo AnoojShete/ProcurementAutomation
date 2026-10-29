@@ -216,6 +216,7 @@ versions are pinned in the compose files (the same test fails on a new
 | `APP_SHOWCASE_MODE` | on in development only | Enables the Controls page scenario endpoints. |
 | `EMAIL_INTAKE_*` (`ENABLED`, `PROTOCOL`, `HOST`, `PORT`, `SSL`, `USER`, `PASSWORD`, `ADDRESS`) | Mailpit's POP3 mailbox | The mailbox documents are read from (pop3 or imap). |
 | `GSTINCHECK_API_KEY` | placeholder | Only for live GSTIN lookups (off by default, admin toggle). |
+| `GUARDIAN_API_KEY` | unset | Adverse-media check in live mode (free key, open-platform.theguardian.com). Unset = that check is "not assessed", never "no adverse media". |
 | `APP_DOCUMENSO_API_URL` / `_API_TOKEN` / `_WEBHOOK_SECRET` | unset | With these, "Send for signature" uses Documenso; unset = simulated signing. |
 | `VITE_SHOW_DEMO_ACCOUNTS` (frontend build) | shown | Set to `false` when building for real users to hide the demo-login buttons. |
 

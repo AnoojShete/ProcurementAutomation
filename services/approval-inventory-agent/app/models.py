@@ -28,13 +28,13 @@ class Base(DeclarativeBase):
 
 class Document(Base):
     """Read-only stub: `documents` belongs to document-vendor-agent's
-    domain, not this service's. It's declared minimally here only so
-    SQLAlchemy can resolve PurchaseRequest.document_id's ForeignKey
-    against a table it knows about — this service never queries or
-    writes it directly."""
+    domain, not this service's. It's declared here so SQLAlchemy can resolve
+    PurchaseRequest.document_id's ForeignKey and bulk eligibility checks can
+    read extraction results."""
     __tablename__ = "documents"
 
     id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    extracted: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
 
 class Contract(Base):

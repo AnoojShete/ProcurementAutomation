@@ -43,7 +43,8 @@ class TestUploaderIdentity:
     def test_uploaded_by_form_field_is_ignored(self):
         # C1: a finance user could submit a bank change "as" a colleague and
         # then verify it themselves, defeating dual control.
-        store = AsyncMock(return_value=SimpleNamespace(id="d1", status="pending"))
+        store = AsyncMock(return_value=SimpleNamespace(id="d1", status="pending", is_likely_duplicate=False,
+                                                       duplicate_of_document_id=None, sha256_hash="0" * 64))
         with patch.object(documents, "scan_upload", AsyncMock()), patch.object(documents, "store_and_record_upload", store):
             r = _client("finance", "fin@acme.test").post(
                 "/documents/upload",

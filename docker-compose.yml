@@ -161,6 +161,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PWD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_SEEDS: postgres
+      # Pool caps (default 20 open + 20 idle per store and service): left at
+      # the defaults Temporal held ~72 of Postgres's 100 connections, and a
+      # second document worker or the auth test suite then hit "too many clients".
+      SQL_MAX_CONNS: "10"
+      SQL_MAX_IDLE_CONNS: "2"
     depends_on:
       postgres:
         condition: service_healthy

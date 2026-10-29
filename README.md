@@ -162,6 +162,48 @@ flowchart TD
    - Automated digital contract signing is supported under explicit, revocable 90-day standing mandates granted by finance signatories for bulk-approved requests within configured spending thresholds.
    - *Legal Disclaimer*: This is an internal authorisation record with a sealed PDF. Whether a counterparty or regulator accepts it as a legally valid electronic signature must be confirmed with legal or finance. Do not claim legal validity anywhere.
 
+## Live-Test Hardening & Dual-Control Operations (Prompt 11)
+
+To ensure zero-disruption evaluation in live testing and prevent false or unverified ratings, Prompt 11 delivers robust offline capabilities, deterministic identity matching, honest arithmetic displays, and high-throughput multi-file batch uploads.
+
+### 1. Local HIBP Breach Catalogue & Entity Matching
+- **Zero Phase 0 Network Overhead**: Rather than querying the external Have I Been Pwned API per vendor, the complete verified breach catalogue is downloaded once and stored locally in PostgreSQL (`breach_catalogue` and `breach_catalogue_meta`) with SHA-256 verification. This eliminates bot-protection blocks (HTTP 403) and rate limits (HTTP 429).
+- **Automated & Manual Refresh**: Daily refresh is scheduled via Temporal (`workflows/breach_catalogue_refresh.py`) with a non-blocking background asyncio fallback in FastAPI lifespan. An admin import endpoint (`POST /admin/breach-catalogue/import`) enables manual JSON catalogue loading in air-gapped environments.
+- **Deterministic Entity Matching**:
+  - `domain_match`: Catalogue domain strictly equals the vendor domain or its subdomains.
+  - `name_candidate`: Fuzzy matching (`token_set_ratio >= 85%`) with automatic rejection of short or common words (<= 4 characters or dictionary terms).
+- **Dual-Control Reviewer Separation**: Candidate matches require confirmation via `POST /vendors/{id}/risk/breach-review`. The system strictly enforces reviewer separation (`reviewer != onboarder`); requests by the vendor onboarder return HTTP 403 Forbidden.
+- **Attribution**: "Breach data from Have I Been Pwned" (CC BY 4.0) is rendered wherever breach scores are displayed.
+
+### 2. GST Identity Matching & Offline Rules
+- **Multi-Level Offline Validation**: Comprehensive 15-character alphanumeric validation, valid state code (01–37), ISO/IEC 7064 Mod 11,10 check-digit verification, and PAN entity type consistency (e.g., 4th character 'C' for Company, 'P' for Individual).
+- **Name Comparison & Risk Weighting**: Legal and trade names are compared using RapidFuzz:
+  - Exact match (score >= 90%): 0 points (`R-GST-06`).
+  - Close match (score 75–89%): 4 points (`R-GST-07`), flagged for compliance reviewer confirmation.
+  - Mismatch (score < 75%): 12 points (`R-GST-09`).
+- **Score Invariant Integrity**: GST points are strictly capped at 20 points within the 100-point scorecard allocation.
+- **Dual-Control GST Review**: Close name matches or discrepancies can be confirmed by an independent compliance officer via `POST /vendors/{id}/risk/gst-review` (`reviewer != onboarder`).
+- **No Invented Demo Active States**: Live verification mode flags are respected; when inactive, the signal honestly evaluates to `not_checked` / `not_assessed` without fabricated active registry observations.
+
+### 3. Honest Scorecard Display & Narrative Explanations
+- **Honest Arithmetic Display**: The summary formula displays exact score components:
+  `Total = {assessed} assessed + {due_diligence_potential} due-diligence potential points = {maximum} maximum`.
+- **Required Checks Safety Notice**: Whenever mandatory checks are incomplete, an explicit warning identifies each blocking signal (e.g. Sanctions screening, GST registration status).
+- **Clear Narrative Formatting**: Every sentence across scorecard groups is prefixed with its check label (`{short_label}: `). Group completion headers show `{completed} of {applicable} checks completed; up to {potential} points may be added`.
+- **Zero Bare "—" Placeholders**: Fallbacks print explicit contextual explanations (e.g. "No sanctions list is loaded; load one in Control panel").
+- **Direct TLS Telemetry**: Replaced synthetic "SSL Labs grade" assumptions with verified TLS probe telemetry (`web.cert_valid`, `web.tls_version`, `web.cert_days_left`, `web.hsts`).
+- **Tier-Based Certifications & Waivers**: Critical and High tier vendors require ISO 27001 or SOC 2 reports. Admin-approved time-bound waivers (up to 12 months) are recorded via `POST /vendors/{id}/risk/cert-waiver` under dual control (`R-CRT-07`).
+
+### 4. Multi-File & Recursive Folder Upload
+- **Session-Based Batch Uploads**: Backed by `upload_batches` and `upload_batch_files` with endpoints for creation (`POST /batches`), tracking (`GET /batches/{id}`), cancellation (`POST /batches/{id}/cancel`), retry (`POST /batches/{id}/retry`), and CSV audit export (`GET /batches/{id}/report.csv`).
+- **File Validation & Safety**:
+  - Maximum 100 pages per PDF document.
+  - Magic byte verification (`%PDF-`, `PK` for DOCX, `II* ` / `MM *` for TIFF, JPEG, PNG).
+  - SHA-256 duplicate detection flag (`is_likely_duplicate: True`).
+  - Rate limiting enforced at 60 uploads per minute per user/IP.
+- **Nginx Unbuffered Streaming**: Configured with `proxy_request_buffering off` and `client_max_body_size 500M` for unbuffered chunked file processing.
+- **Folder Upload UI**: Desktop React UI supports drag-and-drop, individual file selection, and recursive folder upload via Chromium `webkitdirectory` and `DataTransferItem.webkitGetAsEntry()` with paginated `readEntries` batching.
+
 ## Try it
 
 **Prerequisites:** Docker with Compose v2 (Docker Desktop on macOS/Windows,

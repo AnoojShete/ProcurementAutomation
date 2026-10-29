@@ -25,7 +25,7 @@ DEFAULT_TEMPLATES = {
 
 # Remediation target field presets
 TARGET_FIELD_PRESETS = {
-    "gst": {"gstin.status": "active", "gstin.verification_level": "live"},
+    "gst": {"gstin.status": "active", "gstin.verification_level": "live", "gstin.name_match_level": "exact"},
     "sanctions": {"sanctions.status": "no_match", "sanctions.match_type": "none"},
     "bank": {"bank.status": "valid", "bank.change_pending": False},
     "web": {"web.reachable": True, "web.ssl_grade": "A", "web.cert_valid": True},

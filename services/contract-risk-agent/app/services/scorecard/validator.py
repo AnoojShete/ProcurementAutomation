@@ -127,9 +127,9 @@ def validate_ruleset(ruleset: Dict[str, Any]) -> Tuple[bool, List[Dict[str, str]
             if status == "assessed_no_finding" and cov_type != "detect_only":
                 errors.append({"field": f"signals[{s_key}].outcomes[{o_idx}].status", "message": f"Rule {rule_id} status 'assessed_no_finding' is allowed only on detect_only signals, got coverage_type '{cov_type}'"})
 
-            # Prompt 9C: detect_only signals never add potential points
+            # Prompt 9C & 11: detect_only signals never add potential points, EXCEPT review_pending (Prompt 11 Section 1.3)
             potential_pts = outcome.get("potential_points", 0)
-            if cov_type == "detect_only" and potential_pts > 0:
+            if cov_type == "detect_only" and potential_pts > 0 and status != "review_pending":
                 errors.append({"field": f"signals[{s_key}].outcomes[{o_idx}].potential_points", "message": f"Rule {rule_id} belongs to detect_only signal '{s_key}' and must not specify potential_points > 0, got {potential_pts}"})
 
             if when is not None and when != {}:

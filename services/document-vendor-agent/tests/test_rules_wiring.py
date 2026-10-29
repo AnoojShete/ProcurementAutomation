@@ -287,3 +287,27 @@ def test_gst_einvoice_required_turnover_inr(rule):
     assert _gst_stage(_gst_lines(), vendor)["status"] == "flagged"
     rule("gst.einvoice_required_turnover_inr", 100_000_000)
     assert _gst_stage(_gst_lines(), vendor)["status"] == "ok"
+
+
+def test_document_upload_max_files_per_batch(rule):
+    from fastapi import HTTPException
+    from app.api.batches import BatchFileItem, CreateBatchRequest, create_document_batch
+    files = [BatchFileItem(client_file_id=str(i), client_relative_path=f"f{i}.pdf", filename=f"f{i}.pdf",
+                           file_size_bytes=10) for i in range(3)]
+    payload = CreateBatchRequest(total_files=3, files=files)
+    user = SimpleNamespace(id="u1", email="req@acme.test", role="requester")
+
+    def rejected(limit):
+        rule("document.upload_max_files_per_batch", limit)
+        db = MagicMock()
+        db.commit = AsyncMock()
+        db.flush = AsyncMock()
+        db.refresh = AsyncMock()
+        try:
+            run(create_document_batch(payload, user=user, db=db))
+        except HTTPException as e:
+            return e.status_code == 400 and "maximum limit" in str(e.detail)
+        return False
+
+    assert rejected(2) is True
+    assert rejected(5) is False

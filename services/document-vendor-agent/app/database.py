@@ -35,6 +35,7 @@ MIGRATIONS = (
     "0010_vendor_profile.sql",
     "0011_vendor_ifsc_status.sql",
     "0012_gst.sql",
+    "0014_document_batches.sql",  # 0013 is applied by contract-risk-agent Alembic 0012
 )
 
 

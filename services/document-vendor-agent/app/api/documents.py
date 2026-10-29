@@ -1,9 +1,13 @@
+import logging
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, UploadFile, File, Query
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.models import Document
+from app.models import Document, DocumentBatch, DocumentBatchFile
 from app.schemas import DataResponse, ReviewCorrectionRequest
 from app.services import document_service
 from app.services.upload_service import (
@@ -95,6 +99,9 @@ def _fx(doc: Document) -> dict | None:
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
+    batch_id: str | None = Query(None),
+    client_file_id: str | None = Query(None),
+    client_relative_path: str | None = Query(None),
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -107,36 +114,115 @@ async def upload_document(
         cached = await get_cached_response(request.app.state.redis, "document-vendor-agent", idempotency_key, scope=user.id)
         if cached is not None:
             return cached
+
+    # Rate limiting: max 60 uploads per minute per user (Prompt 11 Section 4.3)
+    try:
+        redis_client = getattr(request.app.state, "redis", None)
+        if redis_client:
+            minute_key = f"rate:upload:{user.email or user.id}:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}"
+            count = await redis_client.incr(minute_key)
+            if count == 1:
+                await redis_client.expire(minute_key, 65)
+            if count > 60:
+                raise HTTPException(status_code=429, detail="Upload rate limit exceeded (maximum 60 uploads per minute)")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+    async def _record_batch_failure(code: str, detail_msg: str):
+        if batch_id and client_file_id:
+            try:
+                from sqlalchemy import select
+                bf = await db.scalar(
+                    select(DocumentBatchFile).where(
+                        DocumentBatchFile.batch_id == batch_id,
+                        DocumentBatchFile.client_file_id == client_file_id,
+                    )
+                )
+                if bf:
+                    bf.status = "failed"
+                    bf.error_code = code
+                    bf.error_detail = detail_msg
+                    bf.updated_at = datetime.now(timezone.utc)
+                batch = await db.get(DocumentBatch, batch_id)
+                if batch:
+                    batch.failed_files += 1
+                    if batch.processed_files + batch.failed_files + batch.cancelled_files >= batch.total_files:
+                        batch.status = "completed"
+                        batch.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+            except Exception as b_err:
+                logger.warning(f"Failed to record batch file failure: {b_err}")
+
     # Read at most one byte past the cap so an oversized upload is caught
     # without buffering all of it.
     data = await file.read(settings.max_upload_bytes + 1)
     if not data:
+        await _record_batch_failure("EMPTY_FILE", "uploaded file is empty")
         raise HTTPException(status_code=400, detail="uploaded file is empty")
     if len(data) > settings.max_upload_bytes:
-        raise HTTPException(
-            status_code=413,
-            detail=f"file too large (max {settings.max_upload_bytes // (1024 * 1024)} MB)",
-        )
+        msg = f"file too large (max {settings.max_upload_bytes // (1024 * 1024)} MB)"
+        await _record_batch_failure("FILE_TOO_LARGE", msg)
+        raise HTTPException(status_code=413, detail=msg)
 
     try:
         await scan_upload(data, db, file.filename or "upload")
     except MalwareDetectedError as e:
         await db.commit()
+        await _record_batch_failure("MALWARE_DETECTED", f"malware detected ({e.signature})")
         raise HTTPException(status_code=422, detail=f"upload rejected: malware detected ({e.signature})")
     except ScanUnavailableError:
         await db.commit()
+        await _record_batch_failure("SCAN_UNAVAILABLE", "scanning unavailable, try again")
         raise HTTPException(status_code=503, detail="scanning unavailable, try again")
 
     try:
         doc = await store_and_record_upload(
             db, request.app.state.kafka_producer, data, file.filename or "upload",
             file.content_type or "application/octet-stream", uploaded_by,
+            batch_id=batch_id, client_file_id=client_file_id,
+            client_relative_path=client_relative_path,
         )
     except InvalidUploadError as e:
+        await _record_batch_failure("INVALID_FORMAT", str(e))
         raise HTTPException(status_code=415, detail=str(e))
     except StorageUnavailableError:
+        await _record_batch_failure("STORAGE_UNAVAILABLE", "file storage is temporarily unavailable")
         raise HTTPException(status_code=503, detail="file storage is temporarily unavailable — please try again in a minute")
-    result = DataResponse(data={"document_id": doc.id, "status": doc.status})
+
+    # Record batch file success if part of a batch
+    if batch_id and client_file_id:
+        try:
+            from sqlalchemy import select
+            bf = await db.scalar(
+                select(DocumentBatchFile).where(
+                    DocumentBatchFile.batch_id == batch_id,
+                    DocumentBatchFile.client_file_id == client_file_id,
+                )
+            )
+            if bf:
+                bf.status = "completed"
+                bf.document_id = doc.id
+                bf.sha256_hash = doc.sha256_hash
+                bf.updated_at = datetime.now(timezone.utc)
+            batch = await db.get(DocumentBatch, batch_id)
+            if batch:
+                batch.processed_files += 1
+                if batch.processed_files + batch.failed_files + batch.cancelled_files >= batch.total_files:
+                    batch.status = "completed"
+                    batch.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+        except Exception as b_err:
+            logger.warning(f"Failed to record batch file success: {b_err}")
+
+    result = DataResponse(data={
+        "document_id": doc.id,
+        "status": doc.status,
+        "is_likely_duplicate": doc.is_likely_duplicate,
+        "duplicate_of_document_id": doc.duplicate_of_document_id,
+        "sha256_hash": doc.sha256_hash,
+    })
     if idempotency_key:
         await store_response(request.app.state.redis, "document-vendor-agent", idempotency_key, result.model_dump(mode="json"), scope=user.id)
     return result

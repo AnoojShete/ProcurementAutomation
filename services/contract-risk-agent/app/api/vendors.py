@@ -26,13 +26,15 @@ from app.models import (
     VendorEvidence,
     VendorSignalObservation,
     VendorSignalRawResponse,
+    BreachVendorReview,
+    VendorWaiver,
 )
 from app.schemas import DataResponse, LogOutcomeRequest, OffboardVendorRequest
 from app.services import clearance, offboard_service, risk_service
 from app.services.scorecard.engine import evaluate_risk
 from app.services.scorecard.monitoring import generate_monitoring_report
 from app.services.scorecard.remediation import build_remediation_plan, simulate_what_if
-from app.services.scorecard.traceability import compile_audit_bundle, replay_assessment
+from app.services.scorecard.traceability import compile_audit_bundle, replay_assessment, snapshot_observations
 from shared.auth import CurrentUser, get_current_user, require_role
 
 logger = logging.getLogger(__name__)
@@ -237,7 +239,7 @@ async def get_remediation_plan(
     plan = build_remediation_plan(
         ruleset=ruleset_row.definition,
         assessment=assessment_dict,
-        observations=score.snapshot or {},
+        observations=snapshot_observations(score.snapshot, score.scored_at or datetime.now(timezone.utc)),
         assessed_at=score.scored_at or datetime.now(timezone.utc),
         audience=audience,
         vendor_context={"name": getattr(vendor, "name", "Vendor"), "spend_tier": score.effective_tier or "standard",
@@ -382,8 +384,8 @@ async def what_if_simulation(
     score = await risk_service.latest_risk_score(db, vendor_id)
     ruleset_row = await risk_service.get_active_ruleset(db)
 
-    base_snapshot = score.snapshot if score else {}
     now = datetime.now(timezone.utc)
+    base_snapshot = snapshot_observations(score.snapshot, now, "what_if_base") if score else {}
     overrides = body.hypothetical_fields if body.hypothetical_fields is not None else (body.field_overrides or {})
 
     sim_res = simulate_what_if(
@@ -957,3 +959,198 @@ async def update_vendor_fields(
         "swift_bic": vendor.swift_bic,
         "bank_name": vendor.bank_name,
     })
+
+
+# --- Prompt 11 Reviewer and Governance Endpoints ---
+
+class BreachReviewRequest(BaseModel):
+    breach_name: str
+    decision: str  # 'same_entity' or 'different_entity'
+    notes: str
+
+
+class GstReviewRequest(BaseModel):
+    decision: str  # 'confirmed' or 'mismatch'
+    notes: str
+
+
+class CertWaiverRequest(BaseModel):
+    certification_name: Optional[str] = "SOC2 / ISO 27001"
+    rationale: str
+    valid_months: int = Field(default=12, le=12, ge=1)
+
+
+def _check_reviewer_separation(vendor: Vendor, user: CurrentUser):
+    onboarder = getattr(vendor, "onboarded_by", None) or getattr(vendor, "created_by", None)
+    user_ident = (getattr(user, "email", None) or getattr(user, "user_id", "")).strip().lower()
+    if onboarder and user_ident and onboarder.strip().lower() == user_ident:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Reviewer separation violation: reviewer cannot be the same user who onboarded or created the vendor.",
+        )
+
+
+@router.post("/{vendor_id}/risk/breach-review", response_model=DataResponse)
+async def review_breach_candidate(
+    vendor_id: str,
+    body: BreachReviewRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_role("compliance", "admin")),
+):
+    """Reviewer decision on a name-candidate breach record (same_entity vs different_entity)."""
+    vendor = await db.get(Vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="vendor not found")
+
+    _check_reviewer_separation(vendor, user)
+
+    if body.decision not in ("same_entity", "different_entity"):
+        raise HTTPException(status_code=400, detail="decision must be 'same_entity' or 'different_entity'")
+    if not body.notes or not body.notes.strip():
+        raise HTTPException(status_code=400, detail="Reviewer notes are required")
+
+    rev_id = getattr(user, "email", None) or getattr(user, "user_id", "reviewer")
+    existing = await db.scalar(
+        select(BreachVendorReview).where(
+            BreachVendorReview.vendor_id == vendor.id,
+            BreachVendorReview.breach_name == body.breach_name,
+        )
+    )
+    if existing:
+        existing.decision = body.decision
+        existing.notes = body.notes.strip()
+        existing.reviewer_id = rev_id
+        existing.reviewed_at = datetime.now(timezone.utc)
+    else:
+        new_rev = BreachVendorReview(
+            id=str(uuid.uuid4()),
+            vendor_id=vendor.id,
+            breach_name=body.breach_name,
+            decision=body.decision,
+            notes=body.notes.strip(),
+            reviewer_id=rev_id,
+            reviewed_at=datetime.now(timezone.utc),
+        )
+        db.add(new_rev)
+
+    await db.commit()
+
+    # Re-scoring appends fresh observations to append-only table
+
+    score_row = await risk_service.score_vendor(
+        db, request.app.state.kafka_producer, vendor.id, trigger_type="breach_review"
+    )
+    return DataResponse(data={
+        "status": "recorded",
+        "decision": body.decision,
+        "breach_name": body.breach_name,
+        "score": _serialize_risk_summary(score_row, vendor_status=vendor.status or "active"),
+    })
+
+
+@router.post("/{vendor_id}/risk/gst-review", response_model=DataResponse)
+async def review_gst_identity(
+    vendor_id: str,
+    body: GstReviewRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_role("compliance", "admin")),
+):
+    """Reviewer decision on GST name mismatch/close match equivalence."""
+    vendor = await db.get(Vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="vendor not found")
+
+    _check_reviewer_separation(vendor, user)
+
+    if body.decision not in ("confirmed", "mismatch"):
+        raise HTTPException(status_code=400, detail="decision must be 'confirmed' or 'mismatch'")
+    if not body.notes or not body.notes.strip():
+        raise HTTPException(status_code=400, detail="Reviewer notes are required")
+
+    if body.decision == "confirmed":
+        vendor.gstin_verification_status = "confirmed"
+    else:
+        vendor.gstin_verification_status = "unverified"
+
+    await db.commit()
+
+    # Re-scoring appends fresh observations to append-only table
+
+    score_row = await risk_service.score_vendor(
+        db, request.app.state.kafka_producer, vendor.id, trigger_type="gst_review"
+    )
+    return DataResponse(data={
+        "status": "recorded",
+        "decision": body.decision,
+        "gstin_verification_status": vendor.gstin_verification_status,
+        "score": _serialize_risk_summary(score_row, vendor_status=vendor.status or "active"),
+    })
+
+
+@router.post("/{vendor_id}/risk/cert-waiver", response_model=DataResponse)
+async def grant_certification_waiver(
+    vendor_id: str,
+    body: CertWaiverRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(require_role("admin")),
+):
+    """Grants a time-bound waiver (max 12 months) for missing security certifications."""
+    vendor = await db.get(Vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="vendor not found")
+
+    _check_reviewer_separation(vendor, user)
+
+    if not body.rationale or not body.rationale.strip():
+        raise HTTPException(status_code=400, detail="Waiver rationale is required")
+
+    now = datetime.now(timezone.utc)
+    valid_until = now + timedelta(days=30 * body.valid_months)
+    approved_by = getattr(user, "email", None) or getattr(user, "user_id", "admin")
+
+    waiver = VendorWaiver(
+        id=str(uuid.uuid4()),
+        vendor_id=vendor.id,
+        waiver_type="certification",
+        certification_name=body.certification_name or "SOC2 / ISO 27001",
+        rationale=body.rationale.strip(),
+        approved_by=approved_by,
+        approved_at=now,
+        valid_until=valid_until,
+        active=True,
+    )
+    db.add(waiver)
+    await db.commit()
+
+    # Re-scoring appends fresh observations to append-only table
+
+    score_row = await risk_service.score_vendor(
+        db, request.app.state.kafka_producer, vendor.id, trigger_type="cert_waiver"
+    )
+    return DataResponse(data={
+        "status": "active",
+        "waiver_id": waiver.id,
+        "valid_until": waiver.valid_until.isoformat(),
+        "score": _serialize_risk_summary(score_row, vendor_status=vendor.status or "active"),
+    })
+
+
+@router.post("/{vendor_id}/risk/reevaluate", response_model=DataResponse)
+async def reevaluate_risk(
+    vendor_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Forces an immediate fresh collection and re-evaluation of all 14 risk signals."""
+    vendor = await db.get(Vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="vendor not found")
+
+    score_row = await risk_service.score_vendor(
+        db, request.app.state.kafka_producer, vendor.id, trigger_type="manual_reevaluate", force_fresh_collect=True
+    )
+    return DataResponse(data=_serialize_risk_summary(score_row, vendor_status=vendor.status or "active"))

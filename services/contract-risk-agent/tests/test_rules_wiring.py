@@ -368,3 +368,47 @@ def test_contract_mandate_max_days(rule):
     rule("contract.mandate_max_days", 30)
     status, message = _create_mandate(days=60)
     assert status == 400 and "Validity" in message
+
+
+def _collect_breach_with(rule_values, rule):
+    from app.services.collectors import cyber_collectors as cc
+    for key, value in rule_values.items():
+        rule(key, value)
+    matcher = AsyncMock(return_value={"catalogue_loaded": False})
+    vendor = SimpleNamespace(id="v1", name="Acme Systems", website="acme.example", contact_email=None)
+    with patch.object(cc, "match_vendor_breaches", matcher), \
+            patch.object(cc, "record_raw_response", AsyncMock(return_value=SimpleNamespace(id="raw"))), \
+            patch.object(cc, "record_observation", AsyncMock()):
+        run(cc.collect_breach(AsyncMock(), vendor, datetime(2026, 10, 29, tzinfo=timezone.utc)))
+    return matcher.call_args.kwargs
+
+
+def test_risk_breach_catalogue_max_age_days(rule):
+    assert _collect_breach_with({"risk.breach_catalogue_max_age_days": 7}, rule)["max_age_days"] == 7
+    assert _collect_breach_with({"risk.breach_catalogue_max_age_days": 90}, rule)["max_age_days"] == 90
+
+
+def test_risk_breach_name_match_pct(rule):
+    assert _collect_breach_with({"risk.breach_name_match_pct": 95}, rule)["name_match_pct"] == 95
+    assert _collect_breach_with({"risk.breach_name_match_pct": 70}, rule)["name_match_pct"] == 70
+
+
+def test_risk_required_certifications_by_tier(rule):
+    from app.services.collectors import cyber_collectors as cc
+
+    def cert_required(cert_map):
+        rule("risk.required_certifications_by_tier", cert_map)
+        db = AsyncMock()
+        no_rows = MagicMock()
+        no_rows.first.return_value = None
+        no_rows.scalars.return_value.first.return_value = None
+        db.execute.return_value = no_rows
+        observed = AsyncMock()
+        with patch.object(cc, "record_raw_response", AsyncMock(return_value=SimpleNamespace(id="raw"))), \
+                patch.object(cc, "record_observation", observed):
+            run(cc.collect_certification(db, SimpleNamespace(id="v1", name="Acme"),
+                                         datetime(2026, 10, 29, tzinfo=timezone.utc), effective_tier="moderate"))
+        return observed.call_args.kwargs["fields"]["cert.required"]
+
+    assert cert_required({"moderate": []}) is False
+    assert cert_required({"moderate": ["ISO 27001"]}) is True

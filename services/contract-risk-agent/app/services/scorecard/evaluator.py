@@ -141,7 +141,7 @@ class SafeEvaluator:
 
 def render_template(template: str, context: Dict[str, Any]) -> str:
     """Replaces {field.name} and system placeholders safely.
-    Missing variables resolve to empty string or default without raising KeyError.
+    Missing variables or empty strings resolve to '—' or formatted value without raising KeyError.
     """
     if not template:
         return ""
@@ -149,11 +149,11 @@ def render_template(template: str, context: Dict[str, Any]) -> str:
     def replace_match(match):
         key = match.group(1).strip()
         val = context.get(key)
-        if val is None:
-            # Check if key is a date or ends with _date / _at
-            if "date" in key or "at" in key or "on" in key:
-                return "—"
+        # Treat None and empty/whitespace-only strings as missing
+        if val is None or (isinstance(val, str) and not val.strip()):
             return "—"
+        if isinstance(val, bool):
+            return format_value(val)
         if isinstance(val, (datetime, date)):
             return format_date_human(val)
         if isinstance(val, float):

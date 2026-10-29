@@ -40,14 +40,16 @@ class InvalidUploadError(Exception):
     to show to the uploader."""
 
 
-MAX_PDF_PAGES = 200
+MAX_PDF_PAGES = 100
 MAX_IMAGE_PIXELS = 40_000_000  # ~ 8000 x 5000; bigger is a decompression bomb, not a scan
 _MAGIC = (
     (b"%PDF-", "pdf"),
     (b"\x89PNG\r\n\x1a\n", "image"),
     (b"\xff\xd8\xff", "image"),
+    (b"II*\x00", "image"),
+    (b"MM\x00*", "image"),
 )
-_EXTENSIONS = {"pdf": "pdf", "png": "image", "jpg": "image", "jpeg": "image"}
+_EXTENSIONS = {"pdf": "pdf", "png": "image", "jpg": "image", "jpeg": "image", "tiff": "image", "tif": "image"}
 _UNSAFE_CHARS = re.compile(r"[^A-Za-z0-9._() -]+")
 
 
@@ -126,6 +128,8 @@ async def scan_upload(data: bytes, db: AsyncSession, filename: str, clamd_client
 async def store_and_record_upload(
     db: AsyncSession, kafka_producer, data: bytes, filename: str, content_type: str, uploaded_by: str,
     source: str = "upload", source_sender: str | None = None,
+    batch_id: str | None = None, client_file_id: str | None = None,
+    client_relative_path: str | None = None,
 ) -> Document:
     """Called only after scan_upload() has confirmed the file is clean.
     Raises InvalidUploadError before anything is stored."""
@@ -139,6 +143,13 @@ async def store_and_record_upload(
         raise StorageUnavailableError(str(e)) from e
 
     uploaded_at = datetime.now(timezone.utc)
+    file_hash = sha256_hex(data)
+
+    # Check for existing duplicate document by sha256
+    from sqlalchemy import select
+    dup_res = await db.execute(select(Document).where(Document.sha256_hash == file_hash).limit(1))
+    existing_dup = dup_res.scalars().first()
+
     doc = Document(
         id=document_id,
         status="pending",
@@ -150,6 +161,12 @@ async def store_and_record_upload(
         source=source,
         source_sender=source_sender,
         needs_review=False,
+        batch_id=batch_id,
+        client_file_id=client_file_id,
+        client_relative_path=client_relative_path,
+        sha256_hash=file_hash,
+        is_likely_duplicate=bool(existing_dup is not None),
+        duplicate_of_document_id=existing_dup.id if existing_dup else None,
         created_at=uploaded_at,
         updated_at=uploaded_at,
     )

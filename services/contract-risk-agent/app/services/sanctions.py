@@ -160,7 +160,7 @@ async def screen_vendor(db, vendor, screened_by: str = "system", index: Optional
     index = index or load_index()
     if index is None:
         return None
-    cut = threshold()
+    cut = 70.0  # Review threshold is 70.0 so fuzzy matches 70-84% trigger possible_match
     matches = screen_name(vendor.name, index, cut)
     status, justification = ("potential_match" if matches else "clear"), None
     if matches:
@@ -207,12 +207,16 @@ def sanctions_override_input(latest) -> Optional[bool]:
 
 
 async def run_daily_refresh():
-    """Refreshes a list that has been downloaded once, every 24 h. Never
-    downloads on its own initiative if no list exists yet."""
+    """Refreshes a downloaded sanctions list every 24 h. Automatically
+    performs an initial background download if no list exists yet."""
     import asyncio
     while True:
         try:
-            if os.path.exists(INDEX_PATH) and time.time() - os.path.getmtime(INDEX_PATH) > REFRESH_SECONDS:
+            needs_download = (
+                not os.path.exists(INDEX_PATH)
+                or (time.time() - os.path.getmtime(INDEX_PATH) > REFRESH_SECONDS)
+            )
+            if needs_download:
                 await asyncio.to_thread(refresh)
         except asyncio.CancelledError:
             raise

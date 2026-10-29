@@ -38,12 +38,12 @@ PETTY_THRESHOLD = 50000.0
 # A clean, established Indian vendor: every check run today and clear.
 CLEAN = {
     "sanctions": {"sanctions.status": "no_match"},
-    "gst": {"gstin.status": "active", "gstin.verification_level": "live"},
+    "gst": {"gstin.status": "active", "gstin.verification_level": "live", "gstin.name_match_level": "exact"},
     "bank": {"bank.status": "valid"},
     "jurisdiction": {"country.is_domestic": True},
     "web": {"web.ssl_grade": "A"},
     "email": {"email.dmarc_policy": "reject", "email.spf_present": True},
-    "breach": {"breach.count_5y": 0},
+    "breach": {"breach.catalogue_loaded": True, "breach.count_5y": 0},
     "certification": {"cert.required": True, "cert.status": "valid"},
     "financial": {"fin.rating_class": "investment"},
     "company_age": {"age.basis": "incorporation", "age.years": 10},

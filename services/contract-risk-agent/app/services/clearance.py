@@ -83,7 +83,8 @@ def decide(score: Optional[ScoreView], decision: Optional[DecisionView], *, purp
                 "conditions": [], "reasons": ["scorecard_unavailable"]}
 
     overrides = list(score.override_rule_ids or [])
-    blocked_by = list(dict.fromkeys(list(score.blocked_by or []) + overrides))
+    raw_blocked = [b.get('rule_id', str(b)) if isinstance(b, dict) else str(b) for b in (score.blocked_by or [])]
+    blocked_by = list(dict.fromkeys(raw_blocked + overrides))
     conditions, overdue = _overdue(decision.conditions if decision else [], now)
     blocking: list[str] = []
     basis: Optional[str] = None

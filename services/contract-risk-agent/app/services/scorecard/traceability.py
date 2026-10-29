@@ -7,6 +7,15 @@ from app.services.scorecard.default_ruleset import canonical_json_hash
 from app.services.scorecard.engine import evaluate_risk
 
 
+def snapshot_observations(snapshot: Optional[Dict[str, Any]], fetched_at: datetime,
+                          provider: str = "snapshot_replay") -> Dict[str, Any]:
+    """A stored snapshot is {signal: fields}; evaluate_risk wants
+    {signal: {"fields": ..., "fetched_at": ...}}. Without this conversion every
+    signal reads as empty and the vendor looks never rated."""
+    return {sig_key: {"fields": sig_fields, "fetched_at": fetched_at, "provider": provider}
+            for sig_key, sig_fields in (snapshot or {}).items()}
+
+
 def replay_assessment(
     stored_score: Dict[str, Any],
     ruleset_definition: Dict[str, Any],
@@ -21,14 +30,7 @@ def replay_assessment(
     elif not isinstance(assessed_at, datetime):
         assessed_at = datetime.now(timezone.utc)
 
-    # Convert snapshot into synthetic observations for evaluation
-    reconstituted_obs: Dict[str, Any] = {}
-    for sig_key, sig_fields in snapshot.items():
-        reconstituted_obs[sig_key] = {
-            "fields": sig_fields,
-            "fetched_at": assessed_at,
-            "provider": "snapshot_replay",
-        }
+    reconstituted_obs = snapshot_observations(snapshot, assessed_at)
 
     replayed = evaluate_risk(
         ruleset=ruleset_definition,
