@@ -5,12 +5,12 @@ import csv
 import io
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -36,6 +36,17 @@ class CreateBatchRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
+async def owned_batch(db: AsyncSession, batch_id: str, user: CurrentUser) -> DocumentBatch:
+    """The batch, if this user created it (admins see every batch)."""
+    batch = await db.get(DocumentBatch, batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    if batch.user_id != user.email and "admin" not in (user.role or "").lower():
+        raise HTTPException(status_code=403, detail={"code": "not_your_batch",
+                                                     "message": "This upload batch belongs to someone else"})
+    return batch
+
+
 @router.post("/batches", response_model=DataResponse, status_code=201)
 async def create_document_batch(
     payload: CreateBatchRequest,
@@ -53,6 +64,16 @@ async def create_document_batch(
     batch_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     uploader = user.email
+    # Files in a batch skip the 60-a-minute upload limit (documents.py), so the
+    # batch itself is the limit: at most that many files registered per hour.
+    registered = await db.scalar(
+        select(func.coalesce(func.sum(DocumentBatch.total_files), 0))
+        .where(DocumentBatch.user_id == uploader, DocumentBatch.created_at > now - timedelta(hours=1)))
+    if (registered or 0) + len(payload.files) > max_batch_files:
+        raise HTTPException(status_code=429, detail={
+            "code": "batch_allowance_used",
+            "message": f"At most {max_batch_files} files can be sent in batches per hour; "
+                       f"{registered} were registered in the last hour"})
 
     batch = DocumentBatch(
         id=batch_id,
@@ -100,9 +121,7 @@ async def get_document_batch(
     db: AsyncSession = Depends(get_db),
 ):
     """Retrieves batch status, file counts, and individual file items."""
-    batch = await db.get(DocumentBatch, batch_id)
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
+    batch = await owned_batch(db, batch_id, user)
 
     files_res = await db.execute(
         select(DocumentBatchFile)
@@ -153,9 +172,7 @@ async def cancel_document_batch(
     db: AsyncSession = Depends(get_db),
 ):
     """Cancels remaining queued files in a batch."""
-    batch = await db.get(DocumentBatch, batch_id)
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
+    batch = await owned_batch(db, batch_id, user)
 
     # Update queued files to cancelled
     res = await db.execute(
@@ -186,9 +203,7 @@ async def retry_failed_batch_files(
     db: AsyncSession = Depends(get_db),
 ):
     """Resets failed files in a batch back to queued for retry."""
-    batch = await db.get(DocumentBatch, batch_id)
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
+    batch = await owned_batch(db, batch_id, user)
 
     res = await db.execute(
         update(DocumentBatchFile)
@@ -224,9 +239,7 @@ async def download_batch_csv_report(
     db: AsyncSession = Depends(get_db),
 ):
     """Streams a CSV summary report of all files in the batch."""
-    batch = await db.get(DocumentBatch, batch_id)
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
+    batch = await owned_batch(db, batch_id, user)
 
     files_res = await db.execute(
         select(DocumentBatchFile)

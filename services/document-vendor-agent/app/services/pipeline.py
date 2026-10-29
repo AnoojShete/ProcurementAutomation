@@ -385,11 +385,15 @@ async def tax_agent(db: AsyncSession, kafka_producer, envelope: dict, data: byte
 
     fields = envelope.get("extracted_fields", {})
     tax = extract_tax_fields(envelope.get("raw_text") or "", fields.get("line_items"))
-    token = await asyncio.to_thread(einvoice.find_qr_token, data, envelope.get("file_type") or "pdf") if data else None
     vendor = None
     if envelope.get("vendor_id"):
         vendor = (await db.execute(_sql("SELECT gstin, country, annual_turnover_inr FROM vendors WHERE id = :v"),
                                    {"v": envelope["vendor_id"]})).first()
+    einvoice_turnover = float(get_rule("gst.einvoice_required_turnover_inr", fallback=50_000_000))
+    must_einvoice = bool(vendor and vendor.annual_turnover_inr is not None
+                         and float(vendor.annual_turnover_inr) > einvoice_turnover)
+    look_for_qr = bool(data) and (tax.irn or must_einvoice or einvoice.looks_like_einvoice(envelope.get("raw_text") or ""))
+    token = await asyncio.to_thread(einvoice.find_qr_token, data, envelope.get("file_type") or "pdf") if look_for_qr else None
     fx_info = envelope.get("fx") or {}
     tolerance = float(get_rule("gst.tax_tolerance_inr", fallback=1.0))
     invoice_number = fields.get("invoice_number") or fields.get("document_number")
@@ -400,7 +404,7 @@ async def tax_agent(db: AsyncSession, kafka_producer, envelope: dict, data: byte
         vendor_turnover_inr=float(vendor.annual_turnover_inr) if vendor and vendor.annual_turnover_inr is not None else None,
         buyer_gstin=(get_rule("gst.buyer_gstin", fallback="") or None), tolerance=tolerance,
         require_breakdown=bool(get_rule("gst.require_breakdown", fallback=False)),
-        einvoice_turnover_inr=float(get_rule("gst.einvoice_required_turnover_inr", fallback=50_000_000)),
+        einvoice_turnover_inr=einvoice_turnover,
         rates=await load_gst_rates(db),
     )
     qr = einvoice.verify(token, supplier_gstin=tax.supplier_gstin, buyer_gstin=tax.buyer_gstin,

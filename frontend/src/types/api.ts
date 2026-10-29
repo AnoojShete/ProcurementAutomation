@@ -413,16 +413,19 @@ export interface RiskFactor {
   reason?: string | null;
 }
 
+// Older scores name the check ("sanctions"); scorecard scores name the rule ("R-SAN-01").
 export interface RiskOverrideCheck {
-  check: "gstin" | "sanctions" | "ifsc" | string;
+  check?: "gstin" | "sanctions" | "ifsc" | string;
+  rule_id?: string;
   status: "triggered" | "clear" | "not_checked";
-  reason: string | null;
+  reason?: string | null;
 }
 
 export interface VendorRisk {
   vendor_id: string;
   risk_band: RiskBand;
-  risk_score: number;
+  // null until the rating is "assessed" (unrated / provisional vendors have no score)
+  risk_score: number | null;
   top_factors?: RiskFactor[];
   model_version?: string | null;
   scored_at: string | null;
@@ -557,15 +560,26 @@ export interface VendorDispute {
 
 export interface VendorEvidence {
   id: string;
-  vendor_id: string;
-  document_type: string;
-  file_name: string;
-  mime_type: string;
-  valid_from: string;
+  evidence_type: string;
+  title: string;
+  status: "accepted" | "pending_review" | string;
+  valid_from: string | null;
   valid_until: string | null;
+  scope_covers_service?: boolean;
   verified_at: string | null;
   verified_by: string | null;
-  status: "valid" | "expired" | "rejected";
+  created_at: string;
+}
+
+/** What finance records in a vendor's evidence register (metadata carries
+ * a credit rating's agency/grade or audited statement figures). */
+export interface VendorEvidenceCreate {
+  evidence_type: string;
+  title: string;
+  valid_from?: string;
+  valid_until?: string;
+  notes?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface RulesetResponse {

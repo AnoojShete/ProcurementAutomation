@@ -75,6 +75,7 @@ class TestBatchEndpoints:
         mock_db.add = MagicMock()
         mock_db.commit = AsyncMock()
         mock_db.flush = AsyncMock()
+        mock_db.scalar = AsyncMock(return_value=0)  # files registered in the last hour
 
         test_app.dependency_overrides[get_db] = lambda: mock_db
 
@@ -103,6 +104,58 @@ class TestBatchEndpoints:
             assert data["total_files"] == 2
             assert data["status"] == "in_progress"
             assert mock_db.add.call_count >= 3
+
+    def test_someone_elses_batch_is_refused(self, test_app):
+        theirs = SimpleNamespace(id="b-x", user_id="colleague@example.com", status="in_progress", total_files=1,
+                                 processed_files=0, failed_files=0, cancelled_files=0, completed_at=None,
+                                 created_at=datetime.now(timezone.utc))
+        mock_db = AsyncMock()
+        mock_db.get = AsyncMock(return_value=theirs)
+        test_app.dependency_overrides[get_db] = lambda: mock_db
+        with TestClient(test_app) as client:
+            for method, url in (("get", "/documents/batches/b-x"), ("post", "/documents/batches/b-x/cancel"),
+                                ("post", "/documents/batches/b-x/retry-failed"),
+                                ("get", "/documents/batches/b-x/report.csv")):
+                assert getattr(client, method)(url).status_code == 403, url
+            r = client.post("/documents/upload?batch_id=b-x&client_file_id=f-1",
+                            files={"file": ("a.pdf", b"%PDF-1.4 x", "application/pdf")})
+            assert r.status_code == 403
+        mock_db.commit.assert_not_awaited()
+
+    def test_batch_files_skip_the_minute_limit_once(self, test_app):
+        """A registered, not yet uploaded file of the user's own open batch
+        doesn't use the 60-a-minute counter; the same file again does."""
+        mine = SimpleNamespace(id="b-1", user_id="uploader@example.com", status="in_progress", total_files=2,
+                               processed_files=0, failed_files=0, cancelled_files=0, completed_at=None)
+        redis = MagicMock(incr=AsyncMock(return_value=61), expire=AsyncMock())
+        test_app.state.redis = redis
+        mock_db = AsyncMock()
+        mock_db.get = AsyncMock(return_value=mine)
+        mock_db.scalar = AsyncMock(side_effect=["queued", None, "completed"])
+        test_app.dependency_overrides[get_db] = lambda: mock_db
+        stored = SimpleNamespace(id="d1", status="pending", is_likely_duplicate=False,
+                                 duplicate_of_document_id=None, sha256_hash="0" * 64)
+        with patch.object(documents, "scan_upload", AsyncMock()), \
+                patch.object(documents, "store_and_record_upload", AsyncMock(return_value=stored)), \
+                TestClient(test_app) as client:
+            upload = lambda: client.post("/documents/upload?batch_id=b-1&client_file_id=f-1",  # noqa: E731
+                                         files={"file": ("a.pdf", b"%PDF-1.4 x", "application/pdf")})
+            assert upload().status_code == 201
+            redis.incr.assert_not_awaited()
+            assert upload().status_code == 429
+
+    def test_batch_allowance_is_per_hour(self, test_app):
+        mock_db = AsyncMock()
+        mock_db.add = MagicMock()
+        mock_db.scalar = AsyncMock(return_value=499)  # files already registered this hour
+        test_app.dependency_overrides[get_db] = lambda: mock_db
+        files = [{"client_file_id": f"f-{i}", "client_relative_path": f"{i}.pdf", "filename": f"{i}.pdf",
+                  "file_size_bytes": 10} for i in range(2)]
+        with TestClient(test_app) as client:
+            r = client.post("/documents/batches", json={"total_files": 2, "files": files})
+            assert r.status_code == 429 and r.json()["detail"]["code"] == "batch_allowance_used"
+            mock_db.scalar.return_value = 498
+            assert client.post("/documents/batches", json={"total_files": 2, "files": files}).status_code == 201
 
     def test_batch_cancellation(self, test_app):
         batch_id = "test-batch-cancel"

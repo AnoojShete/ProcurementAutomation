@@ -115,10 +115,21 @@ async def upload_document(
         if cached is not None:
             return cached
 
+    # A file registered in the user's own open batch was already counted when
+    # the batch was created (batches.py); each registered file uses this once.
+    in_batch = False
+    if batch_id:
+        from app.api.batches import owned_batch
+        batch_row = await owned_batch(db, batch_id, user)
+        if client_file_id and batch_row.status == "in_progress":
+            from sqlalchemy import select
+            in_batch = (await db.scalar(select(DocumentBatchFile.status).where(
+                DocumentBatchFile.batch_id == batch_id, DocumentBatchFile.client_file_id == client_file_id))) == "queued"
+
     # Rate limiting: max 60 uploads per minute per user (Prompt 11 Section 4.3)
     try:
         redis_client = getattr(request.app.state, "redis", None)
-        if redis_client:
+        if redis_client and not in_batch:
             minute_key = f"rate:upload:{user.email or user.id}:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}"
             count = await redis_client.incr(minute_key)
             if count == 1:

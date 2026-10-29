@@ -150,11 +150,13 @@ async def score_vendor(
 
     # 4. Gather observations (run collectors or load fresh)
     if force_fresh_collect:
-        observations = await collect_all_signals(db, vendor, now=now, effective_tier=effective_tier)
+        observations = await collect_all_signals(db, vendor, now=now, effective_tier=effective_tier,
+                                                 lexicon=ruleset_def.get("lookups", {}).get("adverse_media_lexicon"))
     else:
         observations = await load_fresh_observations(db, vendor_id, ruleset_def, now)
         if len(observations) < len(ruleset_def.get("signals", [])):
-            fresh_obs = await collect_all_signals(db, vendor, now=now, effective_tier=effective_tier)
+            fresh_obs = await collect_all_signals(db, vendor, now=now, effective_tier=effective_tier,
+                                                 lexicon=ruleset_def.get("lookups", {}).get("adverse_media_lexicon"))
             for k, v in fresh_obs.items():
                 if k not in observations:
                     observations[k] = v

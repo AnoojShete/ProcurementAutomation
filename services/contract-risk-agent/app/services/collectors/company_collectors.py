@@ -7,8 +7,49 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Vendor, VendorEvidence
 from app.services.collectors.base import record_observation, record_raw_response
+from shared.rules_engine import get_rule
 
 logger = logging.getLogger(__name__)
+
+# Figures finance enters from a vendor's latest audited statements (any one
+# currency unit, e.g. Rs crore). See docs/business-rules.md, "Financial
+# statement score".
+STATEMENT_FIGURES = ("total_equity", "profit_after_tax", "current_assets",
+                     "current_liabilities", "total_borrowings")
+
+
+def financial_statement_score(meta: Dict[str, Any]) -> Tuple[Optional[float], list, list]:
+    """Score audited statements from 0 to 1: the share of five checks passed.
+
+    Returns (score, checks, missing). score is None when a figure or the
+    audit opinion is missing (financial is then not assessed). A going-concern
+    doubt in the audit report scores 0 whatever the figures say.
+    """
+    missing = [k for k in STATEMENT_FIGURES if meta.get(k) is None]
+    if not meta.get("audit_opinion"):
+        missing.append("audit_opinion")
+    if missing:
+        return None, [], missing
+    f = {k: float(meta[k]) for k in STATEMENT_FIGURES}
+    min_current_ratio = float(get_rule("risk.financial_min_current_ratio", fallback=1.2))
+    max_debt_to_equity = float(get_rule("risk.financial_max_debt_to_equity", fallback=1.0))
+    current_ratio = f["current_assets"] / f["current_liabilities"] if f["current_liabilities"] > 0 else float("inf")
+    debt_to_equity = f["total_borrowings"] / f["total_equity"] if f["total_equity"] > 0 else float("inf")
+    checks = [
+        ("Positive net worth", f["total_equity"] > 0, f"equity {f['total_equity']:,.2f}"),
+        ("Profitable year", f["profit_after_tax"] > 0, f"profit after tax {f['profit_after_tax']:,.2f}"),
+        (f"Current ratio at least {min_current_ratio:g}", current_ratio >= min_current_ratio,
+         f"current ratio {current_ratio:.2f}"),
+        (f"Debt to equity at most {max_debt_to_equity:g}", debt_to_equity <= max_debt_to_equity,
+         f"debt to equity {debt_to_equity:.2f}"),
+        ("Unmodified audit opinion", str(meta["audit_opinion"]).lower() == "unmodified",
+         f"opinion {meta['audit_opinion']}"),
+    ]
+    score = sum(passed for _, passed, _ in checks) / len(checks)
+    if meta.get("going_concern_doubt"):
+        checks.append(("No going-concern doubt", False, "auditor reports a material uncertainty"))
+        score = 0.0
+    return round(score, 2), checks, []
 
 
 async def collect_financial(
@@ -31,10 +72,15 @@ async def collect_financial(
     rating_class = "none"
     score = None
     age_days = 999
+    checks: list = []
+    missing: list = []
 
     if ev_row:
         age_days = (now - ev_row.created_at).days
         meta = ev_row.metadata_json or {}
+        if ev_row.evidence_type == "financial_statement" and ev_row.valid_from:
+            # Statements age from the end of the period they cover, not the upload.
+            age_days = (now.date() - ev_row.valid_from).days
         if age_days <= 365:
             if ev_row.evidence_type == "credit_rating":
                 basis = "rating"
@@ -48,8 +94,9 @@ async def collect_financial(
                 else:
                     rating_class = "non_investment"
             elif ev_row.evidence_type == "financial_statement":
-                basis = "score"
-                score = float(meta.get("score", 0.85))
+                score, checks, missing = financial_statement_score(meta)
+                if score is not None:
+                    basis = "score"
 
     fields = {
         "fin.basis": basis,
@@ -80,6 +127,9 @@ async def collect_financial(
         {"label": "Rating / Score", "value": grade if basis == "rating" else f"{score:.2f}" if score is not None else "None"},
         {"label": "Evidence age (days)", "value": str(age_days) if basis != "none" else "—"},
     ]
+    facts += [{"label": name, "value": f"{'pass' if passed else 'fail'} ({detail})"} for name, passed, detail in checks]
+    if missing:
+        facts.append({"label": "Statement incomplete", "value": "missing " + ", ".join(missing)})
 
     obs_status = "ok" if basis != "none" else "not_checked"
     obs = await record_observation(

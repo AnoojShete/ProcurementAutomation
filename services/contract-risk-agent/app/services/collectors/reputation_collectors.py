@@ -49,6 +49,86 @@ DEFAULT_LEXICON = {
 }
 
 
+GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+GUARDIAN_URL = "https://content.guardianapis.com/search"
+GDELT_MIN_INTERVAL_S = 5.5  # GDELT asks for at most one request every 5 seconds
+_gdelt_lock = asyncio.Lock()
+_gdelt_last_call = 0.0
+
+
+def _mentions_vendor(vendor_name_clean: str, text: str) -> bool:
+    """Full normalised name, or its first word when that is distinctive
+    (5+ letters, not a common word: "Hathway" yes, "Tech" or "Global" no)."""
+    from app.services import sanctions
+    from app.services.breach_catalogue import is_short_or_common
+    if not vendor_name_clean:
+        return False
+    words = f" {sanctions.normalise(text)} "
+    if f" {vendor_name_clean} " in words:
+        return True
+    brand = vendor_name_clean.split()[0]
+    return not is_short_or_common(brand) and len(brand) >= 5 and f" {brand} " in words
+
+
+async def _search_gdelt(client: httpx.AsyncClient, name: str, now: datetime) -> Optional[List[Dict[str, Any]]]:
+    """Keyless news search (GDELT DOC 2.0, rolling ~3 months). None = not searched."""
+    global _gdelt_last_call
+    from app.services import sanctions
+    term = sanctions.normalise(name)
+    cb = CircuitBreaker("gdelt")
+    if not term or not await cb.can_execute():
+        return None
+    async with _gdelt_lock:
+        wait = GDELT_MIN_INTERVAL_S - (asyncio.get_running_loop().time() - _gdelt_last_call)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            resp = await client.get(GDELT_URL, params={"query": f'"{term}" sourcelang:english', "mode": "artlist",
+                                                       "format": "json", "maxrecords": 75, "sort": "datedesc"})
+        except Exception as e:
+            logger.warning(f"GDELT news search failed: {e}")
+            resp = None
+        finally:
+            _gdelt_last_call = asyncio.get_running_loop().time()
+    try:
+        data = resp.json() if resp is not None and resp.status_code == 200 else None
+    except ValueError:
+        data = None  # GDELT answers a rate-limited call with plain text and HTTP 200
+    if data is None:
+        await cb.record_failure()
+        return None
+    await cb.record_success()
+    articles = []
+    for a in data.get("articles") or []:
+        seen = a.get("seendate") or ""
+        articles.append({"title": a.get("title", ""), "url": a.get("url", ""), "snippet": "",
+                         "date": f"{seen[:4]}-{seen[4:6]}-{seen[6:8]}" if len(seen) >= 8 else now.date().isoformat(),
+                         "source": a.get("domain") or "GDELT"})
+    return articles
+
+
+async def _search_guardian(client: httpx.AsyncClient, name: str, now: datetime) -> Optional[List[Dict[str, Any]]]:
+    """The Guardian Open Platform (24 months of archive); needs GUARDIAN_API_KEY. None = not searched."""
+    key = os.getenv("GUARDIAN_API_KEY", "").strip()
+    cb = CircuitBreaker("guardian")
+    if not key or not await cb.can_execute():
+        return None  # keyless calls get HTTP 401
+    try:
+        resp = await client.get(GUARDIAN_URL, params={"q": name, "show-fields": "headline,trailText", "api-key": key})
+    except Exception as e:
+        logger.warning(f"Guardian news search failed: {e}")
+        resp = None
+    if resp is None or resp.status_code != 200:
+        # 401 bad key, 429 quota, 5xx: nothing was searched
+        await cb.record_failure()
+        return None
+    await cb.record_success()
+    return [{"title": (r.get("fields") or {}).get("headline", r.get("webTitle", "")), "url": r.get("webUrl", ""),
+             "date": r.get("webPublicationDate", now.isoformat())[:10], "source": "The Guardian",
+             "snippet": (r.get("fields") or {}).get("trailText", "")}
+            for r in (resp.json().get("response") or {}).get("results", [])]
+
+
 async def collect_adverse_media(
     db: AsyncSession,
     vendor: Vendor,
@@ -56,7 +136,7 @@ async def collect_adverse_media(
     lexicon: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Any, Any]:
     """Collects adverse media mentions via two-stage extraction (Prompt 9C Section F2)."""
-    provider = "The Guardian / Open Media Feed"
+    provider = "GDELT / The Guardian"
     lexicon = lexicon or DEFAULT_LEXICON
     lexicon_version = lexicon.get("version", "1.0")
     categories_cfg = lexicon.get("categories", {})
@@ -75,47 +155,18 @@ async def collect_adverse_media(
     from shared.live_mode.checker import is_live_verification_enabled
     live_enabled = await is_live_verification_enabled(db)
 
-    sources_reachable = True if live_enabled else False
-    cb = CircuitBreaker("guardian")
-
     retrieved_articles: List[Dict[str, Any]] = []
-
-    guardian_key = os.getenv("GUARDIAN_API_KEY", "").strip()
+    searched: List[str] = []
     if live_enabled:
-        if not guardian_key:
-            # The Guardian refuses keyless calls (HTTP 401); without a key nothing is searched.
-            sources_reachable = False
-        elif not await cb.can_execute():
-            sources_reachable = False
-        else:
-            try:
-                # 10s per-source timeout cap (Section E1)
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.get(
-                        "https://content.guardianapis.com/search",
-                        params={"q": vendor.name, "show-fields": "headline,trailText", "api-key": guardian_key},
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json().get("response", {})
-                        for r in data.get("results", []):
-                            fields_data = r.get("fields", {})
-                            retrieved_articles.append({
-                                "title": fields_data.get("headline", r.get("webTitle", "")),
-                                "url": r.get("webUrl", ""),
-                                "date": r.get("webPublicationDate", now.isoformat())[:10],
-                                "source": "The Guardian",
-                                "snippet": fields_data.get("trailText", ""),
-                            })
-                        await cb.record_success()
-                    else:
-                        # Any refusal (401 bad key, 429 quota, 5xx) means nothing was searched:
-                        # never report that as "no adverse media found".
-                        await cb.record_failure()
-                        sources_reachable = False
-            except Exception as e:
-                logger.warning(f"Live adverse media lookup failed: {e}")
-                await cb.record_failure()
-                sources_reachable = False
+        async with httpx.AsyncClient(timeout=10.0) as client:  # 10s per-source cap (Section E1)
+            for source, search in (("GDELT", _search_gdelt), ("The Guardian", _search_guardian)):
+                found = await search(client, vendor.name or "", now)
+                if found is not None:
+                    searched.append(source)
+                    retrieved_articles.extend(found)
+    # Only a source that answered counts as searched; a refused or skipped
+    # source is never reported as "no adverse media found".
+    sources_reachable = bool(searched)
 
     retrieved_count = len(retrieved_articles)
     discarded_not_vendor = 0
@@ -138,8 +189,8 @@ async def collect_adverse_media(
         snippet = (art.get("snippet") or "").lower()
         combined_text = f"{title} {snippet}"
 
-        # (a) vendor name appears in title or snippet
-        if vendor_name_clean and vendor_name_clean not in combined_text:
+        # (a) vendor name, or its distinctive brand word, appears in title or snippet
+        if not _mentions_vendor(vendor_name_clean, combined_text):
             discarded_not_vendor += 1
             continue
 
@@ -157,7 +208,7 @@ async def collect_adverse_media(
         art_categories = []
         art_severity = "medium"
         for cat_name, cat_data in categories_cfg.items():
-            kws = cat_data.get("keywords", [])
+            kws = cat_data.get("keywords") or cat_data.get("phrases") or []  # built-in / ruleset lexicon
             cat_sev = cat_data.get("severity", "medium")
             for kw in kws:
                 if kw.lower() in combined_text:
@@ -207,9 +258,9 @@ async def collect_adverse_media(
         signal_key="adverse_media",
         provider=provider,
         request_method="GET",
-        request_url=f"https://content.guardianapis.com/search?q={vendor.name}",
+        request_url=f"{GDELT_URL}?query={vendor.name}",
         body={"headlines": matching_headlines, "extraction": extraction, "cleared_urls": list(cleared_urls)},
-        source_id="guardian_api",
+        source_id="news_search",
         response_status=200 if sources_reachable else 503,
         fetched_at=now,
     )
@@ -219,6 +270,7 @@ async def collect_adverse_media(
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
         {"label": "HTTP status", "value": "200" if sources_reachable else "503"},
         {"label": "Sources reachable", "value": "Yes" if sources_reachable else "No"},
+        {"label": "Sources searched", "value": ", ".join(searched) or "None"},
         {"label": "Qualifying articles", "value": str(qualifying_articles)},
         {"label": "High severity count", "value": str(high_severity_count)},
     ]

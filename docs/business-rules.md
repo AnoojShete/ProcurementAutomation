@@ -54,7 +54,7 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `document.extraction_fallback_confidence_threshold` | `0.5` | Confidence threshold to trigger layout/OCR fallback models | document-vendor-agent: extraction_router.py | `document-vendor-agent` · `test_document_extraction_fallback_confidence_threshold` |
 | `document.image_preprocessing` | `true` | Straighten and enlarge photographed / scanned documents before reading them | document-vendor-agent: extraction_router.py | `document-vendor-agent` · `test_document_image_preprocessing` |
 | `document.review_reminder_hours` | `24` | Remind reviewers when a document has waited this long in the review queue | document-vendor-agent: reminder_sweep.py | `document-vendor-agent` · `test_document_review_reminder_hours` |
-| `document.upload_max_files_per_batch` | `500` | Most files one multi-file or folder upload may contain | document-vendor-agent: api/batches.py | `document-vendor-agent` · `test_document_upload_max_files_per_batch` |
+| `document.upload_max_files_per_batch` | `500` | Most files one multi-file or folder upload may contain, and most batch files one user can register per hour (batch files skip the 60-a-minute upload limit) | document-vendor-agent: api/batches.py | `document-vendor-agent` · `test_document_upload_max_files_per_batch` |
 | `gst.buyer_gstin` | `"29AAACA1234B1ZE"` | Our GSTIN: invoices must be addressed to it, and it decides within-state (CGST + SGST) versus between-state (IGST) supplies | document-vendor-agent: pipeline.py (tax_agent), api/gst.py | `document-vendor-agent` · `test_gst_buyer_gstin` |
 | `gst.einvoice_required_turnover_inr` | `50000000` | A vendor with a recorded turnover above this must send e-invoices with a signed QR; an invoice without one goes to review | document-vendor-agent: pipeline.py (tax_agent) | `document-vendor-agent` · `test_gst_einvoice_required_turnover_inr` |
 | `gst.require_breakdown` | `false` | An Indian invoice with no CGST/SGST/IGST amounts goes to review (off: only noted as incomplete) | document-vendor-agent: pipeline.py (tax_agent) | `document-vendor-agent` · `test_gst_require_breakdown` |
@@ -75,6 +75,8 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `risk.breach_catalogue_max_age_days` | `30` | A breach catalogue older than this no longer counts; breach history becomes not assessed | contract-risk-agent: collectors/cyber_collectors.py | `contract-risk-agent` · `test_risk_breach_catalogue_max_age_days` |
 | `risk.breach_name_match_pct` | `85` | A breach whose name is at least this similar to the vendor's is a candidate a reviewer must confirm | contract-risk-agent: collectors/cyber_collectors.py | `contract-risk-agent` · `test_risk_breach_name_match_pct` |
 | `risk.contract_renewal_milestones_days` | `[60, 30, 15]` | Days before renewal to trigger notification alerts | contract-risk-agent: api/contracts.py, contract-risk-agent: workflows/activities.py | `contract-risk-agent` · `test_risk_contract_renewal_milestones_days` |
+| `risk.financial_max_debt_to_equity` | `1.0` | Audited statements pass the leverage check when total borrowings ÷ total equity is at most this (financial statement score, below) | contract-risk-agent: collectors/company_collectors.py | `contract-risk-agent` · `test_risk_financial_max_debt_to_equity` |
+| `risk.financial_min_current_ratio` | `1.2` | Audited statements pass the liquidity check when current assets ÷ current liabilities is at least this (financial statement score, below) | contract-risk-agent: collectors/company_collectors.py | `contract-risk-agent` · `test_risk_financial_min_current_ratio` |
 | `risk.min_relationship_days` | `90` | Days on file (without a delivered order) before a vendor's incident history counts as assessed | contract-risk-agent: collectors/performance_collectors.py | `contract-risk-agent` · `test_risk_min_relationship_days` |
 | `risk.petty_threshold` | `50000` | A provisional low-tier vendor is still cleared for a purchase or contract up to this amount (no hard override) | contract-risk-agent: api/vendors.py (clearance) | `contract-risk-agent` · `test_risk_petty_threshold` |
 | `risk.raw_retention_months` | `24` | How long raw responses from the risk signal collectors are kept | contract-risk-agent: collectors/base.py | `contract-risk-agent` · `test_risk_raw_retention_months` |
@@ -90,6 +92,31 @@ Rules are read through `shared/rules_engine.get_rule` (cached 5 min, refreshed o
 | `vendor.petty_tier_max_amount` | `5000` | Maximum threshold for petty spend tier | document-vendor-agent: vendor_tier_service.py | `document-vendor-agent` · `test_vendor_petty_tier_max_amount` |
 | `vendor.standard_tier_max_amount` | `50000` | Maximum threshold for standard spend tier | document-vendor-agent: vendor_tier_service.py | `document-vendor-agent` · `test_vendor_standard_tier_max_amount` |
 | `vendor.structuring_detection_window_days` | `90` | Lookback window in days to detect invoice structuring | document-vendor-agent: vendor_tier_service.py | `document-vendor-agent` · `test_vendor_structuring_detection_window_days` |
+
+## Financial statement score (set 29 Oct 2026)
+
+A vendor with no current credit rating (Hathway's was withdrawn in 2022) is
+scored from its latest audited statements. Finance enters five figures from
+them in the vendor's Evidence Register (type "Audited financial statements"),
+in any one unit, plus the period end, the auditor's opinion and whether the
+auditor reports a going-concern doubt. The score is the share of five checks
+passed:
+
+| Check | Passes when |
+|---|---|
+| Positive net worth | total equity > 0 |
+| Profitable year | profit after tax > 0 |
+| Liquidity | current assets ÷ current liabilities ≥ `risk.financial_min_current_ratio` (1.2) |
+| Leverage | total borrowings ÷ total equity ≤ `risk.financial_max_debt_to_equity` (1.0) |
+| Clean audit | the auditor's opinion is unmodified |
+
+A going-concern doubt scores 0 whatever the figures say. The scorecard then
+applies its existing outcomes: 0.8 or more (4–5 checks) R-FIN-04, 0 points;
+0.4–0.6 (2–3 checks) R-FIN-05, 2 points; below 0.4 R-FIN-06, 4 points. A
+missing figure leaves financial "not assessed" (R-FIN-07); it no longer
+counts as a pass. Statements older than 365 days from their period end don't
+count. A credit rating, when there is one, is used instead. These limits are
+ours for the project; a company adopting it would have its finance team set them.
 
 ## Not enforced
 

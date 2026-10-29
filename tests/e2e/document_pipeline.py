@@ -28,6 +28,7 @@ import sys
 import time
 import uuid
 import zipfile
+import zlib
 from datetime import date
 
 import requests
@@ -177,6 +178,33 @@ def near_limit_scan():
     return data, side
 
 
+def operator_bomb_pdf(number, ops=15_000_000):
+    """A real invoice page whose ~300 KB compressed content stream expands to
+    15 million graphics-state operators (`q 0.5 g Q`). The parser walks them
+    one by one (~22 s per million here, little memory), so it can't finish
+    within the extraction time limit on any machine we use. Replaces the
+    24 MB inline-image scan, which faster parsers now read in ~66 s."""
+    lines = render_document(RNG, "invoice", "A", VENDOR, ITEMS, number, date.today(), "Acme Corp IT Department")[0]
+    esc = [ln.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)") for ln in lines]
+    text = "BT /F1 10 Tf 50 800 Td " + " ".join(f"({ln}) Tj 0 -14 Td" for ln in esc) + " ET\n"
+    stream = zlib.compress((text + "q 0.5 g Q\n" * ops).encode("latin-1", "replace"), 9)
+    objs = [b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> "
+            b"/Contents 4 0 R >>",
+            b"<< /Length %d /Filter /FlateDecode >>\nstream\n" % len(stream) + stream + b"\nendstream",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>"]
+    out, offsets = bytearray(b"%PDF-1.4\n"), []
+    for i, obj in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % i + obj + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+    out += b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+    return bytes(out)
+
+
 def blank_pdf():
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
@@ -221,8 +249,7 @@ def main():
         ("large_scan_under_limit.pdf", large, "classified"),
         ("corrupt.pdf", happy[: len(happy) // 3] + os.urandom(2000), "failed:damaged or incomplete"),
         ("blank_page.pdf", blank_pdf(), "failed:couldn't find any text"),
-        ("slow_to_parse.pdf", scan_pdf(int((((24_300_000 / 1.272) - 400_000) / 3) ** 0.5), f"INV-{RUN}-S", inline=True),
-         f"failed:within {EXTRACTION_TIMEOUT} seconds"),
+        ("slow_to_parse.pdf", operator_bomb_pdf(f"INV-{RUN}-S"), f"failed:within {EXTRACTION_TIMEOUT} seconds"),
     ]
     for name, data, expect in cases:
         status, body = upload(tok, name, data)

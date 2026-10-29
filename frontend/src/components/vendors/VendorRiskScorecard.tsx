@@ -41,13 +41,62 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { InlineError, InlineSuccess } from "@/components/ui/ErrorState";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 interface VendorRiskScorecardProps {
   vendorId: string;
   vendorName?: string;
   vendorTier?: string;
 }
+
+
+const EVIDENCE_TYPES: { value: string; label: string }[] = [
+  { value: "financial_statement", label: "Audited financial statements" },
+  { value: "credit_rating", label: "Credit rating" },
+  { value: "gst_certificate", label: "GST registration certificate" },
+  { value: "certificate_of_incorporation", label: "Certificate of incorporation" },
+  { value: "iso27001", label: "ISO 27001 certificate" },
+  { value: "soc2", label: "SOC 2 report" },
+];
+const evidenceLabel = (t: string) => EVIDENCE_TYPES.find((e) => e.value === t)?.label ?? t;
+
+// The evidence type that answers each scorecard signal.
+const EVIDENCE_FOR_SIGNAL: Record<string, string> = {
+  financial: "financial_statement",
+  gst: "gst_certificate",
+  company_age: "certificate_of_incorporation",
+  certification: "iso27001",
+};
+
+// Audited statement figures finance copies from the filing (one unit for all).
+const STATEMENT_FIGURES: { key: string; label: string }[] = [
+  { key: "total_equity", label: "Total equity" },
+  { key: "profit_after_tax", label: "Profit after tax" },
+  { key: "current_assets", label: "Total current assets" },
+  { key: "current_liabilities", label: "Total current liabilities" },
+  { key: "total_borrowings", label: "Total borrowings" },
+];
+
+type EvidenceForm = {
+  evidence_type: string;
+  title: string;
+  valid_from: string;
+  valid_until: string;
+  source: string;
+  agency: string;
+  grade: string;
+  figures: Record<string, string>;
+  unit: string;
+  audit_opinion: string;
+  going_concern_doubt: boolean;
+};
+
+const emptyEvidence = (evidence_type = "financial_statement"): EvidenceForm => ({
+  evidence_type, title: "", valid_from: "", valid_until: "", source: "", agency: "", grade: "",
+  figures: {}, unit: "Rs crore", audit_opinion: "unmodified", going_concern_doubt: false,
+});
+
+const fieldClass = "w-full text-sm p-2 border border-rule rounded bg-sheet text-ink";
 
 export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: VendorRiskScorecardProps) {
   const { user } = useAuth();
@@ -76,8 +125,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
   // Evidence
   const [evidenceList, setEvidenceList] = useState<VendorEvidence[]>([]);
   const [uploadEvidenceModal, setUploadEvidenceModal] = useState(false);
-  const [docType, setDocType] = useState("gst_status_proof");
-  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidenceForm, setEvidenceForm] = useState<EvidenceForm>(emptyEvidence());
   const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
@@ -231,22 +279,51 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
     }
   };
 
+  const openEvidence = (evidenceType?: string) => {
+    setEvidenceForm(emptyEvidence(evidenceType));
+    setUploadEvidenceModal(true);
+  };
+
+  const isStatement = evidenceForm.evidence_type === "financial_statement";
+  const statementComplete = STATEMENT_FIGURES.every((f) => evidenceForm.figures[f.key]?.trim());
+  const canSaveEvidence =
+    evidenceForm.title.trim() !== "" &&
+    (!isStatement || (statementComplete && evidenceForm.valid_from !== "")) &&
+    (evidenceForm.evidence_type !== "credit_rating" || evidenceForm.grade.trim() !== "");
+
   const handleUploadEvidence = async () => {
-    if (!evidenceFile) return;
+    const f = evidenceForm;
+    let metadata: Record<string, unknown> = {};
+    if (isStatement) {
+      metadata = {
+        ...Object.fromEntries(STATEMENT_FIGURES.map(({ key }) => [key, Number(f.figures[key])])),
+        unit: f.unit,
+        period_end: f.valid_from,
+        audit_opinion: f.audit_opinion,
+        going_concern_doubt: f.going_concern_doubt,
+      };
+    } else if (f.evidence_type === "credit_rating") {
+      metadata = { agency: f.agency.trim() || "CRISIL", grade: f.grade.trim().toUpperCase() };
+    }
+    if (f.source.trim()) metadata.source = f.source.trim();
     setIsUploadingEvidence(true);
     setUploadSuccess(null);
     try {
-      const fd = new FormData();
-      fd.append("file", evidenceFile);
-      fd.append("document_type", docType);
-      const res = await vendorsApi.uploadEvidence(vendorId, fd);
-      setEvidenceList((prev) => [res.data, ...prev]);
+      await vendorsApi.addEvidence(vendorId, {
+        evidence_type: f.evidence_type,
+        title: f.title.trim(),
+        valid_from: f.valid_from || undefined,
+        valid_until: f.valid_until || undefined,
+        notes: f.source.trim() || undefined,
+        metadata,
+      });
+      const list = await vendorsApi.evidence(vendorId);
+      setEvidenceList(list.data || []);
       setUploadEvidenceModal(false);
-      setEvidenceFile(null);
-      setUploadSuccess("Evidence document registered successfully.");
+      setUploadSuccess("Evidence recorded. The risk score was recalculated with it.");
       await handleRecompute(true);
     } catch (err: any) {
-      setError(err?.message || "Failed to upload evidence");
+      setError(err?.message || "Failed to record evidence");
     } finally {
       setIsUploadingEvidence(false);
     }
@@ -706,8 +783,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                               variant="secondary"
                               size="sm"
                               onClick={() => {
-                                setDocType(`${sig.signal_key}_proof`);
-                                setUploadEvidenceModal(true);
+                                openEvidence(EVIDENCE_FOR_SIGNAL[sig.signal_key]);
                               }}
                             >
                               <Upload className="size-3 mr-1" /> Upload Evidence
@@ -851,8 +927,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                               variant="secondary"
                               size="sm"
                               onClick={() => {
-                                setDocType(step.signal_key === "gst" ? "gst_status_proof" : "security_certificate");
-                                setUploadEvidenceModal(true);
+                                openEvidence(EVIDENCE_FOR_SIGNAL[step.signal_key]);
                               }}
                             >
                               <Upload className="size-3 mr-1" /> Upload
@@ -934,8 +1009,8 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
             title="Evidence Register"
             subtitle="Authoritative supplier compliance documents and verification certificates"
             action={
-              <Button variant="primary" size="sm" onClick={() => setUploadEvidenceModal(true)}>
-                <Upload className="size-3.5 mr-1" /> Upload Evidence Document
+              <Button variant="primary" size="sm" onClick={() => openEvidence()}>
+                <Upload className="size-3.5 mr-1" /> Add evidence
               </Button>
             }
           />
@@ -944,8 +1019,8 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
               <table className="min-w-full text-xs text-left divide-y divide-rule">
                 <thead className="bg-sheet-subtle text-ink-2 font-medium">
                   <tr>
-                    <th className="px-4 py-2.5">Document Type</th>
-                    <th className="px-4 py-2.5">File Name</th>
+                    <th className="px-4 py-2.5">Type</th>
+                    <th className="px-4 py-2.5">Title</th>
                     <th className="px-4 py-2.5">Valid From</th>
                     <th className="px-4 py-2.5">Valid Until</th>
                     <th className="px-4 py-2.5">Verification</th>
@@ -955,21 +1030,21 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                 <tbody className="divide-y divide-rule">
                   {evidenceList.map((e) => (
                     <tr key={e.id} className="hover:bg-sheet-subtle/50">
-                      <td className="px-4 py-2.5 font-medium text-ink">{e.document_type}</td>
-                      <td className="px-4 py-2.5 font-mono text-ink-2">{e.file_name}</td>
-                      <td className="px-4 py-2.5 text-ink-2">{formatDateTime(e.valid_from)}</td>
-                      <td className="px-4 py-2.5 text-ink-2">{e.valid_until ? formatDateTime(e.valid_until) : "Ongoing"}</td>
-                      <td className="px-4 py-2.5 text-ink-2">{e.verified_by || "Pending Review"}</td>
+                      <td className="px-4 py-2.5 font-medium text-ink">{evidenceLabel(e.evidence_type)}</td>
+                      <td className="px-4 py-2.5 text-ink-2">{e.title}</td>
+                      <td className="px-4 py-2.5 text-ink-2">{e.valid_from ? formatDate(e.valid_from) : "—"}</td>
+                      <td className="px-4 py-2.5 text-ink-2">{e.valid_until ? formatDate(e.valid_until) : "Ongoing"}</td>
+                      <td className="px-4 py-2.5 text-ink-2">{e.verified_by || "Pending review"}</td>
                       <td className="px-4 py-2.5">
-                        <Badge tone={e.status === "valid" ? "success" : e.status === "expired" ? "danger" : "neutral"}>
-                          {e.status}
+                        <Badge tone={e.status === "accepted" ? "success" : e.status === "rejected" ? "danger" : "neutral"}>
+                          {e.status === "accepted" ? "Accepted" : e.status === "pending_review" ? "Pending review" : e.status}
                         </Badge>
                       </td>
                     </tr>
                   ))}
                   {evidenceList.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-6 text-center text-ink-3">No evidence documents registered yet.</td>
+                      <td colSpan={6} className="px-4 py-6 text-center text-ink-3">No evidence recorded yet.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1141,33 +1216,120 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
         </div>
       </Modal>
 
-      {/* UPLOAD EVIDENCE MODAL */}
+      {/* EVIDENCE MODAL */}
       <Modal
         open={uploadEvidenceModal}
         onClose={() => setUploadEvidenceModal(false)}
-        title="Register Supporting Evidence"
+        title="Record evidence"
         size="md"
       >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-ink mb-1">Document Type</label>
+        <div className="space-y-4 text-sm">
+          <label className="block">
+            <span className="block text-xs font-semibold text-ink mb-1">Type</span>
+            <select
+              className={fieldClass}
+              value={evidenceForm.evidence_type}
+              onChange={(e) => setEvidenceForm(emptyEvidence(e.target.value))}
+            >
+              {EVIDENCE_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="block text-xs font-semibold text-ink mb-1">Title</span>
             <input
-              type="text"
-              className="w-full text-xs p-2 border border-rule rounded bg-sheet text-ink font-mono"
-              value={docType}
-              onChange={(e) => setDocType(e.target.value)}
+              className={fieldClass}
+              placeholder={isStatement ? "Audited consolidated results, FY 2025-26" : "Certificate number or name"}
+              value={evidenceForm.title}
+              onChange={(e) => setEvidenceForm({ ...evidenceForm, title: e.target.value })}
             />
+          </label>
+
+          {evidenceForm.evidence_type === "credit_rating" && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="block text-xs font-semibold text-ink mb-1">Agency</span>
+                <input className={fieldClass} placeholder="CRISIL" value={evidenceForm.agency}
+                  onChange={(e) => setEvidenceForm({ ...evidenceForm, agency: e.target.value })} />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-semibold text-ink mb-1">Grade</span>
+                <input className={fieldClass} placeholder="AA+" value={evidenceForm.grade}
+                  onChange={(e) => setEvidenceForm({ ...evidenceForm, grade: e.target.value })} />
+              </label>
+            </div>
+          )}
+
+          {isStatement && (
+            <div className="space-y-3">
+              <p className="text-xs text-ink-2">
+                Copy these from the latest audited statements, all in one unit. The score is the share of five
+                checks passed: positive net worth, a profit, enough liquidity, low borrowing and a clean audit.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {STATEMENT_FIGURES.map((f) => (
+                  <label key={f.key} className="block">
+                    <span className="block text-xs font-semibold text-ink mb-1">{f.label}</span>
+                    <input
+                      type="number"
+                      step="any"
+                      className={`${fieldClass} tabular-nums`}
+                      value={evidenceForm.figures[f.key] ?? ""}
+                      onChange={(e) =>
+                        setEvidenceForm({ ...evidenceForm, figures: { ...evidenceForm.figures, [f.key]: e.target.value } })
+                      }
+                    />
+                  </label>
+                ))}
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ink mb-1">Unit</span>
+                  <input className={fieldClass} value={evidenceForm.unit}
+                    onChange={(e) => setEvidenceForm({ ...evidenceForm, unit: e.target.value })} />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="block text-xs font-semibold text-ink mb-1">Auditor's opinion</span>
+                  <select className={fieldClass} value={evidenceForm.audit_opinion}
+                    onChange={(e) => setEvidenceForm({ ...evidenceForm, audit_opinion: e.target.value })}>
+                    <option value="unmodified">Unmodified</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="adverse">Adverse</option>
+                    <option value="disclaimer">Disclaimer</option>
+                  </select>
+                </label>
+                <label className="flex items-end gap-2 pb-2">
+                  <input type="checkbox" checked={evidenceForm.going_concern_doubt}
+                    onChange={(e) => setEvidenceForm({ ...evidenceForm, going_concern_doubt: e.target.checked })} />
+                  <span className="text-xs text-ink">Auditor reports a going-concern doubt</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="block text-xs font-semibold text-ink mb-1">{isStatement ? "Period end" : "Valid from"}</span>
+              <input type="date" className={fieldClass} value={evidenceForm.valid_from}
+                onChange={(e) => setEvidenceForm({ ...evidenceForm, valid_from: e.target.value })} />
+            </label>
+            {!isStatement && (
+              <label className="block">
+                <span className="block text-xs font-semibold text-ink mb-1">Valid until</span>
+                <input type="date" className={fieldClass} value={evidenceForm.valid_until}
+                  onChange={(e) => setEvidenceForm({ ...evidenceForm, valid_until: e.target.value })} />
+              </label>
+            )}
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-ink mb-1">Select File(s) (PDF / Image)</label>
-            <input
-              type="file"
-              multiple
-              className="w-full text-xs text-ink file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
-              onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
-            />
-          </div>
+          <label className="block">
+            <span className="block text-xs font-semibold text-ink mb-1">Source</span>
+            <input className={fieldClass} placeholder="Link to the filing or certificate"
+              value={evidenceForm.source}
+              onChange={(e) => setEvidenceForm({ ...evidenceForm, source: e.target.value })} />
+          </label>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-rule">
             <Button variant="secondary" size="sm" onClick={() => setUploadEvidenceModal(false)}>
@@ -1177,10 +1339,10 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
               variant="primary"
               size="sm"
               loading={isUploadingEvidence}
-              disabled={!evidenceFile}
+              disabled={!canSaveEvidence}
               onClick={handleUploadEvidence}
             >
-              Upload & Re-evaluate
+              Save and re-score
             </Button>
           </div>
         </div>

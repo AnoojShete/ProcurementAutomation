@@ -412,3 +412,25 @@ def test_risk_required_certifications_by_tier(rule):
 
     assert cert_required({"moderate": []}) is False
     assert cert_required({"moderate": ["ISO 27001"]}) is True
+
+
+def _statement(**overrides):
+    meta = {"total_equity": 100, "profit_after_tax": 10, "current_assets": 130,
+            "current_liabilities": 100, "total_borrowings": 90, "audit_opinion": "unmodified"}
+    return {**meta, **overrides}
+
+
+def test_risk_financial_min_current_ratio(rule):
+    from app.services.collectors.company_collectors import financial_statement_score
+    rule("risk.financial_min_current_ratio", 1.2)    # 1.3: passes, all five checks
+    assert financial_statement_score(_statement())[0] == 1.0
+    rule("risk.financial_min_current_ratio", 1.5)    # 1.3: fails liquidity
+    assert financial_statement_score(_statement())[0] == 0.8
+
+
+def test_risk_financial_max_debt_to_equity(rule):
+    from app.services.collectors.company_collectors import financial_statement_score
+    rule("risk.financial_max_debt_to_equity", 1.0)   # 0.9: passes
+    assert financial_statement_score(_statement())[0] == 1.0
+    rule("risk.financial_max_debt_to_equity", 0.5)   # 0.9: fails leverage
+    assert financial_statement_score(_statement())[0] == 0.8

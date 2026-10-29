@@ -6,6 +6,7 @@ import asyncio
 import os
 import sys
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
@@ -376,3 +377,25 @@ def test_ledger_gets_the_taxable_value_in_inr():
         run(pipeline.invoice_matching_agent(MagicMock(), None, env))
     assert sent["taxable_value"] == 160000.0 and sent["gst_amount"] == 28800.0
     assert sent["foreign_supplier"] is False and sent["invoice_date"] == "2026-10-15"
+
+
+def test_qr_search_runs_only_where_an_e_invoice_is_expected(rules):
+    """The QR search is the slowest step for ordinary invoices (PERF-1); it
+    runs when an IRN / e-invoice wording is printed, or when the supplier's
+    turnover makes e-invoicing mandatory (otherwise "QR present" would fail
+    without having looked)."""
+    rules("gst.buyer_gstin", BUYER)
+    rules("gst.einvoice_required_turnover_inr", 50_000_000)
+    plain = _envelope(gst_invoice(KA, BUYER, "INV-30", date(2026, 10, 15), LAPTOPS)[0])
+    signed_lines, _, token = gst_invoice(KA, BUYER, "INV-31", date(2026, 10, 15), LAPTOPS, sign_with=PRIVATE)
+    small = SimpleNamespace(gstin=KA["gstin"], country="IN", annual_turnover_inr=10_000_000)
+    large = SimpleNamespace(gstin=KA["gstin"], country="IN", annual_turnover_inr=900_000_000)
+    with patch.object(einvoice, "find_qr_token", wraps=einvoice.find_qr_token) as finder:
+        stage(plain, vendor=small, data=build_pdf(plain_lines := plain["raw_text"].split("\n")))
+        assert finder.call_count == 0
+        env, _ = stage(plain, vendor=large, data=build_pdf(plain_lines))
+        assert finder.call_count == 1
+        assert any(c["check"] == "e-invoice QR present" and not c["ok"] for c in env["tax_check"]["checks"])
+        env, _ = stage(_envelope(signed_lines), vendor=small, data=build_pdf(signed_lines, token))
+        assert finder.call_count == 2 and env["tax_check"]["einvoice"]["present"] is True
+    assert einvoice.looks_like_einvoice("IRN: 3f2a…\nAck No: 1123") and not einvoice.looks_like_einvoice("TAX INVOICE")

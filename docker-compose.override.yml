@@ -334,6 +334,8 @@ services:
       APP_ENV: ${APP_ENV:-development}
       # Reads business rules from auth-service (shared/rules_engine).
       RULES_ENGINE_INTERNAL_SECRET: ${RULES_ENGINE_INTERNAL_SECRET:-dev-rules-secret-change-me}
+      # Documents processed at once per worker (PERF-1).
+      APP_WORKER_CONCURRENCY: ${APP_WORKER_CONCURRENCY:-4}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}
       APP_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       # This service's own Kafka login (permissions: infra/redpanda/acls.conf).

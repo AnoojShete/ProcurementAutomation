@@ -27,7 +27,8 @@ RULES = [
              '"high": ["ISO 27001 or SOC 2 report covering the service"], "moderate": [], "low": []}',
      None, None),
     ("document.upload_max_files_per_batch", "document", "Max Files per Upload Batch",
-     "Most files one multi-file or folder upload may contain",
+     "Most files one multi-file or folder upload may contain, and most batch files one user can register "
+     "per hour (batch files skip the 60-a-minute upload limit)",
      "int", "500", 1, 5000),
 ]
 

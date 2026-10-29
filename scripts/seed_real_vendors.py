@@ -7,6 +7,11 @@ public, so the bank check is "not applicable (no bank details)".
     python scripts/seed_real_vendors.py            # create (or reuse) + score once
     python scripts/seed_real_vendors.py --rescore  # score the existing ones again
 
+Re-running adds any evidence below that a vendor doesn't have yet, so new
+evidence reaches vendors seeded earlier. The sanctions decisions below were
+taken by the team on 29 Oct 2026 (fuzzy name hits, different companies) and
+are recorded through the same endpoint a reviewer uses in the app.
+
 Scoring reads the breach history from the local Have I Been Pwned catalogue,
 so re-running it makes no HIBP calls. Needs the stack and live mode
 (turned on here) for the website and e-mail probes.
@@ -42,6 +47,10 @@ VENDORS = [
             {"evidence_type": "iso27001", "title": "ISO/IEC 27001:2022 (IND.24.16155/IS/U/A)",
              "valid_until": "2027-12-17", "scope_covers_service": True},
         ],
+        # Only candidate: InfoRos (Russia), 71 %.
+        "sanctions_clearance": "Not the listed entity. InfoRos is a Russian company; Infosys Limited is "
+                               "incorporated in India (CIN L85110KA1981PLC013115, GSTIN 29AAACI4798L1ZU). "
+                               "Only a 71 % fuzzy match on part of the name.",
     },
     {
         "profile": {
@@ -61,6 +70,12 @@ VENDORS = [
             {"evidence_type": "certificate_of_incorporation", "title": "CIN L52599TN1961PLC028758",
              "valid_from": "1961-05-02"},
         ],
+        # Candidates, all 70-74 %: Carlington Petrochem FZCO (UAE), Redin Exchange (Turkey),
+        # Kingston Holding (France), JSC Freight One (Russia).
+        "sanctions_clearance": "Not a listed entity. The candidates (Carlington Petrochem FZCO, UAE; Redin "
+                               "Exchange, Turkey; Kingston Holding, France; JSC Freight One, Russia) are "
+                               "different companies in other countries; Redington Limited is incorporated in "
+                               "India (CIN L52599TN1961PLC028758, GSTIN 33AABCR0347P1ZA). Fuzzy matches of 70-74 %.",
     },
     {
         "profile": {
@@ -76,7 +91,20 @@ VENDORS = [
             {"evidence_type": "certificate_of_incorporation", "title": "CIN L64204MH1959PLC011421",
              "valid_from": "1959-08-07"},
             # No credit rating: India Ratings withdrew it in March 2022 at the company's
-            # request (no debt). Financial stays "not assessed" until finance adds evidence.
+            # request (no debt), so finance scores the audited statements instead
+            # (docs/business-rules.md, "Financial statement score").
+            # Audited consolidated results, year ended 31 Mar 2026, filed 17 Apr 2026
+            # (BSE 533162); auditor Nayan Parikh & Co., unmodified opinion. Rs crore.
+            {"evidence_type": "financial_statement",
+             "title": "Audited consolidated results, FY 2025-26 (filed 17 Apr 2026)",
+             "valid_from": "2026-03-31",
+             "notes": "Statement of assets and liabilities and results, pages 8-9 of the filing",
+             "metadata": {"total_equity": 4466.74, "profit_after_tax": 82.24,
+                          "current_assets": 2762.99, "current_liabilities": 689.61,
+                          "total_borrowings": 0.47,   # non-current 0.01 + current 0.46
+                          "unit": "Rs crore", "period_end": "2026-03-31",
+                          "audit_opinion": "unmodified", "going_concern_doubt": False,
+                          "source": "https://www.hathway.com/documents/Financial%20Results/25/Q4/Financial%20Results%20FY2025-26%20Q4.pdf"}},
         ],
     },
 ]
@@ -123,9 +151,16 @@ def main():
                 continue
             vendor_id = call("POST", "/vendors/onboard", admin,
                              json={**spec["profile"], "confirm": ["lookalike"]})["id"]
-            for ev in spec["evidence"]:
+        have = {(e["evidence_type"], e["title"]) for e in call("GET", f"/vendors/{vendor_id}/evidence", admin)}
+        for ev in spec["evidence"]:
+            if (ev["evidence_type"], ev["title"]) not in have:
                 call("POST", f"/vendors/{vendor_id}/evidence", admin, json=ev)
-        call("POST", f"/vendors/{vendor_id}/screen-sanctions", admin)
+                print(f"{name}: added {ev['evidence_type']} ({ev['title']})")
+        screening = call("POST", f"/vendors/{vendor_id}/screen-sanctions", admin)["screening"]
+        if screening["status"] == "potential_match" and spec.get("sanctions_clearance"):
+            call("POST", f"/vendors/{vendor_id}/clear-sanctions-flag", admin,
+                 json={"justification": spec["sanctions_clearance"]})
+            print(f"{name}: sanctions candidates cleared (not the listed entities)")
         call("POST", f"/vendors/{vendor_id}/risk/reevaluate", admin)
         summary(admin, vendor_id, name)
 

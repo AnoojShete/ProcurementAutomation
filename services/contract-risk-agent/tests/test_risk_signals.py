@@ -79,7 +79,7 @@ async def test_scoring_collects_fresh_signals_first():
     from app.services import risk_service
     order = []
 
-    async def collect(db, vendor, now=None, effective_tier=None):
+    async def collect(db, vendor, now=None, effective_tier=None, lexicon=None):
         order.append("collect")
         return {}
 

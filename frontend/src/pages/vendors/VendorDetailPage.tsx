@@ -223,7 +223,7 @@ export function VendorDetailPage() {
               <p className="py-6 text-center text-sm text-slate-500">This vendor hasn't been risk-scored yet.</p>
             ) : (
               <>
-                <RiskGauge score={risk.risk_score} band={risk.risk_band} scoredAt={risk.scored_at} />
+                <RiskGauge score={risk.risk_score} band={risk.risk_band} scoredAt={risk.scored_at} pointsSoFar={risk.total_points} />
                 {risk.signals_total != null && (
                   <p className="mt-2 text-xs text-slate-500">
                     Based on <span className="font-medium text-slate-700">{risk.signals_used} of {risk.signals_total}</span> signals on file
@@ -238,7 +238,7 @@ export function VendorDetailPage() {
                 {(risk.overrides?.length ?? 0) > 0 && (
                   <p className="mt-2 text-xs text-slate-500">
                     Hard checks:{" "}
-                    {risk.overrides!.map((c) => `${c.check.toUpperCase()} ${c.status.replace("_", " ")}`).join(" · ")}
+                    {risk.overrides!.map((c) => `${(c.rule_id ?? c.check ?? "check").toUpperCase()} ${c.status.replace("_", " ")}`).join(" · ")}
                   </p>
                 )}
                 <p className="mb-2 mt-5 text-13 font-medium text-ink-2">Contributing factors</p>

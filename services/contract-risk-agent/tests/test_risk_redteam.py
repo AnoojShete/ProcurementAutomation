@@ -240,15 +240,18 @@ async def test_unchecked_breach_history_is_not_reported_as_clean():
     assert breach["status"] == "not_assessed" and breach["points"] == 0
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key,http_status", [("", None), ("bad-key", 401), ("good-key", 429), ("good-key", 503)])
-async def test_refused_news_search_is_not_reported_as_no_adverse_media(api_key, http_status, monkeypatch):
-    """The Guardian answers a keyless or rejected call with an error, not
-    results. That must read "not assessed", never "no adverse media found"."""
+def _not_json():
+    raise ValueError("plain text")
+
+
+async def _media(monkeypatch, api_key, responses, name="Infosys Limited"):
+    """Runs collect_adverse_media in live mode; `responses` answer the HTTP
+    calls in order (GDELT first, then the Guardian when a key is set)."""
     from app.services.collectors import reputation_collectors as rc
     from app.services.scorecard.default_ruleset import get_default_ruleset
     from app.services.scorecard.engine import evaluate_risk
     monkeypatch.setenv("GUARDIAN_API_KEY", api_key)
+    monkeypatch.setattr(rc, "GDELT_MIN_INTERVAL_S", 0)
     recorded = {}
 
     async def observation(**kw):
@@ -258,7 +261,7 @@ async def test_refused_news_search_is_not_reported_as_no_adverse_media(api_key, 
     client = MagicMock()
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=False)
-    client.get = AsyncMock(return_value=SimpleNamespace(status_code=http_status, json=lambda: {}))
+    client.get = AsyncMock(side_effect=responses)
     breaker = MagicMock(can_execute=AsyncMock(return_value=True), record_success=AsyncMock(),
                         record_failure=AsyncMock())
     db = AsyncMock()
@@ -268,12 +271,47 @@ async def test_refused_news_search_is_not_reported_as_no_adverse_media(api_key, 
             patch.object(rc, "CircuitBreaker", return_value=breaker), \
             patch.object(rc, "record_raw_response", AsyncMock(return_value=SimpleNamespace(id="raw"))), \
             patch.object(rc, "record_observation", observation):
-        obs, _ = await rc.collect_adverse_media(db, _team_vendor("Infosys Limited", "IN", None), rt.NOW)
-    assert recorded["fields"]["media.sources_reachable"] is False
+        obs, _ = await rc.collect_adverse_media(db, _team_vendor(name, "IN", None), rt.NOW,
+                                                lexicon=get_default_ruleset()["lookups"]["adverse_media_lexicon"])
     result = evaluate_risk(get_default_ruleset(), {"adverse_media": obs}, rt.NOW,
-                           vendor_context={"name": "Infosys Limited", "country": "IN"})
-    media = next(r for r in result["rule_results"] if r["signal_key"] == "adverse_media")
+                           vendor_context={"name": name, "country": "IN"})
+    return recorded["fields"], next(r for r in result["rule_results"] if r["signal_key"] == "adverse_media")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_key,http_status", [("", 429), ("bad-key", 401), ("good-key", 429), ("good-key", 503)])
+async def test_refused_news_search_is_not_reported_as_no_adverse_media(api_key, http_status, monkeypatch):
+    """A keyless or rejected call answers with an error, not results. That
+    must read "not assessed", never "no adverse media found"."""
+    refused = SimpleNamespace(status_code=http_status, json=lambda: {})
+    fields, media = await _media(monkeypatch, api_key, [refused, refused])
+    assert fields["media.sources_reachable"] is False
     assert media["status"] == "not_assessed"
+
+
+@pytest.mark.asyncio
+async def test_gdelt_rate_limit_text_is_not_a_search(monkeypatch):
+    """GDELT answers a too-fast call with HTTP 200 and a plain-text notice."""
+    fields, media = await _media(monkeypatch, "", [SimpleNamespace(status_code=200, json=_not_json)])
+    assert fields["media.sources_reachable"] is False and media["status"] == "not_assessed"
+
+
+@pytest.mark.asyncio
+async def test_news_naming_the_brand_counts_for_the_legal_entity(monkeypatch):
+    """Headlines say "Hathway", not "Hathway Cable and Datacom Limited"; the
+    ruleset's lexicon (with its data-breach category) is the one applied."""
+    articles = {"articles": [
+        {"title": "Hathway hit by data breach, 4 million customers exposed", "url": "https://x/1",
+         "seendate": "20261001T000000Z", "domain": "example.in"},
+        {"title": "Hathway launches new broadband plans", "url": "https://x/2",
+         "seendate": "20261002T000000Z", "domain": "example.in"},
+        {"title": "Unrelated company fined for fraud", "url": "https://x/3",
+         "seendate": "20261003T000000Z", "domain": "example.in"}]}
+    fields, media = await _media(monkeypatch, "", [SimpleNamespace(status_code=200, json=lambda: articles)],
+                                 name="Hathway Cable and Datacom Limited")
+    assert fields["media.sources_reachable"] is True
+    assert fields["media.qualifying_articles"] == 1
+    assert media["status"] == "assessed" and media["points"] == 1
 
 
 @pytest.mark.asyncio

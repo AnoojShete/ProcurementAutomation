@@ -89,13 +89,24 @@ def _decode_array(gray) -> list[str]:
     return found
 
 
-def _pages(data: bytes, file_type: str, max_pages: int = 2):
+_EINVOICE_HINT = re.compile(r"\b(?:IRN|Ack(?:nowledgement)?\.?\s*(?:No|Number|Date)|e-?invoice)\b", re.I)
+
+
+def looks_like_einvoice(text: str) -> bool:
+    """An e-invoice prints its IRN / acknowledgement next to the QR. Searching
+    every document for a QR costs ~1.5 s (digital) to ~10 s (scan), more than
+    the rest of the pipeline, so the tax stage only looks when this says so
+    (or when the supplier must issue e-invoices)."""
+    return bool(_EINVOICE_HINT.search(text or ""))
+
+
+def _pages(data: bytes, file_type: str, max_pages: int = 2, scale: float = 4):
     import numpy as np
     if file_type == "pdf":
         import pypdfium2 as pdfium
         pdf = pdfium.PdfDocument(data)
         for i in range(min(len(pdf), max_pages)):
-            yield np.array(pdf[i].render(scale=4).to_pil().convert("L"))
+            yield np.array(pdf[i].render(scale=scale).to_pil().convert("L"))
     else:
         import io
         from PIL import Image
@@ -106,10 +117,12 @@ def find_qr_token(data: bytes, file_type: str) -> Optional[str]:
     """The signed QR payload (a JWT) on the document, or None. Never raises:
     a document whose QR can't be read is treated as having none."""
     try:
-        for page in _pages(data, file_type):
-            for value in _decode_array(page):
-                if _JWT_SHAPE.match(value.strip()):
-                    return value.strip()
+        # A clear QR decodes at 2x; 4x only for small or blurred ones (images aren't re-rendered).
+        for scale in ((2, 4) if file_type == "pdf" else (1,)):
+            for page in _pages(data, file_type, scale=scale):
+                for value in _decode_array(page):
+                    if _JWT_SHAPE.match(value.strip()):
+                        return value.strip()
     except Exception as e:
         logger.warning(f"e-invoice QR scan failed (treated as no QR): {e}")
     return None

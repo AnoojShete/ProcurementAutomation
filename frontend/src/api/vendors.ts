@@ -12,6 +12,7 @@ import type {
   RiskHistoryEntry,
   VendorDispute,
   VendorEvidence,
+  VendorEvidenceCreate,
   RulesetResponse,
   DryRunReport,
   MonitoringReport,
@@ -163,8 +164,8 @@ export const vendorsApi = {
       `/vendors/${vendorId}/risk/replay${scoreId ? `?score_id=${scoreId}` : ""}`
     ),
   evidence: (vendorId: string) => api.get<VendorEvidence[]>(`/vendors/${vendorId}/evidence`),
-  uploadEvidence: (vendorId: string, formData: FormData) =>
-    api.post<VendorEvidence>(`/vendors/${vendorId}/evidence`, formData),
+  addEvidence: (vendorId: string, body: VendorEvidenceCreate) =>
+    api.post<VendorEvidence>(`/vendors/${vendorId}/evidence`, body),
 };
 
 export const rulesetsApi = {

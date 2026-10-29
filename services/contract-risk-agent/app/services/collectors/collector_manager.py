@@ -186,8 +186,10 @@ async def collect_all_signals(
     vendor: Vendor,
     now: Optional[datetime] = None,
     effective_tier: str = "standard",
+    lexicon: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Runs collectors according to Prompt 9C phased execution rules."""
+    """Runs collectors according to Prompt 9C phased execution rules.
+    `lexicon` is the ruleset's adverse_media_lexicon (versioned with the ruleset)."""
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
@@ -261,7 +263,7 @@ async def collect_all_signals(
         ("breach", collect_breach, {}),
         ("certification", collect_certification, {"effective_tier": effective_tier}),
         ("financial", collect_financial, {}),
-        ("adverse_media", collect_adverse_media, {}),
+        ("adverse_media", collect_adverse_media, {"lexicon": lexicon}),
     ]
 
     try:

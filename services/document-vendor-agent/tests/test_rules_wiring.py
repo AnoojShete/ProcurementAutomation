@@ -303,6 +303,7 @@ def test_document_upload_max_files_per_batch(rule):
         db.commit = AsyncMock()
         db.flush = AsyncMock()
         db.refresh = AsyncMock()
+        db.scalar = AsyncMock(return_value=0)
         try:
             run(create_document_batch(payload, user=user, db=db))
         except HTTPException as e:
