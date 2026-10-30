@@ -147,7 +147,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
       setError(null);
       const [expRes, remRes, histRes, eviRes, dispRes] = await Promise.allSettled([
         vendorsApi.explanation(vendorId),
-        vendorsApi.remediationPlan(vendorId, "buyer"),
+        vendorsApi.remediationPlan(vendorId, "internal"),
         vendorsApi.history(vendorId),
         vendorsApi.evidence(vendorId),
         vendorsApi.disputes(vendorId),
@@ -329,6 +329,89 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
     }
   };
 
+  // --- Hooks must all be declared before any conditional return (React Rules of Hooks) ---
+  // Normalize breakdown rows across both score_breakdown and legacy signals payloads
+  const rawBreakdownList = explanation?.score_breakdown || (explanation as any)?.signals || [];
+  const scoreBreakdown: ScorecardRuleResult[] = useMemo(() => {
+    return rawBreakdownList.map((r: any) => ({
+      ...r,
+      signal_label: r.signal_label || r.label || r.signal_key,
+      group_key: r.group_key || r.group || "",
+      potential_points: r.potential_points ?? r.max_points ?? r.points ?? 0,
+      override_band: r.override_band || null,
+    }));
+  }, [rawBreakdownList]);
+
+  const totalPoints = explanation?.total_points ?? 0;
+  const computedSum = useMemo(() => {
+    return scoreBreakdown.reduce((acc, r) => acc + (r.points || 0), 0);
+  }, [scoreBreakdown]);
+  const isSumValid = totalPoints === computedSum;
+
+  const unassessedList = useMemo(() => {
+    if (!explanation) return [];
+    if (explanation.unassessed_signals && explanation.unassessed_signals.length > 0) {
+      return explanation.unassessed_signals;
+    }
+    return scoreBreakdown
+      .filter((r) => r.status === "not_assessed")
+      .map((r) => ({
+        signal_key: r.signal_key,
+        signal_label: r.signal_label || r.signal_key,
+        potential_points: r.potential_points || 0,
+        provider: (r.facts?.find((f) => f.label === "Source")?.value) || "External registry",
+        reason_not_assessed: r.reason_text || "No observation available",
+      }));
+  }, [explanation, scoreBreakdown]);
+
+  const overrideDetails = useMemo(() => {
+    if (!explanation) return [];
+    if (explanation.override_details && explanation.override_details.length > 0) {
+      return explanation.override_details;
+    }
+    return scoreBreakdown
+      .filter((r) => !!r.override_band)
+      .map((r) => ({
+        rule_id: r.rule_id,
+        signal_key: r.signal_key,
+        override_band: r.override_band!,
+        rationale: r.rationale || r.reason_text,
+      }));
+  }, [explanation, scoreBreakdown]);
+
+  const provisionalMessages = useMemo(() => {
+    if (!explanation) return [];
+    return (explanation.provisional_reasons || []).map((r: any) =>
+      typeof r === "string" ? r : r?.message || r?.code || JSON.stringify(r)
+    );
+  }, [explanation]);
+
+  const remediationActions = useMemo(() => {
+    if (!remediationPlan) return [];
+    if (remediationPlan.actions && remediationPlan.actions.length > 0) {
+      return remediationPlan.actions;
+    }
+    if ((remediationPlan as any).items) {
+      return (remediationPlan as any).items.map((it: any) => ({
+        rule_id: it.rule_id,
+        step: it.action || it.signal_label,
+        points: it.points_recoverable ?? it.current_points ?? 0,
+        evidence: it.action || "Supporting documentation",
+        who: it.raw_actions?.[0]?.who || "vendor",
+      }));
+    }
+    return [];
+  }, [remediationPlan]);
+
+  const recoverablePoints = useMemo(() => {
+    if (remediationPlan?.recoverable_points != null) return remediationPlan.recoverable_points;
+    const plan = remediationPlan as any;
+    if (plan?.current_total != null && plan?.new_total_if_all_done != null) {
+      return Math.max(0, plan.current_total - plan.new_total_if_all_done);
+    }
+    return 0;
+  }, [remediationPlan]);
+
   if (loading && !explanation) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -343,24 +426,6 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
 
   if (!explanation) return null;
 
-  // Normalize breakdown rows across both score_breakdown and legacy signals payloads
-  const rawBreakdownList = explanation.score_breakdown || (explanation as any).signals || [];
-  const scoreBreakdown: ScorecardRuleResult[] = useMemo(() => {
-    return rawBreakdownList.map((r: any) => ({
-      ...r,
-      signal_label: r.signal_label || r.label || r.signal_key,
-      group_key: r.group_key || r.group || "",
-      potential_points: r.potential_points ?? r.max_points ?? r.points ?? 0,
-      override_band: r.override_band || null,
-    }));
-  }, [rawBreakdownList]);
-
-  const totalPoints = explanation.total_points ?? 0;
-  const computedSum = useMemo(() => {
-    return scoreBreakdown.reduce((acc, r) => acc + (r.points || 0), 0);
-  }, [scoreBreakdown]);
-  const isSumValid = totalPoints === computedSum;
-
   const bandTone =
     explanation.final_band === "High" ? "danger" : explanation.final_band === "Medium" ? "warning"
       : explanation.final_band === "Low" ? "success" : "neutral";
@@ -372,41 +437,6 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
   const worstPoints = explanation.worst_case_points ?? range.worst_case_points ?? totalPoints;
   const worstBand = explanation.worst_case_band ?? range.worst_case_band ?? explanation.final_band;
   const unassessedPoints = explanation.unassessed_potential_points ?? range.unassessed_potential ?? 0;
-
-  const unassessedList = useMemo(() => {
-    if (explanation.unassessed_signals && explanation.unassessed_signals.length > 0) {
-      return explanation.unassessed_signals;
-    }
-    return scoreBreakdown
-      .filter((r) => r.status === "not_assessed")
-      .map((r) => ({
-        signal_key: r.signal_key,
-        signal_label: r.signal_label || r.signal_key,
-        potential_points: r.potential_points || 0,
-        provider: (r.facts?.find((f) => f.label === "Source")?.value) || "External registry",
-        reason_not_assessed: r.reason_text || "No observation available",
-      }));
-  }, [explanation.unassessed_signals, scoreBreakdown]);
-
-  const overrideDetails = useMemo(() => {
-    if (explanation.override_details && explanation.override_details.length > 0) {
-      return explanation.override_details;
-    }
-    return scoreBreakdown
-      .filter((r) => !!r.override_band)
-      .map((r) => ({
-        rule_id: r.rule_id,
-        signal_key: r.signal_key,
-        override_band: r.override_band!,
-        rationale: r.rationale || r.reason_text,
-      }));
-  }, [explanation.override_details, scoreBreakdown]);
-
-  const provisionalMessages = useMemo(() => {
-    return (explanation.provisional_reasons || []).map((r: any) =>
-      typeof r === "string" ? r : r?.message || r?.code || JSON.stringify(r)
-    );
-  }, [explanation.provisional_reasons]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -559,7 +589,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
           size="sm"
           onClick={() => setViewTab("remediation")}
         >
-          <Sliders className="size-3.5 mr-1" /> Remediation & What-If ({remediationPlan?.actions?.length || 0})
+          <Sliders className="size-3.5 mr-1" /> Remediation & What-If ({remediationActions.length})
         </Button>
         <Button
           variant={viewTab === "history" ? "primary" : "secondary"}
@@ -876,7 +906,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                 <div>
                   <span className="text-caption text-ink-3">Points Recoverable</span>
                   <p className="text-lg font-bold text-emerald-600 mt-0.5">
-                    {whatIfResult ? `-${whatIfResult.score_difference} points recovered` : `${remediationPlan?.recoverable_points || 0} pts max`}
+                    {whatIfResult ? `-${whatIfResult.score_difference} points recovered` : `${recoverablePoints} pts max`}
                   </p>
                 </div>
               </div>
@@ -884,7 +914,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
               <div>
                 <h4 className="text-xs font-semibold text-ink mb-2">Simulate Resolving Specific Risk Factors:</h4>
                 <div className="space-y-2">
-                  {(remediationPlan?.actions || []).map((step) => {
+                  {remediationActions.map((step: any) => {
                     const isChecked = simulatedRules.includes(step.rule_id);
                     return (
                       <label
@@ -910,7 +940,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                       </label>
                     );
                   })}
-                  {(!remediationPlan?.actions || remediationPlan.actions.length === 0) && (
+                  {remediationActions.length === 0 && (
                     <p className="text-xs text-ink-3 py-4 text-center">No remediable penalty rules currently active.</p>
                   )}
                 </div>

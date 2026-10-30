@@ -405,10 +405,12 @@ async def get_risk_history(
 @router.get("/{vendor_id}/risk/remediation-plan", response_model=DataResponse)
 async def get_remediation_plan(
     vendor_id: str,
-    audience: str = Query("internal", pattern="^(internal|vendor)$"),
+    audience: str = Query("internal", pattern="^(internal|vendor|buyer)$"),
     db: AsyncSession = Depends(get_db),
 ):
     """Deterministic remediation plan. Audience=vendor returns only vendor-safe actions."""
+    if audience == "buyer":
+        audience = "internal"
     vendor = await db.get(Vendor, vendor_id)
     if vendor is None:
         raise HTTPException(status_code=404, detail="vendor not found")
@@ -780,9 +782,9 @@ async def get_raw_response(
 
 # --- Disputes ---
 class DisputeRaiseRequest(BaseModel):
-    score_id: str
+    score_id: Optional[str] = None
     rule_result_id: Optional[str] = None
-    reason: str = Field(min_length=10, max_length=2000)
+    reason: str = Field(min_length=5, max_length=2000)
     evidence_id: Optional[str] = None
 
 
@@ -790,6 +792,40 @@ class DisputeReviewRequest(BaseModel):
     decision: str = Field(pattern="^(upheld|rejected)$")
     resolution_note: str = Field(min_length=10, max_length=2000)
     corrected_fields: Optional[Dict[str, Any]] = None
+
+
+@router.get(
+    "/{vendor_id}/risk/disputes",
+    response_model=DataResponse,
+)
+async def list_vendor_disputes(vendor_id: str, db: AsyncSession = Depends(get_db)):
+    """Lists all assessment disputes for a vendor."""
+    stmt = (
+        select(VendorAssessmentDispute)
+        .join(RiskScore, VendorAssessmentDispute.score_id == RiskScore.id)
+        .where(RiskScore.vendor_id == vendor_id)
+        .order_by(VendorAssessmentDispute.raised_at.desc())
+    )
+    res = await db.execute(stmt)
+    disputes = res.scalars().all()
+    return DataResponse(
+        data=[
+            {
+                "id": str(d.id),
+                "score_id": str(d.score_id),
+                "rule_result_id": str(d.rule_result_id) if d.rule_result_id else "",
+                "raised_by": d.raised_by,
+                "raised_at": d.raised_at.isoformat() if d.raised_at else None,
+                "reason": d.reason,
+                "evidence_id": str(d.evidence_id) if d.evidence_id else None,
+                "status": d.status,
+                "reviewed_by": d.reviewed_by,
+                "reviewed_at": d.reviewed_at.isoformat() if d.reviewed_at else None,
+                "resolution_note": d.resolution_note,
+            }
+            for d in disputes
+        ]
+    )
 
 
 @router.post(
@@ -807,9 +843,16 @@ async def raise_dispute(
     if await db.get(Vendor, vendor_id) is None:
         raise HTTPException(status_code=404, detail="vendor not found")
 
+    score_id = body.score_id
+    if not score_id:
+        latest = await risk_service.latest_risk_score(db, vendor_id)
+        if not latest:
+            raise HTTPException(status_code=400, detail="Vendor has not been risk-scored yet.")
+        score_id = str(latest.id)
+
     dispute = VendorAssessmentDispute(
         id=str(uuid.uuid4()),
-        score_id=body.score_id,
+        score_id=score_id,
         rule_result_id=body.rule_result_id,
         raised_by=user.email,
         raised_at=datetime.now(timezone.utc),
