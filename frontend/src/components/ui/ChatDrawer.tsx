@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Drawer } from "./Drawer";
-import { sendMessage, type ChatMessage } from "@/api/chat";
+import { sendMessage, sendMessageStream, type ChatMessage } from "@/api/chat";
 import { Send, Bot, Loader2, MessageSquarePlus } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,33 +17,50 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => { scrollToBottom(); }, [messages, isLoading]);
+  useEffect(() => { scrollToBottom(); }, [messages, isLoading, streamingText]);
 
-  const handleSend = async (text: string) => {
+  const handleSend = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
     setInput("");
     
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setIsLoading(true);
+    setStreamingText("");
 
     try {
-      const res = await sendMessage(text, sessionId);
-      setSessionId(res.session_id);
-      
-      const displayHistory = res.history.filter((m) => m.role === "user" || m.role === "assistant");
-      setMessages(displayHistory);
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I encountered an error connecting to the AI." }]);
+      // Try the streaming endpoint first for real-time token display
+      const result = await sendMessageStream(text, sessionId, (token) => {
+        setStreamingText((prev) => prev + token);
+      });
+      setSessionId(result.session_id);
+      // Replace the streaming text with the final message in history
+      setStreamingText("");
+      setMessages((prev) => [
+        ...prev.filter((m) => m.role === "user" || m.role === "assistant"),
+        { role: "assistant", content: result.full_reply },
+      ]);
+    } catch {
+      // Fallback to non-streaming endpoint
+      try {
+        const res = await sendMessage(text, sessionId);
+        setSessionId(res.session_id);
+        const displayHistory = res.history.filter((m) => m.role === "user" || m.role === "assistant");
+        setMessages(displayHistory);
+      } catch {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I encountered an error connecting to the AI." }]);
+      }
     } finally {
+      setStreamingText("");
       setIsLoading(false);
     }
-  };
+  }, [isLoading, sessionId]);
 
   const handleClearChat = () => {
     setMessages([]);
@@ -108,7 +125,19 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               </div>
             </div>
           ))}
-          {isLoading && (
+          {isLoading && streamingText && (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm bg-sheet border border-slate-200 text-slate-800 rounded-bl-none shadow-sm overflow-x-auto">
+                <div className="[&>p]:mb-2 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-2 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-2 [&>table]:w-full [&>table]:border-collapse [&>table]:mb-2 [&th]:border [&th]:border-slate-300 [&th]:px-2 [&th]:py-1 [&th]:bg-slate-100 [&td]:border [&td]:border-slate-200 [&td]:px-2 [&td]:py-1 [&strong]:font-semibold">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {streamingText}
+                  </ReactMarkdown>
+                  <span className="inline-block w-2 h-4 ml-0.5 bg-blue-500 animate-pulse rounded-sm" />
+                </div>
+              </div>
+            </div>
+          )}
+          {isLoading && !streamingText && (
             <div className="flex justify-start">
               <div className="bg-sheet border border-slate-200 text-slate-500 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm flex items-center text-sm">
                 <Loader2 className="h-4 w-4 animate-spin mr-2 text-blue-500" /> Thinking...

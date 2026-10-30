@@ -108,9 +108,75 @@ async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessio
         hits = await rag_service.retrieve(db, user, search_query(history))
     except Exception:                    # index or embedding model unavailable: answer without passages
         hits = []
-    async with httpx.AsyncClient(timeout=180.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         r = await client.post(f"{settings.llm_api_base_url}/api/chat", json={
             "model": settings.llm_model_name, "messages": build_messages(history, user, hits), "stream": False,
             "options": {"temperature": 0}})
         r.raise_for_status()
         return r.json().get("message", {}).get("content") or "I could not generate a response."
+
+
+async def stream_llm_with_tools(history: list, user: CurrentUser, db: AsyncSession):
+    """Streaming variant of query_llm_with_tools.
+
+    Yields Server-Sent Events (SSE) formatted strings:
+      - ``data: {"token": "..."}``  for each generated token
+      - ``data: {"done": true, "full_reply": "..."}``  when generation finishes
+
+    Intent-based short-circuit replies (greetings, licence anomalies, vendor
+    clarification) are emitted as a single SSE event so the caller doesn't need
+    to special-case them.
+    """
+    import json as _json
+
+    asked = [m.content for m in history if m.role == "user"]
+    if asked:
+        kind = intent.classify(asked[-1], asked[-2] if len(asked) > 1 else None)
+        if kind.kind in ("greeting", "capabilities", "examples", "topic_only", "smalltalk"):
+            names = await _vendor_names(db)
+            said = [m.content for m in history if m.role == "assistant"]
+            reply = intent.reply(kind, asked[-1], role=user.role, first_name=await _first_name(db, user),
+                                 vendor=names[0] if names else None, shown=said[-1] if said else "")
+            yield f"data: {_json.dumps({'token': reply})}\n\n"
+            yield f"data: {_json.dumps({'done': True, 'full_reply': reply})}\n\n"
+            return
+        if kind.kind == "licence_anomalies":
+            reply = await topics.answer_licence_anomalies(db, user)
+            yield f"data: {_json.dumps({'token': reply})}\n\n"
+            yield f"data: {_json.dumps({'done': True, 'full_reply': reply})}\n\n"
+            return
+        question = intent.clarify_vendor(asked[-1], await _vendor_names(db))
+        if question:
+            yield f"data: {_json.dumps({'token': question})}\n\n"
+            yield f"data: {_json.dumps({'done': True, 'full_reply': question})}\n\n"
+            return
+
+    try:
+        hits = await rag_service.retrieve(db, user, search_query(history))
+    except Exception:
+        hits = []
+
+    full_reply = ""
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        async with client.stream("POST", f"{settings.llm_api_base_url}/api/chat", json={
+            "model": settings.llm_model_name, "messages": build_messages(history, user, hits), "stream": True,
+            "options": {"temperature": 0}}) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.strip():
+                    continue
+                try:
+                    chunk = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                token = chunk.get("message", {}).get("content", "")
+                if token:
+                    full_reply += token
+                    yield f"data: {_json.dumps({'token': token})}\n\n"
+                if chunk.get("done"):
+                    break
+
+    if not full_reply:
+        full_reply = "I could not generate a response."
+        yield f"data: {_json.dumps({'token': full_reply})}\n\n"
+    yield f"data: {_json.dumps({'done': True, 'full_reply': full_reply})}\n\n"
