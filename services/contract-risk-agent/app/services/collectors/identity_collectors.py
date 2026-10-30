@@ -743,23 +743,29 @@ async def collect_jurisdiction(
             "country.is_domestic": False,
             "country.prohibited": False,
             "country.high_risk": False,
-            "country.wgi_composite": 0.0,
-            "country.pv": 0.0,
-            "country.rl": 0.0,
-            "country.wgi_year": 2024,
+            "country.wgi_composite": None,
+            "country.pv": None,
+            "country.rl": None,
+            "country.wgi_year": None,
             "country.status": "country_unknown",
             "na_reason_code": None,
         }
         obs_status = "not_checked"
-    else:
-        wgi_composite = 0.85 if is_domestic else 0.5
-        pv = 0.7 if is_domestic else 0.6
-        rl = 0.8 if is_domestic else 0.5
+        http_status = None
+        raw_body = fields
+        wgi_composite = None
+        pv = None
+        rl = None
+        wgi_year = None
+    elif is_domestic:
+        wgi_composite = 0.85
+        pv = 0.70
+        rl = 0.80
         wgi_year = 2024
 
         fields = {
             "country.code": effective_country,
-            "country.is_domestic": is_domestic,
+            "country.is_domestic": True,
             "country.prohibited": prohibited,
             "country.high_risk": high_risk,
             "country.wgi_composite": wgi_composite,
@@ -767,9 +773,47 @@ async def collect_jurisdiction(
             "country.rl": rl,
             "country.wgi_year": wgi_year,
             "country.status": "ok",
-            "na_reason_code": "domestic_vendor" if is_domestic else None,
+            "na_reason_code": "domestic_vendor",
         }
         obs_status = "ok"
+        http_status = 200
+        raw_body = {"status": "domestic_baseline", "fields": fields}
+    else:
+        from app.services.world_bank import fetch_wgi_indicators
+
+        wgi_res = await fetch_wgi_indicators(effective_country)
+
+        wgi_composite = wgi_res.wgi_composite
+        pv = wgi_res.pv
+        rl = wgi_res.rl
+        wgi_year = wgi_res.wgi_year
+
+        if wgi_res.status == "ok":
+            country_status = "ok"
+            obs_status = "ok"
+            http_status = 200
+        else:
+            country_status = "wgi_unavailable"
+            obs_status = "ok"
+            http_status = 200 if wgi_res.status == "no_data" else 500
+
+        fields = {
+            "country.code": effective_country,
+            "country.is_domestic": False,
+            "country.prohibited": prohibited,
+            "country.high_risk": high_risk,
+            "country.wgi_composite": wgi_composite,
+            "country.pv": pv,
+            "country.rl": rl,
+            "country.wgi_year": wgi_year,
+            "country.status": country_status,
+            "na_reason_code": None,
+        }
+        raw_body = {
+            "country_code": effective_country,
+            "wgi": wgi_res.raw_response,
+            "fields": fields,
+        }
 
     raw = await record_raw_response(
         db=db,
@@ -777,20 +821,23 @@ async def collect_jurisdiction(
         signal_key="jurisdiction",
         provider=provider,
         request_method="GET",
-        body=fields,
+        body=raw_body,
         source_id="wgi_indicators",
-        response_status=200 if (country_code or swift_country) else None,
+        response_status=http_status,
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200" if (country_code or swift_country) else "internal"},
+        {"label": "HTTP status", "value": str(http_status) if http_status else "internal"},
         {"label": "Country Code", "value": effective_country},
         {"label": "Prohibited Jurisdiction", "value": "Yes" if prohibited else "No"},
         {"label": "High Risk Country", "value": "Yes" if high_risk else "No"},
-        {"label": "WGI Composite Score", "value": f"{wgi_composite:.2f}" if (country_code or swift_country) else "—"},
+        {"label": "WGI Composite Score", "value": f"{wgi_composite:.2f}" if wgi_composite is not None else "—"},
+        {"label": "Political Stability (PV)", "value": f"{pv:.2f}" if pv is not None else "—"},
+        {"label": "Rule of Law (RL)", "value": f"{rl:.2f}" if rl is not None else "—"},
+        {"label": "Indicator Year", "value": str(wgi_year) if (wgi_year and wgi_composite is not None) else "—"},
     ]
 
     obs = await record_observation(
