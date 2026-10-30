@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, IndianRupee, PieChart, RefreshCcw, ScrollText } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { requestsApi } from "@/api/requests";
 import { vendorsApi } from "@/api/vendors";
@@ -10,28 +11,38 @@ import { Greeting } from "@/components/dashboard/Greeting";
 import { LedgerStrip, MetricCard } from "@/components/ui/MetricCard";
 import { OrderStatusCard } from "@/components/dashboard/OrderStatusCard";
 import { AttentionCard, type AttentionItem } from "@/components/dashboard/AttentionCard";
-import { SkeletonCard } from "@/components/ui/Skeleton";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { CategoryBarChart } from "@/components/charts/CategoryBarChart";
 import { formatCurrency, titleCase } from "@/lib/format";
-import { APPROVER_ROLES } from "@/lib/constants";
 
 export function FinanceDashboard() {
   usePageHeader("Dashboard");
+  const { user } = useAuth();
   const { data: requests, loading: reqLoading } = useApi(() => requestsApi.list(200), []);
   const { data: vendors, loading: vendorsLoading } = useApi(() => vendorsApi.list(200), []);
   const { data: contracts } = useApi(() => contractsApi.list(200), []);
   const { data: renewals } = useApi(() => contractsApi.renewalsDue(60), []);
-  const financeInbox = useApi(() => requestsApi.inbox(APPROVER_ROLES[1].value), []);
+  const financeInbox = useApi(() => requestsApi.inbox("finance_head"), []);
+
+  const pendingFinanceItems = useMemo(() => {
+    return (financeInbox.data ?? []).filter((item) => {
+      const fullReq = requests?.find((r) => r.id === item.request_id);
+      if (fullReq?.approval_history?.some((h) => h.decided_by === user?.email && h.decision === "approved")) {
+        return false;
+      }
+      return true;
+    });
+  }, [financeInbox.data, requests, user]);
 
   const highRiskVendors = useMemo(() => (vendors ?? []).filter((v) => v.risk_band === "High"), [vendors]);
 
   const monthlySpend = useMemo(() => {
     const now = new Date();
     return (requests ?? [])
-      .filter((r) => ["approved", "ordered", "partially_received", "fulfilled"].includes(r.status ?? "") && r.created_at)
+      .filter((r) => ["approved", "ordered", "partially_received", "fulfilled"].includes(r.status ?? ""))
       .filter((r) => {
-        const d = new Date(r.created_at!);
+        if (!r.created_at) return false;
+        const d = new Date(r.created_at);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       })
       .reduce((sum, r) => sum + (r.amount ?? 0), 0);
@@ -50,7 +61,7 @@ export function FinanceDashboard() {
 
   const attentionItems: AttentionItem[] = useMemo(() => {
     const items: AttentionItem[] = [];
-    const pending = financeInbox.data?.length ?? 0;
+    const pending = pendingFinanceItems.length;
     if (pending > 0) {
       items.push({
         key: "finance-pending",
@@ -60,7 +71,7 @@ export function FinanceDashboard() {
           </>
         ),
         cta: "Review",
-        to: `/app/approvals?role=${APPROVER_ROLES[1].value}`,
+        to: "/app/approvals?role=finance_head",
       });
     }
     if ((renewals?.length ?? 0) > 0) {
@@ -88,7 +99,7 @@ export function FinanceDashboard() {
       });
     }
     return items;
-  }, [financeInbox.data, renewals, highRiskVendors]);
+  }, [pendingFinanceItems, renewals, highRiskVendors]);
 
   const loading = reqLoading || vendorsLoading;
 
@@ -99,19 +110,24 @@ export function FinanceDashboard() {
       <AttentionCard items={attentionItems} />
 
       <LedgerStrip cols={5} loading={loading} label="Finance figures">
-          <MetricCard label="Pending Financial Approval" value={financeInbox.data?.length ?? 0} icon={ScrollText} tone="warning" to={`/app/approvals?role=${APPROVER_ROLES[1].value}`} />
-          <MetricCard label="Monthly Spend" value={formatCurrency(monthlySpend)} icon={IndianRupee} tone="brand" to="/app/spend" />
-          <MetricCard
-            label="High-Risk Vendors"
-            value={highRiskVendors.length}
-            icon={AlertTriangle}
-            tone={highRiskVendors.length ? "danger" : "success"}
-            to="/app/vendors?risk=High"
-          />
-          <MetricCard label="Contract Renewals (60d)" value={renewals?.length ?? 0} icon={RefreshCcw} tone="warning" to="/app/contracts?renewal=60" />
-          <MetricCard label="Active Contracts" value={contracts?.filter((c) => c.status === "signed").length ?? 0} icon={PieChart} tone="brand" to="/app/contracts?status=signed" />
-        </LedgerStrip>
-
+        <MetricCard
+          label="Pending Financial Approval"
+          value={pendingFinanceItems.length}
+          icon={ScrollText}
+          tone="warning"
+          to="/app/approvals?role=finance_head"
+        />
+        <MetricCard label="Monthly Spend" value={formatCurrency(monthlySpend)} icon={IndianRupee} tone="brand" to="/app/spend" />
+        <MetricCard
+          label="High-Risk Vendors"
+          value={highRiskVendors.length}
+          icon={AlertTriangle}
+          tone={highRiskVendors.length ? "danger" : "success"}
+          to="/app/vendors?risk=High"
+        />
+        <MetricCard label="Contract Renewals (60d)" value={renewals?.length ?? 0} icon={RefreshCcw} tone="warning" to="/app/contracts?renewal=60" />
+        <MetricCard label="Active Contracts" value={contracts?.filter((c) => c.status === "signed").length ?? 0} icon={PieChart} tone="brand" to="/app/contracts?status=signed" />
+      </LedgerStrip>
 
       <OrderStatusCard />
 

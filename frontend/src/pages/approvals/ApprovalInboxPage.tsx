@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle2, AlertCircle, Info, Check, AlertTriangle, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Info, Check, AlertTriangle, ShieldCheck } from "lucide-react";
 import { usePageHeader } from "@/hooks/usePageTitle";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,16 +8,16 @@ import { requestsApi, type BulkDecisionItemResult } from "@/api/requests";
 import { businessRulesApi } from "@/api/businessRules";
 import { Card, CardBody } from "@/components/ui/Card";
 import { DataTable, type Column } from "@/components/ui/DataTable";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Tabs } from "@/components/ui/Tabs";
-import { ErrorState, InlineError } from "@/components/ui/ErrorState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { PersonName } from "@/components/people/PersonName";
 import { APPROVER_ROLES } from "@/lib/constants";
 import { formatCountdown, formatCurrency, formatDate, titleCase } from "@/lib/format";
-import type { InboxItem, BusinessRule } from "@/types/api";
+import type { InboxItem, BusinessRule, PurchaseRequest } from "@/types/api";
 import { approvalItemPath } from "@/lib/routes";
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -28,14 +28,33 @@ export function ApprovalInboxPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const role = params.get("role") ?? "all";
+
+  // Role scoping default: approver -> dept_manager, finance -> finance_head, admin -> all
+  const defaultRole = user?.role === "approver" ? "dept_manager" : user?.role === "finance" ? "finance_head" : "all";
+  const role = params.get("role") ?? defaultRole;
+  const tab = (params.get("tab") ?? "active") as "active" | "assigned";
   const due = params.get("due");
   const roles = role === "all" ? APPROVER_ROLES.map((r) => r.value) : [role];
 
-  const { data: items, loading, error, reload } = useApi(
+  // Fetch active inbox items for the current role(s)
+  const { data: rawInboxItems, loading: inboxLoading, error: inboxError, reload: reloadInbox } = useApi(
     () => Promise.all(roles.map((r) => requestsApi.inbox(r))).then((res) => ({ data: res.flatMap((r) => r.data) })),
     [role],
   );
+
+  // Fetch full requests list to check approval history and populate Assigned / My Approvals tab
+  const { data: allRequests, loading: reqLoading, error: reqError, reload: reloadRequests } = useApi(
+    () => requestsApi.list(200),
+    [],
+  );
+
+  const loading = inboxLoading || reqLoading;
+  const error = inboxError || reqError;
+
+  const reloadAll = () => {
+    reloadInbox();
+    reloadRequests();
+  };
 
   // Business Rules for Bulk Approval (Prompt 10 Section 1.1)
   const { data: rulesData } = useApi<Record<string, BusinessRule[]>>(
@@ -57,7 +76,7 @@ export function ApprovalInboxPage() {
     };
   }, [rulesData]);
 
-  // Mass selection state
+  // Mass selection state (for Active Inbox)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [shiftHeld, setShiftHeld] = useState(false);
@@ -84,17 +103,56 @@ export function ApprovalInboxPage() {
     items: BulkDecisionItemResult[];
   } | null>(null);
 
-  const sorted = useMemo(() => {
+  // Filter Active Inbox: must be actionable by current user and NOT already approved by this user
+  const activeItems = useMemo(() => {
     const now = Date.now();
-    return [...(items ?? [])]
+    const me = user?.email?.toLowerCase();
+
+    return (rawInboxItems ?? [])
       .filter((i) => {
+        // Exclude if already decided/approved by current user
+        const fullReq = allRequests?.find((r) => r.id === i.request_id);
+        if (fullReq) {
+          if (["approved", "ordered", "partially_received", "fulfilled", "rejected", "cancelled"].includes(fullReq.status ?? "")) {
+            return false;
+          }
+          if (me && fullReq.approval_history?.some((h) => h.decided_by?.toLowerCase() === me && h.decision === "approved")) {
+            return false;
+          }
+        }
         if (!due) return true;
         if (!i.sla_deadline) return false;
         const left = new Date(i.sla_deadline).getTime() - now;
         return due === "overdue" ? left < 0 : left > 0 && left < DAY_MS;
       })
       .sort((a, b) => (a.sla_deadline ?? "9999").localeCompare(b.sla_deadline ?? "9999"));
-  }, [items, due]);
+  }, [rawInboxItems, allRequests, user, due]);
+
+  // Filter Assigned / My Approvals: requests where this user made an approval decision or is in chain
+  const assignedItems = useMemo(() => {
+    const me = user?.email?.toLowerCase();
+    return (allRequests ?? [])
+      .filter((r) => {
+        const decidedByMe = r.approval_history?.some((h) => h.decided_by?.toLowerCase() === me);
+        if (decidedByMe) return true;
+
+        if (user?.role === "finance" && r.approval_chain?.includes("finance_head")) {
+          if (["approved", "ordered", "partially_received", "fulfilled", "invoice_received"].includes(r.status ?? "")) {
+            return true;
+          }
+        }
+        if (user?.role === "approver" && r.approval_chain?.includes("dept_manager")) {
+          if (["approved", "ordered", "partially_received", "fulfilled", "invoice_received"].includes(r.status ?? "")) {
+            return true;
+          }
+        }
+        if (user?.role === "admin" && (r.approval_history?.length ?? 0) > 0) {
+          return true;
+        }
+        return false;
+      })
+      .sort((a, b) => (b.updated_at ?? b.created_at ?? "").localeCompare(a.updated_at ?? a.created_at ?? ""));
+  }, [allRequests, user]);
 
   // Eligibility check: Prompt 10 Section 1.2
   const checkEligibility = (r: InboxItem): { eligible: boolean; reason?: string } => {
@@ -111,19 +169,19 @@ export function ApprovalInboxPage() {
     return { eligible: true };
   };
 
-  const eligibleRows = useMemo(() => sorted.filter((r) => checkEligibility(r).eligible), [sorted, bulkRules, user]);
-  const ineligibleCount = sorted.length - eligibleRows.length;
+  const eligibleRows = useMemo(() => activeItems.filter((r) => checkEligibility(r).eligible), [activeItems, bulkRules, user]);
+  const ineligibleCount = activeItems.length - eligibleRows.length;
 
   const toggleRow = (id: string) => {
-    if (shiftHeld && lastSelectedId && sorted.length > 0) {
-      const idx1 = sorted.findIndex((r) => r.request_id === lastSelectedId);
-      const idx2 = sorted.findIndex((r) => r.request_id === id);
+    if (shiftHeld && lastSelectedId && activeItems.length > 0) {
+      const idx1 = activeItems.findIndex((r) => r.request_id === lastSelectedId);
+      const idx2 = activeItems.findIndex((r) => r.request_id === id);
       if (idx1 !== -1 && idx2 !== -1) {
         const start = Math.min(idx1, idx2);
         const end = Math.max(idx1, idx2);
         const next = new Set(selectedIds);
         for (let i = start; i <= end; i++) {
-          const row = sorted[i];
+          const row = activeItems[i];
           if (checkEligibility(row).eligible) {
             next.add(row.request_id);
           }
@@ -147,7 +205,6 @@ export function ApprovalInboxPage() {
     if (selectedIds.size === eligibleRows.length && eligibleRows.length > 0) {
       setSelectedIds(new Set());
     } else {
-      // Select up to bulkRules.maxItems
       const targetRows = eligibleRows.slice(0, bulkRules.maxItems);
       setSelectedIds(new Set(targetRows.map((r) => r.request_id)));
     }
@@ -157,8 +214,8 @@ export function ApprovalInboxPage() {
   const isIndeterminate = selectedIds.size > 0 && !isAllSelected;
 
   const selectedItems = useMemo(
-    () => sorted.filter((r) => selectedIds.has(r.request_id)),
-    [sorted, selectedIds],
+    () => activeItems.filter((r) => selectedIds.has(r.request_id)),
+    [activeItems, selectedIds],
   );
 
   const totalSelectedAmount = useMemo(
@@ -197,7 +254,7 @@ export function ApprovalInboxPage() {
         items: res.data.items || [],
       });
 
-      reload();
+      reloadAll();
     } catch (e: any) {
       setBulkResults({
         summary: { requested: selectedIds.size, approved: 0, skipped: selectedIds.size, total_amount: 0 },
@@ -215,9 +272,18 @@ export function ApprovalInboxPage() {
     }
   };
 
+  const setTab = (k: string) => {
+    const next = new URLSearchParams(params);
+    if (k === "active") next.delete("tab");
+    else next.set("tab", k);
+    setParams(next, { replace: true });
+    setSelectedIds(new Set());
+    setLastSelectedId(null);
+  };
+
   const setRole = (k: string) => {
     const next = new URLSearchParams(params);
-    if (k === "all") next.delete("role");
+    if (k === defaultRole) next.delete("role");
     else next.set("role", k);
     setParams(next, { replace: true });
     setSelectedIds(new Set());
@@ -230,7 +296,7 @@ export function ApprovalInboxPage() {
     setParams(next, { replace: true });
   };
 
-  const columns: Column<InboxItem>[] = [
+  const activeColumns: Column<InboxItem>[] = [
     {
       key: "id",
       header: "Request",
@@ -277,122 +343,198 @@ export function ApprovalInboxPage() {
     },
   ];
 
-  if (error) return <ErrorState message={error} onRetry={reload} />;
+  const assignedColumns: Column<PurchaseRequest>[] = [
+    {
+      key: "id",
+      header: "Request",
+      render: (r) => <span className="font-mono text-xs">PR-{r.id.slice(0, 8)}</span>,
+    },
+    { key: "requester", header: "Requester", render: (r) => <PersonName email={r.requested_by} /> },
+    { key: "type", header: "Type", render: (r) => titleCase(r.request_type) },
+    { key: "dept", header: "Department", render: (r) => r.department ?? "—" },
+    {
+      key: "amount",
+      header: "Amount",
+      render: (r) => <span className="tabular font-medium">{formatCurrency(r.amount, r.currency ?? "INR")}</span>,
+      sortValue: (r) => r.amount ?? 0,
+    },
+    {
+      key: "status",
+      header: "Lifecycle Status",
+      render: (r) => <StatusBadge status={r.status} />,
+    },
+    {
+      key: "my_action",
+      header: "Your Action",
+      render: (r) => {
+        const myDecision = r.approval_history?.find((h) => h.decided_by?.toLowerCase() === user?.email?.toLowerCase());
+        if (myDecision) {
+          return (
+            <span className="inline-flex items-center gap-1.5 text-xs text-ink-2">
+              <CheckCircle2 className="size-3.5 text-success" />
+              <span>{titleCase(myDecision.decision)} ({formatDate(myDecision.decided_at ?? r.updated_at)})</span>
+            </span>
+          );
+        }
+        return <span className="text-xs text-ink-3">Assigned in workflow</span>;
+      },
+    },
+    {
+      key: "submitted",
+      header: "Submitted",
+      render: (r) => formatDate(r.created_at),
+      sortValue: (r) => r.created_at ?? "",
+    },
+  ];
+
+  if (error) return <ErrorState message={error} onRetry={reloadAll} />;
 
   return (
     <div className="flex flex-col gap-4">
-      {due && DUE_LABEL[due] && (
-        <div>
-          <FilterChip label={DUE_LABEL[due]} onClear={clearDue} />
-        </div>
-      )}
+      {/* Primary Navigation Tabs: Active Inbox vs Assigned / My Approvals */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs
+          tabs={[
+            { key: "active", label: `Active Inbox (${activeItems.length})` },
+            { key: "assigned", label: `Assigned / My Approvals (${assignedItems.length})` },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
+      </div>
 
-      {/* Sticky Bulk Action Toolbar */}
-      {selectedIds.size > 0 && (
-        <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent-soft bg-sheet px-4 py-2.5 shadow-md backdrop-blur">
-          <div className="flex items-center gap-3 text-sm text-ink font-medium">
-            <span className="inline-flex size-6 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
-              {selectedIds.size}
-            </span>
-            <span>selected</span>
-            <span className="text-xs text-ink-3">
-              ({formatCurrency(totalSelectedAmount)} of {formatCurrency(bulkRules.maxBatchTotal)} limit)
-            </span>
-            {capExceededMessage && (
-              <span className="inline-flex items-center gap-1 text-xs text-danger font-normal">
-                <AlertTriangle className="size-3.5" />
-                {capExceededMessage}
+      {tab === "active" && (
+        <>
+          {due && DUE_LABEL[due] && (
+            <div>
+              <FilterChip label={DUE_LABEL[due]} onClear={clearDue} />
+            </div>
+          )}
+
+          {/* Sticky Bulk Action Toolbar */}
+          {selectedIds.size > 0 && (
+            <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent-soft bg-sheet px-4 py-2.5 shadow-md backdrop-blur">
+              <div className="flex items-center gap-3 text-sm text-ink font-medium">
+                <span className="inline-flex size-6 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
+                  {selectedIds.size}
+                </span>
+                <span>selected</span>
+                <span className="text-xs text-ink-3">
+                  ({formatCurrency(totalSelectedAmount)} of {formatCurrency(bulkRules.maxBatchTotal)} limit)
+                </span>
+                {capExceededMessage && (
+                  <span className="inline-flex items-center gap-1 text-xs text-danger font-normal">
+                    <AlertTriangle className="size-3.5" />
+                    {capExceededMessage}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setSelectedIds(new Set());
+                    setLastSelectedId(null);
+                  }}
+                >
+                  Clear selection
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={Boolean(capExceededMessage)}
+                  onClick={() => {
+                    setBulkResults(null);
+                    setAcknowledgedAutoSign(false);
+                    setBulkModalOpen(true);
+                  }}
+                >
+                  <Check className="mr-1.5 size-4" />
+                  Approve ({selectedIds.size})
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Gmail-style select-all banner */}
+          {selectedIds.size > 0 && selectedIds.size < eligibleRows.length && eligibleRows.length <= bulkRules.maxItems && (
+            <div className="flex items-center justify-between rounded border border-accent-soft bg-accent-tint/40 px-3.5 py-1.5 text-xs text-ink">
+              <span>
+                {selectedIds.size} eligible on this page selected.
               </span>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set(eligibleRows.map((r) => r.request_id)))}
+                className="font-semibold text-accent hover:underline ml-2"
+              >
+                Select all {eligibleRows.length} eligible matching this filter
+              </button>
+            </div>
+          )}
+          {eligibleRows.length > bulkRules.maxItems && selectedIds.size >= bulkRules.maxItems && (
+            <div className="rounded border border-amber-200 bg-amber-50 px-3.5 py-1.5 text-xs text-amber-900">
+              Only the first {bulkRules.maxItems} requests can be approved at once.
+            </div>
+          )}
 
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                setSelectedIds(new Set());
-                setLastSelectedId(null);
-              }}
-            >
-              Clear selection
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={Boolean(capExceededMessage)}
-              onClick={() => {
-                setBulkResults(null);
-                setAcknowledgedAutoSign(false);
-                setBulkModalOpen(true);
-              }}
-            >
-              <Check className="mr-1.5 size-4" />
-              Approve ({selectedIds.size})
-            </Button>
-          </div>
-        </div>
+          {/* Policy Notice if any items require individual review */}
+          {ineligibleCount > 0 && (
+            <div className="flex items-center gap-2 rounded border border-rule bg-sheet px-3.5 py-2 text-xs text-ink-2">
+              <Info className="size-4 shrink-0 text-accent" />
+              <span>
+                {ineligibleCount} request{ineligibleCount > 1 ? "s" : ""} exceed{ineligibleCount === 1 ? "s" : ""} the bulk threshold of <strong>{formatCurrency(bulkRules.maxAmount)}</strong> and must be reviewed and approved individually.
+              </span>
+            </div>
+          )}
+
+          <Card>
+            {/* Secondary Role Selector for Admins or multi-role inspection */}
+            <div className="px-2 pt-1 sm:px-3">
+              <Tabs
+                tabs={[{ key: "all", label: "All roles" }, ...APPROVER_ROLES.map((r) => ({ key: r.value, label: r.label }))]}
+                active={role}
+                onChange={setRole}
+              />
+            </div>
+            <CardBody>
+              <DataTable
+                columns={activeColumns}
+                rows={activeItems}
+                rowKey={(r) => r.request_id}
+                loading={loading}
+                onRowClick={(r) => navigate(approvalItemPath(r))}
+                emptyTitle="Nothing waiting for a decision"
+                selectable={{
+                  selectedKeys: selectedIds,
+                  onToggleRow: toggleRow,
+                  onToggleAll: toggleAll,
+                  isAllSelected,
+                  isIndeterminate,
+                  isRowSelectable: (r) => checkEligibility(r).eligible,
+                  disabledReason: (r) => checkEligibility(r).reason,
+                }}
+              />
+            </CardBody>
+          </Card>
+        </>
       )}
 
-      {/* Gmail-style select-all banner */}
-      {selectedIds.size > 0 && selectedIds.size < eligibleRows.length && eligibleRows.length <= bulkRules.maxItems && (
-        <div className="flex items-center justify-between rounded border border-accent-soft bg-accent-tint/40 px-3.5 py-1.5 text-xs text-ink">
-          <span>
-            {selectedIds.size} eligible on this page selected.
-          </span>
-          <button
-            type="button"
-            onClick={() => setSelectedIds(new Set(eligibleRows.map((r) => r.request_id)))}
-            className="font-semibold text-accent hover:underline ml-2"
-          >
-            Select all {eligibleRows.length} eligible matching this filter
-          </button>
-        </div>
+      {tab === "assigned" && (
+        <Card>
+          <CardBody>
+            <DataTable
+              columns={assignedColumns}
+              rows={assignedItems}
+              rowKey={(r) => r.id}
+              loading={loading}
+              onRowClick={(r) => navigate(approvalItemPath({ request_id: r.id }))}
+              emptyTitle="No assigned or previously approved requests found"
+            />
+          </CardBody>
+        </Card>
       )}
-      {eligibleRows.length > bulkRules.maxItems && selectedIds.size >= bulkRules.maxItems && (
-        <div className="rounded border border-amber-200 bg-amber-50 px-3.5 py-1.5 text-xs text-amber-900">
-          Only the first {bulkRules.maxItems} requests can be approved at once.
-        </div>
-      )}
-
-      {/* Policy Notice if any items require individual review */}
-      {ineligibleCount > 0 && (
-        <div className="flex items-center gap-2 rounded border border-rule bg-sheet px-3.5 py-2 text-xs text-ink-2">
-          <Info className="size-4 shrink-0 text-accent" />
-          <span>
-            {ineligibleCount} request{ineligibleCount > 1 ? "s" : ""} exceed{ineligibleCount === 1 ? "s" : ""} the bulk threshold of <strong>{formatCurrency(bulkRules.maxAmount)}</strong> and must be reviewed and approved individually.
-          </span>
-        </div>
-      )}
-
-      <Card>
-        <div className="px-2 pt-1 sm:px-3">
-          <Tabs
-            tabs={[{ key: "all", label: "All roles" }, ...APPROVER_ROLES.map((r) => ({ key: r.value, label: r.label }))]}
-            active={role}
-            onChange={setRole}
-          />
-        </div>
-        <CardBody>
-          <DataTable
-            columns={columns}
-            rows={sorted}
-            rowKey={(r) => r.request_id}
-            loading={loading}
-            onRowClick={(r) => navigate(approvalItemPath(r))}
-            emptyTitle="Nothing waiting for a decision"
-            selectable={{
-              selectedKeys: selectedIds,
-              onToggleRow: toggleRow,
-              onToggleAll: toggleAll,
-              isAllSelected,
-              isIndeterminate,
-              isRowSelectable: (r) => checkEligibility(r).eligible,
-              disabledReason: (r) => checkEligibility(r).reason,
-            }}
-          />
-        </CardBody>
-      </Card>
 
       {/* Bulk Approval Confirmation Modal */}
       {bulkModalOpen && (
