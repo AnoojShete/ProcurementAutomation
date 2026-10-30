@@ -19,6 +19,8 @@ import type { PurchaseRequest } from "@/types/api";
 // "open" = still moving: not received, invoiced, rejected or cancelled.
 const CLOSED = ["fulfilled", "partially_invoiced", "invoice_received", "rejected", "cancelled"];
 
+export type RequestScope = "all" | "mine" | "approved";
+
 export function RequestsListPage() {
   usePageHeader("My Requests", "Requests");
   const { user } = useAuth();
@@ -27,16 +29,21 @@ export function RequestsListPage() {
   // Filters live in the URL so dashboard figures can link straight to them:
   // ?scope=mine&status=pending_approval,approved&approved_by=me&vendor=<id>&backordered=1
   const [params, setParams] = useSearchParams();
-  const scope = (params.get("scope") ?? (user?.role === "requester" ? "mine" : "all")) as "mine" | "all";
-  const statuses = params.get("status")?.split(",").filter(Boolean) ?? [];
+  const rawScope = params.get("scope");
   const approvedByMe = params.get("approved_by") === "me";
+  const defaultScope: RequestScope = user?.role === "requester" ? "mine" : approvedByMe ? "approved" : "all";
+  const scope: RequestScope = (rawScope as RequestScope) ?? defaultScope;
+  const statuses = params.get("status")?.split(",").filter(Boolean) ?? [];
   const vendorId = params.get("vendor");
   const backordered = params.get("backordered") === "1";
-  const filtered = statuses.length > 0 || approvedByMe || !!vendorId || backordered;
+  const filtered = statuses.length > 0 || (approvedByMe && scope !== "approved") || !!vendorId || backordered;
 
-  const setScope = (k: "mine" | "all") => {
+  const setScope = (k: RequestScope) => {
     const next = new URLSearchParams(params);
     next.set("scope", k);
+    if (k === "approved") {
+      next.delete("approved_by");
+    }
     setParams(next, { replace: true });
   };
   const clearFilters = () => setParams(params.get("scope") ? { scope } : {}, { replace: true });
@@ -45,6 +52,19 @@ export function RequestsListPage() {
     const me = user?.email.toLowerCase();
     return (requests ?? []).filter((r) => {
       if (scope === "mine" && r.requested_by?.toLowerCase() !== me) return false;
+      if (scope === "approved") {
+        const approvedByMe = r.approval_history?.some(
+          (h) => h.decision === "approved" && h.decided_by?.toLowerCase() === me
+        );
+        if (!approvedByMe) {
+          if (user?.role === "approver" && r.approval_chain?.includes("dept_manager")) {
+            const deptIdx = r.approval_chain.indexOf("dept_manager");
+            if (r.current_approver_index <= deptIdx) return false;
+          } else {
+            return false;
+          }
+        }
+      }
       if (statuses.length) {
         const ok = statuses.some((st) => (st === "open" ? !CLOSED.includes(r.status ?? "") : r.status === st));
         if (!ok) return false;
@@ -54,12 +74,11 @@ export function RequestsListPage() {
       if (backordered && !(r.is_backordered && r.status !== "rejected")) return false;
       return true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requests, scope, user, params]);
+  }, [requests, scope, user, statuses, approvedByMe, vendorId, backordered]);
 
   const filterLabel = [
     statuses.map((st) => (st === "open" ? "Open" : titleCase(st))).join(" or "),
-    approvedByMe && "approved by you",
+    approvedByMe && scope !== "approved" && "approved by you",
     vendorId && "this vendor",
     backordered && "backordered",
   ]
@@ -73,7 +92,24 @@ export function RequestsListPage() {
     { key: "dept", header: "Department", render: (r) => r.department ?? "—" },
     { key: "amount", header: "Amount", render: (r) => formatCurrency(r.amount, r.currency ?? "INR"), sortValue: (r) => r.amount ?? 0 },
     { key: "tier", header: "Tier", render: (r) => <span className="text-ink-2">{titleCase(r.spend_tier)}</span> },
-    { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => {
+        if (r.status === "pending_approval") {
+          const chain = r.approval_chain || [];
+          const currentLevel = chain[r.current_approver_index];
+          const levelName = currentLevel === "finance_head" ? "Finance Head" : currentLevel === "dept_manager" ? "Dept Manager" : currentLevel ? titleCase(currentLevel) : "Approver";
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              <StatusBadge status="pending_approval" />
+              <span className="text-xs text-amber-700 font-medium">({levelName})</span>
+            </span>
+          );
+        }
+        return <StatusBadge status={r.status} />;
+      },
+    },
     { key: "created", header: "Submitted", render: (r) => formatDate(r.created_at), sortValue: (r) => r.created_at ?? "" },
   ];
 
@@ -87,9 +123,10 @@ export function RequestsListPage() {
             tabs={[
               { key: "all", label: "All Requests" },
               { key: "mine", label: "Created by me" },
+              { key: "approved", label: "Approved by me" },
             ]}
             active={scope}
-            onChange={(k) => setScope(k as "mine" | "all")}
+            onChange={(k) => setScope(k as RequestScope)}
           />
         ) : (
           <div />
@@ -99,12 +136,12 @@ export function RequestsListPage() {
             <FilterChip label={filterLabel} onClear={clearFilters} />
           </span>
         )}
-        {(user?.role === "requester" || user?.role === "admin") && (
-          <Button icon={<FilePlus2 className="size-4" />} onClick={() => navigate("/app/requests/new")}>
-            New Purchase Request
-          </Button>
-        )}
+        <Button variant="primary" onClick={() => navigate("/app/requests/new")} className="ml-auto">
+          <FilePlus2 className="size-4" />
+          <span>New Request</span>
+        </Button>
       </div>
+
       <Card>
         <CardBody>
           <DataTable
@@ -113,7 +150,7 @@ export function RequestsListPage() {
             rowKey={(r) => r.id}
             loading={loading}
             onRowClick={(r) => navigate(`/app/requests/${r.id}`)}
-            emptyTitle={filtered ? "No requests match this filter" : "No requests yet"}
+            emptyTitle={scope === "mine" ? "You haven't submitted any requests yet" : scope === "approved" ? "No requests approved by you yet" : "No requests found"}
           />
         </CardBody>
       </Card>

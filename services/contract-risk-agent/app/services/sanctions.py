@@ -25,10 +25,11 @@ import time
 import unicodedata
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional, Set, Tuple
 
 import httpx
-from rapidfuzz import fuzz, process
+from rapidfuzz import fuzz
+from rapidfuzz.distance import JaroWinkler, Levenshtein
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -40,19 +41,151 @@ SCHEMAS = {"Company", "Organization", "LegalEntity"}
 THRESHOLD_FALLBACK = 90.0
 REFRESH_SECONDS = 24 * 3600
 
-_SUFFIXES = {
-    "pvt", "private", "ltd", "limited", "llp", "llc", "inc", "incorporated", "corp", "corporation", "co",
-    "company", "plc", "pjsc", "ojsc", "jsc", "oao", "zao", "ooo", "gmbh", "ag", "sa", "srl", "bv", "nv",
-    "spa", "pte", "pty", "group", "holding", "holdings", "the", "and", "of",
+# Rule B: Separate legal structure suffixes from generic business fillers
+LEGAL_STRUCTURE_SUFFIXES = {
+    "pvt", "private", "ltd", "limited", "llp", "llc", "inc", "incorporated",
+    "corp", "corporation", "co", "company", "plc", "pjsc", "ojsc", "jsc",
+    "oao", "zao", "ooo", "gmbh", "ag", "sa", "srl", "bv", "nv", "spa",
+    "pte", "pty",
 }
+
+GENERIC_BUSINESS_WORDS = {
+    "technologies", "technology", "solutions", "systems", "services",
+    "consulting", "global", "industries", "industry", "industrial", "group", "holding", "holdings",
+    "international", "enterprises", "enterprise", "supplies", "supply",
+    "logistics", "logistic", "trading", "trade", "products", "product",
+    "materials", "material", "equipment", "hardware", "software",
+    "commercial", "agency", "distributors", "distribution",
+    "manufacturing", "manufacture", "import", "export",
+}
+
+STOPWORDS = {"the", "and", "of", "&", "it", "in", "for", "on", "at", "to", "by", "with"}
+
+_SUFFIXES = LEGAL_STRUCTURE_SUFFIXES | GENERIC_BUSINESS_WORDS | STOPWORDS
 
 
 def normalise(name: str) -> str:
+    """Normalises a company name for case, accents, punctuation, and strips legal suffixes."""
     text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
     text = text.replace(".", "")    # "S.A." / "L.L.C." / "Pvt." → "sa" / "llc" / "pvt"
     words = re.sub(r"[^a-z0-9]+", " ", text).split()
-    kept = [w for w in words if w not in _SUFFIXES]
+    kept = [w for w in words if w not in STOPWORDS and w not in LEGAL_STRUCTURE_SUFFIXES]
     return " ".join(kept or words)
+
+
+def extract_stems(name: str) -> Tuple[str, str]:
+    """
+    Extracts (distinct_stem, clean_string) implementing Rule B.
+    - distinct_stem: core distinctive identifier (e.g. acronym or non-filler stem).
+    - clean_string: normalized string for composite similarity comparison.
+    """
+    text = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
+    text = text.replace(".", "")
+    words = re.sub(r"[^a-z0-9]+", " ", text).split()
+    if not words:
+        return "", ""
+
+    # Strip stopwords and legal structure suffixes unconditionally
+    words_no_legal = [w for w in words if w not in STOPWORDS and w not in LEGAL_STRUCTURE_SUFFIXES]
+    if not words_no_legal:
+        words_no_legal = [w for w in words if w not in STOPWORDS] or words
+
+    # Distinctive non-filler tokens
+    non_fillers = [w for w in words_no_legal if w not in GENERIC_BUSINESS_WORDS]
+    distinct_stem = "".join(non_fillers) if non_fillers else "".join(words_no_legal)
+
+    # Rule B: DO NOT strip generic business fillers if doing so leaves a core stem of <= 3 chars
+    if len("".join(non_fillers)) <= 3:
+        clean_string = " ".join(words_no_legal)
+    else:
+        clean_string = " ".join(non_fillers)
+
+    return distinct_stem, clean_string
+
+
+def calculate_similarity(q_name: str, c_name: str, q_stem: Optional[str] = None, q_clean: Optional[str] = None) -> float:
+    """
+    Evaluates similarity between two entity names enforcing:
+    - Rule A: Short-token guard (exact match for <= 3 chars, matching initial for 4 chars, Levenshtein <= 1 for 4-char stems).
+    - Rule B: Intelligent stopword handling and stem preservation.
+    - Rule C: Hybrid Jaro-Winkler (60%) + RapidFuzz Token Sort (40%) metric.
+    """
+    if q_stem is None or q_clean is None:
+        q_stem, q_clean = extract_stems(q_name)
+    c_stem, c_clean = extract_stems(c_name)
+
+    if not q_stem or not c_stem:
+        return 0.0
+
+    # Rule A: Length-Aware Thresholding & Short-Token Guard
+    # If normalized entity stem has 3 or fewer characters:
+    # Similarity MUST be evaluated as an EXACT case-insensitive equality test (==).
+    # If q_stem != c_stem, similarity score MUST be 0.0.
+    if len(q_stem) <= 3 or len(c_stem) <= 3:
+        if q_stem != c_stem:
+            return 0.0
+
+    # If normalized entity stem has 4 characters:
+    # The initial characters MUST match (q_stem[0] == c_stem[0]).
+    # If first letters differ, similarity MUST immediately return 0.0.
+    # Additionally, 4-character stems cannot differ by more than 1 character edit (prevents false matches like ACME vs AMEN).
+    if len(q_stem) == 4 or len(c_stem) == 4:
+        if q_stem[0] != c_stem[0]:
+            return 0.0
+        if Levenshtein.distance(q_stem, c_stem) > 1:
+            return 0.0
+
+    # Rule C: Hybrid Scoring Metric (Jaro-Winkler + Token Sort)
+    jw = JaroWinkler.similarity(q_clean, c_clean) * 100.0
+    ts = fuzz.token_sort_ratio(q_clean, c_clean)
+    composite = round((0.6 * jw) + (0.4 * ts), 1)
+    return composite
+
+
+def parse_country_codes(countries_val: Any) -> Set[str]:
+    """Parses country representations into a set of uppercase 2-letter country codes."""
+    if not countries_val:
+        return set()
+    if isinstance(countries_val, (list, set, tuple)):
+        raw_items = countries_val
+    elif isinstance(countries_val, str):
+        raw_items = re.split(r"[,;|\s]+", countries_val)
+    else:
+        raw_items = [str(countries_val)]
+    return {c.strip().upper() for c in raw_items if c and len(c.strip()) == 2}
+
+
+def classify_sanctions_match(
+    best_score: float,
+    vendor_country: Optional[str],
+    candidate_countries: Any,
+) -> Tuple[str, int]:
+    """
+    Rule D: Secondary Attribute Disambiguation (Country / Jurisdiction Gating).
+    Returns (status, adjusted_score), where status is 'match', 'possible_match', or 'no_match'.
+    """
+    score = float(best_score)
+    v_codes = parse_country_codes(vendor_country)
+    c_codes = parse_country_codes(candidate_countries)
+
+    has_contradiction = bool(v_codes and c_codes and not (v_codes & c_codes))
+    has_match = bool(v_codes and c_codes and (v_codes & c_codes))
+
+    if score >= 95.0:
+        if has_contradiction:
+            # High similarity with explicit contradiction -> manual review, do NOT hard override
+            return "possible_match", 84
+        else:
+            return "match", int(round(score))
+    elif score >= 80.0:
+        if has_match:
+            return "match", int(round(score))
+        else:
+            return "possible_match", int(round(score))
+    elif score >= 70.0:
+        return "possible_match", int(round(score))
+    else:
+        return "no_match", int(round(score))
 
 
 # ── list download and index ────────────────────────────────────────────────
@@ -93,8 +226,8 @@ _cache: dict = {}
 
 
 def load_index(path: str = INDEX_PATH) -> Optional[dict]:
-    """The index with a flat (normalised name → entry) lookup, cached until
-    the file changes. None when no list has been downloaded."""
+    """The index with raw entries, cached until the file changes.
+    None when no list has been downloaded."""
     if not os.path.exists(path):
         return None
     mtime = os.path.getmtime(path)
@@ -102,12 +235,6 @@ def load_index(path: str = INDEX_PATH) -> Optional[dict]:
         return _cache["index"]
     with gzip.open(path, "rt") as f:
         index = json.load(f)
-    flat_names, owners = [], []
-    for i, e in enumerate(index["entries"]):
-        for n in e["names"]:
-            flat_names.append(normalise(n))
-            owners.append((i, n))
-    index["_flat"], index["_owners"] = flat_names, owners
     _cache.update(path=path, mtime=mtime, index=index)
     return index
 
@@ -126,20 +253,39 @@ def threshold() -> float:
 
 
 def screen_name(name: str, index: dict, cutoff: Optional[float] = None) -> list[dict]:
-    """Listed companies whose name or alias scores ≥ cutoff (0-100) against
-    `name`, best first, one row per listed entity."""
+    """Listed companies whose name or alias scores >= cutoff (0-100) against
+    `name`, best first, one row per listed entity.
+    Iterates directly over index['entries'] and their raw aliases to prevent
+    prior stem stripping (Prompt 11B)."""
     cutoff = threshold() if cutoff is None else cutoff
-    query = normalise(name)
-    if not query:
+    if not name or not name.strip():
         return []
-    hits = process.extract(query, index["_flat"], scorer=fuzz.token_sort_ratio, score_cutoff=cutoff, limit=20)
+
+    q_stem, q_clean = extract_stems(name)
+    if not q_stem:
+        return []
+
     best: dict = {}
-    for _, score, pos in hits:
-        i, alias = index["_owners"][pos]
-        if i not in best or score > best[i]["score"]:
-            e = index["entries"][i]
-            best[i] = {"entity_id": e["id"], "listed_name": e["name"], "matched_name": alias, "score": round(score, 1),
-                       "countries": e["countries"], "lists": e["datasets"]}
+    for entry in index.get("entries", []):
+        entry_id = entry.get("id")
+        ent_best_score = 0.0
+        ent_best_alias = ""
+        for alias in entry.get("names", []):
+            score = calculate_similarity(name, alias, q_stem=q_stem, q_clean=q_clean)
+            if score >= cutoff and score > ent_best_score:
+                ent_best_score = score
+                ent_best_alias = alias
+
+        if ent_best_score >= cutoff:
+            best[entry_id] = {
+                "entity_id": entry_id,
+                "listed_name": entry.get("name"),
+                "matched_name": ent_best_alias,
+                "score": round(ent_best_score, 1),
+                "countries": entry.get("countries", ""),
+                "lists": entry.get("datasets", ""),
+            }
+
     return sorted(best.values(), key=lambda m: -m["score"])[:5]
 
 

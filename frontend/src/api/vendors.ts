@@ -22,6 +22,7 @@ export interface VendorProfileInput {
   name: string;
   country?: string;
   inherent_tier?: "low" | "moderate" | "high" | "critical" | string;
+  justification?: string;
   swift_bic?: string;
   bank_name?: string;
   website?: string;
@@ -194,8 +195,10 @@ export const vendorsApi = {
     ),
   recordDecision: (vendorId: string, body: { decision: string; justification: string; conditions?: any[]; expires_in_days?: number }) =>
     api.post(`/vendors/${vendorId}/decisions`, body),
-  remediationPlan: (vendorId: string, audience: "vendor" | "buyer" = "buyer") =>
-    api.get<RemediationPlan>(`/vendors/${vendorId}/risk/remediation-plan?audience=${audience}`),
+  remediationPlan: (vendorId: string, audience: "vendor" | "buyer" | "internal" = "internal") =>
+    api.get<RemediationPlan>(
+      `/vendors/${vendorId}/risk/remediation-plan?audience=${audience === "buyer" ? "internal" : audience}`
+    ),
   whatIf: (vendorId: string, simulate_resolved_rules: string[]) =>
     api.post<WhatIfResult>(`/vendors/${vendorId}/risk/what-if`, { simulate_resolved_rules }),
   history: (vendorId: string) => api.get<RiskHistoryEntry[]>(`/vendors/${vendorId}/risk/history`),

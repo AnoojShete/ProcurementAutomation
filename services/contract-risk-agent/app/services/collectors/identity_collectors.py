@@ -121,13 +121,14 @@ async def collect_sanctions(
     index = sanctions.load_index()
 
     v_row = (await db.execute(
-        text("SELECT name, bank_name, swift_bic FROM vendors WHERE id = :id"),
+        text("SELECT name, bank_name, swift_bic, country FROM vendors WHERE id = :id"),
         {"id": vendor.id},
     )).first()
 
     vendor_name = (v_row.name if v_row else getattr(vendor, "name", "")) or ""
     bank_name = (v_row.bank_name if v_row else getattr(vendor, "bank_name", None)) or ""
     swift_bic = (v_row.swift_bic if v_row else getattr(vendor, "swift_bic", None)) or ""
+    vendor_country = (v_row.country if v_row else getattr(vendor, "country", None)) or ""
 
     status = "not_screened"
     best_score = 0
@@ -165,9 +166,11 @@ async def collect_sanctions(
         elif latest.status in ("potential_match", "match"):
             if matches:
                 top_m = matches[0]
-                best_score = int(top_m.get("score", 0))
-                matched_name = top_m.get("matched_name", top_m.get("listed_name", vendor.name))
-                status = "match" if best_score >= match_threshold else "possible_match"
+                raw_score = float(top_m.get("score", 0))
+                matched_name = top_m.get("matched_name", top_m.get("listed_name", vendor_name))
+                status, best_score = sanctions.classify_sanctions_match(
+                    raw_score, vendor_country, top_m.get("countries")
+                )
             else:
                 status = "possible_match"
         else:
@@ -178,9 +181,11 @@ async def collect_sanctions(
             matches = [m for m in (screening.matches or []) if isinstance(m, dict)]
             if screening.status in ("potential_match", "match") and matches:
                 top_m = matches[0]
-                best_score = int(top_m.get("score", 0))
-                matched_name = top_m.get("matched_name", top_m.get("listed_name", vendor.name))
-                status = "match" if best_score >= match_threshold else "possible_match"
+                raw_score = float(top_m.get("score", 0))
+                matched_name = top_m.get("matched_name", top_m.get("listed_name", vendor_name))
+                status, best_score = sanctions.classify_sanctions_match(
+                    raw_score, vendor_country, top_m.get("countries")
+                )
             else:
                 status = "no_match"
         else:
@@ -192,11 +197,15 @@ async def collect_sanctions(
             if b_hits:
                 clean_b_hits = [m for m in b_hits if isinstance(m, dict)]
                 matches = clean_b_hits + matches
-                b_score = int(clean_b_hits[0].get("score", 0))
+                b_top = clean_b_hits[0]
+                b_raw = float(b_top.get("score", 0))
+                b_status, b_score = sanctions.classify_sanctions_match(
+                    b_raw, vendor_country, b_top.get("countries")
+                )
                 if b_score > best_score:
                     best_score = b_score
-                    matched_name = f"{clean_b_hits[0].get('matched_name')} (Bank: {bank_name})"
-                    status = "match" if best_score >= match_threshold else "possible_match"
+                    matched_name = f"{b_top.get('matched_name')} (Bank: {bank_name})"
+                    status = b_status
 
     match_type = "none"
     if status == "match":
@@ -253,7 +262,7 @@ async def collect_sanctions(
         "sanctions.best_score": int(best_score),  # Prompt 11: keep 0-100 scale, do NOT divide by 100
         "sanctions.matched_list": list_name,
         "sanctions.matched_entry_id": matches[0].get("id", matches[0].get("entity_id", "none")) if matches else "none",
-        "sanctions.query_name": vendor.name,
+        "sanctions.query_name": vendor_name,
         "sanctions.matched_name": matched_name,
         "sanctions.list_name": list_name,
         "sanctions.list_version": list_version,
@@ -740,20 +749,26 @@ async def collect_jurisdiction(
             "country.wgi_composite": None,
             "country.pv": None,
             "country.rl": None,
-            "country.wgi_year": 2024,
+            "country.wgi_year": None,
             "country.status": "country_unknown",
             "na_reason_code": None,
         }
         obs_status = "not_checked"
-    else:
-        wgi_composite = 0.85 if is_domestic else 0.5
-        pv = 0.7 if is_domestic else 0.6
-        rl = 0.8 if is_domestic else 0.5
+        http_status = None
+        raw_body = fields
+        wgi_composite = None
+        pv = None
+        rl = None
+        wgi_year = None
+    elif is_domestic:
+        wgi_composite = 0.85
+        pv = 0.70
+        rl = 0.80
         wgi_year = 2024
 
         fields = {
             "country.code": effective_country,
-            "country.is_domestic": is_domestic,
+            "country.is_domestic": True,
             "country.prohibited": prohibited,
             "country.high_risk": high_risk,
             "country.wgi_composite": wgi_composite,
@@ -761,9 +776,47 @@ async def collect_jurisdiction(
             "country.rl": rl,
             "country.wgi_year": wgi_year,
             "country.status": "ok",
-            "na_reason_code": "domestic_vendor" if is_domestic else None,
+            "na_reason_code": "domestic_vendor",
         }
         obs_status = "ok"
+        http_status = 200
+        raw_body = {"status": "domestic_baseline", "fields": fields}
+    else:
+        from app.services.world_bank import fetch_wgi_indicators
+
+        wgi_res = await fetch_wgi_indicators(effective_country)
+
+        wgi_composite = wgi_res.wgi_composite
+        pv = wgi_res.pv
+        rl = wgi_res.rl
+        wgi_year = wgi_res.wgi_year
+
+        if wgi_res.status == "ok":
+            country_status = "ok"
+            obs_status = "ok"
+            http_status = 200
+        else:
+            country_status = "wgi_unavailable"
+            obs_status = "ok"
+            http_status = 200 if wgi_res.status == "no_data" else 500
+
+        fields = {
+            "country.code": effective_country,
+            "country.is_domestic": False,
+            "country.prohibited": prohibited,
+            "country.high_risk": high_risk,
+            "country.wgi_composite": wgi_composite,
+            "country.pv": pv,
+            "country.rl": rl,
+            "country.wgi_year": wgi_year,
+            "country.status": country_status,
+            "na_reason_code": None,
+        }
+        raw_body = {
+            "country_code": effective_country,
+            "wgi": wgi_res.raw_response,
+            "fields": fields,
+        }
 
     raw = await record_raw_response(
         db=db,
@@ -771,20 +824,23 @@ async def collect_jurisdiction(
         signal_key="jurisdiction",
         provider=provider,
         request_method="GET",
-        body=fields,
+        body=raw_body,
         source_id="wgi_indicators",
-        response_status=200 if (country_code or swift_country) else None,
+        response_status=http_status,
         fetched_at=now,
     )
 
     facts = [
         {"label": "Source", "value": provider},
         {"label": "Retrieved", "value": now.strftime("%Y-%m-%d %H:%M:%S UTC")},
-        {"label": "HTTP status", "value": "200" if (country_code or swift_country) else "internal"},
+        {"label": "HTTP status", "value": str(http_status) if http_status else "internal"},
         {"label": "Country Code", "value": effective_country},
         {"label": "Prohibited Jurisdiction", "value": "Yes" if prohibited else "No"},
         {"label": "High Risk Country", "value": "Yes" if high_risk else "No"},
-        {"label": "WGI Composite Score", "value": f"{wgi_composite:.2f}" if (country_code or swift_country) else "—"},
+        {"label": "WGI Composite Score", "value": f"{wgi_composite:.2f}" if wgi_composite is not None else "—"},
+        {"label": "Political Stability (PV)", "value": f"{pv:.2f}" if pv is not None else "—"},
+        {"label": "Rule of Law (RL)", "value": f"{rl:.2f}" if rl is not None else "—"},
+        {"label": "Indicator Year", "value": str(wgi_year) if (wgi_year and wgi_composite is not None) else "—"},
     ]
 
     obs = await record_observation(

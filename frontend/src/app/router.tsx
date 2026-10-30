@@ -107,6 +107,7 @@ const router = createBrowserRouter([
       { path: "vendors", element: withSuspense(<VendorsListPage />) },
       { path: "vendors/:id", element: withSuspense(<VendorDetailPage />) },
       { path: "vendors/:id/risk", element: withSuspense(<VendorRiskScorecardPage />) },
+      { path: "vendors/:id/scorecard", element: withSuspense(<VendorRiskScorecardPage />) },
       {
         path: "approvals",
         element: withSuspense(

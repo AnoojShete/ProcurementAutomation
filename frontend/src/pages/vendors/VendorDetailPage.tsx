@@ -74,6 +74,11 @@ export function VendorDetailPage() {
   };
 
   const [offboardOpen, setOffboardOpen] = useState(false);
+  const [tierModalOpen, setTierModalOpen] = useState(false);
+  const [pendingTier, setPendingTier] = useState<string>("");
+  const [tierJustification, setTierJustification] = useState<string>("");
+  const [tierUpdating, setTierUpdating] = useState(false);
+  const [tierError, setTierError] = useState<string | null>(null);
 
   const timeline: TimelineEvent[] = useMemo(() => {
     const events: TimelineEvent[] = [];
@@ -135,15 +140,13 @@ export function VendorDetailPage() {
                 aria-label="Inherent Risk Tier"
                 className="rounded-md border border-surface-border bg-sheet px-2.5 py-1 text-xs font-semibold uppercase text-ink"
                 value={vendor.inherent_tier || "moderate"}
-                onChange={async (e) => {
+                onChange={(e) => {
                   const newTier = e.target.value;
-                  try {
-                    await vendorsApi.update(vendor.id, { inherent_tier: newTier });
-                    reloadVendors();
-                    await recompute();
-                  } catch (err) {
-                    console.error("Failed to update inherent tier:", err);
-                  }
+                  if (newTier === (vendor.inherent_tier || "moderate")) return;
+                  setPendingTier(newTier);
+                  setTierJustification("");
+                  setTierError(null);
+                  setTierModalOpen(true);
                 }}
               >
                 <option value="low">Low</option>
@@ -230,6 +233,32 @@ export function VendorDetailPage() {
                     {risk.signals_used! < risk.signals_total ? " — missing ones are left out, not guessed." : "."}
                   </p>
                 )}
+                {risk.headline && (
+                  <div className={`mt-3 rounded-lg border p-3 text-xs leading-relaxed ${
+                    risk.rating_status === "provisional" || risk.risk_band === "High"
+                      ? "border-amber-400 bg-amber-50 text-amber-950"
+                      : "border-slate-200 bg-slate-50 text-slate-800"
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className={`size-4 shrink-0 mt-0.5 ${
+                        risk.rating_status === "provisional" || risk.risk_band === "High" ? "text-amber-600" : "text-slate-500"
+                      }`} />
+                      <div>
+                        <span className="font-semibold">Rating Rationale:</span> {risk.headline}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {((risk.provisional?.reasons ?? risk.provisional_reasons ?? []).length > 0) && (
+                  <div className="mt-2.5 rounded-md border border-amber-300 bg-amber-50/60 p-2.5 text-xs text-amber-950">
+                    <span className="font-semibold">Provisional Rating Flags:</span>
+                    <ul className="mt-1 list-disc list-inside space-y-0.5 text-11">
+                      {(risk.provisional?.reasons ?? risk.provisional_reasons ?? []).map((r: any, i: number) => (
+                        <li key={i}>{typeof r === "string" ? r : r.message || r.code}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {(risk.top_factors ?? []).filter((f) => f.override).map((f) => (
                   <div key={f.feature} className="mt-3 rounded-md border border-danger-500/30 bg-danger-50 px-3 py-2 text-13 text-slate-800">
                     <span className="font-medium">Hard override:</span> {f.reason} — rated High regardless of the model score.
@@ -243,7 +272,11 @@ export function VendorDetailPage() {
                 )}
                 <p className="mb-2 mt-5 text-13 font-medium text-ink-2">Contributing factors</p>
                 {(risk.top_factors ?? []).filter((f) => !f.override).length === 0 && (
-                  <p className="text-sm text-slate-500">No signals on file to explain the score.</p>
+                  <p className="text-sm text-slate-500">
+                    {risk.rating_status === "provisional"
+                      ? "No penalty points observed (0 risk points). Rated High Risk (provisional) because vendor identity (GSTIN / Incorporation) is not yet verified on file."
+                      : "No risk points on file. All assessed signals are clear."}
+                  </p>
                 )}
                 <div className="flex flex-col gap-2.5">
                   {(risk.top_factors ?? []).filter((f) => !f.override).map((f, _i, factors) => {
@@ -259,7 +292,9 @@ export function VendorDetailPage() {
                     );
                   })}
                 </div>
-                <p className="mt-3 text-xs text-slate-400">Model version {risk.model_version ?? "—"} · vendor-specific factor weights, not a static ranking.</p>
+                <p className="mt-3 text-xs text-slate-400">
+                  Model version {risk.model_version ? risk.model_version.replace("_", " ").toUpperCase() : "RULESET V2"} · vendor-specific factor weights, not a static ranking.
+                </p>
               </>
             )}
           </CardBody>
@@ -334,6 +369,70 @@ export function VendorDetailPage() {
       </div>
 
       <OffboardModal open={offboardOpen} onClose={() => setOffboardOpen(false)} vendorId={vendor.id} vendorName={vendor.name} onDone={reloadVendors} />
+
+      <Modal
+        open={tierModalOpen}
+        onClose={() => {
+          if (!tierUpdating) setTierModalOpen(false);
+        }}
+        title="Change Inherent Risk Tier"
+      >
+        <div className="flex flex-col gap-4 text-sm">
+          <p className="text-slate-600">
+            Updating inherent tier for <strong>{vendor.name}</strong> from{" "}
+            <span className="font-semibold uppercase text-slate-700">{vendor.inherent_tier || "moderate"}</span> to{" "}
+            <span className="font-semibold uppercase text-brand-600">{pendingTier}</span>.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-slate-700">
+              Justification / Business Rationale <span className="text-slate-400 font-normal">(saved to audit log)</span>:
+            </label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm text-ink focus:border-brand-500 focus:outline-none"
+              placeholder="e.g. Higher operational criticality or updated inherent profile"
+              value={tierJustification}
+              onChange={(e) => setTierJustification(e.target.value)}
+              disabled={tierUpdating}
+            />
+          </div>
+          {tierError && <InlineError message={tierError} />}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setTierModalOpen(false)}
+              disabled={tierUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={tierUpdating}
+              onClick={async () => {
+                setTierUpdating(true);
+                setTierError(null);
+                try {
+                  await vendorsApi.update(vendor.id, {
+                    inherent_tier: pendingTier,
+                    justification: tierJustification.trim() || `Inherent tier updated to ${pendingTier} by ${user?.email || "admin"}`,
+                  });
+                  setTierModalOpen(false);
+                  reloadVendors();
+                  await recompute();
+                } catch (err) {
+                  setTierError(err instanceof ApiError ? err.message : "Failed to update inherent tier.");
+                } finally {
+                  setTierUpdating(false);
+                }
+              }}
+            >
+              Confirm Change
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

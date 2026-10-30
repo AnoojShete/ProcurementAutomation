@@ -724,6 +724,62 @@ def evaluate_risk(
         safety_notice = None
 
     # Compile structured explanation payload (Section 7.1 & Prompt 9C)
+    score_breakdown = [
+        {
+            "rule_id": r["rule_id"],
+            "signal_key": r["signal_key"],
+            "signal_label": r.get("label") or r["signal_key"],
+            "label": r.get("label") or r["signal_key"],
+            "group_key": r["group_key"],
+            "group": r["group_key"],
+            "status": r["status"],
+            "points": r["points"],
+            "potential_points": r.get("potential_points", r.get("max_points", r["points"])),
+            "max_points": r.get("max_points", r.get("potential_points", r["points"])),
+            "override_band": r.get("override_band"),
+            "observed_fields": r.get("observed_fields", {}),
+            "facts": r.get("facts", []),
+            "reason_text": r.get("reason_text", ""),
+            "rationale": r.get("rationale", ""),
+            "remediable": r.get("remediable", True),
+            "ages_out_on": r.get("ages_out_on"),
+            "kind": r.get("kind", "due_diligence"),
+            "coverage_type": r.get("coverage_type", "full"),
+            "source": {
+                "raw_response_id": r.get("raw_response_id"),
+                "observation_id": r.get("observation_id"),
+            },
+            "remediation": r.get("remediation", []),
+        }
+        for r in rule_results
+    ]
+
+    unassessed_signals = [
+        {
+            "signal_key": r["signal_key"],
+            "signal_label": r.get("label") or r["signal_key"],
+            "potential_points": r.get("potential_points", r.get("max_points", 0)),
+            "provider": next(
+                (f["value"] for f in r.get("facts", []) if f.get("label") == "Source"),
+                "System default",
+            ),
+            "reason_not_assessed": r.get("reason_text", "No observation data collected yet"),
+        }
+        for r in rule_results
+        if r.get("status") == "not_assessed"
+    ]
+
+    override_details = [
+        {
+            "rule_id": r["rule_id"],
+            "signal_key": r["signal_key"],
+            "override_band": r.get("override_band") or "High",
+            "rationale": r.get("rationale") or r.get("reason_text", ""),
+        }
+        for r in rule_results
+        if r.get("override_band")
+    ]
+
     explanation = {
         "headline": headline,
         "final_band": final_band,
@@ -769,30 +825,14 @@ def evaluate_risk(
         "arithmetic_line": arithmetic_line,
         "safety_notice": safety_notice,
         "attribution": "Breach data from Have I Been Pwned",
-        "signals": [
-            {
-                "signal_key": r["signal_key"],
-                "label": r["label"],
-                "group": r["group_key"],
-                "status": r["status"],
-                "points": r["points"],
-                "max_points": r["max_points"],
-                "rule_id": r["rule_id"],
-                "reason_text": r["reason_text"],
-                "rationale": r["rationale"],
-                "facts": r["facts"],
-                "kind": r.get("kind", "due_diligence"),
-                "coverage_type": r.get("coverage_type", "full"),
-                "source": {
-                    "raw_response_id": r["raw_response_id"],
-                    "observation_id": r["observation_id"],
-                },
-                "remediation": r["remediation"],
-                "remediable": r["remediable"],
-                "ages_out_on": r["ages_out_on"],
-            }
-            for r in rule_results
-        ],
+        "score_breakdown": score_breakdown,
+        "signals": score_breakdown,
+        "unassessed_signals": unassessed_signals,
+        "override_details": override_details,
+        "unassessed_potential_points": due_diligence_potential_points,
+        "worst_case_points": worst_case_points,
+        "worst_case_band": worst_case_band,
+        "snapshot_sha256": snapshot_hash,
         "thought_process": thought_steps,
         "sum_check": {
             "sum_of_signal_points": total_points,

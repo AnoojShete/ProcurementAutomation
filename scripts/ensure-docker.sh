@@ -88,3 +88,27 @@ else
     exit 1
   }
 fi
+
+# In WSL2, Docker Desktop injects "credsStore": "desktop.exe" into ~/.docker/config.json.
+# If the user is not logged in through desktop.exe, docker-credential-desktop.exe
+# exits with status 1 on lookups, which causes docker buildx to fail with:
+# "error getting credentials - err: exit status 1".
+# Remove desktop.exe from credsStore if present.
+if _is_wsl && [ -f "$HOME/.docker/config.json" ]; then
+  if grep -q '"desktop\.exe"' "$HOME/.docker/config.json" 2>/dev/null; then
+    python3 -c '
+import json, os
+p = os.path.expanduser("~/.docker/config.json")
+try:
+    with open(p, "r") as f:
+        c = json.load(f)
+    if c.get("credsStore") == "desktop.exe":
+        del c["credsStore"]
+        with open(p, "w") as f:
+            json.dump(c, f, indent=2)
+except Exception:
+    pass
+' 2>/dev/null || true
+  fi
+fi
+
