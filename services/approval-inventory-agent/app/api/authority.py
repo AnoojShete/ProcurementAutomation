@@ -3,7 +3,7 @@ app/services/approval_authority.py for the rules."""
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +45,13 @@ class DelegationBody(BaseModel):
 @router.get("/")
 async def get_authority(db: AsyncSession = Depends(get_db), _user: CurrentUser = Depends(get_current_user)):
     return {"data": await authority.list_authority(db)}
+
+
+@router.get("/approvers")
+async def approvers(amount: float = Query(0, ge=0, lt=10_000_000_000), db: AsyncSession = Depends(get_db),
+                    user: CurrentUser = Depends(get_current_user)):
+    """Who the caller can pick as the manager-level approver of a new request."""
+    return {"data": await authority.selectable_approvers(db, amount, user.email)}
 
 
 @router.get("/check/{request_id}", dependencies=[Depends(require_role("approver", "finance", "admin"))])

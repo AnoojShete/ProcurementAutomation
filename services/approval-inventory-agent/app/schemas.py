@@ -33,6 +33,9 @@ class CreatePurchaseRequest(BaseModel):
     currency: str = "INR"
     items: Optional[list[dict]] = None
     comments: Optional[str] = None
+    # One of the people assigned to the manager level (GET /authority/approvers);
+    # only they (or their delegate) can decide that level. None = anyone assigned.
+    selected_approver: Optional[str] = Field(default=None, max_length=255)
 
     @field_validator("department")
     @classmethod
@@ -91,6 +94,7 @@ class PurchaseRequestResponse(BaseModel):
     status: Optional[str] = None
     approval_chain: Optional[list[str]] = None
     current_approver_index: int = 0
+    selected_approver: Optional[str] = None
     sla_deadline: Optional[datetime] = None
     items: Optional[list[dict]] = None
     is_backordered: bool = False
@@ -135,6 +139,7 @@ class InboxItemResponse(BaseModel):
     sla_deadline: Optional[str]
     created_at: Optional[str]
     license_id: Optional[str] = None
+    selected_approver: Optional[str] = None
 
 
 # --- Anomaly factor schema (matches risk.score.updated top_factors shape) ---

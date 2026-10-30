@@ -40,7 +40,7 @@ def test_only_mail_to_the_intake_address_counts():
 def test_rejection_reasons():
     ok = ei.Attachment("a.PDF", "application/pdf", PDF)
     assert ei.rejection_reason(ok) is None
-    assert "not a PDF, PNG or JPEG" in ei.rejection_reason(ei.Attachment("notes.docx", "application/msword", b"x"))
+    assert "not a PDF, PNG, JPEG or WebP" in ei.rejection_reason(ei.Attachment("notes.docx", "application/msword", b"x"))
     assert "empty" in ei.rejection_reason(ei.Attachment("a.pdf", "application/pdf", b""))
 
 
@@ -78,7 +78,7 @@ def test_non_document_attachment_is_rejected_with_a_reason(monkeypatch):
     mail = _mail(attachments=(("invoice.pdf", "application/pdf", PDF), ("terms.docx", "application/msword", b"PK..")))
     record = asyncio.run(ei.process_email(factory, object(), mail))
     assert record["status"] == "partial"
-    assert record["rejections"] == [{"filename": "terms.docx", "reason": "not a PDF, PNG or JPEG (terms.docx)"}]
+    assert record["rejections"] == [{"filename": "terms.docx", "reason": "not a PDF, PNG, JPEG or WebP (terms.docx)"}]
 
 
 def test_email_without_attachments_is_recorded_as_rejected(monkeypatch):

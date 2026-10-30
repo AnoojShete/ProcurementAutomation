@@ -1,9 +1,13 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, String, func
 from app.database import get_db
 from app.models import PurchaseRequest
 from app.schemas import DataResponse, InboxItemResponse
+from app.services.approval_authority import SELECTABLE_LEVEL, load_delegations
+from shared.auth import CurrentUser, get_current_user
 
 router = APIRouter()
 
@@ -15,7 +19,8 @@ def _license_id(req: PurchaseRequest):
     return None
 
 @router.get("/{approver_id}", response_model=DataResponse)
-async def get_inbox(approver_id: str, db: AsyncSession = Depends(get_db)):
+async def get_inbox(approver_id: str, db: AsyncSession = Depends(get_db),
+                    user: CurrentUser = Depends(get_current_user)):
     # Uses PostgreSQL JSON path query to check if current approver matches approver_id
     stmt = (
         select(PurchaseRequest)
@@ -26,10 +31,22 @@ async def get_inbox(approver_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(stmt)
     requests = result.scalars().all()
     
+    # A request with a picked approver waits only in their inbox (and their
+    # delegates'); admins still see everything.
+    me = (user.email or "").lower()
+    now = datetime.now(timezone.utc)
+    acting_for = {me} | {
+        d.delegator_email.lower() for d in await load_delegations(db, SELECTABLE_LEVEL)
+        if d.delegate_email.lower() == me and d.valid_from <= now <= d.valid_until
+    }
+
     inbox_items = []
     for req in requests:
         chain = req.approval_chain or []
         idx = req.current_approver_index
+        picked = (req.selected_approver or "").lower()
+        if picked and approver_id == SELECTABLE_LEVEL and user.role != "admin" and picked not in acting_for:
+            continue
         if idx < len(chain) and chain[idx] == approver_id:
             inbox_items.append({
                 "request_id": req.id,
@@ -44,6 +61,7 @@ async def get_inbox(approver_id: str, db: AsyncSession = Depends(get_db)):
                 # Reclaim/license requests point at the license they concern, so
                 # the inbox can open the license page (where the decision is).
                 "license_id": _license_id(req),
+                "selected_approver": req.selected_approver,
             })
             
     # Sort by sla_deadline ascending (most urgent first)

@@ -307,7 +307,7 @@ function UploadModal({
               Each file is scanned for malware, then classified and field-extracted. Files are processed in
               parallel. Up to {MAX_FILES} files, 25 MB each.
             </p>
-            <FileUploader multiple allowFolder onFilesSelected={addFiles} onFilesWithPathSelected={addFilesWithPath} accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif" disabled={uploading} />
+            <FileUploader multiple allowFolder onFilesSelected={addFiles} onFilesWithPathSelected={addFilesWithPath} accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.webp" disabled={uploading} />
           </>
         )}
         {error && <InlineError message={error} />}

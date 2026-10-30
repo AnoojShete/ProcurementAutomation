@@ -34,7 +34,8 @@ from shared.drop_folder import EMAIL_INTAKE_UPLOADER
 
 logger = logging.getLogger(__name__)
 
-ACCEPTED = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+ACCEPTED = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+            ".webp": "image/webp"}
 
 
 @dataclass
@@ -86,7 +87,7 @@ def rejection_reason(att: Attachment) -> str | None:
     """Why an attachment can't be a document, before anything is stored.
     (Content is checked again from the bytes when it's stored.)"""
     if os.path.splitext(att.filename.lower())[1] not in ACCEPTED:
-        return f"not a PDF, PNG or JPEG ({att.filename})"
+        return f"not a PDF, PNG, JPEG or WebP ({att.filename})"
     if not att.data:
         return f"empty attachment ({att.filename})"
     if len(att.data) > settings.max_upload_bytes:

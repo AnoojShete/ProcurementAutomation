@@ -13,10 +13,11 @@ ASSIGNED = [
 
 
 def decide(user, *, level="dept_manager", amount=10_000, requested_by="req@acme.test", decision="approved",
-           prior=(), delegations=()):
+           prior=(), delegations=(), selected=None):
     return evaluate_authority(
         decision=decision, requested_by=requested_by, amount=amount, level=level, user_email=user,
         assignments=ASSIGNED, delegations=list(delegations), prior_approvers=list(prior), now=NOW,
+        selected_approver=selected,
     )
 
 
@@ -74,3 +75,33 @@ def test_delegation_from_unassigned_user_grants_nothing():
 
 def test_no_pending_level():
     assert decide("approver@acme.test", level=None).code == "NO_PENDING_LEVEL"
+
+
+# --- approver picked by the requester ---------------------------------------
+
+def test_picked_approver_alone_decides_the_manager_level():
+    assert decide("lead@acme.test", selected="Lead@acme.test").allowed
+    for other in ("approver@acme.test", "admin@acme.test"):
+        d = decide(other, selected="lead@acme.test")
+        assert not d.allowed and d.code == "NOT_SELECTED_APPROVER" and "lead@acme.test" in d.reason
+
+
+def test_picked_approvers_delegate_may_decide():
+    dele = Delegation("dept_manager", "lead@acme.test", "stand-in@acme.test", NOW - timedelta(days=1), NOW + timedelta(days=1))
+    assert decide("stand-in@acme.test", selected="lead@acme.test", delegations=[dele]).allowed
+    other = Delegation("dept_manager", "approver@acme.test", "stand-in@acme.test", NOW - timedelta(days=1), NOW + timedelta(days=1))
+    assert not decide("stand-in@acme.test", selected="lead@acme.test", delegations=[other]).allowed
+
+
+def test_pick_applies_only_to_the_manager_level():
+    assert decide("finance@acme.test", level="finance_head", selected="lead@acme.test").allowed
+
+
+def test_pick_no_longer_assigned_falls_back_to_everyone():
+    assert decide("approver@acme.test", selected="left-the-company@acme.test").allowed
+
+
+def test_picked_approver_still_bound_by_limit_and_separation_of_duties():
+    assert decide("lead@acme.test", selected="lead@acme.test", amount=60_000).code == "OVER_LIMIT"
+    d = decide("lead@acme.test", selected="lead@acme.test", requested_by="lead@acme.test")
+    assert d.code == "SEPARATION_OF_DUTIES"

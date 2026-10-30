@@ -174,7 +174,10 @@ INSERT INTO approver_assignments (id, level, user_email, max_amount, created_by)
   ('a0000000-0000-4000-8000-000000000004', 'finance_head', 'admin@demo.example.com', NULL, 'seed'),
   ('a0000000-0000-4000-8000-000000000005', 'dept_manager', 'v89714260@gmail.com', NULL, 'seed'),
   ('a0000000-0000-4000-8000-000000000006', 'finance_head', 'nirajsawant761@gmail.com', NULL, 'seed'),
-  ('a0000000-0000-4000-8000-000000000007', 'dept_manager', 'approver2@demo.example.com', NULL, 'seed')
+  ('a0000000-0000-4000-8000-000000000007', 'dept_manager', 'approver2@demo.example.com', NULL, 'seed'),
+  ('a0000000-0000-4000-8000-000000000008', 'dept_manager', 'approver3@demo.example.com', NULL, 'seed'),
+  ('a0000000-0000-4000-8000-000000000009', 'dept_manager', 'approver4@demo.example.com', NULL, 'seed'),
+  ('a0000000-0000-4000-8000-000000000010', 'finance_head', 'finance2@demo.example.com', NULL, 'seed')
 ON CONFLICT (level, user_email) DO NOTHING
 ;
 
@@ -518,3 +521,7 @@ ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ldc_valid_until DATE;
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS msme_udyam_number VARCHAR(19);
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS msme_category VARCHAR(10);
 ALTER TABLE vendors ADD COLUMN IF NOT EXISTS annual_turnover_inr NUMERIC(16, 2);
+
+-- The approver the requester picked for the manager level (one of the people
+-- assigned to dept_manager). NULL = anyone assigned to the level may decide.
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS selected_approver VARCHAR(255);

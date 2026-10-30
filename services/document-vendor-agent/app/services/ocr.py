@@ -45,7 +45,7 @@ from app.config import load_extraction_config
 
 logger = logging.getLogger(__name__)
 
-IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "tiff", "bmp"}
+IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "tiff", "bmp", "webp"}
 PDF_EXTENSIONS = {"pdf"}
 
 # Path to the subprocess worker script

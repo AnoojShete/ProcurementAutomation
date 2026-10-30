@@ -295,8 +295,12 @@ Only :8080 is reachable from other machines; every other port is bound to
 Seeded when `APP_ENV=development`, password `DemoPass123!` for all
 (`@demo.example.com`): `admin@` **Anjali**, `finance@` **Niraj**,
 `requester@` **Anooj**, `approver@` **Vaidehi**, and `approver2@` (no
-name, for separation-of-duties checks). The login page has one-click
-buttons for them. Pages show these names wherever the data holds an email.
+name, for separation-of-duties checks). Five fictional colleagues give the
+approver picker something to choose from: `requester2@` Rohan Mehta,
+`requester3@` Sneha Kulkarni, `approver3@` Kavya Iyer, `approver4@` Arjun
+Desai (both on the manager level) and `finance2@` Meera Joshi (finance
+level). The login page has one-click buttons for the four team personas.
+Pages show these names wherever the data holds an email.
 
 ### Roles and accounts
 
@@ -812,7 +816,7 @@ mail to other addresses is ignored. The document page shows "By email from
 
 ### Drop folder → signed contract (fully automated)
 
-Put a vendor quote (PDF/PNG/JPEG) in `./inbox/input`. No clicks after that:
+Put a vendor quote (PDF/PNG/JPEG/TIFF/WebP) in `./inbox/input`. No clicks after that:
 
 | Step | Who | Kafka event |
 |---|---|---|
@@ -913,6 +917,7 @@ with a live scenario (showcase mode):
 |---|---|
 | Transactional outbox, consumer retry + dead-letter table, purchase-request state machine, reconciler | `shared/eventing/`, `shared/lifecycle.py`, `approval-inventory-agent/app/services/order_monitor.py`, `/api/ops/*` |
 | Approval authority + separation of duties + delegations | `approval-inventory-agent/app/services/approval_authority.py`, `/api/authority/*` |
+| Picking the manager-level approver: optional on the request's Review step; only that person (or their delegate) can decide that level and only they are emailed and reminded; a pick that's no longer assigned falls back to everyone on the level | `purchase_requests.selected_approver`, `approval_authority.check_selection`, `/api/authority/approvers` |
 | Invoice ledger: line-level three-way match, partial invoicing, 1 % tolerances (business rules) | `approval-inventory-agent/app/services/invoice_ledger.py`, `/api/invoices/*` |
 | First-seen bank details → verification queue + payment hold (dual control) | `document-vendor-agent/app/services/pipeline.py`, `/api/vendors/payment-changes/pending` |
 | Learning from reviewer corrections (per-vendor field labels and review thresholds) | `document-vendor-agent/app/services/learning.py` |
@@ -1312,7 +1317,8 @@ by design.
 - Host Python for e2e: a virtualenv with `pip install -r tests/e2e/requirements.txt`
   (+ `playwright` for UI checks). Playwright used the cached Chromium build.
 - Demo accounts (`requester@`, `approver@`, `approver2@`, `finance@`,
-  `admin@demo.example.com`, password in `docs/readmeforme.md`).
+  `admin@demo.example.com` and the five fictional colleagues, password in
+  `docs/readmeforme.md`).
 
 The tests that need Postgres (auth account flows) use the separate
 `auth_test` database. Audit probes used the demo database, with

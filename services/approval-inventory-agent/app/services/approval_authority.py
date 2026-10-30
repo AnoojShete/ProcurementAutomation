@@ -12,6 +12,10 @@ approve). Now a decision is allowed only when:
     and hasn't already approved an earlier level of the same request —
     every level needs a different person.
 
+A requester may pick one person for the manager level (selected_approver);
+then only that person, or someone they delegated to, can decide it. If the
+pick is no longer assigned, the level falls back to everyone assigned.
+
 evaluate_authority() is pure so the rules are unit-testable; the rest
 loads its inputs and records assignments/delegations.
 """
@@ -55,6 +59,10 @@ class AuthorityError(PermissionError):
         super().__init__(decision.reason)
 
 
+# The one level a requester can pick a person for.
+SELECTABLE_LEVEL = "dept_manager"
+
+
 def _norm(email: Optional[str]) -> str:
     return (email or "").strip().lower()
 
@@ -70,10 +78,16 @@ def evaluate_authority(
     delegations: list[Delegation],
     prior_approvers: list[str],
     now: datetime,
+    selected_approver: Optional[str] = None,
 ) -> AuthorityDecision:
     user = _norm(user_email)
     if level is None:
         return AuthorityDecision(False, "NO_PENDING_LEVEL", "This request isn't waiting on an approval level.")
+    picked = _norm(selected_approver) if level == SELECTABLE_LEVEL else ""
+    if picked and any(a.level == level and _norm(a.user_email) == picked for a in assignments):
+        assignments = [a for a in assignments if a.level != level or _norm(a.user_email) == picked]
+    else:
+        picked = ""
 
     if decision == "approved" and user == _norm(requested_by):
         # Admins too: maker != checker. Say who can approve it instead.
@@ -104,6 +118,12 @@ def evaluate_authority(
                 held, via = delegator_held, d.delegator_email
                 break
     if not held:
+        if picked:
+            return AuthorityDecision(
+                False, "NOT_SELECTED_APPROVER",
+                f"The requester picked {picked} for the '{level}' level; only they, or someone they "
+                "delegated to, can decide it.", level,
+            )
         return AuthorityDecision(
             False, "NOT_ASSIGNED", f"You aren't an assigned approver for the '{level}' level.", level,
         )
@@ -191,7 +211,41 @@ async def check_request_authority(db, req, user_email: str, decision: str) -> Au
         delegations=await load_delegations(db, level) if level else [],
         prior_approvers=prior,
         now=datetime.now(timezone.utc),
+        selected_approver=getattr(req, "selected_approver", None),
     )
+
+
+async def selectable_approvers(db, amount: float, requested_by: str) -> list[dict]:
+    """People a requester can pick for the manager level: assigned to it,
+    active, with a limit covering the amount, and not the requester."""
+    emails = sorted({
+        _norm(a.user_email) for a in await load_assignments(db, SELECTABLE_LEVEL)
+        if (a.max_amount is None or float(amount) <= a.max_amount) and _norm(a.user_email) != _norm(requested_by)
+    })
+    if not emails:
+        return []
+    rows = (await db.execute(
+        text("SELECT lower(email) AS email, display_name, is_active FROM auth_users WHERE lower(email) = ANY(:e)"),
+        {"e": emails},
+    )).all()
+    users = {r.email: r for r in rows}
+    return [
+        {"email": e, "name": users[e].display_name if e in users else None}
+        for e in emails if e not in users or users[e].is_active
+    ]
+
+
+async def check_selection(db, selected: Optional[str], amount: float, requested_by: str) -> Optional[str]:
+    """The picked approver, normalised, or ValueError if they can't take it."""
+    if not (selected or "").strip():
+        return None
+    picked = _norm(selected)
+    if picked == _norm(requested_by):
+        raise ValueError("You can't pick yourself as the approver (separation of duties).")
+    if picked not in {p["email"] for p in await selectable_approvers(db, amount, requested_by)}:
+        raise ValueError(f"{picked} can't approve this request: not an active manager-level approver "
+                         "with a limit that covers the amount.")
+    return picked
 
 
 async def list_authority(db) -> dict:

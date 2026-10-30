@@ -376,7 +376,8 @@ async def _send_approval_request(db, payload: dict, level: Optional[str], step_i
 
     request_id = payload.get("request_id")
 
-    recipients = await directory.approvers_for_level(db, level, payload.get("amount"))
+    picked = await directory.selected_approver(db, request_id, level)
+    recipients = [picked] if picked else await directory.approvers_for_level(db, level, payload.get("amount"))
 
     if not recipients:
 
@@ -390,7 +391,7 @@ async def _send_approval_request(db, payload: dict, level: Optional[str], step_i
 
         request_id=request_id,
 
-        approver_id=level or recipients[0],
+        approver_id=picked or level or recipients[0],
 
         step_index=step_index,
 

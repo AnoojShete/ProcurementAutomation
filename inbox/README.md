@@ -4,7 +4,7 @@ Three folders:
 
 | Folder | What it holds |
 |---|---|
-| `input/` | Drop a vendor **quote** (PDF, PNG or JPEG) here |
+| `input/` | Drop a vendor **quote** (PDF, PNG, JPEG, TIFF or WebP) here |
 | `processed/` | Files the pipeline read successfully |
 | `failed/` | Files that were rejected or failed, each with a `.error.txt` (file, time, document id, reason) |
 
@@ -26,3 +26,8 @@ worker starts.
 
 Watch it on **Control Panel → Documents** (admin) in the app: each folder's
 count, each dropped file's stage, failure reasons, and the live Kafka log.
+
+Only files dropped here pass through these folders. A document uploaded in
+the app (Documents page, request wizard, email intake) goes straight to
+file storage (MinIO) and its own document page; it never appears in
+`processed/` or `failed/`.

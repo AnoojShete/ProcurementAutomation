@@ -171,7 +171,7 @@ export function ControlPanelPage() {
       {section === "overview" && (
         <>
           <p className="text-sm text-ink-2">
-            Drop a vendor quote (PDF, PNG or JPEG) into <code className="rounded bg-sheet-sunk px-1">./inbox/input</code> to run it
+            Drop a vendor quote (PDF, PNG, JPEG or WebP) into <code className="rounded bg-sheet-sunk px-1">./inbox/input</code> to run it
             through every agent. Each section below covers one part of the flow.
           </p>
           <div className="flex flex-wrap items-center gap-1.5 text-13 text-ink-2">

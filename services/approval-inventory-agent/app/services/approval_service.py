@@ -133,6 +133,10 @@ class ApprovalService:
                 raise catalog_service.CatalogError("catalog_vendor", "the catalog items come from a different vendor")
             data.items, data.amount, data.request_type = catalog.items, catalog.amount, catalog.request_type
             data.vendor_id = catalog.vendor_id or data.vendor_id
+        # 0b. The approver the requester picked, checked before stock is reserved.
+        from app.services import approval_authority
+        picked = await approval_authority.check_selection(
+            self.db, data.selected_approver, data.amount, data.requested_by)
 
         # 1. Determine spend tier
         if data.request_type == "reinstate":
@@ -250,6 +254,8 @@ class ApprovalService:
             currency=data.currency,
             spend_tier=tier_name,
             approval_chain=approval_chain,
+            # Kept only when the chain has the manager level the pick is for.
+            selected_approver=picked if approval_authority.SELECTABLE_LEVEL in approval_chain else None,
             sla_deadline=sla_deadline,
             items=data.items,
             is_backordered=is_backordered,

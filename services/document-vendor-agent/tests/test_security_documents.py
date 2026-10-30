@@ -147,3 +147,12 @@ class TestUploadValidation:
         png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 20000, 20000, 8, 2, 0, 0, 0)) + chunk(b"IEND", b"")
         with pytest.raises(InvalidUploadError, match="too large"):
             validate_upload(png, "scan.png")
+
+    def test_webp_image_accepted(self):
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (40, 20), "white").save(buf, "WEBP")
+        assert validate_upload(buf.getvalue(), "scan.webp") == "image"
+        with pytest.raises(InvalidUploadError):
+            validate_upload(buf.getvalue(), "scan.pdf")

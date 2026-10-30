@@ -180,6 +180,62 @@ services:
       - TEMPORAL_UI_PORT=8088
     ports:
       - 127.0.0.1:8088:8088
+  # --- Documenso (contract e-signature; signing happens in a frame on the
+  # platform's own contract and vendor-signing pages) ---
+  # Own database in the shared Postgres, created by documenso-db-init.
+  # It seals every completed PDF with secrets/documenso/cert.p12 (made by
+  # scripts/documenso-setup.sh). Billing is off, so embedded signing has no
+  # paywall. The browser loads the signing frame from DOCUMENSO_PUBLIC_URL.
+  documenso-db-init:
+    image: pgvector/pgvector:0.8.1-pg16-trixie
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        psql -h postgres -U ${POSTGRES_USER:-postgres} -tAc "SELECT 1 FROM pg_database WHERE datname='documenso'" | grep -q 1
+        || psql -h postgres -U ${POSTGRES_USER:-postgres} -c "CREATE DATABASE documenso"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+  documenso:
+    image: documenso/documenso:v2.20.0
+    environment:
+      PORT: "3000"
+      NEXTAUTH_SECRET: ${DOCUMENSO_NEXTAUTH_SECRET:-dev-documenso-auth-secret-change-me}
+      NEXT_PRIVATE_ENCRYPTION_KEY: ${DOCUMENSO_ENCRYPTION_KEY:-dev-documenso-encryption-key-change-me-0001}
+      NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY: ${DOCUMENSO_ENCRYPTION_SECONDARY_KEY:-dev-documenso-encryption-key-change-me-0002}
+      NEXT_PUBLIC_WEBAPP_URL: ${DOCUMENSO_PUBLIC_URL:-http://localhost:3010}
+      NEXT_PRIVATE_INTERNAL_WEBAPP_URL: http://localhost:3000
+      # A small pool: Postgres allows 100 connections for the whole stack.
+      NEXT_PRIVATE_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/documenso?connection_limit=5
+      NEXT_PRIVATE_DIRECT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/documenso?connection_limit=5
+      NEXT_PUBLIC_UPLOAD_TRANSPORT: database
+      NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
+      NEXT_PRIVATE_SMTP_HOST: mailpit
+      NEXT_PRIVATE_SMTP_PORT: "1025"
+      NEXT_PRIVATE_SMTP_FROM_NAME: Procurement e-signature
+      NEXT_PRIVATE_SMTP_FROM_ADDRESS: esign@procurement.local
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH: /opt/documenso/cert.p12
+      NEXT_PRIVATE_SIGNING_PASSPHRASE: ${DOCUMENSO_SIGNING_PASSPHRASE:-dev-documenso-signing}
+      # Its webhooks go to contract-risk-agent on the compose network, which
+      # Documenso's SSRF check would otherwise refuse as a private address.
+      NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS: contract-risk-agent
+      NEXT_PUBLIC_DISABLE_SIGNUP: ${DOCUMENSO_DISABLE_SIGNUP:-false}
+    volumes:
+      - ./secrets/documenso/cert.p12:/opt/documenso/cert.p12:ro
+    ports:
+      - 127.0.0.1:3010:3000
+    depends_on:
+      documenso-db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      retries: 20
+      start_period: 60s
+
   mailpit:
     image: axllent/mailpit:v1.31.0
     environment:

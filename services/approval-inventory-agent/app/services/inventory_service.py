@@ -252,6 +252,7 @@ async def split_backorder(
         currency=original_request.currency,
         spend_tier=original_request.spend_tier,
         approval_chain=original_request.approval_chain,
+        selected_approver=original_request.selected_approver,
         status="pending_approval",
         items=immediate_items,
         # Both portions draw on the original's budget (the original becomes
@@ -277,6 +278,7 @@ async def split_backorder(
         currency=original_request.currency,
         spend_tier=original_request.spend_tier,
         approval_chain=original_request.approval_chain,
+        selected_approver=original_request.selected_approver,
         status="backordered",
         items=backorder_items,
         budget_id=original_request.budget_id,

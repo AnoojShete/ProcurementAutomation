@@ -155,6 +155,14 @@ async def approvers_for_level(db: AsyncSession, level: Optional[str], amount: Op
     """, {"level": level, "amount": amount})
 
 
+async def selected_approver(db: AsyncSession, request_id: Optional[str], level: Optional[str]) -> Optional[str]:
+    """The person the requester picked for the manager level, if any."""
+    if not request_id or level != "dept_manager":
+        return None
+    return await _scalar(db, "SELECT selected_approver FROM purchase_requests WHERE id = CAST(:r AS uuid)",
+                         {"r": request_id})
+
+
 async def users_with_roles(db: AsyncSession, roles: list[str]) -> list[str]:
     return await _column(db, "SELECT email FROM auth_users WHERE role = ANY(:roles) AND is_active ORDER BY email",
                          {"roles": roles})
@@ -197,6 +205,10 @@ async def reminder_recipients(db: AsyncSession, payload: dict) -> list[str]:
     if role == "signer":
         signer = await signer_for_contract(db, payload.get("entity_id"))
         return [signer] if signer else await users_with_roles(db, ["finance", "admin"])
+    picked = (await selected_approver(db, payload.get("entity_id"), role)
+              if payload.get("entity_type") == "purchase_request" else None)
+    if picked:
+        return [picked]
     people = await approvers_for_level(db, role)  # an approval level (dept_manager, finance_head)
     if not people and role in _REMINDER_ROLES:
         people = await users_with_roles(db, _REMINDER_ROLES[role])

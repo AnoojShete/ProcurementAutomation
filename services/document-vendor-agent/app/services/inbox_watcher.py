@@ -44,6 +44,7 @@ from app.services.upload_service import (
 from shared.drop_folder import INBOX_UPLOADER
 
 logger = logging.getLogger(__name__)
+mimetypes.add_type("image/webp", ".webp")  # Python < 3.13 doesn't know it
 
 INPUT, PROCESSING, PROCESSED, FAILED = "input", ".processing", "processed", "failed"
 # Partial downloads / editor temp files are never picked up.

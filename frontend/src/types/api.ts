@@ -76,6 +76,7 @@ export interface PurchaseRequest {
   status: RequestStatus | null;
   approval_chain: string[] | null;
   current_approver_index: number;
+  selected_approver?: string | null;
   sla_deadline: string | null;
   items: Record<string, unknown>[] | null;
   is_backordered: boolean;
@@ -187,6 +188,7 @@ export interface CreatePurchaseRequestBody {
   source?: string | null;
   source_ref?: string | null;
   idempotency_key?: string | null;
+  selected_approver?: string | null;
 }
 
 export interface InboxItem {
@@ -851,6 +853,10 @@ export interface AuthorityCheck {
   level?: string | null;
   via_delegation?: string | null;
   limit?: number | null;
+}
+export interface SelectableApprover {
+  email: string;
+  name: string | null;
 }
 export interface ApproverAssignment {
   id: string;

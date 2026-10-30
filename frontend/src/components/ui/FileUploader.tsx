@@ -58,7 +58,7 @@ export function FileUploader({
   allowFolder = true,
   accept,
   disabled,
-  hint = "PDF, PNG, JPG, or TIFF — purchase orders, invoices, vendor quotes",
+  hint = "PDF, PNG, JPG, TIFF or WebP — purchase orders, invoices, vendor quotes",
 }: {
   onFileSelected?: (file: File) => void;
   onFilesSelected?: (files: File[]) => void;

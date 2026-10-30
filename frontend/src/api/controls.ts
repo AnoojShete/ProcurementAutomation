@@ -9,6 +9,7 @@ import type {
   InvoiceMatchRow,
   LearningStats,
   LookalikeScenario,
+  SelectableApprover,
   ReconcileResult,
   RequestLedger,
   VendorPaymentChange,
@@ -33,6 +34,7 @@ export const opsApi = {
 
 export const authorityApi = {
   get: () => api.get<{ assignments: ApproverAssignment[]; delegations: ApprovalDelegation[] }>("/authority/"),
+  approvers: (amount: number) => api.get<SelectableApprover[]>(`/authority/approvers?amount=${amount}`),
   check: (requestId: string, decision: "approved" | "rejected" = "approved") =>
     api.get<AuthorityCheck>(`/authority/check/${requestId}?decision=${decision}`),
   addAssignment: (level: string, user_email: string, max_amount: number | null) =>

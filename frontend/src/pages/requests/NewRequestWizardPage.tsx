@@ -20,6 +20,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { requestsApi } from "@/api/requests";
 import { vendorsApi } from "@/api/vendors";
 import { documentsApi } from "@/api/documents";
+import { authorityApi } from "@/api/controls";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { NumberedStepper } from "@/components/ui/NumberedStepper";
@@ -57,6 +58,8 @@ interface WizardState {
   vendor: VendorSummary | null;
   document: DocumentRecord | null;
   drafts: RequestDraft[];
+  /** Manager-level approver the requester picked; "" = anyone assigned. */
+  selectedApprover: string;
 }
 
 function parseAmount(val: unknown): number | null {
@@ -167,6 +170,7 @@ export function NewRequestWizardPage() {
     vendor: null,
     document: null,
     drafts: [],
+    selectedApprover: "",
   });
   const [docProcessing, setDocProcessing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -253,6 +257,7 @@ export function NewRequestWizardPage() {
           currency: "INR",
           document_id: state.document?.id ?? null,
           comments: state.description || undefined,
+          selected_approver: state.selectedApprover || null,
         };
         const res = await requestsApi.create(body);
         setSubmitted({
@@ -693,7 +698,7 @@ function StepDocuments({
           multiple
           onFilesSelected={handleFiles}
           onFileSelected={handleFile}
-          accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif"
+          accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.webp"
           disabled={uploading || polling}
         />
 
@@ -1344,6 +1349,14 @@ function StepReview({
           </div>
         </div>
 
+        {tier.chain.includes("dept_manager") && (
+          <ApproverPicker
+            amount={amount}
+            value={state.selectedApprover}
+            onChange={(email) => setState((s) => ({ ...s, selectedApprover: email }))}
+          />
+        )}
+
         <div className="rounded-lg border border-surface-border bg-surface-subtle p-3 text-xs text-slate-600">
           <span className="font-semibold text-slate-800">Routing Policy:</span> This request will be routed as{" "}
           <span className="font-semibold capitalize text-brand-700">{tier.name}</span> spend tier based on the estimated amount of{" "}
@@ -1475,5 +1488,36 @@ function Field({ label, children, static: isStatic }: { label: string; children:
       <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
       {children}
     </label>
+  );
+}
+
+/** The manager-level approver: anyone assigned (the default) or one person. */
+function ApproverPicker({ amount, value, onChange }: { amount: number; value: string; onChange: (email: string) => void }) {
+  const debounced = useDebounce(amount, 400);
+  const { data: people } = useApi(() => authorityApi.approvers(debounced), [debounced]);
+  // A pick whose limit no longer covers the amount falls back to anyone.
+  useEffect(() => {
+    if (value && people && !people.some((p) => p.email === value)) onChange("");
+  }, [people]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Field label="Approver">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm focus:border-brand-500"
+      >
+        <option value="">Anyone on the approver list</option>
+        {people?.map((p) => (
+          <option key={p.email} value={p.email}>
+            {p.name ? `${p.name} (${p.email})` : p.email}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-xs text-ink-3">
+        {value
+          ? "Only this person, or someone they delegated to, can approve the manager step."
+          : "Every manager-level approver is asked; the first to decide does."}
+      </p>
+    </Field>
   );
 }

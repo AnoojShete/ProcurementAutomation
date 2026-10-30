@@ -175,7 +175,7 @@ export function RequestDetailPage() {
       return {
         kind: "approval",
         title: "Next Action: Approval Decision",
-        subtitle: `Stage ${Math.min(request.current_approver_index + 1, (request.approval_chain ?? []).length)} of ${(request.approval_chain ?? []).length}: Waiting for ${request.approval_chain?.[request.current_approver_index] ? titleCase(request.approval_chain[request.current_approver_index]) : "Approver"}`, 
+        subtitle: `Stage ${Math.min(request.current_approver_index + 1, (request.approval_chain ?? []).length)} of ${(request.approval_chain ?? []).length}: Waiting for ${request.approval_chain?.[request.current_approver_index] ? titleCase(request.approval_chain[request.current_approver_index]) : "Approver"}${request.selected_approver && request.approval_chain?.[request.current_approver_index] === "dept_manager" ? ` (${request.selected_approver}, picked by the requester)` : ""}`,
         badge: <StatusBadge status={request.status} />,
         content: (
           <div className="flex flex-col gap-4">
@@ -271,7 +271,12 @@ export function RequestDetailPage() {
           tone={vendorRisk?.risk_band === "High" ? "danger" : vendorRisk?.risk_band === "Medium" ? "warning" : "neutral"}
           hint={vendorRisk?.risk_score != null ? `Score ${Math.round(vendorRisk.risk_score * 100)} of 100` : undefined}
         />
-        <MetricCard label="Approval" value={approvalFigure} tone={request.status === "rejected" ? "danger" : "neutral"} />
+        <MetricCard
+          label="Approval"
+          value={approvalFigure}
+          tone={request.status === "rejected" ? "danger" : "neutral"}
+          hint={request.selected_approver ? `Manager step: ${request.selected_approver}` : undefined}
+        />
         <MetricCard
           label="Contract"
           value={shownContract ? titleCase(shownContract.status) : "Not yet"}

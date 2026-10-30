@@ -124,6 +124,8 @@ class PurchaseRequest(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending_approval")
     approval_chain: Mapped[Optional[list]] = mapped_column(JSON)
     current_approver_index: Mapped[int] = mapped_column(Integer, default=0)
+    # Picked by the requester for the dept_manager level; None = anyone assigned.
+    selected_approver: Mapped[Optional[str]] = mapped_column(String(255))
     sla_deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     items: Mapped[Optional[list]] = mapped_column(JSON)
     backorder_parent_id: Mapped[Optional[str]] = mapped_column(Uuid, ForeignKey("purchase_requests.id"))

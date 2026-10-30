@@ -397,6 +397,10 @@ async def download_document_file(
         ct = "image/jpeg"
     elif fname.lower().endswith(".png"):
         ct = "image/png"
+    elif fname.lower().endswith(".webp"):
+        ct = "image/webp"
+    elif fname.lower().endswith((".tif", ".tiff")):
+        ct = "image/tiff"
     elif fname.lower().endswith(".pdf"):
         ct = "application/pdf"
     elif doc.file_type == "pdf":

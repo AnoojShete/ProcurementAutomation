@@ -49,7 +49,8 @@ _MAGIC = (
     (b"II*\x00", "image"),
     (b"MM\x00*", "image"),
 )
-_EXTENSIONS = {"pdf": "pdf", "png": "image", "jpg": "image", "jpeg": "image", "tiff": "image", "tif": "image"}
+_EXTENSIONS = {"pdf": "pdf", "png": "image", "jpg": "image", "jpeg": "image", "tiff": "image", "tif": "image",
+               "webp": "image"}
 _UNSAFE_CHARS = re.compile(r"[^A-Za-z0-9._() -]+")
 
 
@@ -65,6 +66,8 @@ def safe_filename(filename: str | None) -> str:
 
 
 def sniff_file_type(data: bytes) -> str | None:
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":  # RIFF <size> WEBP
+        return "image"
     for magic, kind in _MAGIC:
         if data.startswith(magic):
             return kind
@@ -77,7 +80,7 @@ def validate_upload(data: bytes, filename: str) -> str:
     what the parser sees is decided by the bytes."""
     kind = sniff_file_type(data)
     if kind is None:
-        raise InvalidUploadError("unsupported file type — upload a PDF, PNG or JPEG")
+        raise InvalidUploadError("unsupported file type — upload a PDF, PNG, JPEG, TIFF or WebP")
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext and _EXTENSIONS.get(ext) not in (None, kind):
         raise InvalidUploadError(f"file content is {kind.upper()} but the name says .{ext}")

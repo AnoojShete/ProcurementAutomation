@@ -22,13 +22,19 @@ from app.security import hash_password
 DEMO_PASSWORD = "DemoPass123!"  # noqa: S105 — intentionally shared demo credential, see docstring
 
 # (email, role, display name). The second approver exists for the
-# separation-of-duties scenarios and has no persona name.
+# separation-of-duties scenarios and has no persona name. The rest are
+# fictional colleagues, so a requester has several approvers to pick from.
 DEMO_USERS = [
     ("requester@demo.example.com", "requester", "Anooj"),
     ("approver@demo.example.com", "approver", "Vaidehi"),
     ("finance@demo.example.com", "finance", "Niraj"),
     ("admin@demo.example.com", "admin", "Anjali"),
     ("approver2@demo.example.com", "approver", None),
+    ("requester2@demo.example.com", "requester", "Rohan Mehta"),
+    ("requester3@demo.example.com", "requester", "Sneha Kulkarni"),
+    ("approver3@demo.example.com", "approver", "Kavya Iyer"),
+    ("approver4@demo.example.com", "approver", "Arjun Desai"),
+    ("finance2@demo.example.com", "finance", "Meera Joshi"),
 ]
 
 
@@ -62,7 +68,7 @@ async def seed():
 
     print("\nDEMO ONLY credentials (all use the same password):")
     for email, role, name in DEMO_USERS:
-        print(f"  {email:28s} role={role:10s} name={name or '-':8s} password={DEMO_PASSWORD}")
+        print(f"  {email:29s} role={role:10s} name={name or '-':8s} password={DEMO_PASSWORD}")
 
 
 def should_seed() -> bool:
