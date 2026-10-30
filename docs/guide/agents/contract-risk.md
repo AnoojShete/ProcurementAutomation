@@ -32,8 +32,14 @@ deadlines, and decide whether a vendor may be signed at all.
 2. **Send for signature** automatically (rule `contract.auto_send_scope`): the
    signer, an authorised signatory, gets an email with a signing link.
 3. **Clearance before signing**: a sanctions match or prohibited country blocks
-   signing outright; a high-risk or unrated vendor needs the signer's
-   explicit acknowledgement.
+   signing outright. A vendor that isn't cleared (High band, a provisional
+   rating because checks are incomplete, or a reviewer's rejection) needs the
+   signer's explicit acknowledgement.
+   Every vendor gets a band. The scorecard has 14 parameters out of 100
+   points. A check our side couldn't run is left out and the rest re-weighted;
+   missing information about the vendor itself (no GSTIN, registration,
+   financials, bank details or domain) counts in full, and a vendor with no
+   verified identity is High. A provisional rating is never cleared.
 4. **Sign**: typed or drawn signature, consent, SHA-256 seal of the contract and
    signer; the request moves to *ordered*; the requester and vendor are emailed.
    **Signing mandate** (off by default, rule `contract.auto_sign_enabled`): a
@@ -55,8 +61,8 @@ deadlines, and decide whether a vendor may be signed at all.
 | Measure | Result | Source |
 |---|---|---|
 | Clause extraction on 102 CUAD contracts | F1 0.85 / 0.80 / 0.91 (renewal, notice, expiry) vs rules 0.50 / 0.19 / 0.02 | `docs/results/clauses.md` |
-| Risk ruleset vs old random forest | ROC-AUC 0.738 vs 0.715; 25 red-team profiles all handled | `docs/index.html#risk` |
-| Tests | 345 unit/integration tests; `risk_flow.py` 49/49; `obligation_flow.py` | `scripts/test-service.sh` |
+| Risk ruleset vs old random forest | ROC-AUC 0.738 vs 0.715; 29 red-team profiles all handled | `docs/index.html#risk` |
+| Tests | 400 unit/integration tests; `risk_flow.py` 49/49; `obligation_flow.py` | `scripts/test-service.sh` |
 
 ![Contract with vendor risk before signing](../showcase/contract/01-contract-risk.png)
 

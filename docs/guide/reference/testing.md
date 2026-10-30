@@ -1,13 +1,14 @@
 # Testing and results
 
-## Automated tests (25 Oct 2026)
+## Automated tests
 
 | Suite | Command | Result |
 |---|---|---|
-| Service tests (pytest, inside each image) | `./scripts/test-service.sh all` | **1,330 passed**: contract-risk 346, approval-inventory 290, document-vendor 375, notification 138, auth 115, chatbot 66 |
-| Root tests (shared code, config: Kafka ACLs, nginx, lifecycle, docs) | `./scripts/test-root.sh` | 169 + 14 passed, 4 skipped |
-| Whole lifecycle through the gateway | `python tests/e2e/invoice_lifecycle.py` | 71 / 71 |
-| The eight demo scenarios, checked live | `python tests/e2e/demo_scenarios.py` | 28 / 28 |
+| Service tests (pytest, inside each image), 30 Oct | `./scripts/test-service.sh all` | **1,409 passed**: contract-risk 400, approval-inventory 299, document-vendor 390, notification 138, auth 116, chatbot 66 |
+| Root tests (shared code, config: Kafka ACLs, nginx, lifecycle, docs), 29 Oct | `./scripts/test-root.sh` | 185 passed |
+| Whole lifecycle through the gateway, 29 Oct | `python tests/e2e/invoice_lifecycle.py` | 71 / 71 |
+| Vendor risk red team (`ml/redteam_scorecard.py`), 30 Oct | `tests/test_risk_redteam.py` | 29 / 29 profiles |
+| The eight demo scenarios, checked live, 25 Oct | `python tests/e2e/demo_scenarios.py` | 28 / 28 |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
 
 Other end-to-end suites: `auth_flows.py`, `budget_flow.py`,

@@ -44,7 +44,7 @@ Design principles:
 | Document AI | pdfplumber, Docling, PaddleOCR, LayoutLMv3 cross-check, TF-IDF + logistic regression classifier |
 | Contract AI | Legal-BERT fine-tuned on CUAD (clauses, obligations), regex fallback |
 | Licence AI | IsolationForest with SHAP explanations |
-| Vendor risk | Deterministic 100-point scorecard, sanctions screening (OpenSanctions) |
+| Vendor risk | Deterministic 100-point scorecard (14 parameters), sanctions screening (OpenSanctions) |
 | Assistant | Ollama (llama3.2, nomic-embed-text), retrieval over pgvector |
 | Observability | Prometheus, Grafana, Loki, Promtail, Temporal UI, MLflow |
-| Packaging | Docker Compose (22 containers), `run.sh` |
+| Packaging | Docker Compose (24 containers), `run.sh` |

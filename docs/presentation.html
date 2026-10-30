@@ -781,6 +781,32 @@ svg.draw .u { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:r
 /* two columns */
 .cols { display:grid; grid-template-columns:1fr 1fr; gap:96px; }
 .cols h3 { margin:0 0 34px; font:600 44px/1.1 var(--serif); }
+/* feature slides */
+.feat { display:grid; grid-template-columns:repeat(4, 1fr); gap:22px; }
+.ft { display:flex; flex-direction:column; gap:10px; padding:24px 26px; background:var(--sheet); border:1px solid var(--rule); border-radius:16px; border-top:8px solid var(--c, var(--blue)); }
+.ft b { display:flex; align-items:center; gap:14px; font-size:29px; line-height:1.15; }
+.ft b .ic { width:36px; height:36px; color:var(--c, var(--blue)); }
+.ft p { margin:0; font-size:22px; line-height:1.35; color:var(--ink2); }
+.cmp { width:100%; border-collapse:collapse; font-size:25px; background:var(--sheet); border:1px solid var(--rule); border-radius:16px; overflow:hidden; }
+.cmp th, .cmp td { text-align:left; padding:13px 20px; border-bottom:1px solid var(--rule); }
+.cmp th { font-size:21px; color:var(--ink3); font-weight:600; }
+.cmp tr:last-child td { border-bottom:0; }
+.cmp tr.us td { background:color-mix(in srgb, var(--blue) 10%, transparent); font-weight:600; }
+.cmp td.n { font:600 30px var(--serif); }
+.pts { display:flex; flex-direction:column; gap:22px; }
+.pt { display:grid; grid-template-columns:64px 1fr; gap:20px; align-items:start; font-size:28px; line-height:1.3; }
+.pt .disc { width:64px; height:64px; } .pt .disc .ic { width:32px; height:32px; }
+.pt small { display:block; font-size:23px; color:var(--ink2); margin-top:4px; }
+.bars { display:flex; flex-direction:column; gap:16px; }
+.bar2 { display:grid; grid-template-columns:230px 1fr 70px; align-items:center; gap:18px; font-size:25px; }
+.bar2 i { display:block; height:30px; border-radius:8px; background:var(--c, var(--blue)); }
+.bar2 span:last-child { font-weight:700; text-align:right; }
+.who4 { display:grid; grid-template-columns:repeat(4, 1fr); gap:24px; align-items:start; }
+.who4 > div { padding:30px 28px; background:var(--sheet); border:1px solid var(--rule); border-radius:18px; border-top:10px solid var(--c); display:flex; flex-direction:column; gap:14px; }
+.who4 h3 { margin:0; font:600 44px/1.1 var(--serif); color:var(--c); }
+.who4 .when { font-size:22px; color:var(--ink3); font-weight:600; }
+.who4 ul { margin:0; padding-left:26px; font-size:24px; line-height:1.4; color:var(--ink2); }
+.who4 li { margin:4px 0; }
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -830,6 +856,13 @@ svg.draw .u { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:r
   <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z"/></symbol>
   <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><path d="M16 14.5h.01"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M12 3l9 5v8l-9 5-9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h12L22 7H6.2"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4"/></symbol>
 </defs></svg>
 
 <div class="viewport" id="viewport"><div class="stage" id="stage">
@@ -924,6 +957,30 @@ svg.draw .u { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:r
     </div>
   </div>
   <aside class="notes">One agent per part of procurement. They hand work to each other through Kafka events written in the same transaction as the change, so nothing is lost if a service restarts. Mention the assistant (Anooj) as the sixth service.</aside>
+</section>
+
+<!-- lit -->
+<section class="slide" data-title="What others do">
+  <p class="kicker">Literature survey and market</p>
+  <h2>What exists, and the gap we fill</h2>
+  <div class="body" style="display:grid;grid-template-columns:1000px 1fr;gap:72px">
+    <table class="cmp">
+      <tr><th>Product</th><th>Areas covered (of 8)</th><th>Strength</th></tr>
+      <tr><td>Coupa</td><td class="n">7</td><td>Every area except software licences</td></tr>
+      <tr><td>Zapro</td><td class="n">6</td><td>AI intake, invoice matching, licences</td></tr>
+      <tr><td>SAP Ariba</td><td class="n">5.5</td><td>Guided buying, AI supplier risk</td></tr>
+      <tr><td>Ivalua</td><td class="n">4.5</td><td>Full source-to-pay, no AI stated</td></tr>
+      <tr><td>TYASuite</td><td class="n">4</td><td>Indian GST/TDS, three-way match</td></tr>
+      <tr class="us"><td>Our platform</td><td class="n">8</td><td>Open source; our own scoring</td></tr>
+    </table>
+    <div class="pts">
+      <p style="margin:0;font:600 40px/1.15 var(--serif)">The gap</p>
+      <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-eye"/></svg></span><span>Document AI rarely says how sure it is<small>so nobody knows which results to check</small></span></div>
+      <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-lock"/></svg></span><span>Suites are closed and costly<small>and a black box to an auditor</small></span></div>
+      <div class="pt" style="--c:var(--blue)"><span class="disc"><svg class="ic"><use href="#i-target"/></svg></span><span>We give every automated step a confidence and a rule<small>a person decides only when it's needed</small></span></div>
+    </div>
+  </div>
+  <aside class="notes">From the literature survey chapter and the Competitors tab: 12 products scored on the eight areas we cover (capture, vendor checks and fraud, invoice matching, approvals, inventory, licences, contracts, supplier risk). Vendor figures are their own marketing claims. The gaps found on 20 Oct (budgets, obligations, catalog and RFQs, GST and TDS) were then built as Phases 1 to 4.</aside>
 </section>
 
 <!-- 4 -->
@@ -1405,6 +1462,27 @@ font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif
   <aside class="notes">Read it left to right. Under each stage: the decision in blue and the exception path in orange. The full diagram in the docs (Functional workflow) has every branch. A file only moves to processed/ after the pipeline finishes, so a blank scan ends in failed/. A high-risk vendor (not sanctioned) can still be signed, but the signer must acknowledge the risk.</aside>
 </section>
 
+<!-- features -->
+<section class="slide" data-title="Features at a glance">
+  <p class="kicker">Features</p>
+  <h2>Everything the platform does</h2>
+  <div class="body feat" style="top:250px">
+    <div class="ft" style="--c:var(--doc)"><b><svg class="ic"><use href="#i-inbox"/></svg>Three ways in</b><p>Upload, email inbox or drop folder; every file virus-scanned</p></div>
+    <div class="ft" style="--c:var(--doc)"><b><svg class="ic"><use href="#i-scan"/></svg>Reads documents</b><p>Docling and LayoutLMv3; type, fields and a confidence per field</p></div>
+    <div class="ft" style="--c:var(--appr)"><b><svg class="ic"><use href="#i-users"/></svg>Approval by amount</b><p>Automatic, manager, finance; email links, SLA reminders, escalation</p></div>
+    <div class="ft" style="--c:var(--ctr)"><b><svg class="ic"><use href="#i-pen"/></svg>Contracts and e-sign</b><p>Written after approval; typed or drawn signature, sealed PDF</p></div>
+    <div class="ft" style="--c:var(--orange)"><b><svg class="ic"><use href="#i-shield"/></svg>Vendor risk</b><p>100-point ruleset, sanctions screening, clearance before signing</p></div>
+    <div class="ft" style="--c:var(--orange)"><b><svg class="ic"><use href="#i-lock"/></svg>Fraud guard</b><p>GSTIN check digit, look-alike vendors, bank changes need a second person</p></div>
+    <div class="ft" style="--c:var(--appr)"><b><svg class="ic"><use href="#i-check"/></svg>Three-way match</b><p>Invoice against order and goods received; mismatch holds payment</p></div>
+    <div class="ft" style="--c:var(--green)"><b><svg class="ic"><use href="#i-wallet"/></svg>Budgets and sourcing</b><p>Budget check, IT catalog, sealed RFQs, contract obligations</p></div>
+    <div class="ft" style="--c:var(--green)"><b><svg class="ic"><use href="#i-receipt"/></svg>GST and TDS</b><p>Signed e-invoice QR, GSTR-2B, reverse charge, MSME deadlines</p></div>
+    <div class="ft" style="--c:var(--auth)"><b><svg class="ic"><use href="#i-box"/></svg>Licences and stock</b><p>Unused-licence detection, reclaim, reorder suggestions</p></div>
+    <div class="ft" style="--c:var(--chat)"><b><svg class="ic"><use href="#i-chat"/></svg>Assistant</b><p>Answers from our own records with citations, within your access</p></div>
+    <div class="ft" style="--c:var(--ink2)"><b><svg class="ic"><use href="#i-pulse"/></svg>Operations</b><p>Control Panel, Kafka log, failed events, 59 live business rules</p></div>
+  </div>
+  <aside class="notes">The map of what follows. Every tile is a working feature with an end-to-end test through the gateway: lifecycle 71/71, budgets 30/30, obligations 47/47, sourcing 69/69, GST 44/44, risk 49/49, assistant 20/20.</aside>
+</section>
+
 <!-- 7 -->
 <section class="slide" data-title="Input, Processed, Failed">
   <p class="kicker">Checklist A1 · document lifecycle</p>
@@ -1571,6 +1649,142 @@ font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif
   <aside class="notes">Every figure opens its section; every row links to the item's own page, where its actions live. Each section has a deep link, /app/control-panel?section=documents, so a mentor can be sent straight to one part.</aside>
 </section>
 
+<!-- risk -->
+<section class="slide" data-title="Vendor risk you can audit">
+  <p class="kicker">Vendor risk · sanctions · clearance</p>
+  <h2>A risk score you can audit</h2>
+  <div class="body" style="display:grid;grid-template-columns:760px 1fr;gap:96px">
+    <div>
+      <p style="margin:0 0 26px;font-size:28px;font-weight:600">100 points, five groups</p>
+      <div class="bars">
+        <div class="bar2" style="--c:var(--blue)"><span>Identity</span><i style="width:100%"></i><span>39</span></div>
+        <div class="bar2" style="--c:var(--appr)"><span>Performance</span><i style="width:90%"></i><span>35</span></div>
+        <div class="bar2" style="--c:var(--auth)"><span>Cyber</span><i style="width:44%"></i><span>17</span></div>
+        <div class="bar2" style="--c:var(--chat)"><span>Company</span><i style="width:15%"></i><span>6</span></div>
+        <div class="bar2" style="--c:var(--ink3)"><span>Reputation</span><i style="width:8%"></i><span>3</span></div>
+      </div>
+      <p class="t24" style="margin-top:34px">Every point traces to a check and its source. Any old score replays exactly.</p>
+    </div>
+    <div class="pts">
+      <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-x"/></svg></span><span>Sanctions match or prohibited country<small>High, can't be accepted, can't be signed; ~25,000 listed companies</small></span></div>
+      <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-search"/></svg></span><span>Nothing verifiable about the vendor<small>missing GSTIN, registration or bank details count in full: High</small></span></div>
+      <div class="pt" style="--c:var(--blue)"><span class="disc"><svg class="ic"><use href="#i-refresh"/></svg></span><span>A check we couldn't run<small>left out and the rest re-weighted; the rating stays provisional</small></span></div>
+      <div class="pt" style="--c:var(--ctr)"><span class="disc"><svg class="ic"><use href="#i-pen"/></svg></span><span>Not cleared? Acknowledge before signing<small>the acknowledgement is printed on the certificate</small></span></div>
+      <span class="pill" style="--c:var(--green);align-self:flex-start"><svg class="ic"><use href="#i-check"/></svg>Red team: 29 of 29 attack profiles stopped</span>
+    </div>
+  </div>
+  <aside class="notes">Niraj built the deterministic scorecard and clearance; Anjali the red team and the rating rules. Models only supply observations such as fuzzy name matches; they never add points. Honest limit: on synthetic incidents the ruleset ranks with ROC-AUC 0.738; it hasn't been tested on a company's real incident history.</aside>
+</section>
+
+<!-- expansion -->
+<section class="slide" data-title="Budgets, obligations, sourcing">
+  <p class="kicker">Beyond the brief · Phases 1–3</p>
+  <h2>Budgets, obligations, sourcing</h2>
+  <div class="body split">
+    <div class="pts">
+      <div class="pt" style="--c:var(--green)"><span class="disc"><svg class="ic"><use href="#i-wallet"/></svg></span><span>Budget before approval<small>over the department's budget: an extra finance step</small></span></div>
+      <div class="pt" style="--c:var(--ctr)"><span class="disc"><svg class="ic"><use href="#i-contract"/></svg></span><span>Obligations after signing<small>SLA missed: the credit is checked on the next invoice</small></span></div>
+      <div class="pt" style="--c:var(--appr)"><span class="disc"><svg class="ic"><use href="#i-cart"/></svg></span><span>IT catalog<small>agreed prices only; an expired price is hidden</small></span></div>
+      <div class="pt" style="--c:var(--appr)"><span class="disc"><svg class="ic"><use href="#i-scale"/></svg></span><span>RFQs<small>sealed quotes, weighted comparison, award</small></span></div>
+      <div class="pt" style="--c:var(--doc)"><span class="disc"><svg class="ic"><use href="#i-box"/></svg></span><span>Partial deliveries<small>30 of 50 received: an invoice for 50 is held</small></span></div>
+    </div>
+    <img class="shot" src="showcase/expansion/04-rfq-comparison.png" alt="RFQ comparison: weighted scores per criterion and award" style="width:940px;height:640px">
+  </div>
+  <aside class="notes">These close the gaps the competitor comparison found against Coupa and Zapro. Twelve new business rules, each with a behaviour test. Checked end to end: budgets 30/30, obligations 47/47, sourcing 69/69.</aside>
+</section>
+
+<!-- gst -->
+<section class="slide" data-title="Indian GST and TDS">
+  <p class="kicker">Beyond the brief · Phase 4</p>
+  <h2>Indian GST and TDS, checked as invoices are read</h2>
+  <div class="body split">
+    <div class="pts">
+      <div class="pt" style="--c:var(--green)"><span class="disc"><svg class="ic"><use href="#i-receipt"/></svg></span><span>GST split, rate and arithmetic<small>IGST on a supply within the state: flagged</small></span></div>
+      <div class="pt" style="--c:var(--green)"><span class="disc"><svg class="ic"><use href="#i-lock"/></svg></span><span>Signed e-invoice QR verified offline<small>an altered total is caught</small></span></div>
+      <div class="pt" style="--c:var(--appr)"><span class="disc"><svg class="ic"><use href="#i-refresh"/></svg></span><span>GSTR-2B reconciliation<small>input tax at risk shown before filing</small></span></div>
+      <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-clock"/></svg></span><span>TDS at booking, MSME 45 days<small>net payable and the legal deadline</small></span></div>
+      <p class="t24">The tax check sends a wrong invoice to a person. It never changes the confidence score.</p>
+    </div>
+    <img class="shot" src="showcase/gst/02-tax-check-einvoice.png" alt="A correct e-invoice: every check passes and the signed QR verifies" style="width:940px;height:640px">
+  </div>
+  <aside class="notes">Rates are seeded October 2026 values a chartered accountant must confirm. The QR is verified against a demo key in development; production needs the portal's real public key. GST and TDS end to end: 44/44.</aside>
+</section>
+
+<!-- licences -->
+<section class="slide" data-title="Licences and inventory">
+  <p class="kicker">Approval &amp; Inventory agent</p>
+  <h2>Licences nobody uses, stock that runs out</h2>
+  <div class="body split">
+    <div class="pts">
+      <div class="pt" style="--c:var(--auth)"><span class="disc"><svg class="ic"><use href="#i-chart"/></svg></span><span>Usage scored from the SSO log<small>Isolation Forest, ROC-AUC 0.954 on 360 licences</small></span></div>
+      <div class="pt" style="--c:var(--auth)"><span class="disc"><svg class="ic"><use href="#i-eye"/></svg></span><span>Explained<small>SHAP shows which signal raised the score</small></span></div>
+      <div class="pt" style="--c:var(--appr)"><span class="disc"><svg class="ic"><use href="#i-refresh"/></svg></span><span>Reclaim and reinstate seats<small>from the licence's own page</small></span></div>
+      <div class="pt" style="--c:var(--doc)"><span class="disc"><svg class="ic"><use href="#i-box"/></svg></span><span>Reorder suggestions<small>owed + top-up + reorder quantity, spelled out</small></span></div>
+    </div>
+    <img class="shot" src="showcase/licences/02-usage-trend.png" alt="Docker Pro: usage drops off sharply in the last weeks" style="width:940px;height:640px">
+  </div>
+  <aside class="notes">Honest: Docker Pro's recent drop scores 0.32, just under "watch". The model catches 87 % of drop-offs and 71 % of declines. The licence data is simulated.</aside>
+</section>
+
+<!-- assistant -->
+<section class="slide" data-title="Ask the assistant">
+  <p class="kicker">Assistant · retrieval-augmented</p>
+  <h2>Answers from our own records, with sources</h2>
+  <div class="body">
+    <svg class="draw" viewBox="0 0 1680 230" style="width:1680px;height:230px" aria-label="Question, intent, search the index with access filter, local model answers, citations">
+      <g stroke="#9aa3ad" stroke-width="3" fill="#9aa3ad">
+        <path d="M232 70H372M568 70H708M904 70H1044M1240 70H1380" fill="none"/>
+        <polygon points="380,70 366,61 366,79"/><polygon points="716,70 702,61 702,79"/><polygon points="1052,70 1038,61 1038,79"/><polygon points="1388,70 1374,61 1374,79"/>
+      </g>
+      <g text-anchor="middle">
+        <circle cx="168" cy="70" r="64" fill="#0f766e" fill-opacity=".12"/><use href="#i-chat" class="u" x="138" y="40" width="60" height="60" style="color:#0f766e"/>
+        <circle cx="504" cy="70" r="64" fill="#0f766e" fill-opacity=".12"/><use href="#i-target" class="u" x="474" y="40" width="60" height="60" style="color:#0f766e"/>
+        <circle cx="840" cy="70" r="64" fill="#0f766e" fill-opacity=".12"/><use href="#i-search" class="u" x="810" y="40" width="60" height="60" style="color:#0f766e"/>
+        <circle cx="1176" cy="70" r="64" fill="#0f766e" fill-opacity=".12"/><use href="#i-cpu" class="u" x="1146" y="40" width="60" height="60" style="color:#0f766e"/>
+        <circle cx="1512" cy="70" r="64" fill="#15803d" fill-opacity=".12"/><use href="#i-doc" class="u" x="1482" y="40" width="60" height="60" style="color:#15803d"/>
+        <g font-size="30" font-weight="600" fill="#14213d"><text x="168" y="180">Question</text><text x="504" y="180">Intent</text><text x="840" y="180">Search</text><text x="1176" y="180">Local model</text><text x="1512" y="180">Cited answer</text></g>
+        <g font-size="23" fill="#3f4a5a"><text x="168" y="218">in the drawer</text><text x="504" y="218">greeting or real question</text><text x="840" y="218">only what you may see</text><text x="1176" y="218">Ollama, on this laptop</text><text x="1512" y="218">or "no matching record"</text></g>
+      </g>
+    </svg>
+    <div style="position:absolute;left:0;right:0;top:290px;bottom:0;display:grid;grid-template-columns:1fr 760px;gap:64px;align-items:end">
+      <div class="pts">
+        <div class="pt" style="--c:var(--chat)"><span class="disc"><svg class="ic"><use href="#i-db"/></svg></span><span>Index refreshed every minute<small>contract clauses, documents, business rules, current records (pgvector)</small></span></div>
+        <div class="pt" style="--c:var(--chat)"><span class="disc"><svg class="ic"><use href="#i-lock"/></svg></span><span>Access applied per passage<small>bank details masked before indexing</small></span></div>
+        <div class="pt" style="--c:var(--green)"><span class="disc"><svg class="ic"><use href="#i-check"/></svg></span><span>20 of 20 known-answer questions<small>no tools: it reads and cites, never acts</small></span></div>
+      </div>
+      <img class="shot" src="showcase/assistant/01-contract-clause.png" alt="The assistant quotes the SaaS uptime clause and cites the contracts" style="width:760px;height:400px">
+    </div>
+  </div>
+  <aside class="notes">Anooj's agent. Ask as finance about the SaaS uptime commitment and service credit; ask about Oracle data residency to show it says when it has no record. Ask as requester for another user's bank details to show the access limit. Limit: a small local model occasionally cites the wrong passage label.</aside>
+</section>
+
+<!-- trust -->
+<section class="slide" data-title="Built to be trusted">
+  <p class="kicker">Reliability and security</p>
+  <h2>Nothing lost, nothing hidden</h2>
+  <div class="body cols">
+    <div>
+      <h3 style="color:var(--blue)">Reliability</h3>
+      <div class="pts">
+        <div class="pt" style="--c:var(--blue)"><span class="disc"><svg class="ic"><use href="#i-db"/></svg></span><span>Outbox<small>an event commits with the change, or not at all</small></span></div>
+        <div class="pt" style="--c:var(--blue)"><span class="disc"><svg class="ic"><use href="#i-refresh"/></svg></span><span>Retry, then dead-letter<small>failed events kept with their error</small></span></div>
+        <div class="pt" style="--c:var(--blue)"><span class="disc"><svg class="ic"><use href="#i-clock"/></svg></span><span>Temporal workflows<small>approvals and renewals survive restarts</small></span></div>
+        <div class="pt" style="--c:var(--blue)"><span class="disc"><svg class="ic"><use href="#i-search"/></svg></span><span>One correlation id<small>follow a request through every service's logs</small></span></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="color:var(--orange)">Security</h3>
+      <div class="pts">
+        <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-scan"/></svg></span><span>ClamAV on every file<small>fails closed if the scanner is down</small></span></div>
+        <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-key"/></svg></span><span>Identity only from the token<small>argon2id, lockout, rate limits, single-use links</small></span></div>
+        <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-users"/></svg></span><span>Dual control<small>no self-approval; bank changes need a second person</small></span></div>
+        <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-lock"/></svg></span><span>Production mode<small>refuses published default secrets; backups verified</small></span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Every fix is proven by reverting it and watching a test fail. Not yet: TLS between services, tests in CI, and a keyed signature seal.</aside>
+</section>
+
 <!-- 13 -->
 <section class="slide" data-title="Technology stack">
   <p class="kicker">Technology stack</p>
@@ -1600,6 +1814,19 @@ font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif
     <div class="num"><svg class="ic"><use href="#i-chat"/></svg><strong>20 / 20</strong><span>assistant answers correct, access limits respected</span></div>
   </div>
   <aside class="notes">Be honest about the data: the document and licence data are synthetic; the clause model was measured on CUAD's lawyer-annotated contracts. Scanned images are read fully right only about half the time, and those go to review.</aside>
+</section>
+
+<!-- team -->
+<section class="slide" data-title="Who presents what">
+  <p class="kicker">The team</p>
+  <h2>Who built what, and who will show it</h2>
+  <div class="body who4">
+    <div style="--c:var(--green)"><span class="when">Opening and close</span><h3>Vaidehi</h3><ul><li>Project report</li><li>Literature survey</li><li>Design and results chapters</li><li>Roles in the app</li></ul></div>
+    <div style="--c:var(--doc)"><span class="when">Documents and operations</span><h3>Anjali</h3><ul><li>Platform and document pipeline</li><li>Control Panel, Kafka log</li><li>Budgets, sourcing, GST/TDS</li><li>Risk red team and rating rules</li></ul></div>
+    <div style="--c:var(--appr)"><span class="when">Request to signature</span><h3>Niraj</h3><ul><li>Approval &amp; Inventory agent</li><li>E-signature, email approvals</li><li>Risk scorecard, sanctions</li><li>Licences, SMTP settings</li></ul></div>
+    <div style="--c:var(--chat)"><span class="when">Assistant</span><h3>Anooj</h3><ul><li>Chatbot agent</li><li>Retrieval and embeddings</li><li>Chat drawer</li><li>Access-limited answers</li></ul></div>
+  </div>
+  <aside class="notes">The running order and each person's click-path are in the Team dashboard: Showcase, By presenter.</aside>
 </section>
 
 <!-- 15 -->

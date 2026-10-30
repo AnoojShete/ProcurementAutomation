@@ -1,10 +1,13 @@
 # Functional workflow
 
-![Functional flow from document ingestion to signed contract, with decision points and failure paths](../assets/functional-flow.svg)
+<div class="figure-flow" markdown>
+[![Functional flow from document ingestion to signed contract, with decision points and failure paths](../assets/functional-flow.svg)](../assets/functional-flow.svg)
+</div>
 
 *Figure 2. Functional flow. Yellow: inputs; purple: automated steps; blue:
 decisions; pink: a person acts; red: failure or stop; green: success.
-Source: `docs/assets/functional-flow.mmd`, rendered by `scripts/render_diagrams.py`.*
+Click the diagram to open it full size. Source: `docs/assets/functional-flow.mmd`,
+rendered by `scripts/render_diagrams.py`.*
 
 ## Steps and decisions
 
@@ -16,7 +19,7 @@ Source: `docs/assets/functional-flow.mmd`, rendered by `scripts/render_diagrams.
 | 4 | **Validate**: vendor match, currency, GST, duplicates, invoice match | Confidence ≥ 80 % and no flags? | No → manual review queue |
 | 5 | **Route**: quotes start a purchase request; invoices are matched to orders | Spend tier (business rule) | ≤ ₹500 auto-approved; ≤ ₹5,000 manager; above, manager + finance |
 | 6 | **Approve**: each level's approvers are emailed | Decided before the SLA? | Reminders at 50 % / 80 %; escalation on breach; rejection ends the request |
-| 7 | **Contract**: generated from the template with the approved data | Vendor cleared? | Sanctions match → signing blocked; high risk → signer must acknowledge |
+| 7 | **Contract**: generated from the template with the approved data | Vendor cleared? | Sanctions match or prohibited country → signing blocked; High band or checks still incomplete → signer must acknowledge |
 | 8 | **E-signature**: signer emailed a signing link | Signed? | Reminder after 3 days |
 | 9 | **Store and track**: signed PDF and certificate kept; request → *ordered* | | Requester and vendor emailed; Control Panel shows *E-Signature Complete* |
 

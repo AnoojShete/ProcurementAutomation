@@ -1,22 +1,15 @@
-<div class="hero" markdown>
-
 # IT Procurement Intelligence Platform
-**Buying software and hardware for a company, automated end to end** — from a vendor's quote landing in a folder to a signed contract and a matched invoice. AI reads the documents; people step in only where a decision is needed.
 
-[Explore Architecture](overview/architecture.md){ .md-button .md-button--primary }
-[Functional Workflow](overview/functional-workflow.md){ .md-button }
-[Admin Control Panel](control-panel.md){ .md-button }
+<p class="lede">A company buying laptops, licences or a SaaS subscription goes
+through quotes, approvals, a contract, a signature and an invoice. This
+platform does the paperwork in between. It reads the documents, sends each
+request to the right approvers, drafts the contract and collects the
+signature. People still make the decisions.</p>
 
-</div>
-
-<div class="stat-grid">
-  <div class="stat"><b>5</b><span>Cooperating Agents</span></div>
-  <div class="stat"><b>1,276</b><span>Automated Tests</span></div>
-  <div class="stat"><b>100</b><span>Risk Scorecard Points</span></div>
-  <div class="stat"><b>22</b><span>Docker Services</span></div>
-</div>
-
-> Student team project, Fractal Analytics 2026–27: Anjali Dinesh Jayashree More, Vaidehi Jagdeep Sankaye, Niraj Ravindra Sawant, Anooj Vinayak Shete ([System developers](team.md)).
+Student team project, Fractal Analytics 2026–27: Anjali Dinesh Jayashree
+More, Vaidehi Jagdeep Sankaye, Niraj Ravindra Sawant and Anooj Vinayak Shete
+([System developers](team.md)). Five agents, an assistant, 24 containers on
+Docker Compose, 1,409 service tests.
 
 ![System architecture](assets/architecture.png){ .diagram }
 

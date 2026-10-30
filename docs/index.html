@@ -346,6 +346,13 @@ footer { margin-top:30px; color:var(--muted); font-size:12.5px; }
   .tl { display: grid; gap: 8px; }
   .tl .d { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 10px; }
   .tl .d > span { font-weight: 700; color: var(--muted); font-size: 12.5px; padding-top: 9px; }
+  .people { display: flex; flex-wrap: wrap; gap: 6px; margin: 22px 0 4px; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 2; }
+  .people a { padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--c); color: var(--c); font-weight: 700; text-decoration: none; font-size: 13.5px; }
+  .people a[aria-current="true"] { background: var(--c); color: var(--panel); }
+  .person { margin-top: 10px; }
+  .person .phead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; border-bottom: 2px solid var(--c); padding-bottom: 6px; }
+  .person h3 { margin: 0; font-size: 18px; color: var(--c); }
+  .person h4 { margin: 16px 0 8px; font-size: 14px; }
   footer { color: var(--muted); font-size: 12px; margin-top: 22px; }
   @media (max-width: 860px) { .tlbar { display: none; } .cards, .who { grid-template-columns: 1fr; } .step dl { grid-template-columns: minmax(0, 1fr); } .tl .d { grid-template-columns: 1fr; } }
 </style>
@@ -386,6 +393,7 @@ footer { margin-top:30px; color:var(--muted); font-size:12.5px; }
 
   <nav class="tabs" role="tablist" aria-label="Guides">
     <a href="#five" role="tab" id="t-five" aria-controls="tab-five"><svg class="i"><use href="#play"/></svg>5-minute demo</a>
+    <a href="#team" role="tab" id="t-team" aria-controls="tab-team"><svg class="i"><use href="#user"/></svg>By presenter</a>
     <a href="#prepare" role="tab" id="t-prepare" aria-controls="tab-prepare"><svg class="i"><use href="#check"/></svg>Prepare (both)</a>
     <a href="#external" role="tab" id="t-external" aria-controls="tab-external"><svg class="i"><use href="#globe"/></svg>External evaluator</a>
     <a href="#mentor" role="tab" id="t-mentor" aria-controls="tab-mentor"><svg class="i"><use href="#user"/></svg>Mentor — what's new</a>
@@ -445,6 +453,168 @@ footer { margin-top:30px; color:var(--muted); font-size:12.5px; }
       <tr><td>No internet</td><td>Unaffected: INR documents and demo accounts.</td></tr>
       <tr><td>Demo data looks wrong</td><td><code>./scripts/reset-demo.sh --yes</code> (~3 min, backs up first).</td></tr>
     </tbody></table></div>
+  </section>
+
+  <!-- ═══════════════════════════ BY PRESENTER ═══════════════════════════ -->
+  <section id="tab-team" role="tabpanel" aria-labelledby="t-team" hidden>
+    <p class="lead" style="margin-top:14px">For the evaluator session, each of us presents the part of the system they built. The split below follows the commit history. Each person's panel covers how to start, which pages to open in what order, what to click, and what to say about each page.</p>
+
+    <h2 class="t"><svg class="i"><use href="#clock"/></svg>Running order (~25 min + questions)</h2>
+    <div class="tlbar" aria-label="Running order" style="margin-top:6px">
+      <span style="--c:var(--gate);flex:5">Vaidehi · opening</span><span style="--c:var(--proc);flex:8">Anjali · documents, operations, risk rating</span><span style="--c:var(--agent);flex:8">Niraj · request to signature</span><span style="--c:var(--stream);flex:3">Anooj · assistant</span><span style="--c:var(--shared);flex:2">Vaidehi · close</span>
+    </div>
+    <div class="tblwrap"><table class="tbl">
+      <thead><tr><th>When</th><th>Who</th><th>Covers</th><th>Built (from git log)</th></tr></thead><tbody>
+      <tr><td>0:00–5:00</td><td><a href="#team-vaidehi"><b>Vaidehi</b></a></td><td>The problem, the literature survey, the proposed system, the architecture slides, and the roles in the app</td><td>The project report: abstract, literature survey, proposed system, design, results and conclusion chapters (v5 Overleaf source)</td></tr>
+      <tr><td>5:00–13:00</td><td><a href="#team-anjali"><b>Anjali</b></a></td><td>A document from drop folder to fields, the Control Panel, budgets, GST, and how a vendor gets its risk band</td><td>Platform and gateway, document pipeline (Docling, LayoutLMv3, confidence), email intake, Control Panel, Kafka log and failed events, Phases 1–4 (budgets, obligations, sourcing, GST/TDS), risk red team and rating rules, research study, docs</td></tr>
+      <tr><td>13:00–21:00</td><td><a href="#team-niraj"><b>Niraj</b></a></td><td>Request wizard, approvals, contract and e-signature, vendor scorecard and sanctions, licences, email settings</td><td>Approval &amp; Inventory agent, e-signature and signed PDFs, email approval links, deterministic risk scorecard and clearance, sanctions refresh, bulk approvals, signing mandates, licence anomaly UI, SMTP settings, ClamAV set-up</td></tr>
+      <tr><td>21:00–24:00</td><td><a href="#team-anooj"><b>Anooj</b></a></td><td>The assistant: what it answers, where answers come from, what it refuses</td><td>chatbot-agent: scaffold, chat drawer, RAG pipeline with saved embeddings, larger retrieval context</td></tr>
+      <tr><td>24:00–25:00</td><td><a href="#team-vaidehi"><b>Vaidehi</b></a></td><td>Results, limitations, next steps, then questions</td><td>Results and conclusion chapters</td></tr>
+    </tbody></table></div>
+
+    <div class="cards" style="--n:3;margin-top:12px">
+      <div class="card"><h3><svg class="i"><use href="#tool"/></svg>One laptop, one driver</h3>The presenter drives; the next one stands by. Hand over the keyboard at the change, not mid-step.</div>
+      <div class="card"><h3><svg class="i"><use href="#user"/></svg>Four browser profiles open</h3>Admin, finance, approver and requester, each already logged in (password <code>DemoPass123!</code>). Switching profile is quicker than logging out.</div>
+      <div class="card c-w"><h3><svg class="i"><use href="#alert"/></svg>The day before</h3><code>./scripts/reset-demo.sh --yes</code>, then each person does their own panel once on the reset data. Don't run e2e suites afterwards.</div>
+    </div>
+
+    <nav class="people" aria-label="Presenters">
+      <a href="#team-vaidehi" data-p="vaidehi" style="--c:var(--gate)">Vaidehi</a>
+      <a href="#team-anjali" data-p="anjali" style="--c:var(--proc)">Anjali</a>
+      <a href="#team-niraj" data-p="niraj" style="--c:var(--agent)">Niraj</a>
+      <a href="#team-anooj" data-p="anooj" style="--c:var(--stream)">Anooj</a>
+    </nav>
+
+    <!-- ── Vaidehi ── -->
+    <div class="person" id="p-vaidehi" style="--c:var(--gate)">
+      <div class="phead"><h3>Vaidehi: the story, the design, the results</h3><span class="muted">Opens (5 min) and closes (1 min)</span></div>
+      <p>You wrote the report, so you tell the evaluator what the problem is, what others have done, what we built, and what it achieved. Mostly slides, then one page of the app so the evaluator sees the system is real before Anjali takes over.</p>
+      <h4>How to start</h4>
+      <ul class="check">
+        <li><input type="checkbox"><span>Open <a href="presentation.html#slides">Present → Slides</a> and press <b>F</b> for full screen. <b>N</b> shows your speaker notes.</span></li>
+        <li><input type="checkbox"><span>In a second window: <a href="http://localhost:8080">localhost:8080</a>, logged in as <code>requester@demo.example.com</code>, and the admin profile ready.</span></li>
+        <li><input type="checkbox"><span>Have the report PDF open to quote a table if asked.</span></li>
+      </ul>
+      <h4>Pages, in order</h4>
+      <div class="steps">
+        <div class="step"><div class="hd"><b>Slides 1–3: problem and proposed solution</b><span class="time">1:30</span></div><dl>
+          <dt>Show</dt><dd>Cover, <i>The business problem</i>, <i>Proposed solution</i>.</dd>
+          <dt>Explain</dt><dd>"Buying IT in a company is a chain of hand-offs: someone retypes a quote, chases an approver, drafts a contract, waits for a signature, then matches the invoice by eye. The risky cases, a fake invoice, changed bank details, a sanctioned vendor, are the ones nobody has time to check. We split the work into five agents that pass events to each other. People only approve, sign, and review what the AI isn't sure of."</dd></dl></div>
+        <div class="step"><div class="hd"><b>Slide <i>What others do</i>: literature survey and gap</b><span class="time">1:00</span></div><dl>
+          <dt>Show</dt><dd>The comparison slide (from Chapter 2 and the <a href="competitive-analysis.html">Competitors</a> tab).</dd>
+          <dt>Explain</dt><dd>"Commercial suites like Coupa, SAP Ariba and Zapro do parts of this. Research on document AI reads fields but rarely says how sure it is or when a person should check. Our gap: one open-source pipeline from document to signed contract, where every automated decision has a confidence and a rule behind it."</dd></dl></div>
+        <div class="step"><div class="hd"><b>Architecture (two slides) and Functional flow</b><span class="time">1:30</span></div><dl>
+          <dt>Show</dt><dd>Click a box on the architecture slides to light up what it connects to.</dd>
+          <dt>Explain</dt><dd>"The browser talks only to one gateway on port 8080. Behind it are five FastAPI services. They don't call each other; they publish events on Kafka. Long processes, like an approval that waits three days, are Temporal workflows, so a restart doesn't lose them. Files go to MinIO after a virus scan, data to one Postgres."</dd>
+          <dt>If asked</dt><dd><i>Why not one app?</i> Each agent can fail or be redeployed on its own, and each owns its tables.</dd></dl></div>
+        <div class="step"><div class="hd"><b>App: Login, then Dashboard per role</b><span class="time">1:00</span></div><dl>
+          <dt>Open</dt><dd><code>/app</code> as requester, then switch to the admin profile.</dd>
+          <dt>Show</dt><dd>The requester sees My Requests, New Request, IT Catalog. The admin sees Licences, Inventory, Risk, System. Same app, different sidebar.</dd>
+          <dt>Explain</dt><dd>"Four roles from our design chapter: requester, approver, finance, admin. What you can see and do comes from your login token, never from what the page sends. Anjali will now drop a document in and show what the system does with it."</dd></dl></div>
+        <div class="step" style="--c:var(--shared)"><div class="hd"><b>Close: slides <i>Results</i> and <i>Limitations</i></b><span class="time">1:00</span></div><dl>
+          <dt>Explain</dt><dd>"1,276 automated tests; 71 of 71 checks through the full lifecycle; contract expiry dates F1 0.91 against 0.02 for rules; licence anomalies ROC-AUC 0.954; the assistant 20 of 20. What we would not claim yet: poor scans are read fully right about half the time, the data is synthetic, and it runs on one machine. Next: a legally recognised e-signature, ERP export, and the calibrated review gate from our research."</dd>
+          <dt>Then</dt><dd>"Any of us can take questions on our part." Point questions to the person whose panel covers them.</dd></dl></div>
+      </div>
+    </div>
+
+    <!-- ── Anjali ── -->
+    <div class="person" id="p-anjali" style="--c:var(--proc)">
+      <div class="phead"><h3>Anjali: documents in, operations, and the risk band</h3><span class="muted">8 min</span></div>
+      <p>You built the platform, the document pipeline, the Control Panel and the four expansion phases. Show one file arriving and being read, how the team operates the system, two of the business features, and how a vendor's risk band is worked out.</p>
+      <h4>How to start</h4>
+      <ul class="check">
+        <li><input type="checkbox"><span>Admin profile on <b>System → Control Panel</b> (<code>/app/control-panel</code>). Finance profile on <b>Documents</b>.</span></li>
+        <li><input type="checkbox"><span>A terminal in the project folder with a fresh quote under ₹500 (<code>demo-quote.pdf</code>; make one with <code>python tests/e2e/demo_5min.py --quote demo-quote.pdf</code>).</span></li>
+        <li><input type="checkbox"><span>Run <code>python tests/e2e/gst_flow.py</code> the day before so the GST screens have invoices; <code>python scripts/seed_demo_risk_vendors.py</code> for the five risk vendors.</span></li>
+      </ul>
+      <h4>Pages, in order</h4>
+      <div class="steps">
+        <div class="step doc"><div class="hd"><b>Control Panel → Documents: a file drops in</b><span class="as">admin</span><span class="time">1:30</span></div><dl>
+          <dt>Do</dt><dd><code>cp demo-quote.pdf inbox/input/</code>, then watch <b>Dropped files</b>.</dd>
+          <dt>Show</dt><dd>In about 10 s the row appears: virus-scanned, read, vendor matched. The folder counts: input, processing, processed, failed.</dd>
+          <dt>Explain</dt><dd>"Nobody clicked anything. Documents arrive three ways: upload, email to an inbox, or this drop folder. All three take the same path: ClamAV virus scan, stored in MinIO, then our pipeline. If reading fails, the file moves to <code>failed/</code> with an <code>.error.txt</code> saying why."</dd></dl></div>
+        <div class="step doc"><div class="hd"><b>Document page → Extracted Fields</b><span class="as">finance</span><span class="time">1:30</span></div><dl>
+          <dt>Open</dt><dd>Documents → the new quote.</dd>
+          <dt>Show</dt><dd>Each field with its confidence bar; each pipeline stage with its result (reading, classification, fields, LayoutLMv3 cross-check, vendor match, GST check, duplicate check). If it says <i>Needs review</i>, click <b>Confirm as Correct</b>.</dd>
+          <dt>Explain</dt><dd>"Docling reads the text, a trained classifier says what kind of document it is, and LayoutLMv3 reads it a second way. If the two disagree, or overall confidence is under 80 %, a person checks it. PDFs read 100 % of fields in our test; photos about half, and those always go to review. Corrections are remembered per vendor."</dd>
+          <dt>If asked</dt><dd><i>Why not an LLM?</i> Cost, speed, and a number we can audit. A small model plus rules gives a confidence we can set a threshold on.</dd></dl></div>
+        <div class="step pl"><div class="hd"><b>Control Panel → Kafka log, Failed events; Business Rules</b><span class="as">admin</span><span class="time">1:00</span></div><dl>
+          <dt>Show</dt><dd>Search the Kafka log for the document id: every event it caused. Failed events: kept with the error. Business Rules: one rule and its change history.</dd>
+          <dt>Explain</dt><dd>"Every event is saved in the same database transaction as the change (the outbox), so nothing is lost if a service crashes. A failure is retried, then parked here, never dropped. Every threshold, 59 of them, is a rule an admin changes live, and each has a test proving that changing it changes behaviour."</dd></dl></div>
+        <div class="step ag"><div class="hd"><b>Budgets, then GST and TDS</b><span class="as">finance</span><span class="time">2:00</span></div><dl>
+          <dt>Open</dt><dd><b>Budgets</b> (<code>/app/budgets</code>), then <b>GST and TDS</b> (<code>/app/gst</code>) and one flagged invoice's <b>GST check</b>.</dd>
+          <dt>Show</dt><dd>Budget: budgeted, committed, invoiced, left. GST: an invoice charging IGST on a supply within Karnataka, flagged; a correct e-invoice whose signed QR verifies; the GSTR-2B match; TDS and the MSME 45-day deadline.</dd>
+          <dt>Explain</dt><dd>"These close gaps we found against commercial suites. A request over its department's budget gets an extra finance step. Every invoice's GST is checked as it is read: split, rate, arithmetic, GSTINs, and the government-signed QR is verified offline, so an altered total is caught. The tax check only sends a wrong invoice to a person; it never changes the confidence score. Rates are seeded values a chartered accountant must confirm."</dd></dl></div>
+        <div class="step ad"><div class="hd"><b>Risk → the parameters behind each band</b><span class="as">finance</span><span class="time">2:00</span></div><dl>
+          <dt>Open</dt><dd><b>Risk</b> (<code>/app/risk</code>): the distribution, then the parameter matrix for the five demo vendors, Tarangini (Low) to Zagros Trade Link (High).</dd>
+          <dt>Show</dt><dd>14 parameters with their weights; each vendor's points and reasons inline; a charged check marked <b>+N!</b>.</dd>
+          <dt>Explain</dt><dd>"Risk is a 100-point ruleset, not a black box: every point traces to a check and its source, and any old score replays exactly. If one of our checks couldn't run, it's left out and the rest re-weighted. But if information about the vendor is missing, no GSTIN, no registration, no bank details, that counts as risk in full. A vendor nobody can verify is High. A rating built on incomplete checks is provisional and is never cleared for signing. We attacked this with 29 red-team profiles and all 29 pass. Niraj will now show how this score stops a contract being signed."</dd>
+          <dt>If asked</dt><dd><i>Is it accurate?</i> On synthetic incidents the ruleset ranks with ROC-AUC 0.738; it hasn't been tested on a company's real incident history.</dd></dl></div>
+      </div>
+    </div>
+
+    <!-- ── Niraj ── -->
+    <div class="person" id="p-niraj" style="--c:var(--agent)">
+      <div class="phead"><h3>Niraj: from request to signed contract</h3><span class="muted">8 min</span></div>
+      <p>You built the Approval &amp; Inventory agent, the e-signature, the risk scorecard and sanctions, and the admin email settings. Show a request travelling through approval to a signed contract, then the checks that stop a bad vendor, then licences.</p>
+      <h4>How to start</h4>
+      <ul class="check">
+        <li><input type="checkbox"><span>Requester profile on <b>New Request</b> (<code>/app/requests/new</code>); approver on <b>Approval Inbox</b>; finance on <b>Contracts</b>.</span></li>
+        <li><input type="checkbox"><span>A quote PDF from <code>data/synthetic-invoices/</code> ready to attach (about ₹2,500, so it needs a manager).</span></li>
+        <li><input type="checkbox"><span>Mailpit open at <a href="http://localhost:8025">localhost:8025</a> to show the approval email.</span></li>
+      </ul>
+      <h4>Pages, in order</h4>
+      <div class="steps">
+        <div class="step ag"><div class="hd"><b>New Request wizard</b><span class="as">requester</span><span class="time">1:30</span></div><dl>
+          <dt>Do</dt><dd>Details, Vendor, Documents (attach one or several files), Review, Submit.</dd>
+          <dt>Show</dt><dd>Details and vendor can be left empty: they are filled from the attached quote.</dd>
+          <dt>Explain</dt><dd>"The requester just attaches the quote. The document agent reads it and fills in vendor, items and amount. The amount decides who must approve: up to ₹500 is automatic, up to ₹5,000 a manager, above that a manager then finance."</dd></dl></div>
+        <div class="step ag"><div class="hd"><b>Approval Inbox, and the email</b><span class="as">approver</span><span class="time">1:30</span></div><dl>
+          <dt>Show</dt><dd>The request in the inbox with its SLA; the same request in Mailpit with one-click Approve. Approve from the inbox. Mention bulk approve for several at once.</dd>
+          <dt>Explain</dt><dd>"Each level gets an email with a signed, single-use link, so approving from a phone is safe. Nobody, not even an admin, approves their own request. If nobody decides, reminders go at 50 % and 80 % of the SLA, then it escalates to the next level. This is a Temporal workflow, so it survives restarts."</dd></dl></div>
+        <div class="step ct"><div class="hd"><b>Contract page → Sign now</b><span class="as">finance</span><span class="time">2:00</span></div><dl>
+          <dt>Open</dt><dd>Contracts → the contract just generated → <b>Sign now</b>; type or draw a signature → <b>Sign &amp; Execute Contract</b>; open the signature certificate.</dd>
+          <dt>Show</dt><dd>The vendor risk panel above the Sign button; the signed PDF with the drawn signature and signer's designation; the certificate with the SHA-256 seal.</dd>
+          <dt>Explain</dt><dd>"The contract is written only after the final approval, and emailed to the signer. Before signing you see the vendor's risk. If the vendor isn't cleared, Sign stays disabled until you acknowledge the risk, and that acknowledgement is printed on the certificate. Finance can also give standing signing mandates (Signing Authority page) so small contracts are signed automatically within a limit."</dd>
+          <dt>If asked</dt><dd><i>Is the signature legal?</i> No; the seal is a tamper-evident hash. The design supports Documenso or DocuSign, and a recognised provider is our next step.</dd></dl></div>
+        <div class="step" style="--c:var(--bad)"><div class="hd"><b>Vendor page → Full risk scorecard and Sanctions</b><span class="as">finance</span><span class="time">1:30</span></div><dl>
+          <dt>Open</dt><dd>Vendors → <b>Rosoboronexport OJSC</b> → Sanctions Screening → <b>Screen now</b>. Then any vendor → <b>Full risk scorecard</b>: groups, each check's points and source, <i>Recompute Rating</i>, the What-If and Audit tabs.</dd>
+          <dt>Show</dt><dd>Match score 100 with the lists named; the vendor is High and its contracts can't be signed.</dd>
+          <dt>Explain</dt><dd>"We screen against about 25,000 sanctioned companies from the consolidated lists, refreshed automatically. A sanctions match or a prohibited country is a hard override: High, and nobody can accept that risk. The scorecard groups are identity, performance, cyber, company and reputation; the same inputs always give the same score, which you can replay in the Audit tab."</dd></dl></div>
+        <div class="step ag"><div class="hd"><b>Licences → a flagged licence</b><span class="as">admin</span><span class="time">1:00</span></div><dl>
+          <dt>Open</dt><dd>Licences → <b>Docker Pro</b>: usage trend, then <i>Why was this flagged?</i></dd>
+          <dt>Explain</dt><dd>"An Isolation Forest scores each licence's usage from the SSO log, and SHAP explains which signal pushed it up. ROC-AUC 0.954 on 360 simulated licences. Unused seats can be reclaimed and reinstated from here. Stock items get reorder suggestions on the Inventory page."</dd></dl></div>
+        <div class="step pl"><div class="hd"><b>System → Email &amp; SMTP</b><span class="as">admin</span><span class="time">0:30</span></div><dl>
+          <dt>Explain</dt><dd>"A company plugs in its own mail server here. The password is stored encrypted (AES-256-GCM), and Test connection tells you what's wrong, for example a Gmail app password with spaces. In the demo, mail goes to Mailpit on purpose. Anooj will now show the assistant, which answers questions about all of this."</dd></dl></div>
+      </div>
+    </div>
+
+    <!-- ── Anooj ── -->
+    <div class="person" id="p-anooj" style="--c:var(--stream)">
+      <div class="phead"><h3>Anooj: the assistant</h3><span class="muted">3 min</span></div>
+      <p>You built the chatbot agent and made it retrieval-augmented. Show that it answers from our own data, cites where the answer came from, says when it doesn't know, and respects who is asking.</p>
+      <h4>How to start</h4>
+      <ul class="check">
+        <li><input type="checkbox"><span>Ollama running on the laptop (<code>brew services start ollama</code>) with the chat model and <code>nomic-embed-text</code> pulled.</span></li>
+        <li><input type="checkbox"><span>Index current: <code>docker compose exec chatbot-agent python scripts/backfill_embeddings.py</code>.</span></li>
+        <li><input type="checkbox"><span>Ask one warm-up question 10 minutes before: the first answer is slow while the model loads.</span></li>
+        <li><input type="checkbox"><span>Finance and requester profiles open; the assistant button is at the bottom right of every page.</span></li>
+      </ul>
+      <h4>Pages, in order</h4>
+      <div class="steps">
+        <div class="step pl"><div class="hd"><b>Assistant drawer, as finance</b><span class="as">finance</span><span class="time">1:30</span></div><dl>
+          <dt>Ask</dt><dd>“What uptime does our SaaS subscription contract commit the provider to, and what service credit do we get if they miss it?”, then “How many purchase requests are waiting for approval right now?”, then “What does our contract with Oracle say about data residency?”</dd>
+          <dt>Show</dt><dd>The quoted clause and its citation; a live count; for Oracle, “no matching record” instead of a made-up answer.</dd>
+          <dt>Explain</dt><dd>"It retrieves first, then answers. Contract clauses, document text, business rules and current records are embedded into Postgres with pgvector, refreshed every minute. A question is matched against that index, and the local model writes the answer only from what was found, with citations. It runs on Ollama on this laptop, so no data leaves the machine."</dd></dl></div>
+        <div class="step pl"><div class="hd"><b>Same drawer, as requester</b><span class="as">requester</span><span class="time">1:00</span></div><dl>
+          <dt>Ask</dt><dd>“Show me the bank account number on the Freshworks invoice.”</dd>
+          <dt>Explain</dt><dd>"Access is applied during the search, per passage, so a requester never gets other people's documents, and bank details are masked before they are ever indexed. The model can't leak what it was never given."</dd></dl></div>
+        <div class="step pl"><div class="hd"><b>Conversation, not just search</b><span class="time">0:30</span></div><dl>
+          <dt>Ask</dt><dd><i>hi</i>, then <i>like what</i>, then “Are there any SaaS licence anomalies?”</dd>
+          <dt>Explain</dt><dd>"Before searching it decides what kind of message this is: a greeting gets examples, a follow-up gets new ones, and licence anomalies are answered from the live scores. On 20 known-answer questions it got 20 right. Back to Vaidehi for the results."</dd>
+          <dt>If asked</dt><dd><i>Does it call APIs or take actions?</i> No tools: it only reads and cites. Actions stay on each item's page, behind the user's own login.</dd></dl></div>
+      </div>
+    </div>
   </section>
 
   <!-- ═══════════════════════════ PREPARE ═══════════════════════════ -->
@@ -714,14 +884,21 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
 
 <script>
 
-const TABS = ["five", "prepare", "external", "mentor"];
+const TABS = ["five", "team", "prepare", "external", "mentor"];
+const PEOPLE = ["vaidehi", "anjali", "niraj", "anooj"];
 const showTab = () => {
   const h = location.hash.slice(1);
-  const id = TABS.includes(h) ? h : "five";
+  const person = h.startsWith("team-") && PEOPLE.includes(h.slice(5)) ? h.slice(5) : "";
+  const id = person ? "team" : TABS.includes(h) ? h : "five";
   for (const t of TABS) {
     document.getElementById("tab-" + t).hidden = t !== id;
     document.getElementById("t-" + t).setAttribute("aria-selected", String(t === id));
   }
+  // By presenter: one person at a time, Vaidehi (who opens) first
+  const shown = person || "vaidehi";
+  for (const p of PEOPLE) document.getElementById("p-" + p).hidden = p !== shown;
+  document.querySelectorAll(".people a").forEach((a) => a.setAttribute("aria-current", String(a.dataset.p === shown)));
+  if (person) document.querySelector(".people").scrollIntoView({ block: "start" });
 };
 window.addEventListener("hashchange", showTab);
 showTab();

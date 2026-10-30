@@ -51,7 +51,7 @@ invoice matching.
 | Measure | Result | Source |
 |---|---|---|
 | Licence anomaly model | ROC-AUC 0.954, AP 0.873 on test (vs 0.687 for utilisation alone) | `docs/results/licence-anomaly.md` |
-| Tests | 287 unit/integration tests; `budget_flow.py`, `sourcing_flow.py`, `invoice_lifecycle.py` (71/71) | `scripts/test-service.sh` |
+| Tests | 299 unit/integration tests; `budget_flow.py`, `sourcing_flow.py`, `invoice_lifecycle.py` (71/71) | `scripts/test-service.sh` |
 
 ![Approval queue](../showcase/approval/01-approval-queue.png)
 

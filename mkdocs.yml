@@ -3,7 +3,7 @@
 # Build:    mkdocs build --strict                                  -> .run/docs-site/
 # Publish:  mkdocs gh-deploy  (or the "Docs" GitHub Actions workflow) -> GitHub Pages
 site_name: IT Procurement Intelligence Platform
-site_description: Agentic AI procurement — documents, approvals, contracts, e-signatures and vendor risk, automated end to end.
+site_description: IT procurement from quote to signed contract and matched invoice, by five cooperating services.
 site_author: Anjali Dinesh Jayashree More, Vaidehi Jagdeep Sankaye, Niraj Ravindra Sawant, Anooj Vinayak Shete
 repo_url: https://github.com/AnoojShete/ProcurementAutomation
 repo_name: ProcurementAutomation
@@ -20,6 +20,9 @@ hooks:
 
 extra_css:
   - stylesheets/extra.css
+  - stylesheets/architecture.css   # the architecture carousel (overview/architecture.md)
+extra_javascript:
+  - javascripts/architecture.js
 
 theme:
   name: material
@@ -30,15 +33,15 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Light mode
@@ -59,12 +62,6 @@ theme:
 
 plugins:
   - search
-
-# The architecture carousel (docs/guide/overview/architecture.md)
-extra_css:
-  - stylesheets/architecture.css
-extra_javascript:
-  - javascripts/architecture.js
 
 markdown_extensions:
   - admonition

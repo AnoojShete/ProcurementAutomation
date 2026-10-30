@@ -32,6 +32,6 @@ admins edit live.
 
 ## 4. Results and evaluation
 
-- 115 tests; `auth_flows.py` e2e 42/42 (sign-up, verify, reset, lockout, enumeration, rate limits).
+- 116 tests; `auth_flows.py` e2e 42/42 (sign-up, verify, reset, lockout, enumeration, rate limits).
 
 ![Business rules](../showcase/rules/01-business-rules.png)
