@@ -52,7 +52,19 @@ export function RequestsListPage() {
     const me = user?.email.toLowerCase();
     return (requests ?? []).filter((r) => {
       if (scope === "mine" && r.requested_by?.toLowerCase() !== me) return false;
-      if (scope === "approved" && !r.approval_history?.some((h) => h.decision === "approved" && h.decided_by?.toLowerCase() === me)) return false;
+      if (scope === "approved") {
+        const approvedByMe = r.approval_history?.some(
+          (h) => h.decision === "approved" && h.decided_by?.toLowerCase() === me
+        );
+        if (!approvedByMe) {
+          if (user?.role === "approver" && r.approval_chain?.includes("dept_manager")) {
+            const deptIdx = r.approval_chain.indexOf("dept_manager");
+            if (r.current_approver_index <= deptIdx) return false;
+          } else {
+            return false;
+          }
+        }
+      }
       if (statuses.length) {
         const ok = statuses.some((st) => (st === "open" ? !CLOSED.includes(r.status ?? "") : r.status === st));
         if (!ok) return false;
@@ -80,7 +92,24 @@ export function RequestsListPage() {
     { key: "dept", header: "Department", render: (r) => r.department ?? "—" },
     { key: "amount", header: "Amount", render: (r) => formatCurrency(r.amount, r.currency ?? "INR"), sortValue: (r) => r.amount ?? 0 },
     { key: "tier", header: "Tier", render: (r) => <span className="text-ink-2">{titleCase(r.spend_tier)}</span> },
-    { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => {
+        if (r.status === "pending_approval") {
+          const chain = r.approval_chain || [];
+          const currentLevel = chain[r.current_approver_index];
+          const levelName = currentLevel === "finance_head" ? "Finance Head" : currentLevel === "dept_manager" ? "Dept Manager" : currentLevel ? titleCase(currentLevel) : "Approver";
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              <StatusBadge status="pending_approval" />
+              <span className="text-xs text-amber-700 font-medium">({levelName})</span>
+            </span>
+          );
+        }
+        return <StatusBadge status={r.status} />;
+      },
+    },
     { key: "created", header: "Submitted", render: (r) => formatDate(r.created_at), sortValue: (r) => r.created_at ?? "" },
   ];
 

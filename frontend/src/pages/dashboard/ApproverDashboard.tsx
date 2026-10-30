@@ -42,8 +42,25 @@ export function ApproverDashboard() {
     });
   }, [rawInbox, allRequests, user]);
 
+  const awaitingFinance = useMemo(() => {
+    const me = user?.email?.toLowerCase();
+    return (allRequests ?? []).filter((r) => {
+      if (r.status !== "pending_approval") return false;
+      const approvedByMe = r.approval_history?.some(
+        (h) => h.decided_by?.toLowerCase() === me && h.decision === "approved"
+      );
+      if (approvedByMe) return true;
+      if (r.approval_chain?.includes("dept_manager")) {
+        const deptIdx = r.approval_chain.indexOf("dept_manager");
+        if (r.current_approver_index > deptIdx) return true;
+      }
+      return false;
+    });
+  }, [allRequests, user]);
+
   const kpis = useMemo(() => {
     const now = Date.now();
+    const me = user?.email?.toLowerCase();
     const dueToday = inboxItems.filter((i) => {
       if (!i.sla_deadline) return false;
       const diff = new Date(i.sla_deadline).getTime() - now;
@@ -54,16 +71,18 @@ export function ApproverDashboard() {
       return new Date(i.sla_deadline).getTime() < now;
     }).length;
     const approvedThisMonth = (allRequests ?? []).filter((r) => {
-      if (!["approved", "ordered", "partially_received", "fulfilled"].includes(r.status ?? "")) return false;
-      const decidedByMe = r.approval_history?.some((h) => h.decided_by === user?.email && h.decision === "approved");
-      if (!decidedByMe) return false;
-      const d = r.updated_at ? new Date(r.updated_at) : null;
-      if (!d) return false;
-      const now2 = new Date();
-      return d.getMonth() === now2.getMonth() && d.getFullYear() === now2.getFullYear();
+      const decidedByMe = r.approval_history?.some((h) => {
+        if (h.decided_by?.toLowerCase() !== me) return false;
+        if (h.decision !== "approved") return false;
+        const d = h.decided_at ? new Date(h.decided_at) : r.updated_at ? new Date(r.updated_at) : null;
+        if (!d) return false;
+        const now2 = new Date();
+        return d.getMonth() === now2.getMonth() && d.getFullYear() === now2.getFullYear();
+      });
+      return Boolean(decidedByMe);
     }).length;
-    return { pending: inboxItems.length, dueToday, escalated, approvedThisMonth };
-  }, [inboxItems, allRequests, user]);
+    return { pending: inboxItems.length, dueToday, escalated, approvedThisMonth, awaitingFinance: awaitingFinance.length };
+  }, [inboxItems, allRequests, user, awaitingFinance]);
 
   const attentionItems: AttentionItem[] = useMemo(() => {
     const items: AttentionItem[] = [];
@@ -91,6 +110,18 @@ export function ApproverDashboard() {
         to: "/app/approvals?role=dept_manager&due=overdue",
       });
     }
+    if (kpis.awaitingFinance > 0) {
+      items.push({
+        key: "awaiting-finance",
+        message: (
+          <>
+            <strong>{kpis.awaitingFinance}</strong> request{kpis.awaitingFinance > 1 ? "s" : ""} approved by you {kpis.awaitingFinance > 1 ? "are" : "is"} awaiting Finance review.
+          </>
+        ),
+        cta: "View in-progress",
+        to: "/app/approvals?tab=in_progress",
+      });
+    }
     return items;
   }, [kpis]);
 
@@ -106,7 +137,7 @@ export function ApproverDashboard() {
 
       <LedgerStrip cols={4} loading={loading} label="Approval figures">
         <MetricCard label="Pending Approval" value={kpis.pending} icon={Inbox} tone="brand" to="/app/approvals?role=dept_manager" />
-        <MetricCard label="Due Today" value={kpis.dueToday} icon={Clock} tone="warning" to="/app/approvals?role=dept_manager&due=today" />
+        <MetricCard label="Awaiting Finance" value={kpis.awaitingFinance} icon={Clock} tone="warning" to="/app/approvals?tab=in_progress" />
         <MetricCard label="Escalated" value={kpis.escalated} icon={AlertTriangle} tone="danger" to="/app/approvals?role=dept_manager&due=overdue" />
         <MetricCard label="Approved This Month" value={kpis.approvedThisMonth} icon={CheckCircle2} tone="success" to="/app/requests?scope=approved" />
       </LedgerStrip>
@@ -120,7 +151,46 @@ export function ApproverDashboard() {
         />
         <CardBody>
           {urgent.length === 0 ? (
-            <EmptyState title="Nothing waiting for you" />
+            awaitingFinance.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between text-xs text-ink-2">
+                  <span className="font-medium text-ink">Approved by you · In progress awaiting Finance</span>
+                  <Link to="/app/approvals?tab=in_progress" className="font-medium text-accent hover:underline">
+                    View all ({awaitingFinance.length})
+                  </Link>
+                </div>
+                <ul className="-mx-4 divide-y divide-rule border-y border-rule sm:-mx-5">
+                  {awaitingFinance.slice(0, 4).map((item) => (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => navigate(`/app/requests/${item.id}?step=approval`)}
+                        className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors duration-1 hover:bg-sheet-sunk sm:px-5"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge tone="warning">Pending Finance</Badge>
+                            <span className="truncate text-sm font-medium text-ink">
+                              {titleCase(item.request_type)} — {item.department}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {nameFor(item.requested_by)} · Submitted {formatDate(item.created_at)}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-semibold tabular text-slate-800">
+                            {formatCurrency(item.amount, item.currency ?? "INR")}
+                          </p>
+                          <p className="text-xs text-success-600 font-medium">Approved by you</p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <EmptyState title="Nothing waiting for you" />
+            )
           ) : (
             <ul className="-mx-4 divide-y divide-rule border-y border-rule sm:-mx-5">
               {urgent.map((item) => {

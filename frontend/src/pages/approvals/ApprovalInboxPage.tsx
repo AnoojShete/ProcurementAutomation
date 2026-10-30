@@ -32,7 +32,7 @@ export function ApprovalInboxPage() {
   // Role scoping default: approver -> dept_manager, finance -> finance_head, admin -> all
   const defaultRole = user?.role === "approver" ? "dept_manager" : user?.role === "finance" ? "finance_head" : "all";
   const role = params.get("role") ?? defaultRole;
-  const tab = (params.get("tab") ?? "active") as "active" | "assigned";
+  const tab = (params.get("tab") ?? "active") as "active" | "in_progress" | "assigned";
   const due = params.get("due");
   const roles = role === "all" ? APPROVER_ROLES.map((r) => r.value) : [role];
 
@@ -128,7 +128,27 @@ export function ApprovalInboxPage() {
       .sort((a, b) => (a.sla_deadline ?? "9999").localeCompare(b.sla_deadline ?? "9999"));
   }, [rawInboxItems, allRequests, user, due]);
 
-  // Filter Assigned / My Approvals: requests where this user made an approval decision or is in chain
+  // Filter in-progress requests: approved by current approver, but still waiting for subsequent approval (e.g. Finance)
+  const inProgressItems = useMemo(() => {
+    const me = user?.email?.toLowerCase();
+    return (allRequests ?? [])
+      .filter((r) => {
+        if (r.status !== "pending_approval") return false;
+        const approvedByMe = r.approval_history?.some(
+          (h) => h.decided_by?.toLowerCase() === me && h.decision === "approved"
+        );
+        if (approvedByMe) return true;
+        // Also capture if user is an approver whose tier/step has passed
+        if (user?.role === "approver" && r.approval_chain?.includes("dept_manager")) {
+          const deptIdx = r.approval_chain.indexOf("dept_manager");
+          if (r.current_approver_index > deptIdx) return true;
+        }
+        return false;
+      })
+      .sort((a, b) => (b.updated_at ?? b.created_at ?? "").localeCompare(a.updated_at ?? a.created_at ?? ""));
+  }, [allRequests, user]);
+
+  // Filter Assigned / All My Approvals: requests where this user made an approval decision or is in chain
   const assignedItems = useMemo(() => {
     const me = user?.email?.toLowerCase();
     return (allRequests ?? [])
@@ -137,14 +157,10 @@ export function ApprovalInboxPage() {
         if (decidedByMe) return true;
 
         if (user?.role === "finance" && r.approval_chain?.includes("finance_head")) {
-          if (["approved", "ordered", "partially_received", "fulfilled", "invoice_received"].includes(r.status ?? "")) {
-            return true;
-          }
+          return true;
         }
         if (user?.role === "approver" && r.approval_chain?.includes("dept_manager")) {
-          if (["approved", "ordered", "partially_received", "fulfilled", "invoice_received"].includes(r.status ?? "")) {
-            return true;
-          }
+          return true;
         }
         if (user?.role === "admin" && (r.approval_history?.length ?? 0) > 0) {
           return true;
@@ -343,6 +359,57 @@ export function ApprovalInboxPage() {
     },
   ];
 
+  const inProgressColumns: Column<PurchaseRequest>[] = [
+    {
+      key: "id",
+      header: "Request",
+      render: (r) => <span className="font-mono text-xs">PR-{r.id.slice(0, 8)}</span>,
+    },
+    { key: "requester", header: "Requester", render: (r) => <PersonName email={r.requested_by} /> },
+    { key: "type", header: "Type", render: (r) => titleCase(r.request_type) },
+    { key: "dept", header: "Department", render: (r) => r.department ?? "—" },
+    {
+      key: "amount",
+      header: "Amount",
+      render: (r) => <span className="tabular font-medium">{formatCurrency(r.amount, r.currency ?? "INR")}</span>,
+      sortValue: (r) => r.amount ?? 0,
+    },
+    {
+      key: "current_level",
+      header: "Current Approver",
+      render: (r) => {
+        const chain = r.approval_chain || [];
+        const currentLevel = chain[r.current_approver_index];
+        const label = currentLevel === "finance_head" ? "Finance Head" : currentLevel ? titleCase(currentLevel) : "Next Approver";
+        return (
+          <Badge tone="warning">
+            Awaiting {label}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "my_action",
+      header: "Your Action",
+      render: (r) => {
+        const me = user?.email?.toLowerCase();
+        const myDecision = r.approval_history?.find((h) => h.decided_by?.toLowerCase() === me && h.decision === "approved");
+        return (
+          <span className="inline-flex items-center gap-1.5 text-xs text-success font-medium">
+            <CheckCircle2 className="size-3.5" />
+            <span>Approved {myDecision?.decided_at ? `(${formatDate(myDecision.decided_at)})` : ""}</span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "submitted",
+      header: "Submitted",
+      render: (r) => formatDate(r.created_at),
+      sortValue: (r) => r.created_at ?? "",
+    },
+  ];
+
   const assignedColumns: Column<PurchaseRequest>[] = [
     {
       key: "id",
@@ -361,7 +428,20 @@ export function ApprovalInboxPage() {
     {
       key: "status",
       header: "Lifecycle Status",
-      render: (r) => <StatusBadge status={r.status} />,
+      render: (r) => {
+        if (r.status === "pending_approval") {
+          const chain = r.approval_chain || [];
+          const currentLevel = chain[r.current_approver_index];
+          const levelName = currentLevel === "finance_head" ? "Finance Head" : currentLevel === "dept_manager" ? "Dept Manager" : currentLevel ? titleCase(currentLevel) : "Approver";
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              <StatusBadge status="pending_approval" />
+              <span className="text-xs text-amber-700 font-medium">({levelName})</span>
+            </span>
+          );
+        }
+        return <StatusBadge status={r.status} />;
+      },
     },
     {
       key: "my_action",
@@ -391,12 +471,15 @@ export function ApprovalInboxPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Primary Navigation Tabs: Active Inbox vs Assigned / My Approvals */}
+      {/* Primary Navigation Tabs: Active Inbox vs Awaiting Finance / In Progress vs All My Approvals */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs
           tabs={[
             { key: "active", label: `Active Inbox (${activeItems.length})` },
-            { key: "assigned", label: `Assigned / My Approvals (${assignedItems.length})` },
+            ...(user?.role === "approver" || user?.role === "admin"
+              ? [{ key: "in_progress", label: `${user?.role === "approver" ? "Awaiting Finance" : "In Progress"} (${inProgressItems.length})` }]
+              : []),
+            { key: "assigned", label: `All My Approvals (${assignedItems.length})` },
           ]}
           active={tab}
           onChange={setTab}
@@ -405,6 +488,21 @@ export function ApprovalInboxPage() {
 
       {tab === "active" && (
         <>
+          {/* Helpful callout if active inbox is clear but in-progress approvals are pending next level */}
+          {inProgressItems.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent-soft bg-accent-tint/30 px-3.5 py-2.5 text-xs text-ink">
+              <div className="flex items-center gap-2">
+                <Info className="size-4 shrink-0 text-accent" />
+                <span>
+                  You have <strong>{inProgressItems.length}</strong> request{inProgressItems.length > 1 ? "s" : ""} approved by you currently awaiting Finance approval.
+                </span>
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => setTab("in_progress")}>
+                View {user?.role === "approver" ? "Awaiting Finance" : "In Progress"} ({inProgressItems.length})
+              </Button>
+            </div>
+          )}
+
           {due && DUE_LABEL[due] && (
             <div>
               <FilterChip label={DUE_LABEL[due]} onClear={clearDue} />
@@ -519,6 +617,21 @@ export function ApprovalInboxPage() {
             </CardBody>
           </Card>
         </>
+      )}
+
+      {tab === "in_progress" && (
+        <Card>
+          <CardBody>
+            <DataTable
+              columns={inProgressColumns}
+              rows={inProgressItems}
+              rowKey={(r) => r.id}
+              loading={loading}
+              onRowClick={(r) => navigate(approvalItemPath({ request_id: r.id }))}
+              emptyTitle="No requests currently awaiting subsequent approval"
+            />
+          </CardBody>
+        </Card>
       )}
 
       {tab === "assigned" && (
