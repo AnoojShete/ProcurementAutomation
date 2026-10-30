@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Drawer } from "./Drawer";
-import { sendMessage, type ChatMessage } from "@/api/chat";
+import { sendMessage, sendMessageStream, type ChatMessage } from "@/api/chat";
 import { ArrowUp, Sparkles, MessageSquarePlus, Copy, Check, RotateCcw, FileText, Inbox, KeyRound, ShieldCheck } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -85,6 +85,7 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -92,7 +93,7 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => { scrollToBottom(); }, [messages, isLoading]);
+  useEffect(() => { scrollToBottom(); }, [messages, isLoading, streamingText]);
 
   // Grow the box with its text, up to about five lines.
   useEffect(() => {
@@ -110,16 +111,26 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
 
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setIsLoading(true);
+    setStreamingText("");
 
     try {
-      const res = await sendMessage(text, sessionId);
-      setSessionId(res.session_id);
-
-      const displayHistory = res.history.filter((m) => m.role === "user" || m.role === "assistant");
-      setMessages(displayHistory);
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: "assistant", content: ERROR_REPLY }]);
+      // Stream the reply token by token; fall back to the plain endpoint.
+      const result = await sendMessageStream(text, sessionId, (token) => {
+        setStreamingText((prev) => prev + token);
+      });
+      setSessionId(result.session_id);
+      setMessages((prev) => [...prev, { role: "assistant", content: result.full_reply }]);
+    } catch {
+      try {
+        const res = await sendMessage(text, sessionId);
+        setSessionId(res.session_id);
+        const displayHistory = res.history.filter((m) => m.role === "user" || m.role === "assistant");
+        setMessages(displayHistory);
+      } catch {
+        setMessages((prev) => [...prev, { role: "assistant", content: ERROR_REPLY }]);
+      }
     } finally {
+      setStreamingText("");
       setIsLoading(false);
       inputRef.current?.focus();
     }
@@ -205,7 +216,17 @@ export function ChatDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               />
             )
           )}
-          {isLoading && (
+          {isLoading && streamingText && (
+            <div className="flex gap-2.5">
+              <AssistantMark />
+              <div className="min-w-0 flex-1 rounded-lg rounded-tl-sm border border-rule bg-sheet px-3.5 py-2.5 text-body text-ink break-words">
+                <div className={`overflow-x-auto ${MARKDOWN}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          )}
+          {isLoading && !streamingText && (
             <div className="flex gap-2.5 animate-fade-in">
               <AssistantMark />
               <div className="flex items-center gap-1 rounded-lg rounded-tl-sm border border-rule bg-sheet px-3.5 py-3" aria-label="Assistant is thinking">

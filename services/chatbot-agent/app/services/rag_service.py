@@ -26,11 +26,11 @@ from app.services import indexer
 from shared.auth.middleware import CurrentUser
 
 STAFF = ("approver", "finance", "admin", "service")
-TOP_K = 6
-CANDIDATES = 30
-MAX_PER_SECTION = 2
+TOP_K = 25
+CANDIDATES = 100
+MAX_PER_SECTION = 3
 MAX_DISTANCE = 0.6          # cosine distance; farther chunks aren't relevant enough to show the model
-MAX_PER_TYPE = {"request": 3, "contract": 4, "document": 4}   # leave room for other kinds of source
+MAX_PER_TYPE = {"request": 8, "contract": 10, "document": 10}   # leave room for other kinds of source
 TEMPLATE_WORDS = {"professional services": "Professional services", "consult": "Professional services",
                   "saas": "SaaS subscription", "subscription": "SaaS subscription",
                   "hardware": "Hardware purchase", "laptop": "Hardware purchase"}
@@ -64,10 +64,13 @@ async def retrieve(db: AsyncSession, user: CurrentUser, query: str, k: int = TOP
         return []
     [vector] = await indexer.embed([query], kind="search_query")
     rows = (await db.execute(text(
-        "SELECT source_type, document_id, title, section, chunk_text, embedding <=> CAST(:q AS vector) AS distance "
-        "FROM document_embeddings WHERE source_type IS NOT NULL "
-        "AND (audience = 'all' OR :staff OR (audience = 'owner' AND owner_email = :email)) "
-        "ORDER BY embedding <=> CAST(:q AS vector) LIMIT :n"),
+        "SELECT e.source_type, CAST(e.document_id AS TEXT) AS document_id, e.title, e.section, e.chunk_text, "
+        "e.embedding <=> CAST(:q AS vector) AS distance "
+        "FROM document_embeddings e "
+        "LEFT JOIN documents d ON e.document_id = CAST(d.id AS TEXT) "
+        "WHERE e.source_type IS NOT NULL "
+        "AND (e.audience = 'all' OR :staff OR (e.audience = 'owner' AND e.owner_email = :email)) "
+        "ORDER BY e.embedding <=> CAST(:q AS vector) LIMIT :n"),
         {"q": str(vector), "staff": user.role in STAFF, "email": (user.email or "").lower(), "n": CANDIDATES})).all()
     hits, per_section, per_type = [], {}, {}
     for r in rerank(query, [r for r in rows if r.distance <= MAX_DISTANCE]):
@@ -104,12 +107,12 @@ def rerank(query: str, rows: list) -> list:
 def as_context(hits: list[Hit]) -> str:
     if not hits:
         return "No matching passages were found in the contracts, documents or business rules this user can see."
-    return "\n\n".join(f"[{h.ref}] {h.text}" for h in hits)
+    return "\n".join(f'<document id="{h.ref}">\n{h.text}\n</document>' for h in hits)
 
 
-async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser) -> str:
+async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser, limit: int = 25) -> str:
     """The search_documents tool: another retrieval with the model's own query."""
     try:
-        return as_context(await retrieve(db, user, query))
+        return as_context(await retrieve(db, user, query, k=limit))
     except Exception as e:
         return f"Error searching the knowledge base: {e}"

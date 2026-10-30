@@ -31,21 +31,45 @@ SYSTEM_PROMPT = (
     "You answer questions about contracts and their clauses, uploaded invoices/quotes/POs, purchase requests and "
     "their status, vendors and their risk, licences, budgets and the platform's business rules.\n"
     "Rules:\n"
-    "1. Use only the numbered PASSAGES given with the question. They come from the platform's records and are "
-    "current to the minute. Never use outside knowledge about contracts, vendors, prices or policies.\n"
+    "1. Use only the PASSAGES given with the question inside <document> tags. They come from the platform's records "
+    "and are current to the minute. Never use outside knowledge about contracts, vendors, prices or policies.\n"
     "2. Read the passage that answers the question carefully and quote its key sentence in quotation marks, "
     "then answer in one or two sentences. Copy numbers exactly as written.\n"
-    "3. Cite the passage reference in square brackets, e.g. [CT-1a2b3c4d] or [approval.spend_tiers].\n"
-    "4. Each passage is about the contract, vendor or record named at its start. Only if the question names a "
+    "3. If the user is a 'requester', you must redact all vendor Bank Account Numbers, Routing Codes, and IFSC "
+    "codes by replacing them with [hidden].\n"
+    "4. Synthesize your answers naturally. NEVER output raw chunk identifiers, XML tags, or brackets like "
+    "[Doc ID: ...]. Integrate the facts into a clean conversational response.\n"
+    "5. Each passage is about the contract, vendor or record named at its start. Only if the question names a "
     "specific vendor, contract or item by its proper name and no passage mentions it, say there is no record of it; "
     "ordinary words in the question are not names.\n"
-    "5. If the passages don't contain the answer, say you couldn't find it in the platform's records. Never guess.\n"
-    "5a. A passage about a business rule: explain in plain words what the rule does and what its current setting "
+    "6. If the passages don't contain the answer, say you couldn't find it in the platform's records. Never guess.\n"
+    "6a. A passage about a business rule: explain in plain words what the rule does and what its current setting "
     "means for the user's question. Don't answer with just the setting or the rule's key.\n"
-    "6. Never reveal bank account numbers or IFSC codes.\n"
-    "7. For questions unrelated to procurement on this platform (or greetings), reply briefly in plain text: say "
+    "7. Never reveal bank account numbers or IFSC codes.\n"
+    "8. For questions unrelated to procurement on this platform (or greetings), reply briefly in plain text: say "
     "what you can help with. Don't output JSON."
 )
+
+# ── Hard RBAC: tools that requesters must never see ──────────────────
+REQUESTER_BLOCKED_TOOLS = frozenset({
+    "get_procurement_summary",
+    "get_license_anomaly_summary",
+    "get_vendor_risk",
+})
+
+
+def _filter_tools_for_role(tools: list[dict] | None, role: str) -> list[dict] | None:
+    """Remove privileged tools before sending the payload to the LLM.
+
+    This is a hard enforcement layer: even if the system prompt told the
+    model about these tools, the model physically cannot call them because
+    they are stripped from the request.
+    """
+    if tools is None:
+        return None
+    if role == "requester":
+        return [t for t in tools if t.get("function", {}).get("name") not in REQUESTER_BLOCKED_TOOLS]
+    return tools
 
 
 def search_query(history: list) -> str:
@@ -108,9 +132,81 @@ async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessio
         hits = await rag_service.retrieve(db, user, search_query(history))
     except Exception:                    # index or embedding model unavailable: answer without passages
         hits = []
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        r = await client.post(f"{settings.llm_api_base_url}/api/chat", json={
-            "model": settings.llm_model_name, "messages": build_messages(history, user, hits), "stream": False,
-            "options": {"temperature": 0}})
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        filtered = _filter_tools_for_role(getattr(settings, "llm_tools", None), user.role)
+        payload = {"model": settings.llm_model_name, "messages": build_messages(history, user, hits),
+                   "stream": False, "options": {"temperature": 0}}
+        if filtered:
+            payload["tools"] = filtered
+        r = await client.post(f"{settings.llm_api_base_url}/api/chat", json=payload)
         r.raise_for_status()
         return r.json().get("message", {}).get("content") or "I could not generate a response."
+
+
+async def stream_llm_with_tools(history: list, user: CurrentUser, db: AsyncSession):
+    """Streaming variant of query_llm_with_tools.
+
+    Yields Server-Sent Events (SSE) formatted strings:
+      - ``data: {"token": "..."}``  for each generated token
+      - ``data: {"done": true, "full_reply": "..."}``  when generation finishes
+
+    Intent-based short-circuit replies (greetings, licence anomalies, vendor
+    clarification) are emitted as a single SSE event so the caller doesn't need
+    to special-case them.
+    """
+    import json as _json
+
+    asked = [m.content for m in history if m.role == "user"]
+    if asked:
+        kind = intent.classify(asked[-1], asked[-2] if len(asked) > 1 else None)
+        if kind.kind in ("greeting", "capabilities", "examples", "topic_only", "smalltalk"):
+            names = await _vendor_names(db)
+            said = [m.content for m in history if m.role == "assistant"]
+            reply = intent.reply(kind, asked[-1], role=user.role, first_name=await _first_name(db, user),
+                                 vendor=names[0] if names else None, shown=said[-1] if said else "")
+            yield f"data: {_json.dumps({'token': reply})}\n\n"
+            yield f"data: {_json.dumps({'done': True, 'full_reply': reply})}\n\n"
+            return
+        if kind.kind == "licence_anomalies":
+            reply = await topics.answer_licence_anomalies(db, user)
+            yield f"data: {_json.dumps({'token': reply})}\n\n"
+            yield f"data: {_json.dumps({'done': True, 'full_reply': reply})}\n\n"
+            return
+        question = intent.clarify_vendor(asked[-1], await _vendor_names(db))
+        if question:
+            yield f"data: {_json.dumps({'token': question})}\n\n"
+            yield f"data: {_json.dumps({'done': True, 'full_reply': question})}\n\n"
+            return
+
+    try:
+        hits = await rag_service.retrieve(db, user, search_query(history))
+    except Exception:
+        hits = []
+
+    full_reply = ""
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        filtered = _filter_tools_for_role(getattr(settings, "llm_tools", None), user.role)
+        payload = {"model": settings.llm_model_name, "messages": build_messages(history, user, hits),
+                   "stream": True, "options": {"temperature": 0}}
+        if filtered:
+            payload["tools"] = filtered
+        async with client.stream("POST", f"{settings.llm_api_base_url}/api/chat", json=payload) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.strip():
+                    continue
+                try:
+                    chunk = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                token = chunk.get("message", {}).get("content", "")
+                if token:
+                    full_reply += token
+                    yield f"data: {_json.dumps({'token': token})}\n\n"
+                if chunk.get("done"):
+                    break
+
+    if not full_reply:
+        full_reply = "I could not generate a response."
+        yield f"data: {_json.dumps({'token': full_reply})}\n\n"
+    yield f"data: {_json.dumps({'done': True, 'full_reply': full_reply})}\n\n"
