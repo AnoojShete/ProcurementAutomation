@@ -40,7 +40,10 @@ async def mermaid_to_svg_png(page, mmd_path: str, svg_path: str, png_path: str) 
                             themeVariables: {{fontFamily: 'Helvetica, Arial, sans-serif', fontSize: '15px'}}}});
         const {{svg}} = await mermaid.render('flow', {json.dumps(source)});
         document.getElementById('out').innerHTML = svg;
-        return svg;
+        // Mermaid's HTML labels contain <br> and other non-XML markup; an
+        // SVG loaded through <img> must be well-formed XML or it shows
+        // nothing, so serialize the parsed DOM instead of the raw string.
+        return new XMLSerializer().serializeToString(document.querySelector('#out svg'));
     }}""")
     with open(svg_path, "w") as f:
         f.write(svg)

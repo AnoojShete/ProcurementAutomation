@@ -53,7 +53,7 @@ match the vendor, and send to a person only what needs a person.
 | Classifier (held-out document kinds) | Macro-F1 1.00 vs keywords 0.84 | `docs/results/classifier.md` |
 | Extraction, text PDFs | 100 % of fields | `docs/results/extraction.md` |
 | Extraction, images | ~49 % of documents fully right (with preprocessing) | same |
-| Tests | 375 unit/integration tests; `document_pipeline.py` e2e (corrupt, empty, huge, wrong type, outages) | `scripts/test-service.sh` |
+| Tests | 390 unit/integration tests; `document_pipeline.py` e2e (corrupt, empty, huge, wrong type, outages) | `scripts/test-service.sh` |
 
 ![Extracted fields and validation results](../showcase/cpanel/06-extraction.png)
 

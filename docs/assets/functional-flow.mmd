@@ -76,8 +76,8 @@ flowchart TB
   end
 
   APPROVED --> GEN --> RISK
-  RISK -- "Blocked<br/>(sanctions match)" --> BLOCK["Signing blocked<br/>never cleared"]:::fail
-  RISK -- "High risk" --> ACK["Signer must acknowledge the risk"]:::human
+  RISK -- "Blocked<br/>(sanctions match or<br/>prohibited country)" --> BLOCK["Signing blocked<br/>never cleared"]:::fail
+  RISK -- "Not cleared<br/>(High, or checks incomplete)" --> ACK["Signer must acknowledge the risk"]:::human
   ACK --> SEND
   RISK -- "Cleared" --> SEND
   SEND --> SIGN

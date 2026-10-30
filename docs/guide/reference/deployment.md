@@ -1,6 +1,6 @@
 # Deployment
 
-The platform runs on one machine with Docker Compose (22 containers).
+The platform runs on one machine with Docker Compose (24 containers, plus a one-shot job that creates the Kafka topics).
 
 ## Requirements
 
