@@ -518,6 +518,33 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
             </div>
           </div>
 
+          {explanation.headline && (
+            <div className={`p-3 rounded-lg border text-xs flex items-start gap-2.5 ${
+              explanation.rating_status === "provisional" || explanation.final_band === "High"
+                ? "bg-amber-50/80 border-amber-300 text-amber-950"
+                : "bg-slate-50 border-slate-200 text-slate-800"
+            }`}>
+              <AlertTriangle className={`size-4 shrink-0 mt-0.5 ${
+                explanation.rating_status === "provisional" || explanation.final_band === "High" ? "text-amber-600" : "text-slate-500"
+              }`} />
+              <div>
+                <span className="font-semibold">Rating Rationale:</span> {explanation.headline}
+              </div>
+            </div>
+          )}
+
+          {explanation.final_band === "High" && totalPoints < 50 && overrideDetails.length === 0 && (
+            <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-lg text-xs text-amber-950 flex items-start gap-2.5">
+              <ShieldAlert className="size-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">Identity Safety Floor Applied:</span>
+                <p className="mt-0.5">
+                  Point total ({totalPoints} pts) places vendor in the <strong>{explanation.points_band} Risk</strong> bracket, but the final rating is held at <strong>High Risk (provisional)</strong> because vendor identity verification (verified GSTIN or incorporation certificate) is incomplete.
+                </p>
+              </div>
+            </div>
+          )}
+
           {(explanation as any).blocked_by && (explanation as any).blocked_by.length > 0 && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-900 flex items-start gap-2">
               <AlertOctagon className="size-4 text-rose-600 shrink-0 mt-0.5" />

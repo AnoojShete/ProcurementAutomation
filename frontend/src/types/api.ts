@@ -438,6 +438,10 @@ export interface VendorRisk {
   worst_case_band?: string;
   unassessed_potential_points?: number;
   is_provisional?: boolean;
+  provisional?: {
+    is_provisional: boolean;
+    reasons: (string | { code?: string; signal?: string; message?: string })[];
+  };
   provisional_reasons?: (string | { code?: string; signal?: string; message?: string })[];
   override_rule_ids?: string[];
   headline?: string;

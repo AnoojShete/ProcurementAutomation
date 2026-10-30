@@ -22,6 +22,7 @@ export interface VendorProfileInput {
   name: string;
   country?: string;
   inherent_tier?: "low" | "moderate" | "high" | "critical" | string;
+  justification?: string;
   swift_bic?: string;
   bank_name?: string;
   website?: string;

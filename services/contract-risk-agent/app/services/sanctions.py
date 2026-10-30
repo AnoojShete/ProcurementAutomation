@@ -29,7 +29,7 @@ from typing import Any, Optional, Set, Tuple
 
 import httpx
 from rapidfuzz import fuzz
-from rapidfuzz.distance import JaroWinkler
+from rapidfuzz.distance import JaroWinkler, Levenshtein
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -51,11 +51,15 @@ LEGAL_STRUCTURE_SUFFIXES = {
 
 GENERIC_BUSINESS_WORDS = {
     "technologies", "technology", "solutions", "systems", "services",
-    "consulting", "global", "industries", "group", "holding", "holdings",
-    "international", "enterprises",
+    "consulting", "global", "industries", "industry", "industrial", "group", "holding", "holdings",
+    "international", "enterprises", "enterprise", "supplies", "supply",
+    "logistics", "logistic", "trading", "trade", "products", "product",
+    "materials", "material", "equipment", "hardware", "software",
+    "commercial", "agency", "distributors", "distribution",
+    "manufacturing", "manufacture", "import", "export",
 }
 
-STOPWORDS = {"the", "and", "of", "&"}
+STOPWORDS = {"the", "and", "of", "&", "it", "in", "for", "on", "at", "to", "by", "with"}
 
 _SUFFIXES = LEGAL_STRUCTURE_SUFFIXES | GENERIC_BUSINESS_WORDS | STOPWORDS
 
@@ -94,7 +98,7 @@ def extract_stems(name: str) -> Tuple[str, str]:
     if len("".join(non_fillers)) <= 3:
         clean_string = " ".join(words_no_legal)
     else:
-        clean_string = " ".join(words_no_legal)
+        clean_string = " ".join(non_fillers)
 
     return distinct_stem, clean_string
 
@@ -102,7 +106,7 @@ def extract_stems(name: str) -> Tuple[str, str]:
 def calculate_similarity(q_name: str, c_name: str, q_stem: Optional[str] = None, q_clean: Optional[str] = None) -> float:
     """
     Evaluates similarity between two entity names enforcing:
-    - Rule A: Short-token guard (exact match for <= 3 chars, matching initial for 4 chars).
+    - Rule A: Short-token guard (exact match for <= 3 chars, matching initial for 4 chars, Levenshtein <= 1 for 4-char stems).
     - Rule B: Intelligent stopword handling and stem preservation.
     - Rule C: Hybrid Jaro-Winkler (60%) + RapidFuzz Token Sort (40%) metric.
     """
@@ -124,8 +128,11 @@ def calculate_similarity(q_name: str, c_name: str, q_stem: Optional[str] = None,
     # If normalized entity stem has 4 characters:
     # The initial characters MUST match (q_stem[0] == c_stem[0]).
     # If first letters differ, similarity MUST immediately return 0.0.
+    # Additionally, 4-character stems cannot differ by more than 1 character edit (prevents false matches like ACME vs AMEN).
     if len(q_stem) == 4 or len(c_stem) == 4:
         if q_stem[0] != c_stem[0]:
+            return 0.0
+        if Levenshtein.distance(q_stem, c_stem) > 1:
             return 0.0
 
     # Rule C: Hybrid Scoring Metric (Jaro-Winkler + Token Sort)

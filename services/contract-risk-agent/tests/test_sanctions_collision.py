@@ -127,3 +127,40 @@ def test_screen_name_with_direct_entries_iteration():
     assert len(hits_acme) == 1
     assert hits_acme[0]["entity_id"] == "cand-genuine"
     assert hits_acme[0]["score"] == 100.0
+
+
+def test_acme_it_supplies_no_false_positive_on_generic_supplies():
+    """Verify Acme IT Supplies Inc does NOT false-positive match unrelated companies sharing 'supplies' or 'supply'."""
+    index = {
+        "version": "v1",
+        "entries": [
+            {
+                "id": "cand-complex",
+                "name": "JSC COMPLEX SUPPLIES",
+                "names": ["JSC COMPLEX SUPPLIES"],
+                "countries": "ru",
+                "datasets": "UK FCDO",
+            },
+            {
+                "id": "cand-rachna",
+                "name": "Rachna Supplies (Pvt) Ltd.",
+                "names": ["Rachna Supplies (Pvt) Ltd."],
+                "countries": "pk",
+                "datasets": "CSL",
+            },
+            {
+                "id": "cand-amen",
+                "name": "Tamin Sanat Amen Company",
+                "names": ["Tamin Sanat Amen Company", "Amen Industry Supply"],
+                "countries": "ir",
+                "datasets": "OFAC SDN",
+            },
+        ],
+    }
+
+    hits = sanctions.screen_name("Acme IT Supplies Inc", index, cutoff=70.0)
+    assert hits == [], f"Expected 0 hits for Acme IT Supplies Inc, got {hits}"
+    assert sanctions.calculate_similarity("Acme IT Supplies Inc", "JSC COMPLEX SUPPLIES") < 70.0
+    assert sanctions.calculate_similarity("Acme IT Supplies Inc", "Rachna Supplies (Pvt) Ltd.") < 70.0
+    assert sanctions.calculate_similarity("Acme IT Supplies Inc", "Amen Industry Supply") < 70.0
+    assert sanctions.calculate_similarity("Acme IT Supplies Inc", "Tamin Sanat Amen Company") < 70.0

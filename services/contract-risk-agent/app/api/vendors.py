@@ -74,6 +74,7 @@ def _serialize_risk_summary(row: RiskScore, vendor_status: str = "active") -> di
         "top_contributors": row.details or [],
         "top_factors": row.details or [],
         "ruleset_version": row.ruleset_version or 1,
+        "model_version": getattr(row, "model_version", None) or (f"ruleset_v{row.ruleset_version}" if getattr(row, "ruleset_version", None) else "ruleset_v2"),
         "scored_at": row.scored_at.isoformat() if row.scored_at else None,
         "explanation_url": f"/app/vendors/{row.vendor_id}/risk",
         "score_id": str(row.id),
@@ -1186,17 +1187,16 @@ async def update_vendor_fields(
         if val not in ("low", "moderate", "high", "critical"):
             raise HTTPException(status_code=400, detail="inherent_tier must be low, moderate, high, or critical")
         if val != getattr(vendor, "inherent_tier", None):
-            if not body.justification or not body.justification.strip():
-                raise HTTPException(status_code=400, detail="A justification is required when setting or changing inherent_tier.")
             old_val = getattr(vendor, "inherent_tier", None)
+            justification = (body.justification or "").strip() or f"Inherent tier changed from {old_val or 'none'} to {val} by {getattr(user, 'email', 'admin')}"
             vendor.inherent_tier = val
             hist = VendorInherentTierHistory(
                 id=str(uuid.uuid4()),
                 vendor_id=vendor.id,
                 old_tier=old_val,
                 new_tier=val,
-                justification=body.justification.strip(),
-                changed_by=user.email,
+                justification=justification,
+                changed_by=getattr(user, "email", "admin") or "admin",
                 created_at=datetime.now(timezone.utc),
             )
             db.add(hist)
