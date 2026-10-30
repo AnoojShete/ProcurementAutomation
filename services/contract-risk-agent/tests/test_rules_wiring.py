@@ -141,9 +141,9 @@ def test_risk_sanctions_match_threshold_pct(rule):
     index = sanctions.build_index(csv_text, "v")
     index["_flat"] = [sanctions.normalise(n) for n in index["entries"][0]["names"]]
     index["_owners"] = [(0, n) for n in index["entries"][0]["names"]]
-    rule("risk.sanctions_match_threshold_pct", 90)
+    rule("risk.sanctions_match_threshold_pct", 95)
     assert sanctions.screen_name("Sea Breeze Shipping Lines", index) == []
-    rule("risk.sanctions_match_threshold_pct", 85)
+    rule("risk.sanctions_match_threshold_pct", 90)
     assert sanctions.screen_name("Sea Breeze Shipping Lines", index)[0]["entity_id"] == "uk-5"
 
 

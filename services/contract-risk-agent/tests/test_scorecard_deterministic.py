@@ -465,3 +465,130 @@ def test_activation_justification_min_length():
 
     valid_justification = "Calibrated delivery and sanctions weights against Q3 audit outcomes."
     assert len(valid_justification.strip()) >= 20
+
+
+# =====================================================================
+# 14.14 SCORECARD EXPLANATION BREAKDOWN & INVARIANT PROOF
+# =====================================================================
+def test_scorecard_explanation_breakdown_identity_invariant():
+    ruleset = get_default_ruleset()
+    assessed_at = datetime(2026, 10, 30, 12, 0, 0, tzinfo=timezone.utc)
+
+    obs = [
+        {"signal_key": "sanctions", "status": "review_pending", "fields": {"sanctions.matches": [{"name": "Acme", "score": 75}]}, "provider": "opensanctions"},
+        {"signal_key": "web", "status": "ok", "fields": {"web.cert_valid": False, "web.reachable": True}, "provider": "tls_probe"},
+    ]
+
+    res = evaluate_risk(ruleset, obs, assessed_at=assessed_at, vendor_context={"tier": "Tier 1", "country": "IN"})
+    expl = res["explanation"]
+
+    assert "score_breakdown" in expl
+    assert "signals" in expl
+    assert len(expl["score_breakdown"]) == len(ruleset["signals"])
+
+    computed_sum = sum(r["points"] for r in expl["score_breakdown"])
+    assert computed_sum == expl["total_points"]
+    assert computed_sum == res["total_points"]
+    assert expl["sum_check"]["equals_total"] is True
+    assert expl["sum_check"]["sum_of_signal_points"] == computed_sum
+
+    for r in expl["score_breakdown"]:
+        assert "rule_id" in r
+        assert "signal_key" in r
+        assert "signal_label" in r
+        assert "group_key" in r
+        assert "points" in r
+        assert "potential_points" in r
+        assert "status" in r
+        assert "facts" in r
+        assert "reason_text" in r
+
+    assert "unassessed_signals" in expl
+    assert len(expl["unassessed_signals"]) > 0
+    for u in expl["unassessed_signals"]:
+        assert "signal_key" in u
+        assert "potential_points" in u
+        assert "provider" in u
+
+
+def test_serialize_risk_explanation_legacy_migration():
+    from app.api.vendors import _serialize_risk_explanation
+    from app.models import RiskScore
+
+    legacy_signals = [
+        {
+            "signal_key": "sanctions",
+            "label": "Sanctions screening",
+            "group": "identity",
+            "status": "review_pending",
+            "points": 5,
+            "max_points": 10,
+            "rule_id": "R-SAN-02",
+            "reason_text": "Possible match",
+            "rationale": "Expert rationale",
+            "facts": [{"label": "Source", "value": "OpenSanctions"}],
+        },
+        {
+            "signal_key": "web",
+            "label": "Web & TLS security posture",
+            "group": "cyber",
+            "status": "assessed",
+            "points": 6,
+            "max_points": 6,
+            "rule_id": "R-WEB-01",
+            "reason_text": "Broken TLS",
+            "rationale": "Eavesdropping risk",
+            "facts": [{"label": "Source", "value": "TLS probe"}],
+        },
+        {
+            "signal_key": "gst",
+            "label": "GST Registration",
+            "group": "identity",
+            "status": "not_assessed",
+            "points": 0,
+            "max_points": 10,
+            "rule_id": "R-GST-07",
+            "reason_text": "No observation",
+            "rationale": "",
+            "facts": [],
+        },
+    ]
+
+    mock_score = RiskScore(
+        id="score-1234",
+        vendor_id="vendor-5678",
+        total_points=11,
+        final_band="High",
+        points_band="Low",
+        worst_case_points=42,
+        worst_case_band="Medium",
+        unassessed_potential_points=31,
+        is_provisional=True,
+        ruleset_version=2,
+        scored_at=datetime(2026, 10, 30, 12, 46, 0, tzinfo=timezone.utc),
+        explanation={
+            "signals": legacy_signals,
+            "total_points": 11,
+            "final_band": "High",
+            "thought_process": ["Step 1", "Step 2"],
+        },
+    )
+
+    serialized = _serialize_risk_explanation(mock_score)
+
+    assert serialized["score_id"] == "score-1234"
+    assert serialized["vendor_id"] == "vendor-5678"
+    assert "score_breakdown" in serialized
+    assert len(serialized["score_breakdown"]) == 3
+
+    computed_sum = sum(r["points"] for r in serialized["score_breakdown"])
+    assert computed_sum == 11
+    assert computed_sum == serialized["total_points"]
+
+    assert serialized["score_breakdown"][0]["signal_label"] == "Sanctions screening"
+    assert serialized["score_breakdown"][0]["group_key"] == "identity"
+    assert serialized["score_breakdown"][0]["potential_points"] == 10
+
+    assert len(serialized["unassessed_signals"]) == 1
+    assert serialized["unassessed_signals"][0]["signal_key"] == "gst"
+    assert serialized["unassessed_signals"][0]["potential_points"] == 10

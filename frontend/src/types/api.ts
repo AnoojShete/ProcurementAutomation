@@ -438,7 +438,7 @@ export interface VendorRisk {
   worst_case_band?: string;
   unassessed_potential_points?: number;
   is_provisional?: boolean;
-  provisional_reasons?: string[];
+  provisional_reasons?: (string | { code?: string; signal?: string; message?: string })[];
   override_rule_ids?: string[];
   headline?: string;
   ruleset_version?: number;
@@ -457,10 +457,13 @@ export interface ScorecardRuleResult {
   rule_id: string;
   signal_key: string;
   signal_label?: string;
+  label?: string;
   group_key: string;
-  status: "assessed" | "not_assessed" | "not_applicable" | "review_pending";
+  group?: string;
+  status: "assessed" | "not_assessed" | "not_applicable" | "review_pending" | string;
   points: number;
   potential_points: number;
+  max_points?: number;
   override_band: string | null;
   observed_fields: Record<string, any>;
   facts: Array<{ label: string; value: string }>;
@@ -483,12 +486,13 @@ export interface ScorecardExplanation {
   worst_case_band: string;
   unassessed_potential_points: number;
   is_provisional: boolean;
-  provisional_reasons: string[];
+  provisional_reasons: (string | { code?: string; signal?: string; message?: string })[];
   override_rule_ids: string[];
   headline: string;
   /** One step per group: {group_label, narrative, points, max_points} (older scores: plain strings). */
   thought_process: (string | { step?: number; group_key?: string; group_label?: string; narrative?: string; points?: number; max_points?: number })[];
   score_breakdown: ScorecardRuleResult[];
+  signals?: ScorecardRuleResult[];
   unassessed_signals: Array<{
     signal_key: string;
     signal_label?: string;

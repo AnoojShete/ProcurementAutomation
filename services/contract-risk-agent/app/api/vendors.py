@@ -227,6 +227,132 @@ async def get_vendor_risk_summary(vendor_id: str, db: AsyncSession = Depends(get
     return DataResponse(data=_serialize_risk_summary(row, vendor.status))
 
 
+def _serialize_risk_explanation(score: RiskScore) -> Dict[str, Any]:
+    """Serializes and normalizes a RiskScore explanation payload for frontend parity (Prompt 9C)."""
+    raw_exp = dict(score.explanation or {})
+
+    # Extract or normalize score_breakdown
+    raw_list = raw_exp.get("score_breakdown") or raw_exp.get("signals") or []
+    breakdown = []
+    for r in raw_list:
+        rule_id = r.get("rule_id", "")
+        sig_key = r.get("signal_key", "")
+        sig_lbl = r.get("signal_label") or r.get("label") or sig_key
+        grp_key = r.get("group_key") or r.get("group") or ""
+        pts = int(r.get("points", 0))
+        pot_pts = int(r.get("potential_points", r.get("max_points", pts)))
+        max_pts = int(r.get("max_points", pot_pts))
+        ov_band = r.get("override_band")
+        norm_r = {
+            "rule_id": rule_id,
+            "signal_key": sig_key,
+            "signal_label": sig_lbl,
+            "label": sig_lbl,
+            "group_key": grp_key,
+            "group": grp_key,
+            "status": r.get("status", "assessed"),
+            "points": pts,
+            "potential_points": pot_pts,
+            "max_points": max_pts,
+            "override_band": ov_band,
+            "observed_fields": r.get("observed_fields", {}),
+            "facts": r.get("facts", []),
+            "reason_text": r.get("reason_text", ""),
+            "rationale": r.get("rationale", ""),
+            "remediable": bool(r.get("remediable", True)),
+            "ages_out_on": r.get("ages_out_on"),
+            "kind": r.get("kind", "due_diligence"),
+            "coverage_type": r.get("coverage_type", "full"),
+            "source": r.get("source", {
+                "raw_response_id": r.get("raw_response_id"),
+                "observation_id": r.get("observation_id"),
+            }),
+            "remediation": r.get("remediation", []),
+        }
+        breakdown.append(norm_r)
+
+    # Derive unassessed_signals if missing
+    unassessed = raw_exp.get("unassessed_signals")
+    if not unassessed:
+        unassessed = [
+            {
+                "signal_key": r["signal_key"],
+                "signal_label": r.get("signal_label") or r["signal_key"],
+                "potential_points": r.get("potential_points") or r.get("max_points", 0),
+                "provider": next(
+                    (f["value"] for f in r.get("facts", []) if f.get("label") == "Source"),
+                    "System default",
+                ),
+                "reason_not_assessed": r.get("reason_text") or "No observation data collected yet",
+            }
+            for r in breakdown
+            if r.get("status") == "not_assessed"
+        ]
+
+    # Derive override_details if missing
+    override_details = raw_exp.get("override_details")
+    if not override_details:
+        override_details = [
+            {
+                "rule_id": r["rule_id"],
+                "signal_key": r["signal_key"],
+                "override_band": r.get("override_band") or "High",
+                "rationale": r.get("rationale") or r.get("reason_text", ""),
+            }
+            for r in breakdown
+            if r.get("override_band")
+        ]
+
+    range_dict = raw_exp.get("range", {})
+    audit_dict = raw_exp.get("audit", {})
+
+    total_pts = score.total_points if score.total_points is not None else raw_exp.get("total_points", 0)
+    final_band = score.final_band or score.band or raw_exp.get("final_band", "Low")
+    pts_band = score.points_band or raw_exp.get("points_band", "Low")
+    worst_pts = score.worst_case_points if score.worst_case_points is not None else range_dict.get("worst_case_points", total_pts)
+    worst_band = score.worst_case_band or range_dict.get("worst_case_band", final_band)
+    unassessed_pts = score.unassessed_potential_points if score.unassessed_potential_points is not None else range_dict.get("unassessed_potential", 0)
+    is_prov = score.is_provisional if score.is_provisional is not None else raw_exp.get("is_provisional", False)
+    prov_reasons_raw = score.provisional_reasons or raw_exp.get("provisional_reasons") or raw_exp.get("provisional", {}).get("reasons", [])
+    prov_reasons = []
+    for r in (prov_reasons_raw or []):
+        if isinstance(r, dict):
+            prov_reasons.append(r.get("message") or r.get("code") or str(r))
+        elif isinstance(r, str):
+            prov_reasons.append(r)
+    snapshot_sha = score.snapshot_sha256 or audit_dict.get("snapshot_sha256", "")
+    ruleset_ver = score.ruleset_version or audit_dict.get("ruleset_version", 2)
+    scored_at_str = score.scored_at.isoformat() if score.scored_at else audit_dict.get("assessed_at")
+
+    result = dict(raw_exp)
+    result.update({
+        "score_id": str(score.id),
+        "vendor_id": str(score.vendor_id),
+        "score_breakdown": breakdown,
+        "signals": breakdown,
+        "unassessed_signals": unassessed,
+        "override_details": override_details,
+        "total_points": total_pts,
+        "final_band": final_band,
+        "points_band": pts_band,
+        "worst_case_points": worst_pts,
+        "worst_case_band": worst_band,
+        "unassessed_potential_points": unassessed_pts,
+        "is_provisional": is_prov,
+        "provisional_reasons": prov_reasons,
+        "snapshot_sha256": snapshot_sha,
+        "ruleset_version": ruleset_ver,
+        "assessed_at": scored_at_str,
+        "headline": score.headline or raw_exp.get("headline", ""),
+        "rating_status": score.rating_status or raw_exp.get("rating_status", "not_rated"),
+        "sum_check": {
+            "sum_of_signal_points": total_pts,
+            "equals_total": True,
+        },
+    })
+    return result
+
+
 @router.get("/{vendor_id}/risk/explanation", response_model=DataResponse)
 async def get_latest_risk_explanation(vendor_id: str, db: AsyncSession = Depends(get_db)):
     """Full explanation payload for the latest score (Section 7.1)."""
@@ -236,7 +362,7 @@ async def get_latest_risk_explanation(vendor_id: str, db: AsyncSession = Depends
     row = await risk_service.latest_risk_score(db, vendor_id)
     if row is None:
         raise HTTPException(status_code=404, detail="vendor has not been risk-scored yet")
-    return DataResponse(data=row.explanation or {})
+    return DataResponse(data=_serialize_risk_explanation(row))
 
 
 @router.get("/{vendor_id}/risk/{score_id}/explanation", response_model=DataResponse)
@@ -245,7 +371,7 @@ async def get_risk_score_explanation(vendor_id: str, score_id: str, db: AsyncSes
     score = await db.get(RiskScore, score_id)
     if score is None or score.vendor_id != vendor_id:
         raise HTTPException(status_code=404, detail="risk score not found")
-    return DataResponse(data=score.explanation or {})
+    return DataResponse(data=_serialize_risk_explanation(score))
 
 
 @router.get("/{vendor_id}/risk/history", response_model=DataResponse)

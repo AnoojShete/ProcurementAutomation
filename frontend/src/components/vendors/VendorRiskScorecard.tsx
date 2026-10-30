@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -343,8 +343,22 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
 
   if (!explanation) return null;
 
+  // Normalize breakdown rows across both score_breakdown and legacy signals payloads
+  const rawBreakdownList = explanation.score_breakdown || (explanation as any).signals || [];
+  const scoreBreakdown: ScorecardRuleResult[] = useMemo(() => {
+    return rawBreakdownList.map((r: any) => ({
+      ...r,
+      signal_label: r.signal_label || r.label || r.signal_key,
+      group_key: r.group_key || r.group || "",
+      potential_points: r.potential_points ?? r.max_points ?? r.points ?? 0,
+      override_band: r.override_band || null,
+    }));
+  }, [rawBreakdownList]);
+
   const totalPoints = explanation.total_points ?? 0;
-  const computedSum = (explanation.score_breakdown || []).reduce((acc, r) => acc + (r.points || 0), 0);
+  const computedSum = useMemo(() => {
+    return scoreBreakdown.reduce((acc, r) => acc + (r.points || 0), 0);
+  }, [scoreBreakdown]);
   const isSumValid = totalPoints === computedSum;
 
   const bandTone =
@@ -355,8 +369,44 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
   const range = ((explanation as any).range ?? {}) as Record<string, any>;
   const assessedAt = explanation.assessed_at ?? audit.assessed_at;
   const rulesetVersion = explanation.ruleset_version ?? audit.ruleset_version;
-  const worstPoints = explanation.worst_case_points ?? range.worst_case_points;
-  const worstBand = explanation.worst_case_band ?? range.worst_case_band;
+  const worstPoints = explanation.worst_case_points ?? range.worst_case_points ?? totalPoints;
+  const worstBand = explanation.worst_case_band ?? range.worst_case_band ?? explanation.final_band;
+  const unassessedPoints = explanation.unassessed_potential_points ?? range.unassessed_potential ?? 0;
+
+  const unassessedList = useMemo(() => {
+    if (explanation.unassessed_signals && explanation.unassessed_signals.length > 0) {
+      return explanation.unassessed_signals;
+    }
+    return scoreBreakdown
+      .filter((r) => r.status === "not_assessed")
+      .map((r) => ({
+        signal_key: r.signal_key,
+        signal_label: r.signal_label || r.signal_key,
+        potential_points: r.potential_points || 0,
+        provider: (r.facts?.find((f) => f.label === "Source")?.value) || "External registry",
+        reason_not_assessed: r.reason_text || "No observation available",
+      }));
+  }, [explanation.unassessed_signals, scoreBreakdown]);
+
+  const overrideDetails = useMemo(() => {
+    if (explanation.override_details && explanation.override_details.length > 0) {
+      return explanation.override_details;
+    }
+    return scoreBreakdown
+      .filter((r) => !!r.override_band)
+      .map((r) => ({
+        rule_id: r.rule_id,
+        signal_key: r.signal_key,
+        override_band: r.override_band!,
+        rationale: r.rationale || r.reason_text,
+      }));
+  }, [explanation.override_details, scoreBreakdown]);
+
+  const provisionalMessages = useMemo(() => {
+    return (explanation.provisional_reasons || []).map((r: any) =>
+      typeof r === "string" ? r : r?.message || r?.code || JSON.stringify(r)
+    );
+  }, [explanation.provisional_reasons]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -385,7 +435,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                   </Badge>
                 )}
                 {explanation.is_provisional && (
-                  <span title={(explanation.provisional_reasons || []).join("; ")}><Badge tone="warning">
+                  <span title={provisionalMessages.join("; ")}><Badge tone="warning">
                     Provisional — missing required signals
                   </Badge></span>
                 )}
@@ -445,21 +495,21 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                 <span className="font-semibold">Blocked by Hard Overrides:</span>
                 <p className="mt-0.5">
                   The vendor is currently blocked by active overrides:{" "}
-                  <span className="font-mono font-semibold">{(explanation as any).blocked_by.join(", ")}</span>.
+                  <span className="font-mono font-semibold">{((explanation as any).blocked_by || []).map((b: any) => typeof b === "string" ? b : b?.rule_id || JSON.stringify(b)).join(", ")}</span>.
                   Downstream procurement actions are blocked until these conditions are cleared.
                 </p>
               </div>
             </div>
           )}
 
-          {explanation.provisional_reasons && explanation.provisional_reasons.length > 0 && (
+          {provisionalMessages.length > 0 && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
               <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <span className="font-semibold">Provisional Rating Warnings:</span>
                 <ul className="list-inside list-disc mt-0.5 space-y-0.5">
-                  {explanation.provisional_reasons.map((r, i) => (
-                    <li key={i}>{r}</li>
+                  {provisionalMessages.map((msg, i) => (
+                    <li key={i}>{msg}</li>
                   ))}
                 </ul>
               </div>
@@ -469,7 +519,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
       </Card>
 
       {/* 9.2 OVERRIDE BANNER */}
-      {explanation.override_details && explanation.override_details.length > 0 && (
+      {overrideDetails && overrideDetails.length > 0 && (
         <div className="rounded-xl border-2 border-rose-500 bg-rose-50 p-4 text-rose-950 shadow-sm animate-pulse-subtle">
           <div className="flex items-start gap-3">
             <Lock className="size-5 text-rose-600 shrink-0 mt-0.5" />
@@ -479,11 +529,11 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                   Rating Locked by Hard Override Rule
                 </span>
                 <span className="font-mono font-bold text-xs">
-                  {explanation.override_details.map((o) => o.rule_id).join(", ")}
+                  {overrideDetails.map((o) => o.rule_id).join(", ")}
                 </span>
               </div>
               <p className="text-xs font-medium">
-                {explanation.override_details.map((o) => o.rationale).join(". ")}
+                {overrideDetails.map((o) => o.rationale).join(". ")}
               </p>
               <p className="text-11 text-rose-800">
                 Point total ({totalPoints} pts) would otherwise place vendor in{" "}
@@ -603,7 +653,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-rule">
-                    {(explanation.score_breakdown || []).map((row) => {
+                    {(scoreBreakdown || []).map((row) => {
                       const isExpanded = !!expandedRows[row.rule_id];
                       return (
                         <React.Fragment key={row.rule_id}>
@@ -741,7 +791,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
           </Card>
 
           {/* 9.5 UNASSESSED SIGNALS TABLE */}
-          {explanation.unassessed_signals && explanation.unassessed_signals.length > 0 && (
+          {unassessedList && unassessedList.length > 0 && (
             <Card>
               <CardHeader
                 title="Unassessed Signals & Worst-Case Scenario"
@@ -752,12 +802,12 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                   <div>
                     <span className="font-semibold text-amber-900">Worst-Case Potential Score:</span>
                     <p className="text-amber-800 mt-0.5">
-                      If all {explanation.unassessed_signals.length} unassessed signals returned their worst possible
+                      If all {unassessedList.length} unassessed signals returned their worst possible
                       value, this vendor would score{" "}
                       <strong>{worstPoints} pts ({worstBand} Risk)</strong>.
                     </p>
                   </div>
-                  <Badge tone="warning">+{explanation.unassessed_potential_points} unassessed pts</Badge>
+                  <Badge tone="warning">+{unassessedPoints} unassessed pts</Badge>
                 </div>
 
                 <div className="overflow-x-auto border border-rule rounded-lg">
@@ -772,7 +822,7 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-rule">
-                      {explanation.unassessed_signals.map((sig) => (
+                      {unassessedList.map((sig) => (
                         <tr key={sig.signal_key}>
                           <td className="px-4 py-2.5 font-medium text-ink">{sig.signal_label || sig.signal_key}</td>
                           <td className="px-4 py-2.5 text-ink-2">{sig.provider || "External registry"}</td>

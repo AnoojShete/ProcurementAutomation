@@ -121,13 +121,14 @@ async def collect_sanctions(
     index = sanctions.load_index()
 
     v_row = (await db.execute(
-        text("SELECT name, bank_name, swift_bic FROM vendors WHERE id = :id"),
+        text("SELECT name, bank_name, swift_bic, country FROM vendors WHERE id = :id"),
         {"id": vendor.id},
     )).first()
 
     vendor_name = (v_row.name if v_row else getattr(vendor, "name", "")) or ""
     bank_name = (v_row.bank_name if v_row else getattr(vendor, "bank_name", None)) or ""
     swift_bic = (v_row.swift_bic if v_row else getattr(vendor, "swift_bic", None)) or ""
+    vendor_country = (v_row.country if v_row else getattr(vendor, "country", None)) or ""
 
     status = "not_screened"
     best_score = 0
@@ -165,9 +166,11 @@ async def collect_sanctions(
         elif latest.status in ("potential_match", "match"):
             if matches:
                 top_m = matches[0]
-                best_score = int(top_m.get("score", 0))
-                matched_name = top_m.get("matched_name", top_m.get("listed_name", vendor.name))
-                status = "match" if best_score >= match_threshold else "possible_match"
+                raw_score = float(top_m.get("score", 0))
+                matched_name = top_m.get("matched_name", top_m.get("listed_name", vendor_name))
+                status, best_score = sanctions.classify_sanctions_match(
+                    raw_score, vendor_country, top_m.get("countries")
+                )
             else:
                 status = "possible_match"
         else:
@@ -178,9 +181,11 @@ async def collect_sanctions(
             matches = [m for m in (screening.matches or []) if isinstance(m, dict)]
             if screening.status in ("potential_match", "match") and matches:
                 top_m = matches[0]
-                best_score = int(top_m.get("score", 0))
-                matched_name = top_m.get("matched_name", top_m.get("listed_name", vendor.name))
-                status = "match" if best_score >= match_threshold else "possible_match"
+                raw_score = float(top_m.get("score", 0))
+                matched_name = top_m.get("matched_name", top_m.get("listed_name", vendor_name))
+                status, best_score = sanctions.classify_sanctions_match(
+                    raw_score, vendor_country, top_m.get("countries")
+                )
             else:
                 status = "no_match"
         else:
@@ -192,11 +197,15 @@ async def collect_sanctions(
             if b_hits:
                 clean_b_hits = [m for m in b_hits if isinstance(m, dict)]
                 matches = clean_b_hits + matches
-                b_score = int(clean_b_hits[0].get("score", 0))
+                b_top = clean_b_hits[0]
+                b_raw = float(b_top.get("score", 0))
+                b_status, b_score = sanctions.classify_sanctions_match(
+                    b_raw, vendor_country, b_top.get("countries")
+                )
                 if b_score > best_score:
                     best_score = b_score
-                    matched_name = f"{clean_b_hits[0].get('matched_name')} (Bank: {bank_name})"
-                    status = "match" if best_score >= match_threshold else "possible_match"
+                    matched_name = f"{b_top.get('matched_name')} (Bank: {bank_name})"
+                    status = b_status
 
     match_type = "none"
     if status == "match":
@@ -253,7 +262,7 @@ async def collect_sanctions(
         "sanctions.best_score": int(best_score),  # Prompt 11: keep 0-100 scale, do NOT divide by 100
         "sanctions.matched_list": list_name,
         "sanctions.matched_entry_id": matches[0].get("id", matches[0].get("entity_id", "none")) if matches else "none",
-        "sanctions.query_name": vendor.name,
+        "sanctions.query_name": vendor_name,
         "sanctions.matched_name": matched_name,
         "sanctions.list_name": list_name,
         "sanctions.list_version": list_version,
