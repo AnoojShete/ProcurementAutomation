@@ -33,6 +33,14 @@ const SHORT: Record<string, string> = {
 
 // One cell: the points a parameter added, out of its weight.
 function Cell({ result, max }: { result?: RiskParameterResult; max: number }) {
+  if (result?.unverified) {
+    return (
+      <span title={`Couldn't be verified: counted as the full ${max} points. ${result.reason}`}
+            className="inline-flex min-w-9 justify-center rounded-sm bg-danger-50 px-1 font-medium tabular text-danger-700">
+        +{max}!
+      </span>
+    );
+  }
   if (!result || result.status === "not_assessed") {
     return <span className="text-ink-3" title="Couldn't run: left out, its weight goes to the other checks">—</span>;
   }
@@ -72,8 +80,15 @@ function VendorBreakdown({ vendor, parameters }: { vendor: VendorRiskParameters;
         </Link>
       </div>
       {vendor.headline && <p className="mt-2 text-13 text-ink-2">{vendor.headline}</p>}
+      {vendor.identity_verified === false && (
+        <p className="mt-1 text-13 font-medium text-danger-700">
+          Identity not verified (no verified GSTIN or registration date): rated High until it is.
+        </p>
+      )}
       <p className="mt-1 text-caption text-ink-3">
-        {vendor.total_points} points over the {vendor.checked_max_points ?? 100} points that could be checked
+        {vendor.total_points + (vendor.unverified_points ?? 0)} points
+        {vendor.unverified_points ? ` (incl. ${vendor.unverified_points} for unverifiable checks)` : ""} over the{" "}
+        {vendor.checked_max_points ?? 100} points that could be checked
         {vendor.weighted_points != null ? ` = ${vendor.weighted_points}/100` : ""}. Bands: Low 0–24, Medium 25–49, High 50+;
         an override rule decides alone.
       </p>
@@ -93,8 +108,9 @@ function VendorBreakdown({ vendor, parameters }: { vendor: VendorRiskParameters;
                       <span className="ml-auto"><Cell result={r} max={p.max_points} /></span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-start gap-2">
-                      <StatusDot tone={r?.override ? "danger" : STATUS_TONE[status] ?? "neutral"}>
-                        {r?.override ? "Override: forces High" : STATUS_TEXT[status] ?? status}
+                      <StatusDot tone={r?.override || r?.unverified ? "danger" : STATUS_TONE[status] ?? "neutral"}>
+                        {r?.override ? "Override: forces High"
+                          : r?.unverified ? "Couldn't be verified: counted in full" : STATUS_TEXT[status] ?? status}
                       </StatusDot>
                       <span className="text-caption text-ink-3">{r?.reason ?? "No result recorded."}</span>
                     </div>
@@ -119,7 +135,7 @@ export function RiskParametersMatrix() {
   return (
     <Section
       title="Parameters considered"
-      subtitle="The 14 checks behind every band, with each one's weight. A check that couldn't run (—) is left out and the others are re-weighted to 100. Select a vendor for the reasons."
+      subtitle="The 14 checks behind every band, with each one's weight. Missing information about the vendor counts as full risk (+N!); a check that couldn't run on our side (—) is left out and the rest re-weighted to 100. Select a vendor for the reasons."
     >
       {error ? (
         <ErrorState message={error} onRetry={reload} />
@@ -162,7 +178,7 @@ export function RiskParametersMatrix() {
                       </td>
                     ))}
                     <td className="px-2 py-2 text-right tabular text-ink-2">
-                      {v.total_points}/{v.checked_max_points ?? 100}
+                      {v.total_points + (v.unverified_points ?? 0)}/{v.checked_max_points ?? 100}
                     </td>
                     <td className="px-3 py-2 text-right tabular font-medium text-ink">
                       {v.weighted_points ?? "—"}
@@ -183,8 +199,9 @@ export function RiskParametersMatrix() {
             </table>
           </div>
           <p className="mt-2 text-caption text-ink-3">
-            +N: points added (out of the weight under each heading) · 0: checked, no risk found · ? awaiting review ·
-            — couldn't run · n/a doesn't apply. Score = points × 100 ÷ points that could be checked.
+            +N: points added (out of the weight under each heading) · +N!: nothing on the vendor to verify, counted in
+            full · 0: checked, no risk found · ? awaiting review · — couldn't run on our side, left out · n/a doesn't
+            apply. Score = points × 100 ÷ points that could be checked. No verified identity = High.
           </p>
         </>
       )}

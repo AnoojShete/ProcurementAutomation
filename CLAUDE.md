@@ -224,7 +224,9 @@ in `docs/readmeforme.md` (Research experiment).
   `tests/test_risk_redteam.py`) must stay green; add a profile for any new
   rule. Write-up: `docs/index.html#risk`. **No vendor is Unrated** (owner,
   30 Oct): missing checks are re-weighted out of the score (`weighted_points`),
-  nothing checked = High; the protection is that a provisional rating is never
+  nothing checked = High; missing information about the vendor (no GSTIN, registration,
+  financials, bank, domain) counts in full and no verified identity = High
+  (`engine.vendor_unverified`); the protection is that a provisional rating is never
   cleared, so don't make clearance read the band instead of `rating_status`.
 - **The assistant decides intent before retrieving** (`chatbot-agent/app/services/intent.py`):
   greetings, "like what", remarks and topic-only messages get direct replies;

@@ -362,3 +362,22 @@ async def test_what_if_with_no_changes_reproduces_the_stored_score():
                                               db=db, user=None)).data
     assert (same["total_points"], same["final_band"], same["rating_status"]) == (8, "Low", "assessed")
     assert (worse["total_points"], worse["final_band"]) == (10, "Low")
+
+
+def test_only_the_vendors_missing_information_is_charged():
+    """No information about the vendor counts as full risk; a check our side
+    couldn't run (live mode off, provider down, news, no orders yet) doesn't."""
+    from app.services.scorecard.engine import vendor_unverified as u
+    assert u("company_age", "not_assessed", {"age.basis": "none"})
+    assert u("financial", "not_assessed", {"fin.basis": "none"})
+    assert u("jurisdiction", "not_assessed", {"country.code": "UNKNOWN"})
+    assert u("gst", "not_assessed", {"gstin.verification_level": "country_unknown"})
+    assert u("bank", "not_applicable", {"na_reason_code": "no_bank_details"})
+    assert u("email", "not_applicable", {"email.confidence": "live", "email.has_mx": False})
+    # our side or nobody's
+    assert not u("email", "not_assessed", {"email.confidence": "unverified", "email.has_mx": False})  # live mode off
+    assert not u("gst", "not_assessed", {"gstin.verification_level": "offline_only"})
+    assert not u("bank", "not_applicable", {"na_reason_code": "foreign_vendor_account"})
+    assert not u("company_age", "not_assessed", {})                   # the check never ran
+    for key in ("adverse_media", "breach", "delivery_sla", "feedback", "incidents", "sanctions"):
+        assert not u(key, "not_assessed", {"anything": True})

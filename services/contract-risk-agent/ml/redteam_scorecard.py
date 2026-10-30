@@ -175,7 +175,7 @@ PROFILES = [
      "inherent_tier": "critical", "status": "onboarding",
      "observations": {"jurisdiction": {"country.is_domestic": True}, "bank": {"bank.status": "pending"}},
      "skipped": ["breach"],
-     "expected": {"points": 0, "final_band": "Low", "rating_status": "provisional", "cleared": False,
+     "expected": {"points": 0, "final_band": "High", "rating_status": "provisional", "cleared": False,
                   "unscored": ["breach"]}},
     # Owner decision 30 Oct 2026: a check that can't run is left out and the rest re-weighted.
     {"name": "News search unavailable",
@@ -187,6 +187,22 @@ PROFILES = [
      "observations": obs(financial=None, email={"email.dmarc_policy": "none", "email.spf_present": False}),
      "expected": {"points": 3, "weighted_points": 3, "final_band": "Low", "rating_status": "provisional",
                   "cleared": False, "reason": "rating_provisional"}},
+    # Owner decision 30 Oct 2026 (later the same day): no information is a risk, not a free pass.
+    {"name": "Black-box vendor, nothing verifiable",
+     "attack": "a made-up company: no country, GSTIN, registration, financials, bank or mail domain, clean sanctions",
+     "country": None,
+     "observations": {"sanctions": {"sanctions.status": "no_match"},
+                      "jurisdiction": {"country.code": "UNKNOWN"},
+                      "gst": {"gstin.status": "unknown", "gstin.verification_level": "country_unknown"},
+                      "company_age": {"age.basis": "none"}, "financial": {"fin.basis": "none"},
+                      "bank": {"bank.status": "none", "na_reason_code": "no_bank_details"},
+                      "email": {"email.confidence": "live", "email.has_mx": False, "email.dmarc_policy": "missing",
+                                "email.spf_present": False, "na_reason_code": "no_mx_records"}},
+     "expected": {"final_band": "High", "rating_status": "provisional", "cleared": False}},
+    {"name": "Verified vendor, bank details not given yet",
+     "attack": "control: an unverifiable bank route is charged in full but doesn't sink a verified vendor",
+     "observations": obs(bank={"bank.status": "none", "na_reason_code": "no_bank_details"}),
+     "expected": {"points": 0, "weighted_points": 5, "final_band": "Low", "rating_status": "assessed", "cleared": True}},
 ]
 
 

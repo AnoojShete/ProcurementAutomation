@@ -875,7 +875,10 @@ sources behind a circuit breaker). Bands: Low 0–24, Medium 25–49, High 50+. 
 (owner decision, 30 Oct 2026): a check whose status is `not_assessed` is left out and the
 remaining points are re-weighted to 100 (`weighted_points = total_points × all_max / checked_max`,
 e.g. 7 points over the 57 points checked = 12/100; `risk_scores.score` stores it / 100), and a
-vendor with no check done is High until one completes. Detect-only checks that couldn't run (news,
+vendor with no check done is High until one completes. Missing information *about the vendor*
+(no country, GSTIN, registration date, financial evidence, bank details, website or mail domain:
+`engine.vendor_unverified`) counts as that check's full points instead, and a vendor with no verified
+GSTIN or registration date is High (`identity_verified`). Detect-only checks that couldn't run (news,
 breach) don't count against coverage. A vendor whose required checks are incomplete is
 `provisional` and is never cleared, whatever its band (clearance reads `rating_status`, not the
 band); `not_rated` means nothing could be assessed. Every score stores its snapshot and SHA-256, so it can

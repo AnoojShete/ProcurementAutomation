@@ -126,6 +126,8 @@ export interface RiskParameterResult {
   points: number;
   override: boolean;
   reason: string;
+  /** Nothing on the vendor to verify: counted as the parameter's full weight. */
+  unverified?: boolean;
 }
 
 export interface VendorRiskParameters {
@@ -138,6 +140,8 @@ export interface VendorRiskParameters {
   total_points: number;
   weighted_points: number | null;
   checked_max_points: number | null;
+  unverified_points?: number;
+  identity_verified?: boolean;
   headline: string | null;
   scored_at: string | null;
   parameters: Record<string, RiskParameterResult>;

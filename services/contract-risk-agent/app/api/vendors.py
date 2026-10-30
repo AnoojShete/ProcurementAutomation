@@ -140,8 +140,11 @@ async def risk_parameters(limit: int = Query(200, ge=1, le=1000), db: AsyncSessi
             "checked_max_points": explanation.get("checked_max_points"),
             "headline": explanation.get("headline"),
             "scored_at": score.scored_at.isoformat() if score.scored_at else None,
+            "unverified_points": explanation.get("unverified_points", 0),
+            "identity_verified": explanation.get("identity_verified", True),
             "parameters": {r.signal_key: {"rule_id": r.rule_id, "status": r.status, "points": r.points,
-                                          "override": bool(r.override_band), "reason": r.reason_text}
+                                          "override": bool(r.override_band), "reason": r.reason_text,
+                                          "unverified": r.signal_key in (explanation.get("unverified_signals") or [])}
                            for r in results},
         })
     return DataResponse(data={"parameters": params, "vendors": rows})

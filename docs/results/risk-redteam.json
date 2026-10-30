@@ -1,7 +1,7 @@
 {
   "run_at": "2026-10-21T09:00:00+00:00",
-  "passed": 27,
-  "total": 27,
+  "passed": 29,
+  "total": 29,
   "profiles": [
     {
       "name": "Clean, established vendor",
@@ -887,7 +887,7 @@
       "attack": "Critical vendor with GST, bank and sanctions pending; a reported breach not yet matched to the entity",
       "expected": {
         "points": 0,
-        "final_band": "Low",
+        "final_band": "High",
         "rating_status": "provisional",
         "cleared": false,
         "unscored": [
@@ -895,7 +895,7 @@
         ]
       },
       "got": {
-        "final_band": "Low",
+        "final_band": "High",
         "points": 0,
         "points_band": "Low",
         "weighted_points": 0,
@@ -985,6 +985,72 @@
           "email": "assessed",
           "breach": "assessed_no_finding",
           "certification": "assessed",
+          "company_age": "assessed",
+          "delivery_sla": "assessed",
+          "feedback": "assessed",
+          "incidents": "assessed",
+          "adverse_media": "assessed_no_finding"
+        }
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Black-box vendor, nothing verifiable",
+      "attack": "a made-up company: no country, GSTIN, registration, financials, bank or mail domain, clean sanctions",
+      "expected": {
+        "final_band": "High",
+        "rating_status": "provisional",
+        "cleared": false
+      },
+      "got": {
+        "final_band": "High",
+        "points": 0,
+        "points_band": "High",
+        "weighted_points": 79,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ],
+        "scored": {
+          "sanctions": "assessed"
+        }
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Verified vendor, bank details not given yet",
+      "attack": "control: an unverifiable bank route is charged in full but doesn't sink a verified vendor",
+      "expected": {
+        "points": 0,
+        "weighted_points": 5,
+        "final_band": "Low",
+        "rating_status": "assessed",
+        "cleared": true
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "points_band": "Low",
+        "weighted_points": 5,
+        "rating_status": "assessed",
+        "overrides": [],
+        "cleared": true,
+        "reasons": [
+          "assessed_low"
+        ],
+        "scored": {
+          "sanctions": "assessed",
+          "gst": "assessed",
+          "jurisdiction": "assessed",
+          "web": "assessed",
+          "email": "assessed",
+          "breach": "assessed_no_finding",
+          "certification": "assessed",
+          "financial": "assessed",
           "company_age": "assessed",
           "delivery_sla": "assessed",
           "feedback": "assessed",

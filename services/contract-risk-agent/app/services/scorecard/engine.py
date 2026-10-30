@@ -25,6 +25,32 @@ SPEND_TO_TIER = {
 }
 
 
+def vendor_unverified(sig_key: str, status: str, fields: Dict[str, Any]) -> bool:
+    """True when a check couldn't be completed because there is nothing on the
+    vendor to verify (owner decision, 30 Oct 2026: a black-box vendor is risky,
+    so such a check counts as its full points). A check that never ran, ran
+    with live mode off, or hit a provider error is our side and is re-weighted
+    out instead; so are news, breaches and order history (nobody could know yet)."""
+    if not fields or status == "assessed":
+        return False
+    if sig_key == "gst":
+        return fields.get("gstin.verification_level") in ("country_unknown", "pending")
+    if sig_key == "jurisdiction":
+        return status == "not_assessed" and fields.get("country.code") == "UNKNOWN"
+    if sig_key == "company_age":
+        return status == "not_assessed" and fields.get("age.basis") in ("none", "domain_only")
+    if sig_key == "financial":
+        return status == "not_assessed" and fields.get("fin.basis") == "none"
+    if sig_key == "bank":
+        return fields.get("na_reason_code") == "no_bank_details"
+    if sig_key == "web":
+        return fields.get("na_reason_code") == "no_domain"
+    if sig_key == "email":
+        return fields.get("na_reason_code") == "no_email_domain" or (
+            fields.get("email.confidence") == "live" and fields.get("email.has_mx") is False)
+    return False
+
+
 def determine_band(points: int, bands: Dict[str, int]) -> str:
     """Computes band: Low (0 - low_max), Medium (low_max+1 - medium_max), High (above medium_max)."""
     low_max = bands.get("low_max", 24)
@@ -405,6 +431,24 @@ def evaluate_risk(
                     all_required_satisfied = False
                     break
 
+    # Unverifiable checks count as full risk; with no identity evidence at all
+    # (no verified GSTIN, not a foreign vendor, no registration date) the
+    # vendor is High and can't be rated "assessed".
+    for r in rule_results:
+        r["unverified"] = vendor_unverified(r["signal_key"], r["status"], r.get("observed_fields") or {})
+    by_key = {r["signal_key"]: r for r in rule_results}
+    gst_r, age_r = by_key.get("gst", {}), by_key.get("company_age", {})
+    gst_fields = gst_r.get("observed_fields") or {}
+    gst_verified = gst_r.get("status") == "assessed" and gst_fields.get("gstin.name_match_level") in ("exact", "confirmed")
+    registered = (age_r.get("status") == "assessed"
+                  and (age_r.get("observed_fields") or {}).get("age.basis") in ("incorporation", "gst_registration"))
+    identity_verified = gst_verified or registered
+    if not identity_verified and any(r.get("observed_fields") for r in rule_results):
+        provisional_reasons.append({
+            "code": "identity_unverified", "signal": "identity",
+            "message": "No verified GSTIN or registration date: the vendor's identity can't be confirmed.",
+        })
+
     # A missing inherent profile only falls back to the spend tier (advisory,
     # like the headline count below); every other reason keeps it provisional.
     blocking_reasons = [r for r in provisional_reasons if r.get("signal") != "inherent"]
@@ -426,16 +470,20 @@ def evaluate_risk(
     # check done at all the worst case applies (High) until one is. Clearance
     # still reads rating_status, so a provisional vendor is banded, not cleared.
     all_max_points = sum(r["max_points"] for r in rule_results)
-    missing_max_points = sum(r["max_points"] for r in rule_results if r["status"] == "not_assessed")
+    unverified = [r for r in rule_results if r["unverified"]]
+    unverified_points = sum(r["max_points"] - r["points"] for r in unverified)
+    missing_max_points = sum(r["max_points"] for r in rule_results
+                             if r["status"] == "not_assessed" and not r["unverified"])
     checked_max_points = all_max_points - missing_max_points
     if checked_max_points > 0:
-        weighted_points = min(100, round(total_points * all_max_points / checked_max_points))
+        weighted_points = min(100, round((total_points + unverified_points) * all_max_points / checked_max_points))
     else:
         weighted_points = 100
     points_band = determine_band(weighted_points, bands_def)
+    identity_floor = not identity_verified and any(r.get("observed_fields") for r in rule_results)
 
     has_override = len(override_rules) > 0
-    final_band = "High" if has_override else points_band
+    final_band = "High" if (has_override or identity_floor) else points_band
 
     blocked_by = [
         {
@@ -455,13 +503,19 @@ def evaluate_risk(
         )
     elif checked_max_points == 0:
         headline = "High until checked: no risk check has completed yet, so the worst case applies."
+    elif identity_floor:
+        headline = (f"Provisional High: the vendor's identity can't be verified (no verified GSTIN or registration date), "
+                    f"so it is treated as high risk until it is. Score {weighted_points}/100.")
     elif is_provisional:
         labels = {r["signal_key"]: r["label"] for r in rule_results}
         labels["coverage"] = "the remaining due-diligence checks"
+        labels["identity"] = "identity (GSTIN or registration)"
         outstanding = list(dict.fromkeys(labels.get(r["signal"], r["signal"])
                                          for r in provisional_reasons if r.get("signal") != "inherent"))
-        headline = (f"Provisional {final_band}: {weighted_points}/100 ({total_points} points over the "
-                    f"{checked_max_points} points checked). Not cleared until these are done: {', '.join(outstanding)}.")
+        charged = (f" incl. {unverified_points} for checks the vendor couldn't be verified on"
+                   if unverified_points else "")
+        headline = (f"Provisional {final_band}: {weighted_points}/100 ({total_points + unverified_points} points{charged} "
+                    f"over the {checked_max_points} points checked). Not cleared until these are done: {', '.join(outstanding)}.")
     else:
         # Top 2 contributors
         assessed_contributors = [r for r in rule_results if r["points"] > 0]
@@ -477,8 +531,10 @@ def evaluate_risk(
         if unassessed_potential_points > 0 and na_count > 0:
             unassessed_clause = f" {na_count} signal(s) not assessed could add up to {unassessed_potential_points} points, so the worst case is {worst_case_band}."
 
-        weighting = (f" Weighted from {total_points} points over the {checked_max_points} points checked "
-                     f"({missing_max_points} points of checks couldn't run)." if missing_max_points else "")
+        charged = (f" {unverified_points} of them for unverifiable checks ("
+                   f"{', '.join(r['label'] for r in unverified)})." if unverified_points else "")
+        weighting = (f" Weighted from {total_points + unverified_points} points over the {checked_max_points} points checked "
+                     f"({missing_max_points} points of checks couldn't run).{charged}" if missing_max_points or unverified_points else "")
         headline = f"{final_band}: {weighted_points}/100.{weighting}{top_str}{unassessed_clause}"
 
     # Section 7.4 Thought process generation (Prompt 11 Section 3.1, 3.3, 3.4)
@@ -621,6 +677,9 @@ def evaluate_risk(
         "weighted_points": weighted_points,
         "checked_max_points": checked_max_points,
         "missing_max_points": missing_max_points,
+        "unverified_points": unverified_points,
+        "unverified_signals": [r["signal_key"] for r in unverified],
+        "identity_verified": not identity_floor,
         "max_points": 100,
         "applicable_max_points": applicable_max_points,
         "assessed_share_pct": assessed_share_pct,
@@ -702,6 +761,9 @@ def evaluate_risk(
         "weighted_points": weighted_points,
         "checked_max_points": checked_max_points,
         "missing_max_points": missing_max_points,
+        "unverified_points": unverified_points,
+        "unverified_signals": [r["signal_key"] for r in unverified],
+        "identity_verified": not identity_floor,
         "points_band": points_band,
         "final_band": final_band,
         "rating_status": rating_status,

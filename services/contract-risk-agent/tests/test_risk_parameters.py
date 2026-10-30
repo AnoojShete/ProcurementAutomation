@@ -117,5 +117,6 @@ def test_risk_parameters_lists_every_parameter_with_weight_and_each_vendors_resu
     row = data["vendors"][0]
     assert (row["final_band"], row["weighted_points"], row["checked_max_points"]) == ("Medium", 29, 82)
     assert row["parameters"]["certification"] == {"rule_id": "R-CRT-05", "status": "assessed", "points": 4,
-                                                  "override": False, "reason": "No security certification on file."}
+                                                  "override": False, "reason": "No security certification on file.",
+                                                  "unverified": False}
     assert row["parameters"]["delivery_sla"]["status"] == "not_assessed"
