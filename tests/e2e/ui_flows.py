@@ -1,6 +1,6 @@
 """Browser walk-through of the UI flows that tie the agents' pages together:
 back arrow, clickable lifecycle steps, approving and signing from the
-lifecycle, approval-inbox routing, and the license page's open-request panel.
+lifecycle (both parties, through Documenso), approval-inbox routing, and the license page's open-request panel.
 
 Needs the stack running (./run.sh + ./scripts/seed-demo-data.sh) and
 Playwright, which the other e2e scripts don't:
@@ -8,10 +8,13 @@ Playwright, which the other e2e scripts don't:
     python tests/e2e/ui_flows.py
 Creates one purchase request and one reclaim request as test data.
 Screenshots go to $UI_SHOTS (default: the system temp folder)."""
-import asyncio, os, tempfile
+import asyncio, os, sys, tempfile
 
 import requests
 from playwright.async_api import async_playwright
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from documenso_signing import VENDOR_SIGNER, company_signs, mail_ids, vendor_signer_email, vendor_signs, wait_vendor_link  # noqa: E402
 
 BASE = os.environ.get("GATEWAY", "http://localhost:8080"); API = BASE + "/api"; SHOTS = os.environ.get("UI_SHOTS", tempfile.gettempdir()) + "/"
 def tok(r): return requests.post(f"{API}/auth/login", json={"email": f"{r}@demo.example.com", "password": "DemoPass123!"}).json()["data"]["access_token"]
@@ -64,13 +67,25 @@ async def main():
         await pg.wait_for_timeout(1500)
         await pg.get_by_role("button", name="Signature", exact=True).click(); await pg.wait_for_timeout(1000)
         dialog = pg.get_by_role("dialog")
-        check("clicking Signature opens the signing dialog", await dialog.get_by_text("Sign contract").first.is_visible())
-        await dialog.get_by_role("button", name="Type").click()
-        await dialog.locator("input[placeholder='e.g. Jane Doe']").fill("Ada Admin")
-        await dialog.locator("input[type=checkbox]").check()
-        await dialog.get_by_role("button", name="Sign & Execute Contract").click()
-        await pg.locator("text=Contract signed.").first.wait_for(timeout=15000)
-        check("signed from the lifecycle step", True)
+        # Two parties sign in Documenso: the Signature step first asks who
+        # signs for the vendor, then the admin signs here and the vendor
+        # through the link emailed to them.
+        check("clicking Signature opens the send-for-signature dialog", await dialog.get_by_text("Send for signature").first.is_visible())
+        vendor_email = vendor_signer_email("Acme IT Supplies", rid[:6])
+        await dialog.locator("#vendor-signer-name").fill(VENDOR_SIGNER)
+        await dialog.locator("#vendor-signer-email").fill(vendor_email)
+        await dialog.get_by_role("button", name="Send", exact=True).click()
+        await pg.get_by_text("Sent.", exact=False).first.wait_for(timeout=30000)
+        before = mail_ids(vendor_email)
+        await company_signs(pg)
+        check("admin signed in the Documenso frame from the lifecycle step", True)
+        _, link = wait_vendor_link(vendor_email, before)
+        vendor_page = await (await b.new_context(viewport={"width": 1400, "height": 1000})).new_page()
+        await vendor_signs(vendor_page, link)
+        c = requests.get(f"{API}/contracts/?limit=50", headers={"Authorization": f"Bearer {admin_tok}"}).json()["data"]
+        check("vendor signed from the emailed link → contract signed",
+              any(x["purchase_request_id"] == rid and x["status"] == "signed" for x in c))
+        await pg.reload(); await pg.wait_for_timeout(1500)
         await pg.wait_for_timeout(1500); await pg.screenshot(path=SHOTS + "ui-signed.png")
 
         await pg.goto(BASE + f"/app/licenses/{lic['id']}"); await pg.wait_for_timeout(1500)

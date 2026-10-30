@@ -39,7 +39,7 @@ mkdir -p "$STAMPS"
 # Services built from a Dockerfile (workers reuse their service's image).
 IMAGE_SERVICES="auth-service document-vendor-agent approval-inventory-agent contract-risk-agent notification-agent chatbot-agent"
 # Started by step 4, and checked by step 6 together with CORE_CHECK.
-APP_SERVICES="auth-service document-vendor-agent document-vendor-agent-worker approval-inventory-agent approval-inventory-agent-worker contract-risk-agent contract-risk-agent-worker notification-agent chatbot-agent mlflow kafka-exporter"
+APP_SERVICES="auth-service document-vendor-agent document-vendor-agent-worker approval-inventory-agent approval-inventory-agent-worker contract-risk-agent contract-risk-agent-worker notification-agent chatbot-agent mlflow kafka-exporter documenso"
 CORE_CHECK="postgres redis redpanda minio temporal clamav"
 TOTAL_STEPS=6
 
@@ -176,6 +176,18 @@ fi
 
 # --- 4. agents -----------------------------------------------------------------
 step "Starting agents and workers"
+# Documenso seals signed contracts with this certificate; make a
+# development one the first time (scripts/documenso_setup.py does the rest).
+if [ ! -f secrets/documenso/cert.p12 ]; then
+  run "Making Documenso's signing certificate" sh -c '
+    mkdir -p secrets/documenso && cd secrets/documenso &&
+    openssl req -x509 -newkey rsa:2048 -sha256 -days 1095 -nodes -keyout key.pem -out cert.pem \
+      -subj "/CN=Procurement Platform e-signature (development)" &&
+    pass="pass:${DOCUMENSO_SIGNING_PASSPHRASE:-dev-documenso-signing}" &&
+    { openssl pkcs12 -export -legacy -out cert.p12 -inkey key.pem -in cert.pem -passout "$pass" ||
+      openssl pkcs12 -export -out cert.p12 -inkey key.pem -in cert.pem -passout "$pass"; } &&
+    chmod 644 cert.p12'
+fi
 # shellcheck disable=SC2086
 run "Starting containers" docker compose up -d --remove-orphans $APP_SERVICES
 note "${GREEN}✓${RESET} started ($(fmt_time $((SECONDS - STEP_START))))"
@@ -234,6 +246,7 @@ print_row contract-risk-agent             :8003
 print_row contract-risk-agent-worker      ""
 print_row notification-agent              :8004
 print_row chatbot-agent                   :8006
+print_row documenso                       :3010
 print_row nginx                           :8080
 
 if [ -n "$waiting" ]; then
@@ -259,3 +272,7 @@ cat <<EOF
 
   Demo data: ./scripts/seed-demo-data.sh    Tests: ./scripts/test-service.sh all | make e2e
 EOF
+if ! grep -q '^APP_DOCUMENSO_API_TOKEN=.' .env 2>/dev/null; then
+  printf '\n  %sE-signature:%s contracts use the built-in e-sign until Documenso is set up, once:\n' "$YELLOW" "$RESET"
+  printf '    python3 scripts/documenso_setup.py && docker compose up -d contract-risk-agent contract-risk-agent-worker && docker compose restart nginx\n'
+fi

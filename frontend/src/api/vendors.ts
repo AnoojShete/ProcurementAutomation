@@ -128,6 +128,7 @@ export interface RiskParameterResult {
   reason: string;
   /** Nothing on the vendor to verify: counted as the parameter's full weight. */
   unverified?: boolean;
+  gap_points?: number | null;
 }
 
 export interface VendorRiskParameters {
@@ -163,6 +164,11 @@ export const vendorsApi = {
   /** Phase 3c: on-time, invoice accuracy, RFQ response rate, SLA breaches. */
   scorecard: (vendorId: string) => api.get<VendorScorecard>(`/vendors/${vendorId}/scorecard`),
   recomputeRisk: (vendorId: string) => api.post<VendorRisk>(`/vendors/${vendorId}/risk/recompute`),
+  /** Fill details missing from the record (blanks only); document-vendor-agent. */
+  fillDetails: (vendorId: string, values: Partial<Pick<VendorProfileInput, "country" | "gstin" | "website" | "contact_email">>) =>
+    api.post<VendorSummary>(`/vendors/${vendorId}/details`, values),
+  confirmNoGstin: (vendorId: string, reason: string) =>
+    api.post(`/vendors/${vendorId}/confirm-no-gstin`, { reason }),
   update: (vendorId: string, partial: Partial<VendorProfileInput>) =>
     api.patch<VendorSummary>(`/vendors/${vendorId}`, partial),
   offboard: (vendorId: string, offboarded_by: string, reason: string) =>

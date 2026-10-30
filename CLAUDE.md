@@ -95,6 +95,8 @@ python tests/e2e/obligation_flow.py       # contract obligations: read after sig
 python tests/e2e/sourcing_flow.py         # catalog, RFQ (sealed, quote linking, award), partial receipts, scorecard
 python tests/e2e/risk_flow.py             # risk scorecard, clearance, decisions, evidence + signing/budget/RFQ integration
 python tests/e2e/gst_flow.py              # GST check, e-invoice QR, reverse charge, TDS at booking, MSME, GSTR-2B (needs pyjwt)
+python scripts/documenso_setup.py        # once: Documenso account, API token, webhook → .env (then recreate contract-risk-agent)
+python tests/e2e/esign_flow.py           # two-party signing in a browser: finance on the contract page, vendor on /sign
 python tests/e2e/chatbot_eval.py          # assistant (RAG): grounded answers, citations, access limits → docs/results/chatbot-eval.md
 python tests/e2e/document_pipeline.py [--quick]
 cd frontend && npm run typecheck          # tsc; `npm run build` = typecheck + vite build
@@ -224,10 +226,15 @@ in `docs/readmeforme.md` (Research experiment).
   `tests/test_risk_redteam.py`) must stay green; add a profile for any new
   rule. Write-up: `docs/index.html#risk`. **No vendor is Unrated** (owner,
   30 Oct): missing checks are re-weighted out of the score (`weighted_points`),
-  nothing checked = High; missing information about the vendor (no GSTIN, registration,
-  financials, bank, domain) counts in full and no verified identity = High
-  (`engine.vendor_unverified`); the protection is that a provisional rating is never
-  cleared, so don't make clearance read the band instead of `rating_status`.
+  nothing checked = High. Information missing from our records (GSTIN, country,
+  registration date, financials, website, contact email) costs a third of its check and
+  is listed as `data_needed` for the buyer (`engine.data_gap` / `gap_charge`; bank 0 until
+  payment); the vendor's own gap (mail domain without MX) counts in full. Unverified
+  identity is forced High only when a GSTIN on record doesn't match; otherwise banded.
+  Collectors must never turn a blank into a finding (no guessed domain, no WGI for an
+  unknown country, no PAN check without a GSTIN). The protection is that a provisional
+  rating is never cleared, so don't make clearance read the band instead of `rating_status`.
+  The AI second opinion (`risk_review.py`, Ollama) only flags; it never changes a score.
 - **The assistant decides intent before retrieving** (`chatbot-agent/app/services/intent.py`):
   greetings, "like what", remarks and topic-only messages get direct replies;
   licence anomalies come from live scores (`topics.py`); only real questions
@@ -243,6 +250,15 @@ in `docs/readmeforme.md` (Research experiment).
   file in `inbox/.processing/<document id>/` until the pipeline ends, then
   moves it to `processed/` or `failed/` (+ `.error.txt`). A file left in
   `.processing/` itself (not a subfolder) is re-queued on restart.
+- **Contract signing goes through Documenso when `APP_DOCUMENSO_API_TOKEN`
+  is set** (`signing_service.py`): both parties sign in Documenso's frame on
+  the platform's pages, never on Documenso's own site, and Documenso sends no
+  emails. Its webhooks reach contract-risk-agent only because
+  `NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS` names it; the frame loads only
+  because nginx's CSP `frame-src` lists `http://localhost:3010`. Its database
+  lives in the Postgres volume, so a volume reset needs
+  `scripts/documenso_setup.py` again (`reset-demo.sh` does it). The vendor's
+  route is the one contract route without a JWT (`api/vendor_signing.py`).
 - **Notification templates** are editable in the Control Panel: a row in
   `notification_templates` overrides `app/templates/<name>.j2`; render through
   `template_store.render`, never `templating.render_template` directly in new

@@ -21,7 +21,9 @@ DEMO_DOMAINS = (".local", ".test", ".demo", ".internal", ".example", "localhost"
 
 
 def derive_vendor_domain(vendor: Vendor) -> Optional[str]:
-    """Derives a domain name from website, contact email, or vendor normalized name."""
+    """The vendor's domain from its website or contact email; None if neither is
+    on record. Never guessed from the name: a guessed domain that fails a check
+    would charge the vendor for a site that isn't theirs."""
     website = getattr(vendor, "website", None)
     if website and isinstance(website, str) and website.strip():
         clean = clean_domain(website)
@@ -33,12 +35,7 @@ def derive_vendor_domain(vendor: Vendor) -> Optional[str]:
         domain = email.split("@")[1].strip().lower()
         if domain and "." in domain:
             return clean_domain(domain)
-
-    norm = getattr(vendor, "normalized_name", None) or getattr(vendor, "name", "")
-    clean = "".join(c for c in norm.lower() if c.isalnum() or c in ("-", "."))
-    if "." in clean:
-        return clean_domain(clean)
-    return clean_domain(f"{clean.replace(' ', '')}.com") if clean else None
+    return None
 
 
 async def collect_web(
@@ -77,7 +74,7 @@ async def collect_web(
             provider=provider,
             status="not_applicable",
             facts=facts,
-            fields={"web.reachable": False, "web.ssl_grade": None, "web.cert_valid": False, "na_reason_code": "no_domain"},
+            fields={"web.reachable": False, "web.ssl_grade": None, "web.cert_valid": None, "na_reason_code": "no_domain"},
             raw_response_id=raw.id,
             ttl_days=7,
             fetched_at=now,

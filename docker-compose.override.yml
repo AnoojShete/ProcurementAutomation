@@ -29,11 +29,25 @@ services:
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       APP_ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
-      # Optional live Documenso (see .env.example); unset = signing is
-      # simulated or done with the built-in e-sign.
-      APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-}
+      # Documenso (the `documenso` service): both parties sign in its
+      # embedded frame on the platform's pages. scripts/documenso_setup.py
+      # writes the token and webhook secret to .env; without a token,
+      # contracts are signed with the built-in e-sign.
+      APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-http://documenso:3000}
+      APP_DOCUMENSO_PUBLIC_URL: ${DOCUMENSO_PUBLIC_URL:-http://localhost:3010}
       APP_DOCUMENSO_API_TOKEN: ${APP_DOCUMENSO_API_TOKEN:-}
       APP_DOCUMENSO_WEBHOOK_SECRET: ${APP_DOCUMENSO_WEBHOOK_SECRET:-}
+      # The vendor's signing-link email (shared/mailer.py), like the
+      # account emails: Mailpit by default, see .env.example.
+      EMAIL_MODE: ${EMAIL_MODE:-dev}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Procurement Platform <noreply@procurement.local>}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
       # Optional live DocuSign, sandbox by default (see .env.example); unset
       # = "docusign" sends are simulated.
       APP_DOCUSIGN_INTEGRATION_KEY: ${APP_DOCUSIGN_INTEGRATION_KEY:-}
@@ -103,9 +117,12 @@ services:
       APP_MLFLOW_TRACKING_URI: http://mlflow:5000
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       APP_ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-dev-esign-secret-change-me}
-      # Optional live Documenso (see .env.example); unset = signing is
-      # simulated or done with the built-in e-sign.
-      APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-}
+      # Documenso (the `documenso` service): both parties sign in its
+      # embedded frame on the platform's pages. scripts/documenso_setup.py
+      # writes the token and webhook secret to .env; without a token,
+      # contracts are signed with the built-in e-sign.
+      APP_DOCUMENSO_API_URL: ${APP_DOCUMENSO_API_URL:-http://documenso:3000}
+      APP_DOCUMENSO_PUBLIC_URL: ${DOCUMENSO_PUBLIC_URL:-http://localhost:3010}
       APP_DOCUMENSO_API_TOKEN: ${APP_DOCUMENSO_API_TOKEN:-}
       APP_DOCUMENSO_WEBHOOK_SECRET: ${APP_DOCUMENSO_WEBHOOK_SECRET:-}
       # Optional live DocuSign, sandbox by default (see .env.example); unset

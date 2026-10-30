@@ -28,7 +28,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    Image as RLImage, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    Flowable, Image as RLImage, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
 logger = logging.getLogger(__name__)
@@ -185,7 +185,52 @@ def _kv_table(rows: list[tuple[str, str]], st: dict, label_width: float, mono_ke
     return t
 
 
-def _signature_block(c: ContractPdfInput, st: dict, width: float) -> Table:
+@dataclass
+class SignatureSlot:
+    """Where an empty signature line was drawn: page (1-based) and its box
+    in points from the page's bottom-left corner."""
+    page: int
+    x: float
+    y: float
+    width: float
+    height: float
+
+    def as_percentages(self) -> dict:
+        """The box as Documenso places fields: percent of the page, from
+        the top-left corner."""
+        page_w, page_h = A4
+        return {
+            "page": self.page,
+            "positionX": round(self.x / page_w * 100, 2),
+            "positionY": round((page_h - self.y - self.height) / page_h * 100, 2),
+            "width": round(self.width / page_w * 100, 2),
+            "height": round(self.height / page_h * 100, 2),
+        }
+
+
+class _SignatureLine(Flowable):
+    """The blank space above a signature line. Records where it lands in
+    `slots[party]` when drawn, so the e-signature field goes exactly over
+    it wherever the agreement text pushes the signature block."""
+
+    def __init__(self, party: str, slots: Optional[dict], height: float = 36):
+        super().__init__()
+        self.party = party
+        self.slots = slots
+        self.height = height
+        self.width = 0
+
+    def wrap(self, avail_width, avail_height):
+        self.width = avail_width
+        return avail_width, self.height
+
+    def draw(self):
+        if self.slots is not None:
+            x, y = self.canv.absolutePosition(0, 0)
+            self.slots[self.party] = SignatureSlot(self.canv.getPageNumber(), x, y, self.width, self.height)
+
+
+def _signature_block(c: ContractPdfInput, st: dict, width: float, slots: Optional[dict] = None) -> Table:
     signed = c.status == "signed"
 
     signer_name = ""
@@ -233,10 +278,10 @@ def _signature_block(c: ContractPdfInput, st: dict, width: float) -> Table:
                 )
             )
     else:
-        left_sig = Spacer(1, 26)
+        left_sig = _SignatureLine("company", slots)
         left_sub = [Paragraph("Signature", st["small"])]
 
-    right_sig = Spacer(1, 26)
+    right_sig = _SignatureLine("vendor", slots)
     right_sub = [Paragraph("Signature", st["small"])]
 
     gap = 14 * mm
@@ -261,7 +306,9 @@ def _signature_block(c: ContractPdfInput, st: dict, width: float) -> Table:
     return t
 
 
-def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False) -> bytes:
+def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False, slots: Optional[dict] = None) -> bytes:
+    """`slots`, when given, is filled with the SignatureSlot of each empty
+    signature line ("company", "vendor")."""
     buf = io.BytesIO()
     st = _styles()
     title, body_lines = _split_text(c.contract_text)
@@ -275,7 +322,7 @@ def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False) 
     # The page frame pads 6pt on each side inside doc.width.
     width = doc.width - 12
 
-    status_label = {"draft": "Draft", "pending_signature": "Awaiting signature", "signed": "Signed"}.get(
+    status_label = {"draft": "Draft", "pending_signature": "Sent for signature", "signed": "Signed"}.get(
         c.status, c.status.replace("_", " ").title()
     )
     story: list = [
@@ -296,7 +343,7 @@ def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False) 
     ]
     story += _body_flowables(body_lines, st)
     story.append(Spacer(1, 12))
-    story.append(KeepTogether([Paragraph("Signatures", st["section"]), _signature_block(c, st, width)]))
+    story.append(KeepTogether([Paragraph("Signatures", st["section"]), _signature_block(c, st, width, slots)]))
 
     if include_certificate:
         story += [PageBreak(), Paragraph("Certificate of Completion", st["title"]),

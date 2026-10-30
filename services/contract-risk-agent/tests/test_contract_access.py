@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from app.api import contracts as contracts_api
 from app.api import webhooks as webhooks_api
 from app.database import get_db
-from app.services import contract_service
+from app.services import contract_service, signing_service
 from shared.auth import get_current_user
 from shared.auth.middleware import CurrentUser
 from shared.http.error_handlers import register_error_handlers
@@ -59,7 +59,8 @@ def svc():
          patch.object(contract_service, "render_signed_document", AsyncMock(return_value=b"%PDF")) as render_signed, \
          patch.object(contract_service, "get_signature_certificate", AsyncMock(return_value={"ok": 1})), \
          patch.object(contract_service, "was_sent_automatically", AsyncMock(return_value=False)), \
-         patch.object(contract_service, "signing_risk", AsyncMock(return_value=None)):
+         patch.object(contract_service, "signing_risk", AsyncMock(return_value=None)), \
+         patch.object(signing_service, "signers_of", AsyncMock(return_value=[])):
         yield SimpleNamespace(list=list_contracts, renewals=renewals, render=render, render_signed=render_signed)
 
 

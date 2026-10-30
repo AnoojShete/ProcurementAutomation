@@ -472,6 +472,14 @@ export interface ScorecardRuleResult {
   ages_out_on: string | null;
 }
 
+/** A detail missing from the vendor record that a risk check is waiting on. */
+export interface DataNeededItem {
+  field: string;
+  signal: string;
+  message: string;
+  points: number;
+}
+
 export interface ScorecardExplanation {
   score_id: string;
   rating_status?: string;
@@ -488,6 +496,7 @@ export interface ScorecardExplanation {
   provisional_reasons: string[];
   override_rule_ids: string[];
   headline: string;
+  data_needed?: DataNeededItem[];
   /** One step per group: {group_label, narrative, points, max_points} (older scores: plain strings). */
   thought_process: (string | { step?: number; group_key?: string; group_label?: string; narrative?: string; points?: number; max_points?: number })[];
   score_breakdown: ScorecardRuleResult[];
@@ -725,6 +734,48 @@ export interface Contract {
   signature_certificate?: SignatureCertificate | null;
   /** BR-6: the vendor's risk as the signer should see it (GET /contracts/:id only). */
   vendor_risk?: SigningRisk;
+  /** How a contract sent now is signed: both parties in Documenso's frame, or the built-in e-sign. */
+  signing_provider?: "documenso" | "builtin";
+  /** Documenso: the company's signatory, then the vendor (GET /contracts/:id only). */
+  signers?: ContractSigner[];
+  /** Staff, draft contracts: the vendor's contact email, the default vendor signatory. */
+  vendor_contact_email?: string | null;
+}
+
+export interface ContractSigner {
+  party: "company" | "vendor";
+  name: string;
+  email: string;
+  status: "waiting" | "ready" | "signed" | "rejected";
+  signed_at: string | null;
+  rejection_reason: string | null;
+  link_expires_at: string | null;
+}
+
+/** Opens Documenso's signing frame for one signer. */
+export interface SigningSession {
+  host: string;
+  token: string;
+  name: string;
+  party: "company" | "vendor";
+  legal_basis: string;
+}
+
+/** The vendor's signing page, from the emailed link. */
+export interface VendorSigningSession {
+  state: "ready" | "signed" | "closed" | "expired";
+  contract_id: string;
+  title: string;
+  vendor_name: string;
+  company_name: string;
+  signer_name: string;
+  signer_email: string;
+  company_signer: string | null;
+  company_signed_at: string | null;
+  signed_at: string | null;
+  legal_basis: string;
+  host?: string;
+  token?: string;
 }
 
 export interface SigningRisk {

@@ -8,6 +8,7 @@ import { SignUpPage } from "@/pages/auth/SignUpPage";
 import { VerifyEmailPage } from "@/pages/auth/VerifyEmailPage";
 import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
+import { VendorSigningPage } from "@/pages/sign/VendorSigningPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { RouteErrorPage } from "@/pages/RouteErrorPage";
 
@@ -75,6 +76,8 @@ const router = createBrowserRouter([
   { path: "/verify-email", element: <VerifyEmailPage /> },
   { path: "/forgot-password", element: <ForgotPasswordPage /> },
   { path: "/reset-password", element: <ResetPasswordPage /> },
+  // The vendor's contract signing page, from their emailed link (no account).
+  { path: "/sign", element: <VendorSigningPage /> },
   {
     path: "/app",
     element: (

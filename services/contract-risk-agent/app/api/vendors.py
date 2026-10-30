@@ -3,6 +3,7 @@ Exposes deterministic risk scores, explanation payloads, remediation plans,
 replay verification, audit bundles, disputes, and ruleset governance.
 """
 import copy
+import json
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -144,7 +145,8 @@ async def risk_parameters(limit: int = Query(200, ge=1, le=1000), db: AsyncSessi
             "identity_verified": explanation.get("identity_verified", True),
             "parameters": {r.signal_key: {"rule_id": r.rule_id, "status": r.status, "points": r.points,
                                           "override": bool(r.override_band), "reason": r.reason_text,
-                                          "unverified": r.signal_key in (explanation.get("unverified_signals") or [])}
+                                          "unverified": r.signal_key in (explanation.get("unverified_signals") or []),
+                                          "gap_points": (explanation.get("gap_points") or {}).get(r.signal_key)}
                            for r in results},
         })
     return DataResponse(data={"parameters": params, "vendors": rows})
@@ -237,6 +239,56 @@ async def get_latest_risk_explanation(vendor_id: str, db: AsyncSession = Depends
     if row is None:
         raise HTTPException(status_code=404, detail="vendor has not been risk-scored yet")
     return DataResponse(data=row.explanation or {})
+
+
+def _review_row(row) -> dict:
+    return {"id": str(row.id), "score_id": str(row.score_id), "model": row.model, "status": row.status,
+            "flags": row.flags or [], "requested_by": row.requested_by,
+            "created_at": row.created_at.isoformat() if row.created_at else None}
+
+
+@router.get("/{vendor_id}/risk/ai-review", response_model=DataResponse)
+async def get_ai_review(vendor_id: str, db: AsyncSession = Depends(get_db)):
+    """The latest AI second opinion on the vendor's latest score, or null."""
+    score = await risk_service.latest_risk_score(db, vendor_id)
+    if score is None:
+        return DataResponse(data=None)
+    row = (await db.execute(text(
+        "SELECT * FROM risk_score_reviews WHERE score_id = :sid ORDER BY created_at DESC LIMIT 1"),
+        {"sid": score.id})).first()
+    return DataResponse(data=_review_row(row) if row else None)
+
+
+@router.post("/{vendor_id}/risk/ai-review", response_model=DataResponse)
+async def run_ai_review(vendor_id: str, db: AsyncSession = Depends(get_db),
+                        user: CurrentUser = Depends(require_role("approver", "finance", "admin"))):
+    """Ask the review model whether the latest score's results look right.
+    Its flags are stored and shown; the score and clearance don't change."""
+    from app.services import risk_review
+    vendor = (await db.execute(text(
+        "SELECT name, country, gstin, website, contact_email, inherent_tier, no_gstin_confirmed_by "
+        "FROM vendors WHERE id = :id"), {"id": vendor_id})).mappings().first()
+    if vendor is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    score = await risk_service.latest_risk_score(db, vendor_id)
+    if score is None:
+        raise HTTPException(status_code=404, detail="vendor has not been risk-scored yet")
+    results = (await db.execute(select(RiskScoreRuleResult).where(RiskScoreRuleResult.score_id == score.id)
+                                .order_by(RiskScoreRuleResult.order_index))).scalars().all()
+    max_points = {s["key"]: s.get("max_points") for s in (await risk_service.get_active_ruleset(db)).definition["signals"]}
+    outcome = await risk_review.review(dict(vendor), [
+        {"signal_key": r.signal_key, "status": r.status, "points": r.points,
+         "max_points": max_points.get(r.signal_key), "reason_text": r.reason_text} for r in results])
+    row = (await db.execute(text(
+        "INSERT INTO risk_score_reviews (score_id, vendor_id, model, status, flags, requested_by) "
+        "VALUES (:sid, :vid, :model, :status, CAST(:flags AS jsonb), :by) RETURNING *"),
+        {"sid": score.id, "vid": vendor_id, "model": outcome["model"], "status": outcome["status"],
+         "flags": json.dumps(outcome["flags"]), "by": user.email})).first()
+    await db.commit()
+    data = _review_row(row)
+    if outcome.get("error"):
+        data["error"] = outcome["error"]
+    return DataResponse(data=data)
 
 
 @router.get("/{vendor_id}/risk/{score_id}/explanation", response_model=DataResponse)

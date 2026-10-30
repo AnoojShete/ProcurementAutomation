@@ -222,3 +222,45 @@ async def onboard_vendor(db, kafka_producer, profile: VendorProfile, onboarded_b
         )
     await db.commit()
     return vendor, check, set()
+
+
+FILLABLE = ("country", "gstin", "website", "contact_email")
+
+
+async def fill_missing_details(db, vendor: Vendor, values: dict, filled_by: str) -> list:
+    """Fills details nobody entered for an existing vendor (the risk
+    scorecard's "data needed" list), with the onboarding checks. Blanks only:
+    a value on record isn't changed here. Returns the errors; nothing is
+    written unless there are none."""
+    p = normalise(VendorProfile(name=vendor.name, **{k: values.get(k) for k in FILLABLE}))
+    new = {k: getattr(p, k) for k in FILLABLE if getattr(p, k)}
+    errors = [{"field": k, "message": "Already on record; change it through the vendor's review process."}
+              for k in new if getattr(vendor, k, None)]
+    if "country" in new:
+        from shared.iso_countries import is_valid_country_code
+        if not is_valid_country_code(new["country"]):
+            errors.append({"field": "country", "message": f"Country '{new['country']}' must be a 2-letter ISO code."})
+    if "contact_email" in new and not _EMAIL.match(new["contact_email"]):
+        errors.append({"field": "contact_email", "message": "Not a valid email address."})
+    if "gstin" in new:
+        valid, reason = validate_gstin_offline(new["gstin"])
+        if not valid:
+            errors.append({"field": "gstin", "message": reason})
+        elif (vendor.country or new.get("country")) != "IN":
+            errors.append({"field": "gstin", "message": "A GSTIN applies to vendors registered in India (country IN)."})
+        else:
+            same = (await db.execute(select(Vendor).where(Vendor.gstin == new["gstin"], Vendor.id != vendor.id))).scalars().first()
+            if same:
+                errors.append({"field": "gstin", "message": f"Already on record for “{same.name}”."})
+    if errors or not new:
+        return errors or [{"field": None, "message": "Nothing to fill in."}]
+    for k, v in new.items():
+        setattr(vendor, k, v)
+    if "gstin" in new:
+        vendor.gstin_verification_status = "format_valid"
+        vendor.no_gstin_confirmed_by = vendor.no_gstin_confirmed_at = None
+    vendor.updated_at = datetime.now(timezone.utc)
+    await write_audit_log(db, entity_type="vendor", entity_id=vendor.id, action="vendor_details_filled",
+                          payload={"filled_by": filled_by, "fields": sorted(new)})
+    await db.commit()
+    return []

@@ -1,7 +1,7 @@
 {
   "run_at": "2026-10-21T09:00:00+00:00",
-  "passed": 29,
-  "total": 29,
+  "passed": 33,
+  "total": 33,
   "profiles": [
     {
       "name": "Clean, established vendor",
@@ -37,7 +37,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -78,7 +79,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -120,7 +122,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -161,7 +164,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -202,7 +206,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -243,7 +248,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -268,7 +274,8 @@
         "reasons": [
           "vendor_not_rated"
         ],
-        "scored": {}
+        "scored": {},
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -297,7 +304,8 @@
           "sanctions": "assessed",
           "gst": "assessed",
           "bank": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -335,7 +343,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -374,7 +383,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -402,7 +412,8 @@
           "sanctions": "assessed",
           "gst": "assessed",
           "bank": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -428,7 +439,8 @@
         "scored": {
           "gst": "assessed",
           "bank": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -455,7 +467,8 @@
           "sanctions": "assessed",
           "gst": "assessed",
           "bank": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -495,7 +508,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -535,7 +549,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -575,7 +590,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -614,7 +630,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -653,7 +670,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -690,7 +708,8 @@
           "financial": "assessed",
           "company_age": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -729,7 +748,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -768,7 +788,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -806,7 +827,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -843,7 +865,8 @@
         "scored": {
           "sanctions": "assessed",
           "jurisdiction": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -877,7 +900,8 @@
         "scored": {
           "sanctions": "assessed",
           "jurisdiction": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -887,7 +911,7 @@
       "attack": "Critical vendor with GST, bank and sanctions pending; a reported breach not yet matched to the entity",
       "expected": {
         "points": 0,
-        "final_band": "High",
+        "final_band": "Low",
         "rating_status": "provisional",
         "cleared": false,
         "unscored": [
@@ -895,7 +919,7 @@
         ]
       },
       "got": {
-        "final_band": "High",
+        "final_band": "Low",
         "points": 0,
         "points_band": "Low",
         "weighted_points": 0,
@@ -908,7 +932,8 @@
         ],
         "scored": {
           "jurisdiction": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -949,7 +974,8 @@
           "delivery_sla": "assessed",
           "feedback": "assessed",
           "incidents": "assessed"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -990,7 +1016,8 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": []
       },
       "passed": true,
       "problems": []
@@ -999,15 +1026,22 @@
       "name": "Black-box vendor, nothing verifiable",
       "attack": "a made-up company: no country, GSTIN, registration, financials, bank or mail domain, clean sanctions",
       "expected": {
-        "final_band": "High",
+        "weighted_points": 27,
+        "final_band": "Medium",
         "rating_status": "provisional",
-        "cleared": false
+        "cleared": false,
+        "data_needed": [
+          "country",
+          "registration_date",
+          "financials",
+          "bank_details"
+        ]
       },
       "got": {
-        "final_band": "High",
+        "final_band": "Medium",
         "points": 0,
-        "points_band": "High",
-        "weighted_points": 79,
+        "points_band": "Medium",
+        "weighted_points": 27,
         "rating_status": "provisional",
         "overrides": [],
         "cleared": false,
@@ -1016,26 +1050,35 @@
         ],
         "scored": {
           "sanctions": "assessed"
-        }
+        },
+        "data_needed": [
+          "country",
+          "bank_details",
+          "financials",
+          "registration_date"
+        ]
       },
       "passed": true,
       "problems": []
     },
     {
       "name": "Verified vendor, bank details not given yet",
-      "attack": "control: an unverifiable bank route is charged in full but doesn't sink a verified vendor",
+      "attack": "control: bank details are collected before the first payment, so their absence costs nothing yet",
       "expected": {
         "points": 0,
-        "weighted_points": 5,
+        "weighted_points": 0,
         "final_band": "Low",
         "rating_status": "assessed",
-        "cleared": true
+        "cleared": true,
+        "data_needed": [
+          "bank_details"
+        ]
       },
       "got": {
         "final_band": "Low",
         "points": 0,
         "points_band": "Low",
-        "weighted_points": 5,
+        "weighted_points": 0,
         "rating_status": "assessed",
         "overrides": [],
         "cleared": true,
@@ -1056,7 +1099,185 @@
           "feedback": "assessed",
           "incidents": "assessed",
           "adverse_media": "assessed_no_finding"
-        }
+        },
+        "data_needed": [
+          "bank_details"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Indian vendor, GSTIN never entered",
+      "attack": "a known company whose GSTIN nobody typed in, hoping the gap is ignored (or that it sinks the vendor)",
+      "expected": {
+        "points": 0,
+        "weighted_points": 8,
+        "final_band": "Low",
+        "rating_status": "provisional",
+        "cleared": false,
+        "reason": "rating_provisional",
+        "unscored": [
+          "gst"
+        ],
+        "data_needed": [
+          "gstin",
+          "registration_date"
+        ]
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "points_band": "Low",
+        "weighted_points": 8,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ],
+        "scored": {
+          "sanctions": "assessed",
+          "bank": "assessed",
+          "jurisdiction": "assessed",
+          "web": "assessed",
+          "email": "assessed",
+          "breach": "assessed_no_finding",
+          "certification": "assessed",
+          "financial": "assessed",
+          "delivery_sla": "assessed",
+          "feedback": "assessed",
+          "incidents": "assessed",
+          "adverse_media": "assessed_no_finding"
+        },
+        "data_needed": [
+          "gstin",
+          "registration_date"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Blank country passes the jurisdiction check",
+      "attack": "leave the country blank so jurisdiction is scored as a stable foreign country",
+      "expected": {
+        "rating_status": "provisional",
+        "cleared": false,
+        "unscored": [
+          "jurisdiction",
+          "gst"
+        ],
+        "data_needed": [
+          "country"
+        ]
+      },
+      "got": {
+        "final_band": "Low",
+        "points": 0,
+        "points_band": "Low",
+        "weighted_points": 8,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ],
+        "scored": {
+          "sanctions": "assessed",
+          "bank": "assessed",
+          "web": "assessed",
+          "email": "assessed",
+          "breach": "assessed_no_finding",
+          "certification": "assessed",
+          "financial": "assessed",
+          "company_age": "assessed",
+          "delivery_sla": "assessed",
+          "feedback": "assessed",
+          "incidents": "assessed",
+          "adverse_media": "assessed_no_finding"
+        },
+        "data_needed": [
+          "country"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "Every check waiting for data",
+      "attack": "nothing entered but the name: the checks ran, so it is provisional (banded), not Unrated",
+      "expected": {
+        "rating_status": "provisional",
+        "cleared": false,
+        "unscored": [
+          "web"
+        ],
+        "data_needed": [
+          "country",
+          "website",
+          "registration_date",
+          "financials"
+        ]
+      },
+      "got": {
+        "final_band": "Medium",
+        "points": 0,
+        "points_band": "Medium",
+        "weighted_points": 33,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ],
+        "scored": {},
+        "data_needed": [
+          "country",
+          "website",
+          "financials",
+          "registration_date"
+        ]
+      },
+      "passed": true,
+      "problems": []
+    },
+    {
+      "name": "GSTIN on record doesn't match the vendor",
+      "attack": "a real GSTIN belonging to someone else, no registration date",
+      "expected": {
+        "final_band": "High",
+        "rating_status": "provisional",
+        "cleared": false
+      },
+      "got": {
+        "final_band": "High",
+        "points": 12,
+        "points_band": "Low",
+        "weighted_points": 13,
+        "rating_status": "provisional",
+        "overrides": [],
+        "cleared": false,
+        "reasons": [
+          "rating_provisional"
+        ],
+        "scored": {
+          "sanctions": "assessed",
+          "bank": "assessed",
+          "jurisdiction": "assessed",
+          "web": "assessed",
+          "email": "assessed",
+          "breach": "assessed_no_finding",
+          "certification": "assessed",
+          "financial": "assessed",
+          "delivery_sla": "assessed",
+          "feedback": "assessed",
+          "incidents": "assessed",
+          "adverse_media": "assessed_no_finding"
+        },
+        "data_needed": [
+          "registration_date"
+        ]
       },
       "passed": true,
       "problems": []

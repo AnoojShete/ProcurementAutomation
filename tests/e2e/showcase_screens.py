@@ -246,8 +246,7 @@ async def inventory(s, admin):
 
 def _partly_received(admin) -> str:
     """A request with 30 of 50 laptops received (made if there is none)."""
-    import hashlib, hmac, json
-    from datetime import datetime, timezone
+    from documenso_signing import send_via_api, sign_both, vendor_signer_email
     reqs = requests.get(f"{API}/requests/?limit=200", headers=H(admin), timeout=30).json()["data"]
     found = next((r for r in reqs if r.get("status") == "partially_received"), None)
     if found:
@@ -264,17 +263,21 @@ def _partly_received(admin) -> str:
     contract = None
     for _ in range(30):
         contract = next((c for c in requests.get(f"{API}/contracts/?limit=100", headers=H(admin), timeout=30).json()["data"]
-                         if c["purchase_request_id"] == pr["id"] and c["status"] == "pending_signature"), None)
+                         if c["purchase_request_id"] == pr["id"] and c["status"] in ("draft", "pending_signature")), None)
         if contract:
             break
         time.sleep(2)
     if contract is None:
-        raise RuntimeError("no contract went out for the showcase request")
-    secret = os.environ.get("ESIGN_WEBHOOK_SECRET", "dev-esign-secret-change-me")
-    body = {"provider_event_id": f"evt-showcase-{pr['id'][:8]}", "contract_id": contract["id"], "signed_by": "vendor@acme.example",
-            "signed_at": datetime.now(timezone.utc).isoformat()}
-    body["signature"] = hmac.new(secret.encode(), json.dumps(body, sort_keys=True, separators=(",", ":")).encode(), hashlib.sha256).hexdigest()
-    requests.post(f"{API}/webhooks/esign", json=body, timeout=30)
+        raise RuntimeError("no contract generated for the showcase request")
+    # Both parties sign in Documenso: name Acme's signatory if nobody is on
+    # file, then finance and the vendor sign in a browser.
+    vendor_email = vendor_signer_email("Acme IT Supplies", pr["id"][:6])
+    if contract["status"] == "draft":
+        send_via_api(fin, contract["id"], vendor_email).raise_for_status()
+    else:
+        detail = requests.get(f"{API}/contracts/{contract['id']}", headers=H(admin), timeout=30).json()["data"]
+        vendor_email = next(x["email"] for x in detail["signers"] if x["party"] == "vendor")
+    sign_both(contract["id"], vendor_email)
     time.sleep(4)
     r = requests.post(f"{API}/requests/{pr['id']}/receipts", headers=H(req_t), timeout=30, json={
         "lines": [{"line_no": 0, "quantity": 30, "asset_tags": ["LT-0101", "LT-0102", "LT-0103"]}], "notes": "first delivery"})

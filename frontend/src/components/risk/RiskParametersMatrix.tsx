@@ -34,10 +34,12 @@ const SHORT: Record<string, string> = {
 // One cell: the points a parameter added, out of its weight.
 function Cell({ result, max }: { result?: RiskParameterResult; max: number }) {
   if (result?.unverified) {
+    // Older scores charged the full weight and have no gap_points.
+    const charged = result.gap_points ?? max;
     return (
-      <span title={`Couldn't be verified: counted as the full ${max} points. ${result.reason}`}
-            className="inline-flex min-w-9 justify-center rounded-sm bg-danger-50 px-1 font-medium tabular text-danger-700">
-        +{max}!
+      <span title={`Missing information: counted as ${charged} of ${max} points until it is filled in. ${result.reason}`}
+            className="inline-flex min-w-9 justify-center rounded-sm bg-attention-tint px-1 font-medium tabular text-attention">
+        +{charged}!
       </span>
     );
   }
@@ -82,12 +84,12 @@ function VendorBreakdown({ vendor, parameters }: { vendor: VendorRiskParameters;
       {vendor.headline && <p className="mt-2 text-13 text-ink-2">{vendor.headline}</p>}
       {vendor.identity_verified === false && (
         <p className="mt-1 text-13 font-medium text-danger-700">
-          Identity not verified (no verified GSTIN or registration date): rated High until it is.
+          Identity not verified yet (no verified GSTIN or registration date): not cleared until it is.
         </p>
       )}
       <p className="mt-1 text-caption text-ink-3">
         {vendor.total_points + (vendor.unverified_points ?? 0)} points
-        {vendor.unverified_points ? ` (incl. ${vendor.unverified_points} for unverifiable checks)` : ""} over the{" "}
+        {vendor.unverified_points ? ` (incl. ${vendor.unverified_points} for missing information)` : ""} over the{" "}
         {vendor.checked_max_points ?? 100} points that could be checked
         {vendor.weighted_points != null ? ` = ${vendor.weighted_points}/100` : ""}. Bands: Low 0–24, Medium 25–49, High 50+;
         an override rule decides alone.
@@ -108,9 +110,10 @@ function VendorBreakdown({ vendor, parameters }: { vendor: VendorRiskParameters;
                       <span className="ml-auto"><Cell result={r} max={p.max_points} /></span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-start gap-2">
-                      <StatusDot tone={r?.override || r?.unverified ? "danger" : STATUS_TONE[status] ?? "neutral"}>
+                      <StatusDot tone={r?.override ? "danger" : r?.unverified ? "warning" : STATUS_TONE[status] ?? "neutral"}>
                         {r?.override ? "Override: forces High"
-                          : r?.unverified ? "Couldn't be verified: counted in full" : STATUS_TEXT[status] ?? status}
+                          : r?.unverified ? `Missing information: +${r.gap_points ?? p.max_points} until filled in`
+                          : STATUS_TEXT[status] ?? status}
                       </StatusDot>
                       <span className="text-caption text-ink-3">{r?.reason ?? "No result recorded."}</span>
                     </div>

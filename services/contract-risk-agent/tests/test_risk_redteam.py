@@ -365,19 +365,26 @@ async def test_what_if_with_no_changes_reproduces_the_stored_score():
 
 
 def test_only_the_vendors_missing_information_is_charged():
-    """No information about the vendor counts as full risk; a check our side
-    couldn't run (live mode off, provider down, news, no orders yet) doesn't."""
-    from app.services.scorecard.engine import vendor_unverified as u
-    assert u("company_age", "not_assessed", {"age.basis": "none"})
-    assert u("financial", "not_assessed", {"fin.basis": "none"})
-    assert u("jurisdiction", "not_assessed", {"country.code": "UNKNOWN"})
-    assert u("gst", "not_assessed", {"gstin.verification_level": "country_unknown"})
-    assert u("bank", "not_applicable", {"na_reason_code": "no_bank_details"})
-    assert u("email", "not_applicable", {"email.confidence": "live", "email.has_mx": False})
+    """Information missing from our records costs a third of the check (bank:
+    nothing until payment); the vendor's own gap counts in full; a check our
+    side couldn't run (live mode off, provider down, news, no orders yet)
+    costs nothing."""
+    from app.services.scorecard.engine import data_gap as g, gap_charge as c
+    assert g("company_age", "not_assessed", {"age.basis": "none"}) == "not_entered"
+    assert g("financial", "not_assessed", {"fin.basis": "none"}) == "not_entered"
+    assert g("jurisdiction", "not_assessed", {"country.code": "UNKNOWN"}) == "not_entered"
+    assert g("gst", "not_assessed", {"gstin.verification_level": "country_unknown"}) == "not_entered"
+    assert g("gst", "not_assessed", {"gstin.verification_level": "pending"}) == "not_entered"
+    assert g("bank", "not_applicable", {"na_reason_code": "no_bank_details"}) == "not_entered"
+    assert g("email", "not_applicable", {"email.confidence": "live", "email.has_mx": False}) == "vendor"
+    assert c("gst", "not_entered", 20, 0) == 7
+    assert c("company_age", "not_entered", 2, 0) == 1
+    assert c("bank", "not_entered", 5, 0) == 0
+    assert c("email", "vendor", 3, 0) == 3
     # our side or nobody's
-    assert not u("email", "not_assessed", {"email.confidence": "unverified", "email.has_mx": False})  # live mode off
-    assert not u("gst", "not_assessed", {"gstin.verification_level": "offline_only"})
-    assert not u("bank", "not_applicable", {"na_reason_code": "foreign_vendor_account"})
-    assert not u("company_age", "not_assessed", {})                   # the check never ran
+    assert g("email", "not_assessed", {"email.confidence": "unverified", "email.has_mx": False}) is None
+    assert g("gst", "not_assessed", {"gstin.verification_level": "offline_only"}) is None
+    assert g("bank", "not_applicable", {"na_reason_code": "foreign_vendor_account"}) is None
+    assert g("company_age", "not_assessed", {}) is None                   # the check never ran
     for key in ("adverse_media", "breach", "delivery_sla", "feedback", "incidents", "sanctions"):
-        assert not u(key, "not_assessed", {"anything": True})
+        assert g(key, "not_assessed", {"anything": True}) is None

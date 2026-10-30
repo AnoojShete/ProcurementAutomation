@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, R
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models import Vendor
 from app.config import load_renewal_config, settings
 from app.schemas import (
     GenerateContractRequest, SendForSignatureRequest, SignContractRequest, ContractResponse, DataResponse,
+    SigningSessionRequest,
 )
-from app.services import contract_service
+from app.services import contract_service, signing_service
 from app.services import docusign_client
 from app.services.esign_client import EsignProviderError, documenso_enabled
 from shared.auth import CurrentUser, get_current_user, require_role
@@ -209,11 +211,57 @@ async def generate_contract(
 async def send_for_signature(contract_id: str, data: SendForSignatureRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         contract = await contract_service.send_for_signature(
-            db, request.app.state.kafka_producer, contract_id, data.signer_email, provider=data.provider or "builtin"
+            db, request.app.state.kafka_producer, contract_id, data.signer_email, provider=data.provider or "builtin",
+            signer_name=data.signer_name, vendor_signer_email=data.vendor_signer_email,
+            vendor_signer_name=data.vendor_signer_name,
         )
+    except contract_service.VendorBlocked as e:
+        raise HTTPException(status_code=409, detail={"code": "vendor_blocked", "message": str(e)})
     except contract_service.ContractGenerationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return DataResponse(data=_serialize(contract))
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.headers.get("x-real-ip") or (request.client.host if request.client else None)
+
+
+@router.post(
+    "/{contract_id}/signing-session", response_model=DataResponse,
+    dependencies=[Depends(require_role("approver", "finance", "admin"))],
+)
+async def signing_session(
+    contract_id: str, data: SigningSessionRequest, request: Request,
+    user: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    """Opens Documenso's signing frame on the contract page for the
+    company's signatory (the JWT's email must be theirs)."""
+    try:
+        session = await signing_service.company_session(
+            db, contract_id, user.email, risk_acknowledged=data.risk_acknowledged,
+            ip_address=_client_ip(request), user_agent=request.headers.get("user-agent"))
+    except signing_service.NotTheSigner as e:
+        raise HTTPException(status_code=403, detail={"code": "not_the_signer", "message": str(e)})
+    except contract_service.VendorBlocked as e:
+        raise HTTPException(status_code=409, detail={"code": "vendor_blocked", "message": str(e)})
+    except contract_service.RiskAcknowledgementRequired as e:
+        raise HTTPException(status_code=409, detail={"code": "risk_acknowledgement_required", "message": str(e)})
+    except contract_service.ContractGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return DataResponse(data=session)
+
+
+@router.post(
+    "/{contract_id}/vendor-link", response_model=DataResponse,
+    dependencies=[Depends(require_role("approver", "finance", "admin"))],
+)
+async def resend_vendor_link(contract_id: str, db: AsyncSession = Depends(get_db)):
+    """Emails the vendor a new signing link (the old one stops working)."""
+    try:
+        signer = await signing_service.resend_vendor_link(db, contract_id)
+    except contract_service.ContractGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return DataResponse(data=signing_service.signer_view(signer))
 
 
 @router.post(
@@ -290,7 +338,7 @@ async def sign_contract_simulated(contract_id: str, request: Request, db: AsyncS
             status_code=403,
             detail="Simulated signatures are disabled. Simulated signing is disabled. Set ENABLE_SIGN_SIMULATED=true for demo/testing only.",
         )
-    if (settings.documenso_api_url or settings.opensign_api_url or docusign_client.docusign_enabled()):
+    if documenso_enabled() or settings.opensign_api_url or docusign_client.docusign_enabled():
         raise HTTPException(
             status_code=403,
             detail="Simulated signatures are disabled when a real e-signature provider is configured",
@@ -368,6 +416,13 @@ async def get_contract(contract_id: str, db: AsyncSession = Depends(get_db),
     serialized["sent_automatically"] = await contract_service.was_sent_automatically(db, contract_id)
     serialized.update(_renewal_schedule(contract))
     serialized["vendor_risk"] = await contract_service.signing_risk(db, contract.vendor_id)
+    serialized["signing_provider"] = "documenso" if documenso_enabled() else "builtin"
+    signers = await signing_service.signers_of(db, contract_id)
+    if signers:
+        serialized["signers"] = [signing_service.signer_view(s) for s in signers]
+    if user.role in STAFF_ROLES and contract.status == "draft" and contract.vendor_id:
+        vendor = await db.get(Vendor, contract.vendor_id)
+        serialized["vendor_contact_email"] = getattr(vendor, "contact_email", None)
     if contract.status == "signed":
         cert = await contract_service.get_signature_certificate(db, contract_id)
         if cert:

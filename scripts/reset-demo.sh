@@ -47,6 +47,11 @@ done
 
 echo "[3/4] start and seed"
 ./run.sh --no-build
+# Documenso's database was in the Postgres volume: make its account, API
+# token and webhook again, then load the token.
+"$PY" scripts/documenso_setup.py
+docker compose up -d contract-risk-agent contract-risk-agent-worker
+docker compose restart nginx
 ./scripts/seed-demo-data.sh >/dev/null
 
 echo "[4/4] demo history (the five scenarios), sanctions-listed vendor, unsigned contract"

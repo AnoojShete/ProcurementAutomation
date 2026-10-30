@@ -184,7 +184,7 @@ class TestSignContractDigitally:
     async def test_live_documenso_contract_completes_in_documenso(self, db):
         from app.services.contract_service import ContractGenerationError
         with pytest.raises(ContractGenerationError):
-            await self._sign(db, _contract(ref="documenso-doc-42"))
+            await self._sign(db, _contract(ref="documenso-env-envelope_42"))
 
     @pytest.mark.asyncio
     async def test_no_certificate_invented_for_other_signatures(self, db):

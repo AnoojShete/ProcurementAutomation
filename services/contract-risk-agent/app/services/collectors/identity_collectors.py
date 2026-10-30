@@ -310,6 +310,8 @@ async def collect_gst(
     pan_char = pan[3] if len(pan) >= 4 else "unknown"
     pan_entity_type = PAN_ENTITY_TYPES.get(pan_char, "unknown")
     suffix_class, pan_consistent = check_pan_consistency(vendor.name, pan_char)
+    if not pan:
+        pan_consistent = None  # no GSTIN to compare, not an inconsistent one
 
     fields: Dict[str, Any] = {
         "gstin.number": gstin or "None",
@@ -463,8 +465,9 @@ async def collect_gst(
 
     # 5. GSTIN absent AND vendor.country == 'IN' AND no_gstin_confirmed_by is null -> missing domestic GSTIN
     else:
-        # Prompt 11: Set status to "missing" so it falls through to R-GST-08 (not_assessed), NOT "not_found" (R-GST-03 override)
-        fields["gstin.status"] = "missing"
+        # Not entered yet: falls through to R-GST-08 (not_assessed). "missing"
+        # would match R-GST-03 (20 points + override) for a data-entry gap.
+        fields["gstin.status"] = "not_entered"
         fields["gstin.verification_level"] = "pending"
         fields["gstin.verification_basis"] = "none"
         fields["gstin.not_checked_reason"] = "domestic GSTIN missing"
@@ -734,9 +737,9 @@ async def collect_jurisdiction(
             "country.is_domestic": False,
             "country.prohibited": False,
             "country.high_risk": False,
-            "country.wgi_composite": 0.0,
-            "country.pv": 0.0,
-            "country.rl": 0.0,
+            "country.wgi_composite": None,
+            "country.pv": None,
+            "country.rl": None,
             "country.wgi_year": 2024,
             "country.status": "country_unknown",
             "na_reason_code": None,

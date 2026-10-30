@@ -1,6 +1,7 @@
 import { api, downloadFile } from "./client";
 import type {
-  Contract, ContractObligation, ContractObligations, ContractTemplate, ObligationConfirm, ObligationType, SlaCredit,
+  Contract, ContractObligation, ContractObligations, ContractSigner, ContractTemplate, ObligationConfirm,
+  ObligationType, SigningSession, SlaCredit, VendorSigningSession,
 } from "@/types/api";
 
 /** One contract on the Control Panel's e-signature list. */
@@ -38,8 +39,23 @@ export const contractsApi = {
   renewalsDue: (withinDays = 60) => api.get<Contract[]>(`/contracts/renewals-due?within_days=${withinDays}`),
   generate: (purchase_request_id: string, template_name: ContractTemplate) =>
     api.post<Contract>("/contracts/generate", { purchase_request_id, template_name }),
-  sendForSignature: (id: string, signer_email?: string, provider = "documenso") =>
-    api.post<Contract>(`/contracts/${id}/send-for-signature`, { signer_email, provider }),
+  sendForSignature: (
+    id: string,
+    data: {
+      signer_email?: string;
+      provider: "documenso" | "builtin";
+      signer_name?: string;
+      vendor_signer_email?: string;
+      vendor_signer_name?: string;
+    },
+  ) => api.post<Contract>(`/contracts/${id}/send-for-signature`, data),
+  /** Documenso: the company signatory's signing frame (BR-6 acknowledgement if needed). */
+  signingSession: (id: string, risk_acknowledged = false) =>
+    api.post<SigningSession>(`/contracts/${id}/signing-session`, { risk_acknowledged }),
+  resendVendorLink: (id: string) => api.post<ContractSigner>(`/contracts/${id}/vendor-link`, {}),
+  /** The vendor's page: no account, the emailed link's token is the credential. */
+  vendorSigningSession: (link_token: string) =>
+    api.post<VendorSigningSession>("/contracts/vendor-signing/session", { link_token }, { skipAuthRetry: true }),
   downloadDocument: (id: string) => downloadFile(`/contracts/${id}/document`, `contract-${id.slice(0, 8)}.pdf`),
   downloadSigned: (id: string) =>
     downloadFile(`/contracts/${id}/signed-document`, `contract-${id.slice(0, 8)}-signed.pdf`),

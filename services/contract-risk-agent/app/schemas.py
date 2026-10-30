@@ -26,6 +26,21 @@ class GenerateContractRequest(BaseModel):
 class SendForSignatureRequest(BaseModel):
     signer_email: Optional[str] = None
     provider: Optional[str] = "builtin"
+    # Documenso (two-party): the company signatory's name as printed, and
+    # who signs for the vendor (default: the vendor's contact email).
+    signer_name: Optional[str] = Field(default=None, max_length=200)
+    vendor_signer_email: Optional[str] = Field(default=None, max_length=254)
+    vendor_signer_name: Optional[str] = Field(default=None, max_length=200)
+
+
+class SigningSessionRequest(BaseModel):
+    # BR-6: required when the vendor is High risk or not yet scored.
+    risk_acknowledged: bool = False
+
+
+class VendorSigningRequest(BaseModel):
+    """The token from the vendor's emailed link (after "#", sent in the body)."""
+    link_token: str = Field(min_length=10, max_length=200)
 
 
 class SignContractRequest(BaseModel):

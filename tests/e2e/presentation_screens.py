@@ -41,7 +41,7 @@ SHOTS = {   # file: (role, path, what to wait for)
     "07-inventory-reorder.png": ("admin", "/app/inventory", "text=Reorder Suggestions"),
     "08-licence-anomaly.png": ("admin", "/app/licenses/33333333-0000-0000-0000-000000000003", "main"),
     "09-contract.png": ("finance", f"/app/contracts/{sample_id('contract-risk-agent-contract.json', 'output', 'id')}", "main"),
-    "10-control-panel.png": ("admin", "/app/control-panel", "text=Kafka log"),
+    "10-control-panel.png": ("admin", "/app/control-panel?section=processing", "text=Kafka log"),
     "11-business-rules.png": ("admin", "/app/business-rules", "main"),
     "12-system-health.png": ("admin", "/app/system-health", "text=Model Routing Log"),
     "13-notifications.png": ("admin", "/app/notifications", "main"),

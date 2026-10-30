@@ -13,7 +13,7 @@ from app.database import async_session_factory, init_db, get_db
 from shared.eventing import kafka_sender, run_relay
 from app.kafka.producer import KafkaEventProducer
 from app.kafka.consumer import start_consumer
-from app.api import health, contracts, vendors, webhooks, ops, obligations, rulesets, mandates, internal, admin
+from app.api import health, contracts, vendors, webhooks, ops, obligations, rulesets, mandates, internal, admin, vendor_signing
 from app.services.docusign_client import run_status_poller
 from app.services.reminder_sweep import run_reminder_sweeps
 from app.models import AuditLog
@@ -113,6 +113,9 @@ app.include_router(
 app.include_router(
     mandates.router, prefix="", dependencies=[Depends(get_current_user)]
 )
+# Not JWT-gated: the vendor signs from an emailed link, with no account.
+# Before contracts.router (same reason as above).
+app.include_router(vendor_signing.router, prefix="/contracts", tags=["Contract Signing"])
 app.include_router(
     contracts.router, prefix="/contracts", tags=["Contracts"], dependencies=[Depends(get_current_user)]
 )

@@ -157,6 +157,28 @@ async def confirm_no_gstin_endpoint(
     })
 
 
+class FillDetailsRequest(BaseModel):
+    country: Optional[str] = None
+    gstin: Optional[str] = None
+    website: Optional[str] = None
+    contact_email: Optional[str] = None
+
+
+@router.post("/{vendor_id}/details", response_model=DataResponse)
+async def fill_details_endpoint(vendor_id: str, body: FillDetailsRequest, db: AsyncSession = Depends(get_db),
+                                user: CurrentUser = Depends(require_role("finance", "admin"))):
+    """Fills details missing from a vendor record (country, GSTIN, website,
+    contact email), checked as at onboarding. Blanks only."""
+    from app.services.vendor_onboarding import fill_missing_details
+    vendor = await db.get(Vendor, vendor_id)
+    if vendor is None:
+        raise HTTPException(status_code=404, detail="vendor not found")
+    errors = await fill_missing_details(db, vendor, body.model_dump(), user.email)
+    if errors:
+        raise HTTPException(status_code=422, detail={"code": "vendor_details_invalid", "message": errors[0]["message"]})
+    return DataResponse(data=_serialize_vendor(vendor))
+
+
 # ---------------------------------------------------------------------------
 # GET /vendors/{vendor_id}/payment-changes
 # ---------------------------------------------------------------------------

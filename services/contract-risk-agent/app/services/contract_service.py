@@ -13,7 +13,9 @@ from app.config import load_config, settings
 from app.models import AuditLog, Contract, PurchaseRequest, Vendor
 from app.services.clause_extraction import extract_clauses
 from app.services.contract_pdf import AuditEntry, ContractPdfInput, _title_case, render_contract_pdf
-from app.services.esign_client import EsignProviderError, download_signed_pdf, live_provider_ref, request_signature
+from app.services.esign_client import (
+    EsignProviderError, documenso_enabled, download_signed_pdf, live_provider_ref, request_signature,
+)
 from app.services.audit import write_audit_log
 from app.services.temporal_client import start_renewal_workflow
 from app.metrics import contract_generation_total
@@ -325,6 +327,7 @@ async def get_authorized_signatories(db: AsyncSession) -> list[str]:
 async def send_for_signature(
     db: AsyncSession, kafka_producer, contract_id: str, signer_email: Optional[str], provider: str = "builtin",
     signer_name: Optional[str] = None, automatic: bool = False,
+    vendor_signer_email: Optional[str] = None, vendor_signer_name: Optional[str] = None,
 ) -> Contract:
     contract = await db.get(Contract, contract_id)
     if contract is None:
@@ -344,6 +347,13 @@ async def send_for_signature(
         resolved_signer = clean_email
     else:
         resolved_signer = authorized_signatories[0]
+
+    if (provider or "").strip().lower() == "documenso" and documenso_enabled():
+        # Both parties sign, on the platform's pages (signing_service.py).
+        from app.services import signing_service
+        return await signing_service.send_two_party(
+            db, kafka_producer, contract, resolved_signer, vendor_signer_email, vendor_signer_name, signer_name,
+            automatic=automatic)
 
     pdf_input = await build_pdf_input(db, contract)
     try:
@@ -439,6 +449,38 @@ async def auto_send_for_signature(db: AsyncSession, kafka_producer, contract: Co
     )).first()
     if tried:
         return "already_tried"
+
+    if documenso_enabled():
+        # Both parties sign (signing_service): the company's authorised
+        # signatory, then the vendor's contact, who must be on file.
+        vendor_email = None
+        if contract.vendor_id:
+            vendor_email = (await db.execute(
+                text("SELECT contact_email FROM vendors WHERE id = :id"), {"id": contract.vendor_id}
+            )).scalar_one_or_none()
+        if not vendor_email:
+            await write_audit_log(db, "contract", contract_id, "auto_send_skipped", {
+                "reason": "the vendor has no contact email, so nobody is named to sign for them; "
+                          "send it from the contract page with the vendor's signatory",
+            })
+            await db.commit()
+            return "no_signer"
+        # The company's signatory: the configured one, else a finance user
+        # (signing authority), else whoever send_for_signature picks.
+        company_signer = settings.esign_auto_signer_email or (await db.execute(text(
+            "SELECT email FROM auth_users WHERE role = 'finance' AND is_active ORDER BY created_at LIMIT 1"
+        ))).scalar_one_or_none()
+        try:
+            await send_for_signature(
+                db, kafka_producer, contract_id, company_signer, provider="documenso",
+                automatic=True, vendor_signer_email=vendor_email,
+            )
+        except ContractGenerationError as e:
+            await db.rollback()
+            await write_audit_log(db, "contract", contract_id, "auto_send_failed", {"reason": str(e)[:300]})
+            await db.commit()
+            return "failed"
+        return "sent"
 
     # Built-in e-sign with no configured signer: send_for_signature picks
     # one of the platform's authorised signatories, who signs in the app.

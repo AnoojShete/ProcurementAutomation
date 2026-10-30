@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     service_name: str = "contract-risk-agent"
     service_port: int = 8003
     mlflow_tracking_uri: str = "http://mlflow:5000"
+    # AI second opinion on risk scores (app/services/risk_review.py): a
+    # local Ollama model on the host; it flags, never scores.
+    risk_review_llm_url: str = "http://host.docker.internal:11434"
+    risk_review_model: str = "llama3.2:3b"
+    risk_review_timeout_s: float = 90.0
     esign_provider: str = "self-hosted"
     esign_webhook_secret: str = DEFAULT_ESIGN_SECRET
     # Demo-only "Sign (simulated)" — lets an approver mark a contract signed
@@ -32,6 +37,11 @@ class Settings(BaseSettings):
     # secret configured on its webhook, sent back as X-Documenso-Secret.
     documenso_api_token: str | None = None
     documenso_webhook_secret: str | None = None
+    # Where the browser loads Documenso's embedded signing frame from
+    # (the API URL is the compose-network one). Unset: the API URL.
+    documenso_public_url: str | None = None
+    # How long the vendor's emailed signing link works.
+    vendor_signing_link_days: int = 30
     opensign_api_url: str | None = None
 
     # DocuSign (optional; sandbox by default). Used when the integration

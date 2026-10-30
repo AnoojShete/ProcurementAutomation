@@ -126,30 +126,27 @@ class TestEsignClient:
         assert ref.startswith("documenso-ref-")
         assert await esign_client.download_signed_pdf(ref) is None
 
-    @pytest.mark.asyncio
-    async def test_documenso_flow(self, monkeypatch):
+    @pytest.fixture
+    def documenso(self, monkeypatch):
+        """A stand-in Documenso Envelope API; records each call."""
         monkeypatch.setattr(settings, "documenso_api_url", "http://documenso.test")
         monkeypatch.setattr(settings, "documenso_api_token", "api_tok")
         calls = []
 
         def handler(request: httpx.Request) -> httpx.Response:
-            calls.append((request.method, str(request.url), request.headers.get("authorization")))
+            calls.append(request)
             path = request.url.path
-            if path == "/api/v1/documents" and request.method == "POST":
-                return httpx.Response(200, json={
-                    "documentId": 42, "uploadUrl": "http://storage.test/upload/42",
-                    "recipients": [{"recipientId": 7, "email": "s@acme.test"}],
-                })
-            if path == "/upload/42":
-                assert request.headers["content-type"] == "application/pdf"
-                return httpx.Response(200)
-            if path == "/api/v1/documents/42/fields":
-                return httpx.Response(200, json={})
-            if path == "/api/v1/documents/42/send":
-                return httpx.Response(200, json={})
-            if path == "/api/v1/documents/42/download":
-                return httpx.Response(200, json={"downloadUrl": "http://storage.test/signed/42"})
-            if path == "/signed/42":
+            if path == "/api/v2/envelope/create":
+                return httpx.Response(200, json={"id": "envelope_42"})
+            if path == "/api/v2/envelope/distribute":
+                return httpx.Response(200, json={"success": True, "recipients": [
+                    {"id": 8, "email": "priya@vendor.test", "token": "tok-vendor"},
+                    {"id": 7, "email": "cfo@acme.test", "token": "tok-company"},
+                ]})
+            if path == "/api/v2/envelope/envelope_42":
+                return httpx.Response(200, json={"envelopeItems": [{"id": "item_1"}]})
+            if path == "/api/v2/envelope/item/item_1/download":
+                assert request.url.params["version"] == "signed"
                 return httpx.Response(200, content=b"%PDF-sealed")
             return httpx.Response(404)
 
@@ -158,16 +155,33 @@ class TestEsignClient:
             esign_client.httpx, "AsyncClient",
             lambda *a, **kw: real_client(*a, transport=httpx.MockTransport(handler), **kw),
         )
+        return calls
 
-        pdf = render_contract_pdf(_pdf_input())
-        ref = await esign_client.request_signature("c-1", "s@acme.test", pdf=pdf, title="SaaS")
-        assert ref == "documenso-doc-42"
-        # API calls carry the token; the pre-signed storage upload does not.
-        assert calls[0][2] == "api_tok"
-        assert calls[1][1] == "http://storage.test/upload/42" and calls[1][2] is None
-        assert [c[1].rsplit("/", 1)[-1] for c in calls[2:]] == ["fields", "send"]
+    @pytest.mark.asyncio
+    async def test_envelope_with_two_signers_in_order(self, documenso):
+        import json as _json
+        field = {"page": 2, "positionX": 9.0, "positionY": 40.0, "width": 36.0, "height": 4.0}
+        ref, recipients = await esign_client.documenso_send_envelope("c-1", "SaaS", b"%PDF", [
+            esign_client.EnvelopeSigner("company", "CFO", "cfo@acme.test", field),
+            esign_client.EnvelopeSigner("vendor", "Priya", "priya@vendor.test", {**field, "positionX": 55.0}),
+        ])
+        assert ref == "documenso-env-envelope_42"
+        assert [(r.party, r.recipient_id, r.token) for r in recipients] == [
+            ("company", "7", "tok-company"), ("vendor", "8", "tok-vendor")]
+        create, distribute = documenso[0], documenso[1]
+        assert create.headers["authorization"] == "api_tok"
+        body = create.content.decode("latin-1")
+        payload = _json.loads(body[body.index("{"):body.rindex("}") + 1].split("\r\n--")[0])
+        assert payload["externalId"] == "c-1"
+        # Sequential, and Documenso emails nobody: signing happens on the platform's pages.
+        assert payload["meta"]["signingOrder"] == "SEQUENTIAL" and payload["meta"]["distributionMethod"] == "NONE"
+        assert [(r["email"], r["signingOrder"], r["fields"][0]["positionX"]) for r in payload["recipients"]] == [
+            ("cfo@acme.test", 1, 9.0), ("priya@vendor.test", 2, 55.0)]
+        assert _json.loads(distribute.content)["meta"]["distributionMethod"] == "NONE"
 
-        assert await esign_client.download_signed_pdf(ref) == b"%PDF-sealed"
+    @pytest.mark.asyncio
+    async def test_signed_copy_is_documensos_sealed_pdf(self, documenso):
+        assert await esign_client.download_signed_pdf("documenso-env-envelope_42") == b"%PDF-sealed"
 
     @pytest.mark.asyncio
     async def test_documenso_error_is_surfaced(self, monkeypatch):
@@ -178,8 +192,8 @@ class TestEsignClient:
             esign_client.httpx, "AsyncClient",
             lambda *a, **kw: real_client(*a, transport=httpx.MockTransport(lambda r: httpx.Response(401, text="Unauthorized")), **kw),
         )
-        with pytest.raises(esign_client.EsignProviderError):
-            await esign_client.request_signature("c-1", "s@acme.test", pdf=b"%PDF", title="x")
+        with pytest.raises(esign_client.EsignProviderError, match="401"):
+            await esign_client.documenso_send_envelope("c-1", "x", b"%PDF", [])
 
 
 class TestDocumensoWebhook:
@@ -211,16 +225,14 @@ class TestDocumensoWebhook:
         assert await webhook_service.handle_documenso_webhook(AsyncMock(), None, body, "whsec") is None
 
     @pytest.mark.asyncio
-    async def test_completed_marks_contract_signed(self, monkeypatch):
+    async def test_signing_events_go_to_the_signing_service(self, monkeypatch):
         monkeypatch.setattr(settings, "documenso_webhook_secret", "whsec")
-        mark = AsyncMock(return_value=MagicMock(id="c-1", status="signed"))
-        monkeypatch.setattr(webhook_service, "mark_contract_signed", mark)
-        await webhook_service.handle_documenso_webhook(AsyncMock(), None, self.COMPLETED, "whsec")
-        kwargs = mark.call_args.kwargs
-        assert kwargs["contract_id"] == "c-1"
-        assert kwargs["signed_by"] == "cfo@acme.test"
-        assert kwargs["signed_at"] == datetime(2026, 9, 21, 9, 30, tzinfo=timezone.utc)
-        assert kwargs["provider_event_id"] == "documenso-42-completed"
+        from app.services import signing_service
+        handle = AsyncMock(return_value=MagicMock(id="c-1", status="signed"))
+        monkeypatch.setattr(signing_service, "handle_documenso_event", handle)
+        for event in ("DOCUMENT_RECIPIENT_COMPLETED", "DOCUMENT_COMPLETED", "DOCUMENT_REJECTED"):
+            await webhook_service.handle_documenso_webhook(AsyncMock(), None, {**self.COMPLETED, "event": event}, "whsec")
+        assert handle.await_count == 3
 
 
 class TestEsignTracking:

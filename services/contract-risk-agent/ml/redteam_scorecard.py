@@ -175,7 +175,7 @@ PROFILES = [
      "inherent_tier": "critical", "status": "onboarding",
      "observations": {"jurisdiction": {"country.is_domestic": True}, "bank": {"bank.status": "pending"}},
      "skipped": ["breach"],
-     "expected": {"points": 0, "final_band": "High", "rating_status": "provisional", "cleared": False,
+     "expected": {"points": 0, "final_band": "Low", "rating_status": "provisional", "cleared": False,
                   "unscored": ["breach"]}},
     # Owner decision 30 Oct 2026: a check that can't run is left out and the rest re-weighted.
     {"name": "News search unavailable",
@@ -188,6 +188,8 @@ PROFILES = [
      "expected": {"points": 3, "weighted_points": 3, "final_band": "Low", "rating_status": "provisional",
                   "cleared": False, "reason": "rating_provisional"}},
     # Owner decision 30 Oct 2026 (later the same day): no information is a risk, not a free pass.
+    # Revised that evening: information missing from our records costs a third of the check
+    # and is asked for; the vendor's own gap (no MX) counts in full; never cleared meanwhile.
     {"name": "Black-box vendor, nothing verifiable",
      "attack": "a made-up company: no country, GSTIN, registration, financials, bank or mail domain, clean sanctions",
      "country": None,
@@ -198,11 +200,46 @@ PROFILES = [
                       "bank": {"bank.status": "none", "na_reason_code": "no_bank_details"},
                       "email": {"email.confidence": "live", "email.has_mx": False, "email.dmarc_policy": "missing",
                                 "email.spf_present": False, "na_reason_code": "no_mx_records"}},
-     "expected": {"final_band": "High", "rating_status": "provisional", "cleared": False}},
+     "expected": {"weighted_points": 27, "final_band": "Medium", "rating_status": "provisional", "cleared": False,
+                  "data_needed": ["country", "registration_date", "financials", "bank_details"]}},
     {"name": "Verified vendor, bank details not given yet",
-     "attack": "control: an unverifiable bank route is charged in full but doesn't sink a verified vendor",
+     "attack": "control: bank details are collected before the first payment, so their absence costs nothing yet",
      "observations": obs(bank={"bank.status": "none", "na_reason_code": "no_bank_details"}),
-     "expected": {"points": 0, "weighted_points": 5, "final_band": "Low", "rating_status": "assessed", "cleared": True}},
+     "expected": {"points": 0, "weighted_points": 0, "final_band": "Low", "rating_status": "assessed", "cleared": True,
+                  "data_needed": ["bank_details"]}},
+    {"name": "Indian vendor, GSTIN never entered",
+     "attack": "a known company whose GSTIN nobody typed in, hoping the gap is ignored (or that it sinks the vendor)",
+     "observations": obs(gst={"gstin.status": "not_entered", "gstin.verification_level": "pending",
+                              "gstin.pan_type_consistent": None},
+                         company_age={"age.basis": "domain_only"}),
+     "expected": {"points": 0, "weighted_points": 8, "final_band": "Low", "rating_status": "provisional",
+                  "cleared": False, "reason": "rating_provisional", "unscored": ["gst"],
+                  "data_needed": ["gstin", "registration_date"]}},
+    {"name": "Blank country passes the jurisdiction check",
+     "attack": "leave the country blank so jurisdiction is scored as a stable foreign country",
+     "country": None,
+     "observations": obs(jurisdiction={"country.code": "UNKNOWN", "country.is_domestic": False,
+                                       "country.wgi_composite": None, "country.status": "country_unknown"},
+                         gst={"gstin.status": "unknown", "gstin.verification_level": "country_unknown",
+                              "gstin.pan_type_consistent": None}),
+     "expected": {"rating_status": "provisional", "cleared": False, "unscored": ["jurisdiction", "gst"],
+                  "data_needed": ["country"]}},
+    {"name": "Every check waiting for data",
+     "attack": "nothing entered but the name: the checks ran, so it is provisional (banded), not Unrated",
+     "country": None,
+     "observations": {"jurisdiction": {"country.code": "UNKNOWN", "country.is_domestic": False,
+                                       "country.wgi_composite": None},
+                      "gst": {"gstin.status": "unknown", "gstin.verification_level": "country_unknown"},
+                      "web": {"web.reachable": False, "web.cert_valid": None, "na_reason_code": "no_domain"},
+                      "company_age": {"age.basis": "none"}, "financial": {"fin.basis": "none"}},
+     "expected": {"rating_status": "provisional", "cleared": False, "unscored": ["web"],
+                  "data_needed": ["country", "website", "registration_date", "financials"]}},
+    {"name": "GSTIN on record doesn't match the vendor",
+     "attack": "a real GSTIN belonging to someone else, no registration date",
+     "observations": obs(gst={"gstin.status": "active", "gstin.verification_level": "live",
+                              "gstin.name_match_level": "mismatch"},
+                         company_age={"age.basis": "none"}),
+     "expected": {"final_band": "High", "rating_status": "provisional", "cleared": False}},
 ]
 
 
@@ -236,7 +273,8 @@ def run_profile(p: dict) -> dict:
            "weighted_points": result["weighted_points"],
            "rating_status": result["rating_status"], "overrides": result["override_rule_ids"],
            "cleared": gate["cleared"], "reasons": gate["reasons"],
-           "scored": {r["signal_key"]: r["status"] for r in result["rule_results"] if r["status"].startswith("assessed")}}
+           "scored": {r["signal_key"]: r["status"] for r in result["rule_results"] if r["status"].startswith("assessed")},
+           "data_needed": [d["field"] for d in result["explanation"]["data_needed"]]}
     exp = p["expected"]
     problems = []
     for key in ("final_band", "points", "weighted_points", "points_band", "rating_status", "cleared"):
@@ -248,6 +286,8 @@ def run_profile(p: dict) -> dict:
     for key in exp.get("unscored", []):
         if key in got["scored"]:
             problems.append(f"{key} was scored ({got['scored'][key]}) before it was verified")
+    if "data_needed" in exp and sorted(exp["data_needed"]) != sorted(got["data_needed"]):
+        problems.append(f"data_needed: expected {exp['data_needed']}, got {got['data_needed']}")
     if "reason" in exp and not any(r.startswith(exp["reason"]) for r in got["reasons"]):
         problems.append(f"reason {exp['reason']} missing ({got['reasons']})")
     return {"name": p["name"], "attack": p["attack"], "expected": exp, "got": got, "passed": not problems,

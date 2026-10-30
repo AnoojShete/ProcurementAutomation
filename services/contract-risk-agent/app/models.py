@@ -389,6 +389,28 @@ class RiskScoreOutcome(Base):
     logged_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
+class ContractSigner(Base):
+    """One party signing a contract through Documenso (migration 0015):
+    the company's signatory first, then the vendor."""
+    __tablename__ = "contract_signers"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True, default=lambda: str(uuid4()))
+    contract_id: Mapped[str] = mapped_column(Uuid, ForeignKey("contracts.id"), nullable=False)
+    party: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    signing_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_recipient_id: Mapped[Optional[str]] = mapped_column(Text)
+    provider_token: Mapped[Optional[str]] = mapped_column(Text)
+    link_token_sha256: Mapped[Optional[str]] = mapped_column(String(64))
+    link_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(Text, default="waiting")
+    signed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    rejection_reason: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
 class ProcessedWebhookEvent(Base):
     """Replay protection for the e-sign webhook (POST /webhooks/esign) —
     the provider's event id, checked before acting on a callback a second

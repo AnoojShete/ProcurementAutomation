@@ -99,6 +99,10 @@ async def mark_contract_signed(
     return contract
 
 
+# Configure the Documenso webhook for these (scripts/documenso_setup.py).
+DOCUMENSO_EVENTS = ("DOCUMENT_RECIPIENT_COMPLETED", "DOCUMENT_COMPLETED", "DOCUMENT_REJECTED")
+
+
 def verify_documenso_secret(received: str | None) -> None:
     """Documenso authenticates webhooks by echoing the endpoint's
     configured secret in X-Documenso-Secret (no body signature)."""
@@ -108,22 +112,10 @@ def verify_documenso_secret(received: str | None) -> None:
 
 
 async def handle_documenso_webhook(db: AsyncSession, kafka_producer, body: dict, secret: str | None) -> Contract | None:
-    """Returns the updated contract for DOCUMENT_COMPLETED, None for any
-    other event (acknowledged and ignored)."""
+    """Returns the contract once every party has signed, None for any
+    other event (each signature is recorded; see signing_service)."""
     verify_documenso_secret(secret)
-    if body.get("event") != "DOCUMENT_COMPLETED":
+    if body.get("event") not in DOCUMENSO_EVENTS:
         return None
-    doc = body.get("payload") or {}
-    contract_id = doc.get("externalId")
-    if not contract_id:
-        raise WebhookContractNotFoundError("Documenso document has no externalId (not created by this platform)")
-
-    signers = [r for r in doc.get("recipients") or [] if r.get("role", "SIGNER") == "SIGNER"]
-    signed_by = ", ".join(r.get("email", "") for r in signers if r.get("email")) or "unknown signer"
-    completed = doc.get("completedAt") or (signers[0].get("signedAt") if signers else None)
-    signed_at = datetime.fromisoformat(completed.replace("Z", "+00:00")) if completed else datetime.now(timezone.utc)
-
-    return await mark_contract_signed(
-        db, kafka_producer, contract_id=contract_id, signed_by=signed_by, signed_at=signed_at,
-        provider_event_id=f"documenso-{doc.get('id')}-completed", source="signed_via_documenso",
-    )
+    from app.services import signing_service
+    return await signing_service.handle_documenso_event(db, kafka_producer, body)

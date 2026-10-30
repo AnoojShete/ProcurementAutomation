@@ -49,6 +49,7 @@ export function ContractDetailPage() {
   if (error || !contract) return <ErrorState message={error ?? "Contract not found."} onRetry={reload} />;
 
   const ref = contract.esign_provider_ref ?? "";
+  const nextSigner = contract.signers?.find((s) => s.status === "ready");
   const providerName = ref.startsWith("docusign") ? "DocuSign (sandbox)" : ref.startsWith("builtin") ? "the built-in e-sign" : "Documenso";
 
   return (
@@ -79,13 +80,21 @@ export function ContractDetailPage() {
       {contract.status === "pending_signature" && (
         <div className="flex items-start gap-2 rounded-md border border-warning-500/40 bg-warning-50 px-4 py-2.5 text-13 text-slate-800">
           <Clock className="mt-0.5 size-4 shrink-0 text-warning-600" />
-          <span>
-            Waiting for the signer in {providerName}
-            {ref && <span className="ml-1 font-mono text-xs text-slate-500">({ref})</span>}.{" "}
-            {isProviderLive(contract)
-              ? `The contract updates automatically when ${ref.startsWith("docusign") ? "DocuSign" : "Documenso"} reports it completed.`
-              : "Use “Sign now” to sign it in the platform."}
-          </span>
+          {nextSigner ? (
+            <span>
+              Waiting for <span className="font-medium">{nextSigner.name}</span> to sign for the{" "}
+              {nextSigner.party === "company" ? "company, here on this page" : "vendor, through the link emailed to them"}.
+              Both parties sign on this platform; the signed copy is sealed with a digital certificate.
+            </span>
+          ) : (
+            <span>
+              Waiting for the signer in {providerName}
+              {ref && <span className="ml-1 font-mono text-xs text-slate-500">({ref})</span>}.{" "}
+              {isProviderLive(contract)
+                ? `The contract updates automatically when ${ref.startsWith("docusign") ? "DocuSign" : "Documenso"} reports it completed.`
+                : "Use “Sign now” to sign it in the platform."}
+            </span>
+          )}
         </div>
       )}
 

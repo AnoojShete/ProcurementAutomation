@@ -38,6 +38,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "services", "document-vendor-agent", "scripts"))
 from synthetic_invoice_lib import build_pdf_bytes, render_document  # noqa: E402
 from gst_invoice_lib import build_pdf, gst_invoice  # noqa: E402,F401  (scenario 7)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from documenso_signing import send_via_api, sign_both, vendor_signer_email  # noqa: E402
 
 BASE = os.getenv("GATEWAY", "http://localhost:8080")
 GW = BASE + "/api"
@@ -111,10 +113,49 @@ def upload(c, role, name, data):
     return r.json()["data"]["document_id"]
 
 
-def sign(c, cid, acknowledge):
-    return c.api_post("finance", f"/contracts/{cid}/sign", json={
-        "signer_name": "Farah Finance", "signer_designation": "Finance Head", "legal_consent": True,
-        "risk_acknowledged": acknowledge})
+def send(c, cid, vendor_name):
+    """Two parties sign in Documenso. A contract whose vendor has no contact
+    on file stays a draft until finance names the vendor's signatory (the
+    contract page's Send for signature); one with a contact went out on its
+    own. Returns the vendor signatory's email."""
+    ct = c.api_get("finance", f"/contracts/{cid}").json()["data"]
+    expect(ct.get("signing_provider") == "documenso",
+           f"signing provider is {ct.get('signing_provider')!r}: run scripts/documenso_setup.py")
+    if ct["status"] == "draft":
+        email = vendor_signer_email(vendor_name, c["run"])
+        r = send_via_api(c.tok("finance"), cid, email)
+        expect(r.status_code == 200, f"send for signature: {r.status_code} {r.text[:200]}")
+        return email
+    return next(x["email"] for x in ct["signers"] if x["party"] == "vendor")
+
+
+def open_signing(c, cid, acknowledge):
+    """What Sign now → Open the contract to sign asks the server: 409 when
+    the vendor's risk needs an acknowledgement or blocks signing."""
+    return c.api_post("finance", f"/contracts/{cid}/signing-session", json={"risk_acknowledged": acknowledge})
+
+
+def both_sign(c, cid, vendor_email):
+    """Finance signs in the frame on the contract page, the vendor from the
+    emailed link (a browser). Returns whether an acknowledgement was asked."""
+    asked = sign_both(cid, vendor_email)
+    ct = poll(lambda: c.api_get("finance", f"/contracts/{cid}").json()["data"], lambda d: d["status"] == "signed", timeout=30)
+    expect(ct["status"] == "signed", f"contract is {ct['status']} after both signed")
+    pdf = c.api_get("finance", f"/contracts/{cid}/signed-document").content
+    expect(pdf.startswith(b"%PDF") and b"/ByteRange" in pdf, "signed copy has no digital signature")
+    return asked
+
+
+def risk_at_signing(cid):
+    """The vendor risk recorded when the company's signatory opened the frame
+    (the vendor's own signing_opened entry carries none)."""
+    import json as _json
+    import subprocess
+    out = subprocess.run(["docker", "compose", "exec", "-T", "postgres", "psql", "-U", os.getenv("POSTGRES_USER", "postgres"),
+                          "-d", "postgres", "-Atc", "SELECT payload->'vendor_risk_at_signing' FROM audit_log WHERE action = "
+                          f"'signing_opened' AND payload->>'party' = 'company' AND entity_id = '{cid}' ORDER BY created_at DESC LIMIT 1"],
+                         cwd=ROOT, capture_output=True, text=True, timeout=60)
+    return _json.loads(out.stdout.strip() or "{}")
 
 
 def doc_pdf(c, kind, vendor, items, number, po_ref=None):
@@ -170,7 +211,7 @@ def scenario(num, title, proves, roles, minutes):
 
 # ── 1. In-app request → delivery ───────────────────────────────────────────
 
-s1 = scenario(1, "In-app request to delivery", "One request passes every agent: approval by spend tier, a contract generated and sent with no clicks, an in-app signature, then delivery.",
+s1 = scenario(1, "In-app request to delivery", "One request passes every agent: approval by spend tier, a contract generated on its own, signed by both parties on the platform, then delivery.",
               "requester → approver → finance → requester", 5)
 
 
@@ -200,31 +241,23 @@ def s1_approve(c):
 
 
 def s1_contract(c):
-    ct = poll(lambda: contract_for(c, c["s1_pr"]), lambda x: x and x["status"] == "pending_signature", timeout=60)
-    expect(ct and ct["status"] == "pending_signature",
-           f"contract is {ct and ct['status'] or 'missing'}, expected pending_signature — "
-           "check rule contract.auto_send_scope (should be 'all') and contract-risk-agent's logs")
+    ct = poll(lambda: contract_for(c, c["s1_pr"]), lambda x: x and x["status"] in ("draft", "pending_signature"), timeout=60)
+    expect(ct, "no contract generated — check contract-risk-agent's logs")
     c["s1_contract"] = ct["id"]
-    d = c.api_get("admin", f"/contracts/{ct['id']}").json()["data"]
-    expect(d.get("sent_automatically") is True, "not marked as sent automatically")
-    return f"contract {ct['id'][:8]} · pending_signature · sent automatically"
+    return f"contract {ct['id'][:8]} · {ct['status']}" + (" · waiting for the vendor's signatory to be named" if ct["status"] == "draft" else " · sent automatically")
 
 
 def s1_sign(c):
     # Deterministic scorecard: a vendor whose checks can't all be run here
     # (no external registries in the demo) is provisional, so signing asks
     # for an acknowledgement; a fully assessed Low/Medium vendor signs directly.
-    r = sign(c, c["s1_contract"], acknowledge=False)
-    acknowledged = r.status_code == 409 and "risk_acknowledgement_required" in r.text
-    if acknowledged:
-        r = sign(c, c["s1_contract"], acknowledge=True)
-    expect(r.status_code == 200, f"{r.status_code} {r.text[:200]}")
+    vendor_email = send(c, c["s1_contract"], "Acme IT Supplies")
+    asked = both_sign(c, c["s1_contract"], vendor_email)
     pr = poll(lambda: request_of(c, c["s1_pr"]), lambda d: d["status"] == "ordered", timeout=30)
     expect(pr["status"] == "ordered", pr["status"])
-    cert = c.api_get("finance", f"/contracts/{c['s1_contract']}/signature-certificate").json()["data"]
-    expect(cert, "no certificate")
-    return ("signed after acknowledging the vendor's incomplete risk checks" if acknowledged
-            else "signed (vendor cleared: no acknowledgement needed)") + " · request ordered · certificate issued"
+    return ("finance signed after acknowledging the vendor's incomplete risk checks" if asked
+            else "finance signed (vendor cleared: no acknowledgement needed)") + \
+        f" · vendor signed from the link emailed to {vendor_email} · digitally sealed · request ordered"
 
 
 def s1_receive(c):
@@ -244,11 +277,11 @@ s1.steps = [
          s1_approve, ("approver", lambda c: f"/app/requests/{c['s1_pr']}")),
     Step("Nothing — wait ~5 s, then open Contracts.",
          "Contract & Risk", "contract.generated",
-         "A contract for this request, <b>Pending signature</b>, marked as sent automatically; clauses read by Legal-BERT.",
+         "A contract for this request; clauses read by Legal-BERT. It waits as <b>Draft</b> because nobody is on file to sign for Acme (a vendor with a contact email is sent for signature on its own).",
          s1_contract, ("finance", lambda c: f"/app/contracts/{c['s1_contract']}", "text=Vendor risk")),
-    Step("As <b>finance</b>: open the contract → Sign now → type a name, tick consent → Sign.",
-         "Contract & Risk → Approval & Inventory", "contract.signed",
-         "Contract <b>Signed</b> with a signature certificate; the request moves to <b>Ordered</b>. (The vendor's risk checks are incomplete in the demo, so the signer ticks the risk acknowledgement; a fully assessed Low/Medium vendor signs without it.)",
+    Step("As <b>finance</b>: open the contract → <b>Send for signature</b>, name who signs for the vendor → <b>Sign now</b> → <b>Open the contract to sign</b>, sign in the frame. Then open the vendor's email in Mailpit (<a href=\"http://localhost:8025\">localhost:8025</a>) and sign from its link.",
+         "Contract & Risk (Documenso) → Approval & Inventory", "contract.signed",
+         "Finance signs first, on the contract page; the vendor is then emailed a personal link and signs on the platform's <b>/sign</b> page with no account. The contract is <b>Signed</b> by both, the signed copy carries a digital signature, and the request moves to <b>Ordered</b>. (The vendor's risk checks are incomplete in the demo, so finance ticks the risk acknowledgement first; a fully assessed Low/Medium vendor signs without it.)",
          s1_sign, ("finance", lambda c: f"/app/contracts/{c['s1_contract']}")),
     Step("As <b>requester</b>: open the request → Mark as received.",
          "Approval & Inventory", "—",
@@ -260,7 +293,7 @@ s1.steps = [
 # ── 2. Drop-folder quote → contract, unattended ────────────────────────────
 
 s2 = scenario(2, "A quote dropped in a folder, to a signed contract", "Documents arriving without anyone clicking run through every agent: scan, read, vendor, request, approval, contract.",
-              "nobody, then finance to sign", 4)
+              "nobody, then finance and the vendor to sign", 4)
 
 
 def s2_drop(c):
@@ -307,24 +340,18 @@ def s2_request(c):
 
 
 def s2_contract(c):
-    ct = poll(lambda: contract_for(c, c["s2_pr"]), lambda x: x and x["status"] == "pending_signature", timeout=60)
-    expect(ct and ct["status"] == "pending_signature",
-           f"contract is {ct and ct['status'] or 'missing'}, expected pending_signature — check contract-risk-agent's logs")
+    ct = poll(lambda: contract_for(c, c["s2_pr"]), lambda x: x and x["status"] in ("draft", "pending_signature"), timeout=60)
+    expect(ct, "no contract generated — check contract-risk-agent's logs")
     c["s2_contract"] = ct["id"]
-    return "contract sent for signature automatically"
+    return f"contract generated · {ct['status']}"
 
 
 def s2_sign(c):
-    r = sign(c, c["s2_contract"], acknowledge=False)
-    if r.status_code == 409:
-        r = sign(c, c["s2_contract"], acknowledge=True)
-        note = "vendor High → acknowledgement asked, given"
-    else:
-        note = "signed"
-    expect(r.status_code == 200, f"{r.status_code} {r.text[:200]}")
+    vendor_email = send(c, c["s2_contract"], c["s2_vendor"])
+    asked = both_sign(c, c["s2_contract"], vendor_email)
     pr = poll(lambda: request_of(c, c["s2_pr"]), lambda d: d["status"] == "ordered", timeout=30)
     expect(pr["status"] == "ordered", pr["status"])
-    return note + " · request ordered"
+    return ("vendor not cleared → acknowledgement asked, given · " if asked else "") + "both signed · request ordered"
 
 
 s2.steps = [
@@ -337,11 +364,11 @@ s2.steps = [
          "A purchase request created from the quote and <b>auto-approved</b> (under ₹500) — straight away, or right after the confirmation; a quote that needs review never becomes a request on its own.",
          s2_request, ("admin", lambda c: f"/app/requests/{c['s2_pr']}")),
     Step("Nothing.", "Contract & Risk", "contract.generated",
-         "A contract, <b>Pending signature</b> — Control Panel → Dropped files links document, request and contract.",
-         s2_contract, ("admin", lambda c: "/app/control-panel", "text=Dropped files")),
-    Step("As <b>finance</b>: open the contract → Sign now. (The new vendor was scored and screened when the contract was made; if it came out High, tick the risk acknowledgement.)",
-         "Contract & Risk → Approval & Inventory", "contract.signed",
-         "Contract <b>Signed</b>, request <b>Ordered</b> — from a dropped file with one human action.",
+         "A contract, <b>Draft</b> until someone names who signs for the new vendor — Control Panel → Documents → Dropped files links document, request and contract.",
+         s2_contract, ("admin", lambda c: "/app/control-panel?section=documents", "text=Dropped files")),
+    Step("As <b>finance</b>: open the contract → Send for signature (name the vendor's signatory) → Sign now and sign in the frame; then sign as the vendor from the emailed link. (The new vendor was scored and screened when the contract was made; if it isn't cleared, tick the risk acknowledgement.)",
+         "Contract & Risk (Documenso) → Approval & Inventory", "contract.signed",
+         "Contract <b>Signed</b> by both parties, request <b>Ordered</b> — from a dropped file, with naming the signatory and the two signatures the only human steps.",
          s2_sign, ("finance", lambda c: f"/app/contracts/{c['s2_contract']}")),
 ]
 
@@ -452,23 +479,22 @@ def s4_request(c):
     c["s4_pr"] = r.json()["data"]["id"]
     r = c.api_post("approver", f"/requests/{c['s4_pr']}/approve", json={"comments": "OK"})
     expect(r.status_code == 200, r.text[:200])
-    ct = poll(lambda: contract_for(c, c["s4_pr"]), lambda x: x and x["status"] == "pending_signature", timeout=60)
-    expect(ct, "no contract sent")
+    ct = poll(lambda: contract_for(c, c["s4_pr"]), lambda x: x and x["status"] in ("draft", "pending_signature"), timeout=60)
+    expect(ct, "no contract generated")
     c["s4_contract"] = ct["id"]
     risk = c.api_get("finance", f"/contracts/{ct['id']}").json()["data"].get("vendor_risk") or {}
     expect(risk.get("acknowledgement_required") is True, f"risk panel doesn't ask for acknowledgement: {risk}")
-    return f"approved → contract {ct['id'][:8]} pending signature · risk panel: “{risk.get('acknowledgement_reason')}”"
+    return f"approved → contract {ct['id'][:8]} {ct['status']} · risk panel: “{risk.get('acknowledgement_reason')}”"
 
 
 def s4_sign(c):
-    r = sign(c, c["s4_contract"], acknowledge=False)
-    expect(r.status_code == 409 and "risk_acknowledgement_required" in r.text, f"signed without acknowledgement: {r.status_code}")
-    r = sign(c, c["s4_contract"], acknowledge=True)
-    expect(r.status_code == 200, f"{r.status_code} {r.text[:200]}")
-    cert = c.api_get("finance", f"/contracts/{c['s4_contract']}/signature-certificate").json()["data"]
-    at = cert.get("vendor_risk_at_signing") or {}
-    expect(at.get("acknowledged") is True, f"certificate: {at}")
-    return f"without acknowledgement → refused (409); with it → signed; certificate records {at.get('risk_band')} + acknowledged"
+    vendor_email = send(c, c["s4_contract"], c["s4_vendor_name"])
+    r = open_signing(c, c["s4_contract"], acknowledge=False)
+    expect(r.status_code == 409 and "risk_acknowledgement_required" in r.text, f"signing opened without acknowledgement: {r.status_code}")
+    both_sign(c, c["s4_contract"], vendor_email)
+    at = risk_at_signing(c["s4_contract"])
+    expect(at.get("acknowledged") is True, f"audit trail: {at}")
+    return f"without acknowledgement → refused (409); with it → both signed; audit trail records {at.get('risk_band')} + acknowledged"
 
 
 s4.steps = [
@@ -486,11 +512,11 @@ s4.steps = [
          s4_signals, ("finance", lambda c: f"/app/vendors/{c['s4_vendor']}/risk", "text=Recompute Rating")),
     Step("As <b>requester</b>: a ₹4,200 SaaS request for that vendor; as <b>approver</b>: approve it.",
          "Approval & Inventory → Contract & Risk", "approval.requested, approval.decided, contract.generated",
-         "A contract, <b>Pending signature</b>, whose Vendor risk panel shows the vendor isn't cleared and says signing needs an acknowledgement.",
+         "A contract whose Vendor risk panel shows the vendor isn't cleared and says signing needs an acknowledgement (sent for signature on its own: this vendor has a contact email).",
          s4_request, ("finance", lambda c: f"/app/contracts/{c['s4_contract']}", "text=Vendor risk")),
-    Step("As <b>finance</b>: Sign now — first without ticking the risk acknowledgement, then with it.",
-         "Contract & Risk", "contract.signed",
-         "Sign stays <b>disabled</b> until the risk is acknowledged; the signature certificate records the band and the acknowledgement.",
+    Step("As <b>finance</b>: Sign now — first without ticking the risk acknowledgement, then with it; sign in the frame. Then sign as the vendor from the emailed link.",
+         "Contract & Risk (Documenso)", "contract.signed",
+         "<b>Open the contract to sign</b> stays <b>disabled</b> until the risk is acknowledged; the contract's audit trail records the band and the acknowledgement.",
          s4_sign, ("finance", lambda c: f"/app/contracts/{c['s4_contract']}")),
 ]
 
@@ -587,9 +613,15 @@ def s6_sign(c):
     c["s6_contract"] = ct["id"]
     risk = c.api_get("finance", f"/contracts/{ct['id']}").json()["data"].get("vendor_risk") or {}
     expect(risk.get("signing_blocked") is True, f"risk panel doesn't block signing: {risk}")
-    r = sign(c, ct["id"], acknowledge=True)
-    expect(r.status_code == 409 and "vendor_blocked" in r.text, f"signed with a sanctioned vendor: {r.status_code} {r.text[:200]}")
-    return "contract generated · signing with the acknowledgement ticked → refused (409 vendor_blocked)"
+    if ct["status"] == "draft":
+        r = send_via_api(c.tok("finance"), ct["id"], vendor_signer_email("Rosoboronexport", c["run"]))
+        expect(r.status_code == 409 and "vendor_blocked" in r.text, f"sent for signature to a sanctioned vendor: {r.status_code} {r.text[:200]}")
+        what = "sending it for signature"
+    else:   # went out on its own before the block applied
+        r = open_signing(c, ct["id"], acknowledge=True)
+        expect(r.status_code == 409 and "vendor_blocked" in r.text, f"signing opened for a sanctioned vendor: {r.status_code} {r.text[:200]}")
+        what = "opening it to sign, acknowledgement ticked"
+    return f"contract generated · {what} → refused (409 vendor_blocked)"
 
 
 def s6_redteam(c):
@@ -614,9 +646,9 @@ s6.steps = [
          "Contract & Risk", "— (refused)",
          "<b>Refused</b>: a sanctions match (or a prohibited country) can't be accepted; only resolving it, e.g. an upheld dispute, changes the rating.",
          s6_accept, None),
-    Step("As <b>requester</b>: a ₹3,800 request for that vendor; as <b>approver</b>: approve. As <b>finance</b>: open the contract → Sign now, tick the risk acknowledgement.",
+    Step("As <b>requester</b>: a ₹3,800 request for that vendor; as <b>approver</b>: approve. As <b>finance</b>: open the contract → Send for signature → Sign now.",
          "Approval & Inventory → Contract & Risk", "approval.decided, contract.generated",
-         "The Vendor risk panel says <b>signing is blocked</b>; signing is refused even with the acknowledgement.",
+         "The Vendor risk panel says <b>signing is blocked</b>; <b>Send for signature</b> is refused (and a contract already out can't be opened to sign, even with the acknowledgement).",
          s6_sign, ("finance", lambda c: f"/app/contracts/{c['s6_contract']}", "text=Vendor risk")),
     Step("(Presenter's terminal) <code>docker run … contract-risk-agent ml/redteam_scorecard.py</code>: 25 profiles (22 attacks and the team's three test vendors) through the real scorecard and clearance code.",
          "Contract & Risk (offline)", "—",

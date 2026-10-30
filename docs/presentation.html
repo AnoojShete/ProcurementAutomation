@@ -1669,7 +1669,7 @@ font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif
       <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-x"/></svg></span><span>Sanctions match or prohibited country<small>High, can't be accepted, can't be signed; ~25,000 listed companies</small></span></div>
       <div class="pt" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-search"/></svg></span><span>Nothing verifiable about the vendor<small>missing GSTIN, registration or bank details count in full: High</small></span></div>
       <div class="pt" style="--c:var(--blue)"><span class="disc"><svg class="ic"><use href="#i-refresh"/></svg></span><span>A check we couldn't run<small>left out and the rest re-weighted; the rating stays provisional</small></span></div>
-      <div class="pt" style="--c:var(--ctr)"><span class="disc"><svg class="ic"><use href="#i-pen"/></svg></span><span>Not cleared? Acknowledge before signing<small>the acknowledgement is printed on the certificate</small></span></div>
+      <div class="pt" style="--c:var(--ctr)"><span class="disc"><svg class="ic"><use href="#i-pen"/></svg></span><span>Not cleared? Acknowledge before signing<small>the acknowledgement is kept in the contract's audit trail</small></span></div>
       <span class="pill" style="--c:var(--green);align-self:flex-start"><svg class="ic"><use href="#i-check"/></svg>Red team: 29 of 29 attack profiles stopped</span>
     </div>
   </div>
@@ -1848,8 +1848,8 @@ font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif
           <circle cx="640" cy="40" r="22" fill="#14213d"/><text x="640" y="48">3</text><circle cx="920" cy="40" r="22" fill="#14213d"/><text x="920" y="48">4</text>
           <circle cx="1200" cy="40" r="22" fill="#14213d"/><text x="1200" y="48">5</text><circle cx="1480" cy="40" r="22" fill="#14213d"/><text x="1480" y="48">6</text>
         </g>
-        <g font-size="30" font-weight="600" fill="#14213d"><text x="140" y="258">Drop a quote</text><text x="420" y="258">Fields read</text><text x="700" y="258">Approver emailed</text><text x="980" y="258">Contract sent</text><text x="1260" y="258">Signed</text><text x="1540" y="258">Blank scan</text></g>
-        <g font-size="24" fill="#3f4a5a"><text x="140" y="298">into ./inbox/input</text><text x="420" y="298">with confidence</text><text x="700" y="298">approves in one click</text><text x="980" y="298">to the signer</text><text x="1260" y="298">E-Signature Complete</text><text x="1540" y="298">lands in failed/</text></g>
+        <g font-size="30" font-weight="600" fill="#14213d"><text x="140" y="258">Drop a quote</text><text x="420" y="258">Fields read</text><text x="700" y="258">Approver emailed</text><text x="980" y="258">Contract made</text><text x="1260" y="258">Both sign</text><text x="1540" y="258">Blank scan</text></g>
+        <g font-size="24" fill="#3f4a5a"><text x="140" y="298">into ./inbox/input</text><text x="420" y="298">with confidence</text><text x="700" y="298">approves in one click</text><text x="980" y="298">risk shown first</text><text x="1260" y="298">finance, then vendor</text><text x="1540" y="298">lands in failed/</text></g>
       </g>
     </svg>
     <div style="position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
@@ -1858,7 +1858,7 @@ font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif
       <div class="band" style="position:static;font-size:26px"><svg class="ic"><use href="#i-film"/></svg><span>Backup recording<br><b style="font-family:var(--mono);font-weight:500;font-size:20px;white-space:nowrap">docs/demo/backup-recording.webm</b></span></div>
     </div>
   </div>
-  <aside class="notes">Run ./scripts/reset-demo.sh before the session to clear test data. Keep Mailpit open in a second tab. 1: copy a vendor quote into ./inbox/input and watch Control Panel, Documents. 2: open the document: every field, its confidence, each stage's result. 3: the purchase request appears; the approver gets an email and approves. 4: the contract is generated; the signer's email links to the signing page. 5: sign; the signed PDF shows E-Signature Complete. 6: drop a blank scan; it lands in ./inbox/failed with its reason. If anything stalls, switch to the backup recording. The rehearsed script: Team dashboard, Showcase, 5-minute demo.</aside>
+  <aside class="notes">Run ./scripts/reset-demo.sh before the session to clear test data. Keep Mailpit open in a second tab. 1: copy a vendor quote into ./inbox/input and watch Control Panel, Documents. 2: open the document: every field, its confidence, each stage's result. 3: the purchase request appears; the approver gets an email and approves. 4: the contract is generated; on its page finance names who signs for the vendor (Send for signature), sees the vendor's risk and acknowledges it if asked. 5: finance signs in the Documenso frame; the vendor's email in Mailpit links to /sign, where the vendor signs with no account; the signed PDF carries a digital signature. 6: drop a blank scan; it lands in ./inbox/failed with its reason. If anything stalls, switch to the backup recording. The rehearsed script: Team dashboard, Showcase, 5-minute demo.</aside>
 </section>
 
 <!-- 16 -->

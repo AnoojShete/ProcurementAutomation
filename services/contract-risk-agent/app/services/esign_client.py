@@ -1,27 +1,33 @@
 """Client for the e-signature provider.
 
-Documenso (self-hosted, https://docs.documenso.com/developers/public-api)
-is used for real when APP_DOCUMENSO_API_URL and APP_DOCUMENSO_API_TOKEN are
-set: the contract PDF is uploaded, a signature field is placed for the
-signer, and Documenso emails them a signing link. Its DOCUMENT_COMPLETED
-webhook (POST /webhooks/documenso) then marks the contract signed, and the
-sealed PDF is fetched back from Documenso for download.
+Documenso (self-hosted in the compose stack, Envelope API
+https://docs.documenso.com/developers/public-api) is used for real when
+APP_DOCUMENSO_API_URL and APP_DOCUMENSO_API_TOKEN are set. A contract goes
+out as one envelope with two signers in order: the company's signatory,
+then the vendor. Nothing is emailed by Documenso (distributionMethod NONE):
+each signer signs in Documenso's embedded signing frame on the platform's
+own pages, opened with their recipient token (signing_service.py). Its
+webhooks (POST /webhooks/documenso) record each signature, and the sealed
+PDF is fetched back from Documenso for download.
 
 With no provider configured (the default dev/demo stack) request_signature
 returns a deterministic simulated reference instead, and signing is
-completed by POST /webhooks/esign or the demo-only sign-simulated route.
+completed by the built-in e-sign, POST /webhooks/esign or the demo-only
+sign-simulated route.
 
 DocuSign (app/services/docusign_client.py) is used the same way when its
 JWT-grant settings are set and the provider is "docusign".
 
 Provider references:
-  documenso-doc-<id>    a real Documenso document
+  documenso-env-<id>    a real Documenso envelope
   docusign-env-<id>     a real DocuSign envelope
   <provider>-ref-<hash> simulated, nothing was sent anywhere
 """
 import hashlib
+import json
 import logging
 import re
+from dataclasses import dataclass
 from typing import Optional
 
 import httpx
@@ -31,7 +37,7 @@ from app.services import docusign_client
 
 logger = logging.getLogger(__name__)
 
-DOCUMENSO_REF_PREFIX = "documenso-doc-"
+DOCUMENSO_REF_PREFIX = "documenso-env-"
 _TIMEOUT = httpx.Timeout(30.0)
 
 
@@ -43,7 +49,7 @@ def documenso_enabled() -> bool:
     return bool(settings.documenso_api_url and settings.documenso_api_token)
 
 
-def documenso_document_id(provider_ref: Optional[str]) -> Optional[str]:
+def documenso_envelope_id(provider_ref: Optional[str]) -> Optional[str]:
     if provider_ref and provider_ref.startswith(DOCUMENSO_REF_PREFIX):
         return provider_ref[len(DOCUMENSO_REF_PREFIX):]
     return None
@@ -52,7 +58,7 @@ def documenso_document_id(provider_ref: Optional[str]) -> Optional[str]:
 def live_provider_ref(provider_ref: Optional[str]) -> Optional[str]:
     """The provider name when the contract is out with a real provider
     (it completes there, not in this platform), else None."""
-    if documenso_document_id(provider_ref):
+    if documenso_envelope_id(provider_ref):
         return "Documenso"
     if docusign_client.envelope_id(provider_ref):
         return "DocuSign"
@@ -68,55 +74,82 @@ def _pdf_page_count(pdf: bytes) -> int:
     return max(1, len(re.findall(rb"/Type\s*/Page(?![s\w])", pdf)))
 
 
+@dataclass
+class EnvelopeSigner:
+    """One signer of a Documenso envelope, in signing order. `field` is the
+    signature box as page percentages (contract_pdf.SignatureSlot)."""
+    party: str
+    name: str
+    email: str
+    field: dict
+
+
+@dataclass
+class EnvelopeRecipient:
+    party: str
+    email: str
+    recipient_id: str
+    token: str
+
+
 def _documenso_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
-        base_url=settings.documenso_api_url.rstrip("/"),
+        base_url=settings.documenso_api_url.rstrip("/") + "/api/v2",
         headers={"Authorization": settings.documenso_api_token},
         timeout=_TIMEOUT,
     )
 
 
-async def _documenso_send(contract_id: str, signer_email: str, pdf: bytes, title: str) -> str:
+def _raise_for(res: httpx.Response, what: str) -> None:
+    if res.status_code >= 400:
+        raise EsignProviderError(f"Documenso {what} failed ({res.status_code}): {res.text[:300]}")
+
+
+async def documenso_send_envelope(
+    contract_id: str, title: str, pdf: bytes, signers: list[EnvelopeSigner],
+) -> tuple[str, list[EnvelopeRecipient]]:
+    """Creates the envelope (PDF, signers in order, one signature field
+    each), distributes it without emails and returns its provider reference
+    and each signer's recipient token."""
+    payload = {
+        "title": title,
+        "type": "DOCUMENT",
+        "externalId": contract_id,
+        "meta": {
+            "signingOrder": "SEQUENTIAL",
+            "distributionMethod": "NONE",
+            "timezone": "Asia/Kolkata",
+            "dateFormat": "dd/MM/yyyy HH:mm",
+            "language": "en",
+        },
+        "recipients": [
+            {
+                "email": s.email, "name": s.name, "role": "SIGNER", "signingOrder": i + 1,
+                "fields": [{"type": "SIGNATURE", "identifier": 0, **s.field}],
+            }
+            for i, s in enumerate(signers)
+        ],
+    }
     async with _documenso_client() as client:
-        created = await client.post("/api/v1/documents", json={
-            "title": title,
-            "externalId": contract_id,
-            "recipients": [{"name": signer_email, "email": signer_email, "role": "SIGNER"}],
-            "meta": {
-                "subject": f"Please sign: {title}",
-                "message": "This contract was generated by the IT Procurement Intelligence Platform.",
-            },
+        created = await client.post(
+            "/envelope/create",
+            files={"payload": (None, json.dumps(payload)), "files": ("contract.pdf", pdf, "application/pdf")},
+        )
+        _raise_for(created, "create envelope")
+        envelope_id = created.json()["id"]
+        sent = await client.post("/envelope/distribute", json={
+            "envelopeId": envelope_id, "meta": {"distributionMethod": "NONE"},
         })
-        if created.status_code >= 400:
-            raise EsignProviderError(f"Documenso create document failed ({created.status_code}): {created.text[:300]}")
-        body = created.json()
-        document_id = body["documentId"]
-        recipient_id = body["recipients"][0]["recipientId"]
-
-        # The upload URL is a pre-signed storage URL, not the API host, so
-        # it must not carry the API token.
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as storage:
-            uploaded = await storage.put(body["uploadUrl"], content=pdf, headers={"Content-Type": "application/pdf"})
-        if uploaded.status_code >= 400:
-            raise EsignProviderError(f"Documenso PDF upload failed ({uploaded.status_code})")
-
-        # Signature field on the last page, over the "For the Company"
-        # signature line that contract_pdf draws. Positions are percentages.
-        field = await client.post(f"/api/v1/documents/{document_id}/fields", json={
-            "recipientId": recipient_id,
-            "type": "SIGNATURE",
-            "pageNumber": _pdf_page_count(pdf),
-            "pageX": 9, "pageY": 70, "pageWidth": 36, "pageHeight": 6,
-        })
-        if field.status_code >= 400:
-            raise EsignProviderError(f"Documenso add signature field failed ({field.status_code}): {field.text[:300]}")
-
-        sent = await client.post(f"/api/v1/documents/{document_id}/send", json={"sendEmail": True})
-        if sent.status_code >= 400:
-            raise EsignProviderError(f"Documenso send failed ({sent.status_code}): {sent.text[:300]}")
-
-    logger.info(f"Contract {contract_id} sent to Documenso as document {document_id}")
-    return f"{DOCUMENSO_REF_PREFIX}{document_id}"
+        _raise_for(sent, "distribute envelope")
+    by_email = {r["email"].lower(): r for r in sent.json().get("recipients") or []}
+    recipients = []
+    for s in signers:
+        r = by_email.get(s.email.lower())
+        if r is None:
+            raise EsignProviderError(f"Documenso did not return a recipient for {s.email}")
+        recipients.append(EnvelopeRecipient(s.party, s.email, str(r["id"]), r["token"]))
+    logger.info(f"Contract {contract_id} sent to Documenso as envelope {envelope_id}")
+    return f"{DOCUMENSO_REF_PREFIX}{envelope_id}", recipients
 
 
 async def request_signature(
@@ -139,16 +172,14 @@ async def request_signature(
         except docusign_client.DocuSignError as e:
             raise EsignProviderError(str(e)) from e
     if p_name == "documenso" and documenso_enabled():
-        if not signer_email:
-            raise EsignProviderError("a signer email is required to send through Documenso")
-        if not pdf:
-            raise EsignProviderError("no contract PDF to send")
-        return await _documenso_send(contract_id, signer_email, pdf, title)
+        # Two signers and their tokens: contract_service sends through
+        # documenso_send_envelope instead.
+        raise EsignProviderError("Documenso contracts are sent with documenso_send_envelope")
     return _simulated_ref(contract_id, signer_email, p_name)
 
 
 async def download_signed_pdf(provider_ref: Optional[str]) -> Optional[bytes]:
-    """The provider's sealed PDF for a completed Documenso document or
+    """The provider's sealed PDF for a completed Documenso envelope or
     DocuSign envelope, or None when the contract wasn't signed through a
     live provider."""
     env_id = docusign_client.envelope_id(provider_ref)
@@ -157,16 +188,15 @@ async def download_signed_pdf(provider_ref: Optional[str]) -> Optional[bytes]:
             return await docusign_client.download_combined(env_id)
         except docusign_client.DocuSignError as e:
             raise EsignProviderError(str(e)) from e
-    document_id = documenso_document_id(provider_ref)
-    if document_id is None or not documenso_enabled():
+    envelope_id = documenso_envelope_id(provider_ref)
+    if envelope_id is None or not documenso_enabled():
         return None
     async with _documenso_client() as client:
-        res = await client.get(f"/api/v1/documents/{document_id}/download")
-        if res.status_code >= 400:
-            raise EsignProviderError(f"Documenso download failed ({res.status_code}): {res.text[:300]}")
-        download_url = res.json()["downloadUrl"]
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as storage:
-        pdf = await storage.get(download_url)
-    if pdf.status_code >= 400:
-        raise EsignProviderError(f"Documenso signed PDF fetch failed ({pdf.status_code})")
+        res = await client.get(f"/envelope/{envelope_id}")
+        _raise_for(res, "get envelope")
+        items = res.json().get("envelopeItems") or []
+        if not items:
+            raise EsignProviderError(f"Documenso envelope {envelope_id} has no document")
+        pdf = await client.get(f"/envelope/item/{items[0]['id']}/download", params={"version": "signed"})
+        _raise_for(pdf, "signed PDF download")
     return pdf.content

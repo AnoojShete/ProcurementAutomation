@@ -190,7 +190,7 @@ async def test_every_collector_entrypoint_imports_and_executes():
 
 @pytest.mark.asyncio
 async def test_website_domain_derivation_prioritizes_website():
-    """Website field is prioritized over email and normalized name."""
+    """Website first, then the contact email's domain; never guessed from the name."""
     v1 = Vendor(name="Acme Corp", contact_email="admin@gmail.com", website="https://acmecorp.com/portal?ref=1")
     assert derive_vendor_domain(v1) == "acmecorp.com"
 
@@ -198,7 +198,7 @@ async def test_website_domain_derivation_prioritizes_website():
     assert derive_vendor_domain(v2) == "acmepartner.com"
 
     v3 = Vendor(name="Beta Solutions", contact_email=None, website=None)
-    assert derive_vendor_domain(v3) == "betasolutions.com"
+    assert derive_vendor_domain(v3) is None
 
 
 @pytest.mark.asyncio
@@ -382,3 +382,42 @@ async def test_parallel_collectors_commit_their_own_sessions():
             await collect_all_signals(SimpleNamespace(), SimpleNamespace(id="v-1", status="active"))
     assert factory.call_count == 6
     assert task_db.commit.await_count == 6
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("country", [None, "IN"])
+async def test_details_never_entered_are_not_findings(country):
+    """A vendor whose GSTIN, country and website nobody entered: the GST and
+    jurisdiction checks wait for the data instead of firing a rule on the
+    blank (R-GST-03 "missing" + override, R-GST-11 PAN inconsistent on no
+    PAN, R-JUR-05 "stable foreign country" for UNKNOWN, R-WEB-01 invalid
+    certificate for no website)."""
+    from app.services.collectors.identity_collectors import collect_gst
+    from app.services.scorecard.default_ruleset import get_default_ruleset
+    from app.services.scorecard.engine import evaluate_risk
+
+    now = datetime.now(timezone.utc)
+    vendor = Vendor(id="c0000000-0000-0000-0000-000000000009", name="Dell Technologies India Pvt Ltd",
+                    status="active", country=country, website=None, contact_email=None)
+    v_row = SimpleNamespace(country=country, gstin=None, gstin_verification_status=None, gstin_data_source=None,
+                            gstin_cached_response={}, no_gstin_confirmed_by=None, no_gstin_confirmed_at=None,
+                            swift_bic=None)
+    db = AsyncMock(spec=AsyncSession)
+    res_mock = MagicMock()
+    res_mock.first.return_value = v_row
+    db.execute.return_value = res_mock
+
+    observations = {}
+    from app.services.collectors.cyber_collectors import collect_web
+    for key, collect in (("gst", collect_gst), ("jurisdiction", collect_jurisdiction), ("web", collect_web)):
+        o, _ = await collect(db, vendor, now)
+        observations[key] = {"signal_key": key, "status": "ok", "fields": o.fields, "fetched_at": now.isoformat()}
+    result = evaluate_risk(get_default_ruleset(), observations, now,
+                           vendor_context={"name": vendor.name, "spend_tier": "standard", "country": country})
+    rules = {r["signal_key"]: r["rule_id"] for r in result["rule_results"]}
+    assert rules["gst"] in ("R-GST-07", "R-GST-08")
+    assert rules["web"] == "R-WEB-10"  # no website is missing data, not an invalid certificate
+    assert result["override_rule_ids"] == []
+    if country is None:
+        assert rules["jurisdiction"] == "R-JUR-07"
+    assert result["explanation"]["data_needed"][0]["field"] == ("country" if country is None else "gstin")

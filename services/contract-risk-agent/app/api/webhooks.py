@@ -32,9 +32,11 @@ async def documenso_webhook(
     x_documenso_secret: str | None = Header(None, alias="X-Documenso-Secret"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Documenso's webhook (configure it for DOCUMENT_COMPLETED, pointing
-    at /api/webhooks/documenso, with APP_DOCUMENSO_WEBHOOK_SECRET as its
-    secret). Marks the contract with that externalId as signed."""
+    """Documenso's webhook (recipient completed, document completed and
+    rejected; scripts/documenso_setup.py configures it with
+    APP_DOCUMENSO_WEBHOOK_SECRET as its secret). Records each party's
+    signature on the contract with that externalId and marks it signed
+    once both have signed."""
     try:
         body = await request.json()
     except ValueError:

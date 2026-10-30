@@ -25,30 +25,66 @@ SPEND_TO_TIER = {
 }
 
 
-def vendor_unverified(sig_key: str, status: str, fields: Dict[str, Any]) -> bool:
-    """True when a check couldn't be completed because there is nothing on the
-    vendor to verify (owner decision, 30 Oct 2026: a black-box vendor is risky,
-    so such a check counts as its full points). A check that never ran, ran
-    with live mode off, or hit a provider error is our side and is re-weighted
-    out instead; so are news, breaches and order history (nobody could know yet)."""
+# A check that can't run for lack of information about the vendor (owner,
+# 30 Oct 2026, revised the same evening). When the gap is in our records
+# (nobody entered the GSTIN, country, website...) the vendor is charged about a
+# third of the check and the buyer is asked for the data; the rating stays
+# provisional, so it is never cleared on the reduced charge. Bank details are
+# collected before the first payment, so their absence costs nothing earlier.
+# When the vendor's own side is the problem (its mail domain has no MX) the
+# check counts in full. A check that never ran, ran with live mode off, or hit
+# a provider error is our side and is re-weighted out instead; so are news,
+# breaches and order history (nobody could know yet).
+NOT_ENTERED_SHARE = {"bank": 0.0}
+DEFAULT_NOT_ENTERED_SHARE = 1 / 3
+
+COUNTRY_NEEDED = ("country", "Country not entered. Add the vendor's country so the GST and jurisdiction checks can run.")
+DATA_NEEDED = {
+    "gst": ("gstin", "GSTIN not entered. Add it on the vendor page, or confirm the vendor has no GSTIN "
+                     "(below the registration threshold)."),
+    "jurisdiction": COUNTRY_NEEDED,
+    "company_age": ("registration_date", "No registration or incorporation date on record. It comes from a "
+                                         "verified GSTIN or the company registry."),
+    "financial": ("financials", "No financial statements or credit rating on file. Upload recent financials."),
+    "bank": ("bank_details", "Bank details not entered. Needed before the first payment."),
+    "web": ("website", "Website not entered."),
+    "email": ("contact_email", "Contact email not entered."),
+}
+
+
+def data_gap(sig_key: str, status: str, fields: Dict[str, Any]) -> Optional[str]:
+    """Why a check couldn't be completed for lack of vendor information:
+    "not_entered" (missing from our records), "vendor" (the vendor's own
+    side), or None (not a vendor-information gap)."""
     if not fields or status == "assessed":
-        return False
+        return None
     if sig_key == "gst":
-        return fields.get("gstin.verification_level") in ("country_unknown", "pending")
+        return "not_entered" if fields.get("gstin.verification_level") in ("country_unknown", "pending") else None
     if sig_key == "jurisdiction":
-        return status == "not_assessed" and fields.get("country.code") == "UNKNOWN"
+        return "not_entered" if status == "not_assessed" and fields.get("country.code") == "UNKNOWN" else None
     if sig_key == "company_age":
-        return status == "not_assessed" and fields.get("age.basis") in ("none", "domain_only")
+        return "not_entered" if status == "not_assessed" and fields.get("age.basis") in ("none", "domain_only") else None
     if sig_key == "financial":
-        return status == "not_assessed" and fields.get("fin.basis") == "none"
+        return "not_entered" if status == "not_assessed" and fields.get("fin.basis") == "none" else None
     if sig_key == "bank":
-        return fields.get("na_reason_code") == "no_bank_details"
+        return "not_entered" if fields.get("na_reason_code") == "no_bank_details" else None
     if sig_key == "web":
-        return fields.get("na_reason_code") == "no_domain"
+        return "not_entered" if fields.get("na_reason_code") == "no_domain" else None
     if sig_key == "email":
-        return fields.get("na_reason_code") == "no_email_domain" or (
-            fields.get("email.confidence") == "live" and fields.get("email.has_mx") is False)
-    return False
+        if fields.get("na_reason_code") == "no_email_domain":
+            return "not_entered"
+        if fields.get("email.confidence") == "live" and fields.get("email.has_mx") is False:
+            return "vendor"
+    return None
+
+
+def gap_charge(sig_key: str, gap: Optional[str], max_points: int, points: int) -> int:
+    """Points a data gap adds on top of the check's own points."""
+    if gap == "vendor":
+        return max_points - points
+    if gap == "not_entered":
+        return round(max_points * NOT_ENTERED_SHARE.get(sig_key, DEFAULT_NOT_ENTERED_SHARE))
+    return 0
 
 
 def determine_band(points: int, bands: Dict[str, int]) -> str:
@@ -431,11 +467,22 @@ def evaluate_risk(
                     all_required_satisfied = False
                     break
 
-    # Unverifiable checks count as full risk; with no identity evidence at all
-    # (no verified GSTIN, not a foreign vendor, no registration date) the
-    # vendor is High and can't be rated "assessed".
+    # Data gaps are charged (see gap_charge) and listed for the buyer; without
+    # a verified GSTIN or registration date the vendor can't be rated "assessed".
+    data_needed: List[Dict[str, Any]] = []
     for r in rule_results:
-        r["unverified"] = vendor_unverified(r["signal_key"], r["status"], r.get("observed_fields") or {})
+        r["data_gap"] = data_gap(r["signal_key"], r["status"], r.get("observed_fields") or {})
+        r["unverified"] = r["data_gap"] is not None
+        r["gap_points"] = gap_charge(r["signal_key"], r["data_gap"], r["max_points"], r["points"])
+        if r["data_gap"] == "not_entered" and r["signal_key"] in DATA_NEEDED:
+            field, message = DATA_NEEDED[r["signal_key"]]
+            if r["signal_key"] == "gst" and (r.get("observed_fields") or {}).get("gstin.verification_level") == "country_unknown":
+                field, message = COUNTRY_NEEDED
+            if not any(d["field"] == field for d in data_needed):
+                data_needed.append({"field": field, "signal": r["signal_key"], "message": message,
+                                    "points": r["gap_points"]})
+            else:
+                next(d for d in data_needed if d["field"] == field)["points"] += r["gap_points"]
     by_key = {r["signal_key"]: r for r in rule_results}
     gst_r, age_r = by_key.get("gst", {}), by_key.get("company_age", {})
     gst_fields = gst_r.get("observed_fields") or {}
@@ -452,7 +499,9 @@ def evaluate_risk(
     # A missing inherent profile only falls back to the spend tier (advisory,
     # like the headline count below); every other reason keeps it provisional.
     blocking_reasons = [r for r in provisional_reasons if r.get("signal") != "inherent"]
-    if assessed_share_pct == 0:
+    # "not_rated" only when no check returned anything; a vendor whose checks
+    # ran but are waiting for data is provisional.
+    if assessed_share_pct == 0 and not any(r.get("observed_fields") for r in rule_results):
         rating_status = "not_rated"
     elif assessed_share_pct >= min_share_pct and all_required_satisfied and vendor_country and not blocking_reasons:
         rating_status = "assessed"
@@ -471,7 +520,7 @@ def evaluate_risk(
     # still reads rating_status, so a provisional vendor is banded, not cleared.
     all_max_points = sum(r["max_points"] for r in rule_results)
     unverified = [r for r in rule_results if r["unverified"]]
-    unverified_points = sum(r["max_points"] - r["points"] for r in unverified)
+    unverified_points = sum(r["gap_points"] for r in unverified)
     missing_max_points = sum(r["max_points"] for r in rule_results
                              if r["status"] == "not_assessed" and not r["unverified"])
     checked_max_points = all_max_points - missing_max_points
@@ -480,7 +529,10 @@ def evaluate_risk(
     else:
         weighted_points = 100
     points_band = determine_band(weighted_points, bands_def)
-    identity_floor = not identity_verified and any(r.get("observed_fields") for r in rule_results)
+    # Forced High only when the GST check ran and found a problem (name or PAN
+    # mismatch); identity that is merely not entered yet is banded from its
+    # points and stays provisional until it is.
+    identity_floor = not identity_verified and gst_r.get("status") == "review_pending"
 
     has_override = len(override_rules) > 0
     final_band = "High" if (has_override or identity_floor) else points_band
@@ -504,16 +556,20 @@ def evaluate_risk(
     elif checked_max_points == 0:
         headline = "High until checked: no risk check has completed yet, so the worst case applies."
     elif identity_floor:
-        headline = (f"Provisional High: the vendor's identity can't be verified (no verified GSTIN or registration date), "
-                    f"so it is treated as high risk until it is. Score {weighted_points}/100.")
+        headline = (f"Provisional High: the GSTIN on record doesn't match the vendor, so its identity can't be "
+                    f"verified and it is treated as high risk until it is. Score {weighted_points}/100.")
     elif is_provisional:
         labels = {r["signal_key"]: r["label"] for r in rule_results}
         labels["coverage"] = "the remaining due-diligence checks"
         labels["identity"] = "identity (GSTIN or registration)"
         outstanding = list(dict.fromkeys(labels.get(r["signal"], r["signal"])
                                          for r in provisional_reasons if r.get("signal") != "inherent"))
-        charged = (f" incl. {unverified_points} for checks the vendor couldn't be verified on"
+        charged = (f" incl. {unverified_points} for missing information"
                    if unverified_points else "")
+        if data_needed:
+            outstanding = [("GSTIN" if d["field"] == "gstin" else d["field"].replace("_", " ")) for d in data_needed
+                           if d["field"] != "bank_details"] + [
+                o for o in outstanding if o != labels["identity"]]
         headline = (f"Provisional {final_band}: {weighted_points}/100 ({total_points + unverified_points} points{charged} "
                     f"over the {checked_max_points} points checked). Not cleared until these are done: {', '.join(outstanding)}.")
     else:
@@ -531,7 +587,7 @@ def evaluate_risk(
         if unassessed_potential_points > 0 and na_count > 0:
             unassessed_clause = f" {na_count} signal(s) not assessed could add up to {unassessed_potential_points} points, so the worst case is {worst_case_band}."
 
-        charged = (f" {unverified_points} of them for unverifiable checks ("
+        charged = (f" {unverified_points} of them for missing information ("
                    f"{', '.join(r['label'] for r in unverified)})." if unverified_points else "")
         weighting = (f" Weighted from {total_points + unverified_points} points over the {checked_max_points} points checked "
                      f"({missing_max_points} points of checks couldn't run).{charged}" if missing_max_points or unverified_points else "")
@@ -679,7 +735,9 @@ def evaluate_risk(
         "missing_max_points": missing_max_points,
         "unverified_points": unverified_points,
         "unverified_signals": [r["signal_key"] for r in unverified],
-        "identity_verified": not identity_floor,
+        "gap_points": {r["signal_key"]: r["gap_points"] for r in unverified},
+        "identity_verified": identity_verified,
+        "data_needed": data_needed,
         "max_points": 100,
         "applicable_max_points": applicable_max_points,
         "assessed_share_pct": assessed_share_pct,
@@ -763,7 +821,8 @@ def evaluate_risk(
         "missing_max_points": missing_max_points,
         "unverified_points": unverified_points,
         "unverified_signals": [r["signal_key"] for r in unverified],
-        "identity_verified": not identity_floor,
+        "identity_verified": identity_verified,
+        "data_needed": data_needed,
         "points_band": points_band,
         "final_band": final_band,
         "rating_status": rating_status,

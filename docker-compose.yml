@@ -223,6 +223,7 @@ services:
       # Documenso's SSRF check would otherwise refuse as a private address.
       NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS: contract-risk-agent
       NEXT_PUBLIC_DISABLE_SIGNUP: ${DOCUMENSO_DISABLE_SIGNUP:-false}
+      DOCUMENSO_DISABLE_TELEMETRY: "true"
     volumes:
       - ./secrets/documenso/cert.p12:/opt/documenso/cert.p12:ro
     ports:

@@ -37,6 +37,7 @@ import type {
   VendorEvidence,
 } from "@/types/api";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { VendorDataNeeded } from "@/components/vendors/VendorDataNeeded";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -450,6 +451,10 @@ export function VendorRiskScorecard({ vendorId, vendorName, vendorTier }: Vendor
                 </p>
               </div>
             </div>
+          )}
+
+          {explanation.data_needed && explanation.data_needed.length > 0 && (
+            <VendorDataNeeded vendorId={vendorId} items={explanation.data_needed} onSaved={() => handleRecompute(true)} />
           )}
 
           {explanation.provisional_reasons && explanation.provisional_reasons.length > 0 && (

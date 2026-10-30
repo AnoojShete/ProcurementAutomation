@@ -128,3 +128,52 @@ def test_foreign_vendor_with_swift_bic():
     )))
     assert not check_bad_swift.ok
     assert any("SWIFT/BIC must be a valid" in e["message"] for e in check_bad_swift.errors)
+
+
+def _blank_vendor(**kw):
+    base = dict(id="v-dell", name="Dell Technologies India Pvt Ltd", country=None, gstin=None, website=None,
+                contact_email=None, no_gstin_confirmed_by=None, no_gstin_confirmed_at=None)
+    return SimpleNamespace(**{**base, **kw})
+
+
+def _db_gstin_owner(owner=None):
+    db = AsyncMock()
+    res = MagicMock()
+    res.scalars.return_value.first.return_value = owner
+    db.execute.return_value = res
+    return db
+
+
+def test_missing_details_are_filled_with_the_onboarding_checks(monkeypatch):
+    """The risk scorecard's "data needed" items can be filled in later."""
+    monkeypatch.setattr(vo, "write_audit_log", AsyncMock())
+    v = _blank_vendor(no_gstin_confirmed_by="old@x")
+    assert run(vo.fill_missing_details(_db_gstin_owner(), v, {"country": "in", "gstin": GOOD_GSTIN.lower(),
+                                                              "contact_email": "Ops@Dell.example"}, "fin@x")) == []
+    assert (v.country, v.gstin, v.contact_email) == ("IN", GOOD_GSTIN, "ops@dell.example")
+    assert v.gstin_verification_status == "format_valid" and v.no_gstin_confirmed_by is None
+
+
+@pytest.mark.parametrize("vendor_kw, values, message", [
+    ({"country": "IN"}, {"country": "US"}, "Already on record"),       # blanks only
+    ({}, {"country": "XX"}, "2-letter ISO code"),
+    ({"country": "IN"}, {"gstin": "27AAPFU0939F1ZX"}, ""),              # bad check digit
+    ({"country": "US"}, {"gstin": GOOD_GSTIN}, "registered in India"),
+    ({}, {"contact_email": "not-an-email"}, "valid email"),
+    ({}, {}, "Nothing to fill in"),
+])
+def test_bad_or_existing_details_are_refused(monkeypatch, vendor_kw, values, message):
+    monkeypatch.setattr(vo, "write_audit_log", AsyncMock())
+    v = _blank_vendor(**vendor_kw)
+    before = dict(vars(v))
+    errors = run(vo.fill_missing_details(_db_gstin_owner(), v, values, "fin@x"))
+    assert errors and message in errors[0]["message"]
+    assert vars(v) == before
+
+
+def test_a_gstin_already_on_another_vendor_is_refused(monkeypatch):
+    monkeypatch.setattr(vo, "write_audit_log", AsyncMock())
+    v = _blank_vendor(country="IN")
+    errors = run(vo.fill_missing_details(_db_gstin_owner(SimpleNamespace(name="Other Ltd")), v,
+                                         {"gstin": GOOD_GSTIN}, "fin@x"))
+    assert errors and "Other Ltd" in errors[0]["message"] and v.gstin is None

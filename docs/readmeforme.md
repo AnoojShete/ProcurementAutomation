@@ -217,7 +217,9 @@ versions are pinned in the compose files (the same test fails on a new
 | `EMAIL_INTAKE_*` (`ENABLED`, `PROTOCOL`, `HOST`, `PORT`, `SSL`, `USER`, `PASSWORD`, `ADDRESS`) | Mailpit's POP3 mailbox | The mailbox documents are read from (pop3 or imap). |
 | `GSTINCHECK_API_KEY` | placeholder | Only for live GSTIN lookups (off by default, admin toggle). |
 | `GUARDIAN_API_KEY` | unset | Adverse-media check in live mode (free key, open-platform.theguardian.com). Unset = that check is "not assessed", never "no adverse media". |
-| `APP_DOCUMENSO_API_URL` / `_API_TOKEN` / `_WEBHOOK_SECRET` | unset | With these, "Send for signature" uses Documenso; unset = simulated signing. |
+| `APP_DOCUMENSO_API_TOKEN` / `_WEBHOOK_SECRET` | written by `scripts/documenso_setup.py` | With a token, contracts are signed by both parties through Documenso (below); without, the built-in e-sign. `APP_DOCUMENSO_API_URL` defaults to the `documenso` service. |
+| `DOCUMENSO_PUBLIC_URL` | `http://localhost:3010` | Where browsers load the signing frame from; also in nginx's CSP `frame-src`. |
+| `DOCUMENSO_NEXTAUTH_SECRET`, `DOCUMENSO_ENCRYPTION_KEY`, `_SECONDARY_KEY`, `DOCUMENSO_SIGNING_PASSPHRASE` | published dev values | Must be real secrets outside development. |
 | `VITE_SHOW_DEMO_ACCOUNTS` (frontend build) | shown | Set to `false` when building for real users to hide the demo-login buttons. |
 
 > [!NOTE]
@@ -378,7 +380,7 @@ the Oct 17 audit's findings and fixes in [quality-audit-report.md](quality-audit
 | `python tests/e2e/document_pipeline.py [--quick]` | Normal / huge / corrupt / empty / wrong-type / pathological files, duplicates, outages | 48/52 (`--quick`, Oct 19): `slow_to_parse.pdf` no longer hits the 120 s limit with Docling 2.140 (TODO E2E-1); 52/52 on Oct 15 |
 | `python tests/e2e/ui_flows.py` | Browser (Playwright): back arrow, clickable lifecycle, approve and sign from lifecycle steps, approval-inbox routing, license page's open-request panel | 11/11 (needs `pip install playwright && python -m playwright install chromium`) |
 | `python tests/e2e/demo_scenarios.py` | The five demo scenarios performed in a browser and checked → `docs/index.html#demo-script` | 18/18 |
-| `python tests/e2e/demo_5min.py` | The 5-minute demo (`docs/index.html#demo-5min`) rehearsed and recorded → `docs/demo/backup-recording.webm` | 6/6 (Oct 18, 4 runs) |
+| `python tests/e2e/demo_5min.py` | The 5-minute demo (`docs/index.html#demo-5min`) rehearsed and recorded → `docs/demo/backup-recording.webm` (replaced only when every step passes) | 5/5 (Oct 31, both parties sign in Documenso) |
 | `cd frontend && npm run typecheck` | TypeScript | clean |
 
 ```bash
@@ -857,8 +859,10 @@ Signing needs the signer to tick an acknowledgement exactly when the
 vendor isn't cleared for `purpose=contract` (the same decision as
 `/clearance`, `app/services/clearance.py`: score, overrides, human decisions,
 vendor status); the API refuses it otherwise (409
-`risk_acknowledgement_required`) and the signature certificate records the
-band and the acknowledgement. A **non-remediable override** (sanctions match
+`risk_acknowledgement_required`, from `/sign` with the built-in e-sign or
+`/signing-session` with Documenso). The band and the acknowledgement are
+recorded: on the signature certificate (built-in), or in the audit log's
+`signing_opened` entry when the company's signatory opens Documenso's frame. A **non-remediable override** (sanctions match
 R-SAN-01, prohibited country R-JUR-01) blocks signing outright (409
 `vendor_blocked`; the dialog says why), and an admin can't accept that risk
 (400 `non_remediable_override`).
@@ -901,8 +905,49 @@ the merge review (G1–G11, all closed or decided). Rule `approval.unrated_vendo
 A sweep re-scores vendors after a delivery. `tests/e2e/risk_flow.py` checks the module and
 everything that reads it (signing, budget routing, RFQ scoring, notifications, onboarding).
 
-The DocuSign client is kept but unused (built-in e-sign only since
-Oct 15). To try it anyway: the DocuSign block in `.env.example`,
+### Contract e-signature (Documenso, two parties)
+
+Both parties sign on the platform's own pages; Documenso (self-hosted, the
+`documenso` service, :3010) does the signing inside an embedded frame and
+seals the executed PDF. Setup, once (and after `reset-demo.sh`, which does
+it): `python scripts/documenso_setup.py`, then `docker compose up -d
+contract-risk-agent contract-risk-agent-worker && docker compose restart nginx`.
+
+1. **Send** (contract page, or automatically after approval when the vendor
+   has a contact email): the PDF goes to Documenso as one envelope with the
+   company's signatory first and the vendor's second, one signature field
+   each, placed over the PDF's signature lines (`contract_pdf.SignatureSlot`).
+   Documenso emails nobody. A blocked vendor's contract isn't sent.
+2. **Company signs** on the contract page: only the named signatory (JWT
+   email) gets the frame, after the vendor-risk check (acknowledged when
+   required, kept in the audit log).
+3. Documenso's webhook (`DOCUMENT_RECIPIENT_COMPLETED`) records it and the
+   vendor is emailed (`shared/mailer.py`) a `/sign#token=` link: random,
+   only its SHA-256 stored, valid `APP_VENDOR_SIGNING_LINK_DAYS` (30); a new
+   link from the contract page replaces it.
+4. **Vendor signs** on `/sign` (no account) in the same frame.
+5. Both signed: the contract is `signed` (`contract.signed` through the
+   outbox) and the signed copy is Documenso's PDF: signatures on the lines,
+   a PAdES signature with `secrets/documenso/cert.p12`, and its signing
+   certificate (who, when, device). A decline puts the contract back in draft.
+
+Code: contract-risk-agent `signing_service.py`, `esign_client.py` (Envelope
+API), `api/vendor_signing.py` (the only unauthenticated contract route),
+table `contract_signers` (Alembic `0015`); frontend
+`components/contracts/{EmbeddedSigning,DocumensoSignModal}.tsx`,
+`pages/sign/VendorSigningPage.tsx`. Tests: `tests/test_two_party_signing.py`,
+`tests/e2e/esign_flow.py`.
+
+Legal standing: a simple electronic signature with an audit trail. In India
+a contract formed electronically is valid (IT Act 2000 s.10A) and the record
+is evidence (Bharatiya Sakshya Adhiniyam s.63 certificate), but it is not
+one of the signatures the Act presumes genuine (Aadhaar eSign, DSC), and
+some documents can't be signed electronically at all (First Schedule). The
+development certificate is self-signed; production needs one from a
+certifying authority. Signing mandates still sign company-only with the
+built-in e-sign.
+
+The DocuSign client is kept but unused. To try it anyway: the DocuSign block in `.env.example`,
 `APP_ESIGN_AUTO_PROVIDER: docusign` in contract-risk-agent's environment
 in `docker-compose.override.yml` (compose doesn't pass it through
 otherwise), restart contract-risk-agent, then

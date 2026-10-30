@@ -116,7 +116,7 @@ class TestProviderRouting:
 
     def test_live_envelope_completes_in_docusign_not_in_the_platform(self):
         assert esign_client.live_provider_ref("docusign-env-abc") == "DocuSign"
-        assert esign_client.live_provider_ref("documenso-doc-1") == "Documenso"
+        assert esign_client.live_provider_ref("documenso-env-envelope_1") == "Documenso"
         assert esign_client.live_provider_ref("docusign-ref-1234") is None  # simulated
 
 
@@ -234,6 +234,27 @@ class TestAutoSend:
         assert run(contract_service.auto_send_for_signature(_db(), "p", _contract())) == "no_signer"
         self.send.assert_not_awaited()
         assert self.audit.await_args.args[3] == "auto_send_skipped"
+
+    def test_with_documenso_both_parties_sign_finance_first(self, monkeypatch):
+        monkeypatch.setattr(contract_service, "documenso_enabled", lambda: True)
+        monkeypatch.setattr(contract_service.settings, "esign_auto_signer_email", None)
+        db = AsyncMock()
+        tried = MagicMock(first=MagicMock(return_value=None))
+        vendor = MagicMock(scalar_one_or_none=MagicMock(return_value="sales@vendor.example"))
+        finance = MagicMock(scalar_one_or_none=MagicMock(return_value="finance@acme.test"))
+        db.execute.side_effect = [tried, vendor, finance]
+        assert run(contract_service.auto_send_for_signature(db, "p", _contract())) == "sent"
+        args, kwargs = self.send.await_args
+        assert args[3] == "finance@acme.test"
+        assert kwargs["provider"] == "documenso" and kwargs["vendor_signer_email"] == "sales@vendor.example"
+        assert kwargs["automatic"] is True
+
+    def test_with_documenso_no_vendor_contact_leaves_a_draft_and_says_why(self, monkeypatch):
+        monkeypatch.setattr(contract_service, "documenso_enabled", lambda: True)
+        assert run(contract_service.auto_send_for_signature(_db(), "p", _contract())) == "no_signer"
+        self.send.assert_not_awaited()
+        assert self.audit.await_args.args[3] == "auto_send_skipped"
+        assert "contact email" in self.audit.await_args.args[4]["reason"]
 
     def test_provider_failure_is_recorded_not_retried_forever(self):
         self.send.side_effect = contract_service.ContractGenerationError("DocuSign login failed (400)")

@@ -7,12 +7,14 @@ captioned video — the backup recording to play if the live demo fails.
     ./run.sh && ./scripts/seed-demo-data.sh
     python tests/e2e/demo_scenarios.py      # realistic history first (once)
     python tests/e2e/showcase_screens.py    # adds the sanctions-listed vendor
-    python tests/e2e/demo_5min.py           # → docs/demo/backup-recording.webm
+    python tests/e2e/demo_5min.py           # → docs/demo/backup-recording.webm (only if every step passes)
     python tests/e2e/demo_5min.py --quote demo-quote.pdf   # a fresh quote to drop live
     HEADLESS=1 python tests/e2e/demo_5min.py  # no display (the PDF preview stays empty)
 
 It changes state like the presenter would: drops one quote into ./inbox/input
-and signs the contract that comes out of it.
+and both parties sign the contract that comes out of it in Documenso (finance
+on the contract page, the vendor through the link emailed to Mailpit), so it
+needs scripts/documenso_setup.py done.
 """
 import asyncio
 import os
@@ -26,6 +28,8 @@ from playwright.async_api import async_playwright
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from demo_scenarios import ROOT, Ctx, brand, doc_pdf, poll  # noqa: E402
+from documenso_signing import (MAILPIT, company_signs, mail_ids, send_on_page, sign_in_frame,  # noqa: E402
+                               vendor_signer_email, wait_vendor_link)
 
 import random  # noqa: E402
 
@@ -102,12 +106,6 @@ async def main():
     c = Ctx(run=uuid.uuid4().hex[:6].upper())
     c["rng"] = random.Random(c["run"])
     listed = next((v for v in get("admin", "/vendors/?limit=200") if "rosoboronexport" in v["name"].lower()), None)
-    def acknowledged_high(x):
-        cert = get("admin", f"/contracts/{x['id']}/signature-certificate") or {}
-        risk = cert.get("vendor_risk_at_signing") or {}
-        # High, or Unrated (checks incomplete) under the deterministic scorecard
-        return risk.get("risk_band") in ("High", "Unrated") and risk.get("acknowledged")
-    high = next((x for x in get("admin", "/contracts/?limit=100") if x["status"] == "signed" and acknowledged_high(x)), None)
     if listed is None:
         sys.exit("No sanctions-listed demo vendor: run tests/e2e/showcase_screens.py sanctions first.")
 
@@ -125,7 +123,7 @@ async def main():
         d = Demo(page)
 
         async def s1():
-            await d.open("admin", "/app/control-panel", "Dropped files",
+            await d.open("admin", "/app/control-panel?section=documents", "Dropped files",
                          "0:00 · One quote dropped in ./inbox/input — no one clicks anything")
             c["vendor"] = f"{brand(c['rng'])} {brand(c['rng'])} Pvt Ltd"
             pdf, total = doc_pdf(c, "quote", c["vendor"], [{"name": "USB-C dock", "quantity": 2, "unit_price": 210.0}],
@@ -159,88 +157,92 @@ async def main():
                 await page.wait_for_timeout(3000)
                 await page.get_by_role("button", name="Confirm as Correct").click()
                 note = "models disagreed → finance confirmed"
+            # Draft: a new vendor has no signatory on file, so nobody can be
+            # named to sign for them yet. Sent at once if it has a contact.
             ct = poll(lambda: next((x for x in get("admin", "/contracts/?limit=50")
-                                    if x.get("purchase_request_id") and x["status"] == "pending_signature"
+                                    if x.get("purchase_request_id") and x["status"] in ("draft", "pending_signature")
                                     and (get("admin", f"/requests/{x['purchase_request_id']}") or {}).get("document_id") == c["doc"]), None),
                       lambda x: x is not None, timeout=90, interval=4)
-            assert ct, "no contract pending signature after the review"
+            assert ct, "no contract generated after the review"
             c["contract"] = ct["id"]
-            await d.caption("1:00 · Confirmed → request created and auto-approved (≤ ₹500 tier) → contract sent")
+            await d.caption("1:00 · Confirmed → request created and auto-approved (≤ ₹500 tier) → contract generated")
             await page.wait_for_timeout(2500)
-            return f"{note} · contract {ct['id'][:8]} pending signature"
+            return f"{note} · contract {ct['id'][:8]} {ct['status']}"
 
         async def s3():
-            await d.open("finance", f"/app/contracts/{c['contract']}", "Sign now",
-                         "1:45 · Finance signs in the platform — risk shown before signing")
-            await page.get_by_role("button", name="Sign now").first.click()
-            await page.get_by_placeholder("e.g. Jane Doe").fill("Farah Finance")
-            await page.get_by_placeholder("e.g. Chief Financial Officer").fill("Finance Head")
-            await page.get_by_role("button", name="Type").click()
-            for box in await page.locator("input[type=checkbox]").all():
-                if await box.is_visible() and not await box.is_checked():
-                    await box.check()
-            await page.wait_for_timeout(1000)
-            await page.get_by_role("button", name="Sign & Execute Contract").click()
-            await page.get_by_text("Signed", exact=False).first.wait_for(timeout=30000)
-            st = get("admin", f"/contracts/{c['contract']}")["status"]
+            await d.open("finance", f"/app/contracts/{c['contract']}", "Vendor risk",
+                         "1:45 · Both parties sign on the platform, the vendor's risk shown first")
+            ct = get("admin", f"/contracts/{c['contract']}")
+            vendor = next((x for x in ct.get("signers") or [] if x["party"] == "vendor"), None)
+            vendor_email = vendor["email"] if vendor else vendor_signer_email(c["vendor"], c["run"])
+            if ct["status"] == "draft":
+                await d.caption("1:45 · New vendor, nobody on file to sign for them: finance names their signatory")
+                await send_on_page(page, vendor_email, pause=1500)
+            before = mail_ids(vendor_email)
+            await d.caption("1:45 · Finance signs first, here; a vendor that isn't cleared needs the risk acknowledged")
+            asked = await company_signs(page, pause=2000)
+            mid, link = wait_vendor_link(vendor_email, before)
+            await page.goto(f"{MAILPIT}/view/{mid}")
+            await page.wait_for_timeout(1500)
+            await d.caption("2:15 · The vendor is emailed a personal link (Mailpit stands in for their inbox)")
+            await page.wait_for_timeout(2500)
+            await page.goto(link)
+            await page.get_by_text("Signing for", exact=False).first.wait_for(timeout=20000)
+            await d.caption("2:15 · The vendor signs on our page, no account needed")
+            await sign_in_frame(page)
+            await page.get_by_text("Both parties have now signed").wait_for(timeout=45000)
+            await page.wait_for_timeout(1500)
+            st = poll(lambda: get("admin", f"/contracts/{c['contract']}")["status"], lambda x: x == "signed", timeout=30, interval=2)
             assert st == "signed", st
-            await d.caption("1:45 · Signed: SHA-256 seal + certificate; the request moves to Ordered")
+            await d.open("finance", f"/app/contracts/{c['contract']}", "Signed by",
+                         "2:45 · Signed by both, sealed with a digital certificate; the request moves to Ordered")
             await page.wait_for_timeout(3000)
-            return "signed in the UI"
+            return "both signed" + (" · risk acknowledged first" if asked else " · vendor cleared, no acknowledgement")
 
         async def s4():
             await d.open("finance", f"/app/vendors/{listed['id']}", "Sanctions Screening",
-                         "2:30 · Every vendor is screened against 25,000+ sanctioned companies")
+                         "3:00 · Every vendor is screened against 25,000+ sanctioned companies")
             await d.scroll_to("Sanctions Screening")
             await page.get_by_role("button", name="Screen now").click()
             await page.get_by_text("Potential match", exact=False).first.wait_for(timeout=30000)
-            await d.caption("2:30 · Potential match (score 100, lists named) → vendor stays High until finance reviews")
+            await d.caption("3:00 · Potential match (score 100, lists named) → vendor stays High until finance reviews")
             await page.wait_for_timeout(4000)
             return "potential match shown"
 
         async def s5():
-            if not high:
-                return "skipped: no contract signed with a risk acknowledgement (run demo_scenarios.py 4)"
-            await d.open("finance", f"/app/contracts/{high['id']}", "Signature certificate",
-                         "3:15 · Nobody signs with an uncleared vendor without acknowledging it")
-            await page.get_by_role("button", name="Signature certificate").click()
-            await page.locator("text=acknowledg >> visible=true").first.wait_for(timeout=15000)
-            await page.wait_for_timeout(4000)
-            await page.keyboard.press("Escape")
-            return "certificate records High + acknowledged"
-
-        async def s6():
-            await d.open("admin", "/app/control-panel", "Kafka log",
+            await d.open("admin", "/app/control-panel?section=processing", "Kafka log",
                          "3:45 · Nothing hidden: every event between the agents, and the ones that failed")
             await d.scroll_to("Kafka log")
             await page.wait_for_timeout(3000)
             await d.scroll_to("Failed events")
             await page.wait_for_timeout(2500)
             await d.open("admin", "/app/business-rules", "Business Rules",
-                         "4:15 · 47 business rules, changed live with a justification and history")
+                         "4:15 · Every threshold is a business rule, changed live with a justification and history")
             await page.wait_for_timeout(3500)
 
         print(f"5-minute demo rehearsal (run {c['run']})")
         await step("1 Quote dropped, processed unattended", 60, s1)
         await step("2 Fields, confidence, human check → contract", 60, s2)
-        await step("3 Sign in the platform", 45, s3)
+        await step("3 Both parties sign (risk acknowledged first)", 75, s3)
         await step("4 Sanctions screening", 45, s4)
-        await step("5 High risk needs acknowledgement", 30, s5)
-        await step("6 Kafka log, failed events, rules", 45, s6)
+        await step("5 Kafka log, failed events, rules", 45, s5)
         await d.caption("Thank you")
         await page.wait_for_timeout(1500)
         await ctx.close()
         await browser.close()
 
+    failed = [r for r in results if not r[3]]
+    # A run with a broken step never replaces the backup recording: its
+    # video goes to .run/ to look at instead.
     video = next((os.path.join(vid_dir, f) for f in os.listdir(vid_dir) if f.endswith(".webm")), None)
-    target = os.path.join(OUT, "backup-recording.webm")
+    target = os.path.join(ROOT, ".run", "demo-5min-failed.webm") if failed else os.path.join(OUT, "backup-recording.webm")
     if video:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
         os.replace(video, target)
     shutil.rmtree(vid_dir, ignore_errors=True)
 
     total = sum(r[1] for r in results)
     budget = sum(r[2] for r in results)
-    failed = [r for r in results if not r[3]]
     print(f"\n  {len(results) - len(failed)}/{len(results)} steps OK · {total:.0f}s of actions (budget {budget}s"
           f" = {budget // 60}:{budget % 60:02d} with talking) · recording: {os.path.relpath(target, ROOT) if video else 'none'}")
     if failed:
