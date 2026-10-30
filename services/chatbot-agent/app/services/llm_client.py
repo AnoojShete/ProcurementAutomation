@@ -31,21 +31,45 @@ SYSTEM_PROMPT = (
     "You answer questions about contracts and their clauses, uploaded invoices/quotes/POs, purchase requests and "
     "their status, vendors and their risk, licences, budgets and the platform's business rules.\n"
     "Rules:\n"
-    "1. Use only the numbered PASSAGES given with the question. They come from the platform's records and are "
-    "current to the minute. Never use outside knowledge about contracts, vendors, prices or policies.\n"
+    "1. Use only the PASSAGES given with the question inside <document> tags. They come from the platform's records "
+    "and are current to the minute. Never use outside knowledge about contracts, vendors, prices or policies.\n"
     "2. Read the passage that answers the question carefully and quote its key sentence in quotation marks, "
     "then answer in one or two sentences. Copy numbers exactly as written.\n"
-    "3. Cite the passage reference in square brackets, e.g. [CT-1a2b3c4d] or [approval.spend_tiers].\n"
-    "4. Each passage is about the contract, vendor or record named at its start. Only if the question names a "
+    "3. If the user is a 'requester', you must redact all vendor Bank Account Numbers, Routing Codes, and IFSC "
+    "codes by replacing them with [hidden].\n"
+    "4. Synthesize your answers naturally. NEVER output raw chunk identifiers, XML tags, or brackets like "
+    "[Doc ID: ...]. Integrate the facts into a clean conversational response.\n"
+    "5. Each passage is about the contract, vendor or record named at its start. Only if the question names a "
     "specific vendor, contract or item by its proper name and no passage mentions it, say there is no record of it; "
     "ordinary words in the question are not names.\n"
-    "5. If the passages don't contain the answer, say you couldn't find it in the platform's records. Never guess.\n"
-    "5a. A passage about a business rule: explain in plain words what the rule does and what its current setting "
+    "6. If the passages don't contain the answer, say you couldn't find it in the platform's records. Never guess.\n"
+    "6a. A passage about a business rule: explain in plain words what the rule does and what its current setting "
     "means for the user's question. Don't answer with just the setting or the rule's key.\n"
-    "6. Never reveal bank account numbers or IFSC codes.\n"
-    "7. For questions unrelated to procurement on this platform (or greetings), reply briefly in plain text: say "
+    "7. Never reveal bank account numbers or IFSC codes.\n"
+    "8. For questions unrelated to procurement on this platform (or greetings), reply briefly in plain text: say "
     "what you can help with. Don't output JSON."
 )
+
+# ── Hard RBAC: tools that requesters must never see ──────────────────
+REQUESTER_BLOCKED_TOOLS = frozenset({
+    "get_procurement_summary",
+    "get_license_anomaly_summary",
+    "get_vendor_risk",
+})
+
+
+def _filter_tools_for_role(tools: list[dict] | None, role: str) -> list[dict] | None:
+    """Remove privileged tools before sending the payload to the LLM.
+
+    This is a hard enforcement layer: even if the system prompt told the
+    model about these tools, the model physically cannot call them because
+    they are stripped from the request.
+    """
+    if tools is None:
+        return None
+    if role == "requester":
+        return [t for t in tools if t.get("function", {}).get("name") not in REQUESTER_BLOCKED_TOOLS]
+    return tools
 
 
 def search_query(history: list) -> str:
@@ -109,9 +133,12 @@ async def query_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessio
     except Exception:                    # index or embedding model unavailable: answer without passages
         hits = []
     async with httpx.AsyncClient(timeout=300.0) as client:
-        r = await client.post(f"{settings.llm_api_base_url}/api/chat", json={
-            "model": settings.llm_model_name, "messages": build_messages(history, user, hits), "stream": False,
-            "options": {"temperature": 0}})
+        filtered = _filter_tools_for_role(getattr(settings, "llm_tools", None), user.role)
+        payload = {"model": settings.llm_model_name, "messages": build_messages(history, user, hits),
+                   "stream": False, "options": {"temperature": 0}}
+        if filtered:
+            payload["tools"] = filtered
+        r = await client.post(f"{settings.llm_api_base_url}/api/chat", json=payload)
         r.raise_for_status()
         return r.json().get("message", {}).get("content") or "I could not generate a response."
 
@@ -158,9 +185,12 @@ async def stream_llm_with_tools(history: list, user: CurrentUser, db: AsyncSessi
 
     full_reply = ""
     async with httpx.AsyncClient(timeout=300.0) as client:
-        async with client.stream("POST", f"{settings.llm_api_base_url}/api/chat", json={
-            "model": settings.llm_model_name, "messages": build_messages(history, user, hits), "stream": True,
-            "options": {"temperature": 0}}) as resp:
+        filtered = _filter_tools_for_role(getattr(settings, "llm_tools", None), user.role)
+        payload = {"model": settings.llm_model_name, "messages": build_messages(history, user, hits),
+                   "stream": True, "options": {"temperature": 0}}
+        if filtered:
+            payload["tools"] = filtered
+        async with client.stream("POST", f"{settings.llm_api_base_url}/api/chat", json=payload) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if not line.strip():

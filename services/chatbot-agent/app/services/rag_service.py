@@ -107,7 +107,7 @@ def rerank(query: str, rows: list) -> list:
 def as_context(hits: list[Hit]) -> str:
     if not hits:
         return "No matching passages were found in the contracts, documents or business rules this user can see."
-    return "\n\n".join(f"[{h.ref}] {h.text}" for h in hits)
+    return "\n".join(f'<document id="{h.ref}">\n{h.text}\n</document>' for h in hits)
 
 
 async def search_knowledge_base(query: str, db: AsyncSession, user: CurrentUser, limit: int = 25) -> str:
