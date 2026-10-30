@@ -874,6 +874,19 @@ refreshes it daily afterwards. Each vendor is screened when scored (and
 from the vendor page); a name at or above `risk.sanctions_match_threshold_pct`
 (90) is a potential match and a hard override (High) until finance clears
 it with a reason (`POST /vendors/{id}/clear-sanctions-flag`, audit-logged).
+To keep false positives down (Oct 31), legal suffixes are stripped before
+comparing, a stem of three letters or fewer must match exactly, a
+four-letter stem must share its first letter and differ by at most one
+edit, and a near-exact name whose listed country contradicts the vendor's
+is a possible match for review rather than a hard override
+(`sanctions.classify_sanctions_match`).
+
+**Jurisdiction.** A foreign vendor's country is scored on the World Bank's
+Worldwide Governance Indicators (Political Stability and Rule of Law, latest
+year) from the public World Bank Open Data API (`app/services/world_bank.py`,
+no key, cached 24 h); if the API has no data, the check records
+`wgi_unavailable` instead of guessing. Indian vendors use a fixed domestic
+baseline, and a vendor with no country gets no WGI at all.
 
 **Vendor risk scoring** is the deterministic vendor risk scorecard (merged 21 Oct from `updated_risk`): a 100-point ruleset —
 identity and compliance 39, operational performance 35, cyber 17, company standing 6, reputation 3 —

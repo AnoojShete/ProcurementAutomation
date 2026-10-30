@@ -191,7 +191,9 @@ def integration():
                                                 "legal_consent": True, "risk_acknowledged": True}, role="approver")
         check("hard-blocked vendor: refused even with the acknowledgement", r.status_code == 409
               and "vendor_blocked" in r.text, f"{r.status_code} {r.text[:150]}")
-    unsigned = next((c for c in pending if c not in blocked), None)
+    # A contract out for signature in Documenso completes there, so the
+    # built-in signing below needs one that isn't out at a provider.
+    unsigned = next((c for c in pending if c not in blocked and not c.get("esign_provider_ref")), None)
     if unsigned is None:
         r = post("/contracts/generate", {"purchase_request_id": "22222222-2222-2222-2222-222222222222", "template_name": "hardware_purchase"})
         unsigned = r.json().get("data")

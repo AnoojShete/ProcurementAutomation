@@ -112,7 +112,7 @@ def test_access_is_applied_in_the_query(role, staff):
 def test_access_clause_limits_owner_chunks_to_their_owner():
     import inspect
     src = inspect.getsource(rag_service.retrieve)
-    assert "audience = 'all' OR :staff OR (audience = 'owner' AND owner_email = :email)" in src
+    assert "(e.audience = 'all' OR :staff OR (e.audience = 'owner' AND e.owner_email = :email))" in src
 
 
 def test_named_contract_type_wins_and_far_hits_are_dropped():
@@ -124,7 +124,7 @@ def test_named_contract_type_wins_and_far_hits_are_dropped():
 
 
 def test_one_kind_of_source_cannot_crowd_out_the_rest():
-    rows = [_row("request", f"r{i}", f"PR-r{i} · purchase request", 0.20 + i / 100) for i in range(6)]
+    rows = [_row("request", f"r{i}", f"PR-r{i} · purchase request", 0.20 + i / 100) for i in range(rag_service.MAX_PER_TYPE["request"] + 2)]
     rows.append(_row("rule", "approval.spend_tiers", "rule approval.spend_tiers", 0.30))
     hits, _ = _retrieve(CurrentUser(id="u", email="f@x", role="finance"), rows)
     assert sum(h.source_type == "request" for h in hits) == rag_service.MAX_PER_TYPE["request"]
@@ -140,8 +140,8 @@ def _msg(role, content):
 def test_model_gets_the_passages_with_the_question_and_no_tools():
     hits = [rag_service.Hit("CT-3c90af41", "contract", "c", "t", "7. Liability", "fees paid in the 12 months", 0.2)]
     msgs = llm_client.build_messages([_msg("user", "What is the liability cap?")], CurrentUser(id="u", email="f@x", role="finance"), hits)
-    assert msgs[0]["role"] == "system" and "Use only the numbered PASSAGES" in msgs[0]["content"]
-    assert "[CT-3c90af41] fees paid in the 12 months" in msgs[-1]["content"] and "QUESTION: What is the liability cap?" in msgs[-1]["content"]
+    assert msgs[0]["role"] == "system" and "Use only the PASSAGES" in msgs[0]["content"]
+    assert '<document id="CT-3c90af41">\nfees paid in the 12 months' in msgs[-1]["content"] and "QUESTION: What is the liability cap?" in msgs[-1]["content"]
 
     post = AsyncMock(return_value=MagicMock(raise_for_status=MagicMock(), json=MagicMock(return_value={"message": {"content": "ok"}})))
     client = MagicMock(post=post)

@@ -15,13 +15,13 @@ data, without showing anyone data they may not see.
 | Model | Ollama on the host: `llama3.2:3b` for answers, `nomic-embed-text` for embeddings |
 | Retrieval | `document_embeddings` (pgvector): contract clauses, document text, business rules and current records, re-indexed every minute; access checked per chunk |
 | Intent first | Greetings, remarks and topic-only messages get a direct reply; licence anomalies come from live scores |
-| API | `/api/chat/*` |
+| API | `/api/chat/*`; `/api/chat/stream` sends the reply as it is written (server-sent events), and the chat drawer falls back to `/api/chat` if streaming fails |
 
 ## 3. Functional implementation
 
 Decide intent → retrieve the chunks this user may see → answer only from
-them, citing the source (`CT-…`, `DOC-…`, `PR-…`, a rule key) → say so when
-nothing relevant is found.
+them, quoting the passage it used (a requester never sees bank details) → say
+so when nothing relevant is found.
 
 ## 4. Results and evaluation
 
