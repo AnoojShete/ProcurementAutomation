@@ -261,6 +261,23 @@ export function ContractActions({
               Original PDF (unsigned)
             </Button>
           </>
+        ) : contract.status === "pending_signature" && companySigner?.status === "signed" ? (
+          <>
+            <Button
+              icon={<Download className="size-4" />}
+              loading={downloading === "signed"}
+              onClick={() => download("signed")}
+            >
+              Download copy signed by us
+            </Button>
+            <Button
+              variant="secondary"
+              loading={downloading === "document"}
+              onClick={() => download("document")}
+            >
+              Original PDF (unsigned)
+            </Button>
+          </>
         ) : (
           <Button
             variant="secondary"

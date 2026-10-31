@@ -255,6 +255,25 @@ async def vendor_session(
     return {**summary, "state": "ready", "host": embed_host(), "token": signer.provider_token}
 
 
+async def company_signed_copy(db: AsyncSession, contract: Contract) -> Optional[bytes]:
+    """The agreement with the company's signature, while it waits for the
+    vendor: our signatory's drawn signature (or their name, when Documenso's
+    can't be read), name and time in the company box, and every page marked
+    as not yet executed. None unless the company has signed and the vendor
+    hasn't; once both have, the sealed copy comes from Documenso."""
+    if contract.status != "pending_signature":
+        return None
+    company = await _signer(db, str(contract.id), COMPANY)
+    if company is None or company.status != "signed":
+        return None
+    pdf_input = await build_pdf_input(db, contract)
+    pdf_input.awaiting_vendor = True
+    pdf_input.signed_by = f"{company.name} <{company.email}>"
+    pdf_input.signed_at = company.signed_at
+    pdf_input.signature_image = await esign_client.documenso_signature_image(company.provider_recipient_id)
+    return render_contract_pdf(pdf_input)
+
+
 def _vendor_email(signer: ContractSigner, link: str, vendor_name: str, title: str) -> tuple[str, str]:
     expires = signer.link_expires_at.strftime("%d %b %Y") if signer.link_expires_at else ""
     subject = f"Please sign: {title}"

@@ -76,6 +76,9 @@ class ContractPdfInput:
     bulk_batch_id: Optional[str] = None
     mandate_id: Optional[str] = None
     mandate_text_hash: Optional[str] = None
+    # Two-party signing: the company has signed (signed_by / signed_at /
+    # signature_image are its signatory's) and the vendor hasn't yet.
+    awaiting_vendor: bool = False
 
 
 def _decode_signature_image(data_url: Optional[str], width: float = 48 * mm, height: float = 14 * mm) -> Optional[RLImage]:
@@ -231,7 +234,7 @@ class _SignatureLine(Flowable):
 
 
 def _signature_block(c: ContractPdfInput, st: dict, width: float, slots: Optional[dict] = None) -> Table:
-    signed = c.status == "signed"
+    signed = c.status == "signed" or c.awaiting_vendor
 
     signer_name = ""
     if c.signed_by:
@@ -325,6 +328,8 @@ def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False, 
     status_label = {"draft": "Draft", "pending_signature": "Sent for signature", "signed": "Signed"}.get(
         c.status, c.status.replace("_", " ").title()
     )
+    if c.awaiting_vendor:
+        status_label = "Signed by the company, awaiting the vendor"
     story: list = [
         Paragraph(escape(_title_case(title)), st["title"]),
         Paragraph(f"{escape(c.vendor_name)} · Contract {escape(short_id)} · Version {c.version}", st["subtitle"]),
@@ -426,6 +431,8 @@ def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False, 
 
     watermark = "DRAFT" if c.status == "draft" else None
     footer_right = "Signed copy" if include_certificate else status_label
+    banner = ("Signed by the company — awaiting the vendor's signature. Not an executed agreement."
+              if c.awaiting_vendor else None)
 
     def on_page(canvas, _doc):
         canvas.saveState()
@@ -437,6 +444,10 @@ def render_contract_pdf(c: ContractPdfInput, include_certificate: bool = False, 
             canvas.drawCentredString(0, -30, watermark)
             canvas.rotate(-35)
             canvas.translate(-A4[0] / 2, -A4[1] / 2)
+        if banner:
+            canvas.setFillColor(MUTED)
+            canvas.setFont("Helvetica-Bold", 8)
+            canvas.drawCentredString(A4[0] / 2, A4[1] - 12 * mm, banner)
         canvas.setStrokeColor(RULE)
         canvas.setLineWidth(0.5)
         canvas.line(22 * mm, 14 * mm, A4[0] - 22 * mm, 14 * mm)

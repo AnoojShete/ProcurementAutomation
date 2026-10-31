@@ -803,6 +803,8 @@ async def build_pdf_input(db: AsyncSession, contract: Contract, include_audit: b
 
 def document_filename(contract: Contract, signed: bool) -> str:
     base = f"contract-{str(contract.id)[:8]}-v{contract.version or 1}"
+    if signed and contract.status == "pending_signature":
+        return f"{base}-signed-by-company.pdf"
     return f"{base}-signed.pdf" if signed else f"{base}.pdf"
 
 

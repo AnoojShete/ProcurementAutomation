@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # Where the browser loads Documenso's embedded signing frame from
     # (the API URL is the compose-network one). Unset: the API URL.
     documenso_public_url: str | None = None
+    # Documenso's own database, read only for a signer's drawn signature
+    # (its API gives none before every party has signed). Unset: the
+    # "documenso" database on the same server as database_url.
+    documenso_database_url: str | None = None
     # How long the vendor's emailed signing link works.
     vendor_signing_link_days: int = 30
     opensign_api_url: str | None = None

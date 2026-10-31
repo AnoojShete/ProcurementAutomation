@@ -178,6 +178,38 @@ async def request_signature(
     return _simulated_ref(contract_id, signer_email, p_name)
 
 
+def _documenso_dsn() -> str:
+    if settings.documenso_database_url:
+        return settings.documenso_database_url
+    base, _, _ = settings.database_url.replace("+asyncpg", "").rpartition("/")
+    return f"{base}/documenso"
+
+
+async def documenso_signature_image(recipient_id: Optional[str]) -> Optional[str]:
+    """A signer's drawn signature (PNG data URL) from Documenso's database.
+    Documenso only stamps signatures into the PDF once every party has
+    signed, and its API doesn't return them, so this reads its "Signature"
+    table directly. None when there is none (typed signature, no
+    Documenso, or its tables changed in an upgrade); callers fall back to
+    the signer's name."""
+    if not recipient_id or not documenso_enabled():
+        return None
+    import asyncpg
+    try:
+        conn = await asyncpg.connect(_documenso_dsn(), timeout=5)
+        try:
+            image = await conn.fetchval(
+                'SELECT "signatureImageAsBase64" FROM "Signature" WHERE "recipientId" = $1 ORDER BY id DESC LIMIT 1',
+                int(recipient_id),
+            )
+        finally:
+            await conn.close()
+    except Exception as e:
+        logger.warning(f"Could not read the drawn signature of Documenso recipient {recipient_id}: {e}")
+        return None
+    return image if isinstance(image, str) and image.startswith("data:image/") else None
+
+
 async def download_signed_pdf(provider_ref: Optional[str]) -> Optional[bytes]:
     """The provider's sealed PDF for a completed Documenso envelope or
     DocuSign envelope, or None when the contract wasn't signed through a
