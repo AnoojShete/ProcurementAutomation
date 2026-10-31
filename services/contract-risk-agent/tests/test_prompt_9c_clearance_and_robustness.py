@@ -290,7 +290,11 @@ def _no_flags():
 
 
 @pytest.mark.asyncio
-async def test_clearance_petty_exception():
+async def test_clearance_petty_exception(monkeypatch):
+    import shared.rules_engine as rules_engine
+    monkeypatch.setattr(rules_engine, "fetch_all_rules", lambda: {})
+    rules_engine.clear_cache()
+    rules_engine.update_rule_cache("vendor.petty_tier_max_amount", 50000.0)
     vendor_id = "v-petty-123"
     now = datetime(2026, 10, 20, 12, 0, 0, tzinfo=timezone.utc)
 
