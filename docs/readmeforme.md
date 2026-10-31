@@ -896,7 +896,10 @@ sources behind a circuit breaker). Bands: Low 0–24, Medium 25–49, High 50+. 
 (owner decision, 30 Oct 2026): a check whose status is `not_assessed` is left out and the
 remaining points are re-weighted to 100 (`weighted_points = total_points × all_max / checked_max`,
 e.g. 7 points over the 57 points checked = 12/100; `risk_scores.score` stores it / 100), and a
-vendor with no check done is High until one completes. Missing information *about the vendor*
+vendor with no check done is High until one completes. A *provisional* score is then held toward
+the middle of Medium (37) by the share of the scorecard still open (owner, 31 Oct 2026), never
+below the points found: Hathway's 12 with 43% open becomes 23, so a few checks can't swing it to
+either end (`reweighted_points` keeps the unadjusted figure). Missing information *about the vendor*
 (no country, GSTIN, registration date, financial evidence, bank details, website or mail domain:
 `engine.vendor_unverified`) counts as that check's full points instead, and a vendor with no verified
 GSTIN or registration date is High (`identity_verified`). Detect-only checks that couldn't run (news,

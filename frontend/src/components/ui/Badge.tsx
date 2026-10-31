@@ -94,12 +94,15 @@ export function RiskBadge({
   pointsBand,
   ratingStatus,
   pointsIsLowerBound,
+  showProvisional = false,
   className,
 }: {
   band: string | null | undefined;
   pointsBand?: string | null;
   ratingStatus?: string | null;
   pointsIsLowerBound?: boolean;
+  // The provisional tag belongs on an item's own page; tables show the band only.
+  showProvisional?: boolean;
   className?: string;
 }) {
   if (!band || band === "Unrated" || ratingStatus === "not_rated") {
@@ -116,8 +119,8 @@ export function RiskBadge({
     );
   }
 
-  // Never render green if checks are provisional or points is a lower bound
-  if (ratingStatus === "provisional" || pointsIsLowerBound) {
+  // On an item's own page a provisional band is tagged, never shown as plain green
+  if (showProvisional && (ratingStatus === "provisional" || pointsIsLowerBound)) {
     return (
       <span
         className={cn(

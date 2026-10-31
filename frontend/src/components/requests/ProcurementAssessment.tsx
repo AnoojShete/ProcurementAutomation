@@ -103,7 +103,7 @@ export function ProcurementAssessment({
           ) : vendorRiskLoading ? (
             <span className="text-slate-400">Loading…</span>
           ) : vendorRisk ? (
-            <RiskBadge band={vendorRisk.risk_band} ratingStatus={vendorRisk.rating_status} />
+            <RiskBadge band={vendorRisk.risk_band} ratingStatus={vendorRisk.rating_status} showProvisional />
           ) : (
             <Unavailable reason="Vendor has not been risk-scored yet" />
           )}

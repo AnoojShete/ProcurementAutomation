@@ -71,6 +71,8 @@ def _serialize_risk_summary(row: RiskScore, vendor_status: str = "active") -> di
             "reasons": row.provisional_reasons or [],
         },
         "headline": row.headline,
+        # Details missing from the vendor record that the score is waiting on
+        "data_needed": (row.explanation or {}).get("data_needed", []),
         "effective_tier": row.effective_tier or "standard",
         "top_contributors": row.details or [],
         "top_factors": row.details or [],

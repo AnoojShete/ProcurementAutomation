@@ -38,7 +38,9 @@ deadlines, and decide whether a vendor may be signed at all.
    rating because checks are incomplete, or a reviewer's rejection) needs the
    signer's explicit acknowledgement.
    Every vendor gets a band. The scorecard has 14 parameters out of 100
-   points. A check our side couldn't run is left out and the rest re-weighted;
+   points. A check our side couldn't run is left out and the rest re-weighted
+   (while the rating is provisional the score is held toward the middle of
+   Medium, by how much of the scorecard is still open);
    missing information about the vendor itself (no GSTIN, registration,
    financials, bank details or domain) counts in full, and a vendor with no
    verified identity is High. A provisional rating is never cleared.

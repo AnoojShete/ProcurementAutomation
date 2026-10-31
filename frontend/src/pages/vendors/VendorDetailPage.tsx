@@ -21,6 +21,7 @@ import { Modal } from "@/components/ui/Modal";
 import { RiskGauge } from "@/components/vendors/RiskGauge";
 import { PaymentChangeVerify } from "@/components/vendors/PaymentChangeVerify";
 import { SanctionsScreening } from "@/components/vendors/SanctionsScreening";
+import { VendorDataNeeded } from "@/components/vendors/VendorDataNeeded";
 import { VendorTaxProfileCard } from "@/components/approvals/TdsActions";
 import { formatPercent, formatCurrency, formatDateTime, titleCase } from "@/lib/format";
 import { ApiError } from "@/api/client";
@@ -111,7 +112,7 @@ export function VendorDetailPage() {
         status={
           <>
             <Badge tone={vendor.status === "active" ? "success" : "neutral"}>{vendor.status}</Badge>
-            <RiskBadge band={risk?.final_band ?? vendor.risk_band} ratingStatus={risk?.rating_status} />
+            <RiskBadge band={risk?.final_band ?? vendor.risk_band} ratingStatus={risk?.rating_status} showProvisional />
           </>
         }
         actions={
@@ -259,6 +260,20 @@ export function VendorDetailPage() {
                     </ul>
                   </div>
                 )}
+                {(risk.data_needed?.length ?? 0) > 0 && (
+                  <div className="mt-3">
+                    <VendorDataNeeded
+                      vendorId={vendor.id}
+                      items={risk.data_needed!}
+                      uploadHref={`/app/vendors/${vendor.id}/risk`}
+                      onSaved={async () => {
+                        await vendorsApi.recomputeRisk(vendor.id);
+                        reloadRisk();
+                        reloadVendors();
+                      }}
+                    />
+                  </div>
+                )}
                 {(risk.top_factors ?? []).filter((f) => f.override).map((f) => (
                   <div key={f.feature} className="mt-3 rounded-md border border-danger-500/30 bg-danger-50 px-3 py-2 text-13 text-slate-800">
                     <span className="font-medium">Hard override:</span> {f.reason} — rated High regardless of the model score.
@@ -274,7 +289,7 @@ export function VendorDetailPage() {
                 {(risk.top_factors ?? []).filter((f) => !f.override).length === 0 && (
                   <p className="text-sm text-slate-500">
                     {risk.rating_status === "provisional"
-                      ? "No penalty points observed (0 risk points). Rated High Risk (provisional) because vendor identity (GSTIN / Incorporation) is not yet verified on file."
+                      ? "No risk points found so far. The rating is provisional, so the score sits nearer the middle until the open checks are done."
                       : "No risk points on file. All assessed signals are clear."}
                   </p>
                 )}

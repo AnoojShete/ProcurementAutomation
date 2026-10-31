@@ -524,10 +524,22 @@ def evaluate_risk(
     missing_max_points = sum(r["max_points"] for r in rule_results
                              if r["status"] == "not_assessed" and not r["unverified"])
     checked_max_points = all_max_points - missing_max_points
+    found_points = total_points + unverified_points
     if checked_max_points > 0:
-        weighted_points = min(100, round((total_points + unverified_points) * all_max_points / checked_max_points))
+        weighted_points = min(100, round(found_points * all_max_points / checked_max_points))
     else:
         weighted_points = 100
+    # Scaling a few checks up to 100 swings a provisional score to either end
+    # (owner, 31 Oct 2026). So a provisional score is pulled toward the middle
+    # of the Medium band by the share of the scorecard still open (checks that
+    # couldn't run or are waiting for data), never below the points found.
+    open_max_points = missing_max_points + sum(r["max_points"] for r in unverified)
+    open_share = open_max_points / all_max_points if all_max_points else 1.0
+    neutral_points = round((bands_def.get("low_max", 24) + 1 + bands_def.get("medium_max", 49)) / 2)
+    reweighted_points = weighted_points
+    if rating_status == "provisional" and checked_max_points > 0:
+        weighted_points = max(min(found_points, 100), round(
+            (1 - open_share) * reweighted_points + open_share * neutral_points))
     points_band = determine_band(weighted_points, bands_def)
     # Forced High only when the GST check ran and found a problem (name or PAN
     # mismatch); identity that is merely not entered yet is banded from its
@@ -570,8 +582,11 @@ def evaluate_risk(
             outstanding = [("GSTIN" if d["field"] == "gstin" else d["field"].replace("_", " ")) for d in data_needed
                            if d["field"] != "bank_details"] + [
                 o for o in outstanding if o != labels["identity"]]
-        headline = (f"Provisional {final_band}: {weighted_points}/100 ({total_points + unverified_points} points{charged} "
-                    f"over the {checked_max_points} points checked). Not cleared until these are done: {', '.join(outstanding)}.")
+        held = (f" Held toward the middle while {round(open_share * 100)}% of the scorecard is still open; "
+                f"the checks done alone would give {reweighted_points}." if weighted_points != reweighted_points else "")
+        headline = (f"Provisional {final_band}: {weighted_points}/100 ({found_points} points{charged} "
+                    f"over the {checked_max_points} points checked).{held} "
+                    f"Not cleared until these are done: {', '.join(outstanding)}.")
     else:
         # Top 2 contributors
         assessed_contributors = [r for r in rule_results if r["points"] > 0]
@@ -787,6 +802,8 @@ def evaluate_risk(
         "rating_status": rating_status,
         "total_points": total_points,
         "weighted_points": weighted_points,
+        "reweighted_points": reweighted_points,
+        "open_share_pct": round(open_share * 100),
         "checked_max_points": checked_max_points,
         "missing_max_points": missing_max_points,
         "unverified_points": unverified_points,
@@ -857,6 +874,7 @@ def evaluate_risk(
     return {
         "total_points": total_points,
         "weighted_points": weighted_points,
+        "reweighted_points": reweighted_points,
         "checked_max_points": checked_max_points,
         "missing_max_points": missing_max_points,
         "unverified_points": unverified_points,
