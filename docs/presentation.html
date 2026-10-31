@@ -1816,19 +1816,6 @@ font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif
   <aside class="notes">Be honest about the data: the document and licence data are synthetic; the clause model was measured on CUAD's lawyer-annotated contracts. Scanned images are read fully right only about half the time, and those go to review.</aside>
 </section>
 
-<!-- team -->
-<section class="slide" data-title="Who presents what">
-  <p class="kicker">The team</p>
-  <h2>Who built what, and who will show it</h2>
-  <div class="body who4">
-    <div style="--c:var(--green)"><span class="when">Opening and close</span><h3>Vaidehi</h3><ul><li>Project report</li><li>Literature survey</li><li>Design and results chapters</li><li>Roles in the app</li></ul></div>
-    <div style="--c:var(--doc)"><span class="when">Documents and operations</span><h3>Anjali</h3><ul><li>Platform and document pipeline</li><li>Control Panel, Kafka log</li><li>Budgets, sourcing, GST/TDS</li><li>Risk red team and rating rules</li></ul></div>
-    <div style="--c:var(--appr)"><span class="when">Request to signature</span><h3>Niraj</h3><ul><li>Approval &amp; Inventory agent</li><li>E-signature, email approvals</li><li>Risk scorecard, sanctions</li><li>Licences, SMTP settings</li></ul></div>
-    <div style="--c:var(--chat)"><span class="when">Assistant</span><h3>Anooj</h3><ul><li>Chatbot agent</li><li>Retrieval and embeddings</li><li>Chat drawer</li><li>Access-limited answers</li></ul></div>
-  </div>
-  <aside class="notes">The running order and each person's click-path are in the Team dashboard: Showcase, By presenter.</aside>
-</section>
-
 <!-- 15 -->
 <section class="slide" data-title="Live demo">
   <p class="kicker">Live demo</p>
@@ -1859,33 +1846,6 @@ font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif
     </div>
   </div>
   <aside class="notes">Run ./scripts/reset-demo.sh before the session to clear test data. Keep Mailpit open in a second tab. 1: copy a vendor quote into ./inbox/input and watch Control Panel, Documents. 2: open the document: every field, its confidence, each stage's result. 3: the purchase request appears; the approver gets an email and approves. 4: the contract is generated; on its page finance names who signs for the vendor (Send for signature), sees the vendor's risk and acknowledges it if asked. 5: finance signs in the Documenso frame; the vendor's email in Mailpit links to /sign, where the vendor signs with no account; the signed PDF carries a digital signature. 6: drop a blank scan; it lands in ./inbox/failed with its reason. If anything stalls, switch to the backup recording. The rehearsed script: Team dashboard, Showcase, 5-minute demo.</aside>
-</section>
-
-<!-- 16 -->
-<section class="slide" data-title="Limitations and next steps">
-  <p class="kicker">Limitations and next steps</p>
-  <h2>What we would not claim yet, and what comes next</h2>
-  <div class="body cols">
-    <div>
-      <h3 style="color:var(--orange)">Not yet</h3>
-      <div class="rows">
-        <div class="row" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-scan"/></svg></span>Poor scans read fully right about half the time</div>
-        <div class="row" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-lock"/></svg></span>The e-signature seal is an unkeyed hash</div>
-        <div class="row" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-layers"/></svg></span>Synthetic data for documents and licences</div>
-        <div class="row" style="--c:var(--orange)"><span class="disc"><svg class="ic"><use href="#i-server"/></svg></span>One machine; no TLS between services</div>
-      </div>
-    </div>
-    <div>
-      <h3 style="color:var(--blue)">Next</h3>
-      <div class="rows">
-        <div class="row"><span class="disc"><svg class="ic"><use href="#i-pen"/></svg></span>A legally recognised e-signature provider</div>
-        <div class="row"><span class="disc"><svg class="ic"><use href="#i-plug"/></svg></span>ERP export of orders and matched invoices</div>
-        <div class="row"><span class="disc"><svg class="ic"><use href="#i-target"/></svg></span>Calibrated review gate from our research</div>
-        <div class="row"><span class="disc"><svg class="ic"><use href="#i-chat"/></svg></span>Teams or Slack alerts; a vendor portal</div>
-      </div>
-    </div>
-  </div>
-  <aside class="notes">The research study (selective automation) shows how to let more invoices skip review while guaranteeing the error rate; that is the most valuable next step.</aside>
 </section>
 
 <!-- 17 -->
