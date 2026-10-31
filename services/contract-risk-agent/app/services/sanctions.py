@@ -24,6 +24,7 @@ import re
 import time
 import unicodedata
 import uuid
+from functools import lru_cache
 from datetime import datetime, timezone
 from typing import Any, Optional, Set, Tuple
 
@@ -47,6 +48,8 @@ LEGAL_STRUCTURE_SUFFIXES = {
     "corp", "corporation", "co", "company", "plc", "pjsc", "ojsc", "jsc",
     "oao", "zao", "ooo", "gmbh", "ag", "sa", "srl", "bv", "nv", "spa",
     "pte", "pty",
+    # extra legal forms that otherwise survive as fake "distinctive" tokens
+    "sal", "sarl", "sas", "kg", "oy", "ltda", "fze", "fzco", "dmcc", "bhd", "sdn", "lp",
 }
 
 GENERIC_BUSINESS_WORDS = {
@@ -57,7 +60,19 @@ GENERIC_BUSINESS_WORDS = {
     "materials", "material", "equipment", "hardware", "software",
     "commercial", "agency", "distributors", "distribution",
     "manufacturing", "manufacture", "import", "export",
+    "marketing", "association", "associates", "associations", "medical", "marine",
+    "shipping", "engineering", "construction", "management", "partners",
 }
+
+# Geographic words (india, russia, ...) are deliberately NOT generic: stripping them
+# would make "Indian Railways" identical to "Russian Railways".
+
+# Guards applied to the distinctive core of both names (see calculate_similarity)
+MIN_STEM_SIMILARITY = 0.75   # normalised Levenshtein similarity of the cores
+MIN_LENGTH_RATIO = 0.70      # shorter core / longer core (blocks atlas ~ atlassian)
+MIN_SHARED_TOKEN_LEN = 5     # exact shared token needed for the "contained name" exception
+FUZZY_GENERIC_MIN_LEN = 7    # typo-tolerant generic-word detection ("technologis")
+FUZZY_GENERIC_RATIO = 88
 
 STOPWORDS = {"the", "and", "of", "&", "it", "in", "for", "on", "at", "to", "by", "with"}
 
@@ -73,6 +88,19 @@ def normalise(name: str) -> str:
     return " ".join(kept or words)
 
 
+@lru_cache(maxsize=None)
+def _is_generic(token: str) -> bool:
+    """Generic business word, tolerating typos on long words
+    ("technologis" -> "technologies")."""
+    if token in GENERIC_BUSINESS_WORDS:
+        return True
+    if len(token) >= FUZZY_GENERIC_MIN_LEN:
+        return any(len(g) >= FUZZY_GENERIC_MIN_LEN and fuzz.ratio(token, g) >= FUZZY_GENERIC_RATIO
+                   for g in GENERIC_BUSINESS_WORDS)
+    return False
+
+
+@lru_cache(maxsize=500_000)
 def extract_stems(name: str) -> Tuple[str, str]:
     """
     Extracts (distinct_stem, clean_string) implementing Rule B.
@@ -91,7 +119,7 @@ def extract_stems(name: str) -> Tuple[str, str]:
         words_no_legal = [w for w in words if w not in STOPWORDS] or words
 
     # Distinctive non-filler tokens
-    non_fillers = [w for w in words_no_legal if w not in GENERIC_BUSINESS_WORDS]
+    non_fillers = [w for w in words_no_legal if not _is_generic(w)]
     distinct_stem = "".join(non_fillers) if non_fillers else "".join(words_no_legal)
 
     # Rule B: DO NOT strip generic business fillers if doing so leaves a core stem of <= 3 chars
@@ -133,6 +161,23 @@ def calculate_similarity(q_name: str, c_name: str, q_stem: Optional[str] = None,
         if q_stem[0] != c_stem[0]:
             return 0.0
         if Levenshtein.distance(q_stem, c_stem) > 1:
+            return 0.0
+
+    # Rule E: core-similarity guards (stops short-vs-long and shared-generic-word hits,
+    # e.g. freshworks ~ resurs, atlassian ~ atlas, hettich india ~ huawei india).
+    # Compared on the distinctive core only; token order and spacing are ignored.
+    q_tokens, c_tokens = q_clean.split(), c_clean.split()
+    q_set, c_set = set(q_tokens), set(c_tokens)
+    # One name fully contained in the other by exact, non-trivial tokens
+    # ("Rosneft" vs "Rosneft Oil") stays a candidate; the composite decides.
+    contained = (q_set <= c_set or c_set <= q_set) and any(len(w) >= MIN_SHARED_TOKEN_LEN for w in q_set & c_set)
+    if not contained:
+        q_sorted, c_sorted = "".join(sorted(q_tokens)), "".join(sorted(c_tokens))
+        q_flat, c_flat = "".join(q_tokens), "".join(c_tokens)
+        stem_sim = max(Levenshtein.normalized_similarity(q_sorted, c_sorted),
+                       Levenshtein.normalized_similarity(q_flat, c_flat))
+        len_ratio = min(len(q_flat), len(c_flat)) / max(len(q_flat), len(c_flat))
+        if stem_sim < MIN_STEM_SIMILARITY or len_ratio < MIN_LENGTH_RATIO:
             return 0.0
 
     # Rule C: Hybrid Scoring Metric (Jaro-Winkler + Token Sort)
