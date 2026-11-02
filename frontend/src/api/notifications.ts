@@ -19,6 +19,10 @@ export interface NotificationTemplateSummary {
   customised: boolean;
   updated_by: string | null;
   updated_at: string | null;
+  category?: 'transactional' | 'security' | 'reminder' | 'digest';
+  audience?: 'internal' | 'requester' | 'approver' | 'vendor';
+  lawful_basis?: 'contract' | 'legitimate_interest' | 'legal_obligation' | 'consent';
+  contains_personal_data?: boolean;
 }
 
 export interface NotificationTemplate extends NotificationTemplateSummary {
@@ -36,6 +40,9 @@ export interface TemplateInput {
   recipient?: string;
   extra_recipients: string[];
   enabled: boolean;
+  category?: string;
+  audience?: string;
+  lawful_basis?: string;
 }
 
 export const notificationsApi = {

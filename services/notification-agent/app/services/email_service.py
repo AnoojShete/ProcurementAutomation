@@ -4,6 +4,7 @@ Logic ported from C# projectmanagement.Services.EmailService:
 - First checks for active custom company SMTP settings in database (comp_id=1).
 - If present and active, decrypts the AES-256-GCM password and sends via custom SMTP.
 - If not configured or inactive, falls back to default system mailer (Mailpit in dev, env in prod).
+- Passes category for List-Unsubscribe (RFC 8058) and standard footer injection.
 """
 import logging
 import os
@@ -62,13 +63,20 @@ async def get_custom_smtp_settings(db: Optional[AsyncSession] = None) -> Optiona
         return None
 
 
-async def send_email(to: str, subject: str, body: str, db: Optional[AsyncSession] = None) -> None:
+async def send_email(
+    to: str,
+    subject: str,
+    body: str,
+    db: Optional[AsyncSession] = None,
+    category: str = "transactional",
+    purpose: str = "operational procurement updates",
+) -> None:
     """Send an email using custom SMTP if configured, or default mailer as fallback."""
     custom_settings = await get_custom_smtp_settings(db)
     if custom_settings:
         logger.info("[EMAIL] Using Custom SMTP for company (%s:%d)", custom_settings.host, custom_settings.port)
-        await shared_send_email(to=to, subject=subject, text=body, settings=custom_settings)
+        await shared_send_email(to=to, subject=subject, text=body, settings=custom_settings, category=category, purpose=purpose)
     else:
         logger.info("[EMAIL] Using System Default mailer")
-        await shared_send_email(to=to, subject=subject, text=body)
-    logger.info("Sent email to=%s subject=%r", to, subject)
+        await shared_send_email(to=to, subject=subject, text=body, category=category, purpose=purpose)
+    logger.info("Sent email to=%s subject=%r category=%s", to, subject, category)

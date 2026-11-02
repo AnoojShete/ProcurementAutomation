@@ -1,17 +1,16 @@
 """Notification templates, managed from the Control Panel (admin only).
 
-GET    /notifications/templates               every template (built-ins + custom)
-GET    /notifications/templates/{name}        one, with its default and placeholders
-POST   /notifications/templates               create a custom template
-PUT    /notifications/templates/{name}        edit (a built-in's edit is stored as an override)
-DELETE /notifications/templates/{name}        restore a built-in / delete a custom one
-POST   /notifications/templates/{name}/preview  render unsaved text with sample values
+Enhanced for Prompt 12B:
+- Template governance fields: category, audience, lawful_basis, contains_personal_data
+- Rejection of 'marketing' category and promotional words
+- Rejection of restricted placeholders
+- Rejection of personal data in subjects
 """
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from jinja2 import TemplateError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -25,12 +24,17 @@ router = APIRouter(dependencies=[Depends(require_role("admin"))])
 
 
 class TemplateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     subject: str = Field(..., max_length=500)
     body: str = Field(..., max_length=20000)
     description: str = Field("", max_length=500)
     recipient: Optional[str] = Field(None, max_length=500)
     extra_recipients: list[str] = Field(default_factory=list, max_length=20)
     enabled: bool = True
+    category: str = Field("transactional", max_length=20)
+    audience: str = Field("internal", max_length=20)
+    lawful_basis: str = Field("contract", max_length=50)
 
 
 class TemplateCreate(TemplateIn):
@@ -38,6 +42,8 @@ class TemplateCreate(TemplateIn):
 
 
 class PreviewIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     subject: str = Field(..., max_length=500)
     body: str = Field(..., max_length=20000)
     recipient: Optional[str] = Field(None, max_length=500)
@@ -55,6 +61,8 @@ def _summary(t: template_store.Template) -> dict:
         "description": t.description, "subject": t.subject, "extra_recipients": t.extra_recipients,
         "enabled": t.enabled, "is_custom": t.is_custom, "customised": t.customised,
         "updated_by": t.updated_by, "updated_at": t.updated_at,
+        "category": t.category, "audience": t.audience, "lawful_basis": t.lawful_basis,
+        "contains_personal_data": t.contains_personal_data,
     }
 
 
@@ -102,6 +110,7 @@ async def create_template(
         template_store.validate(
             payload.name, payload.subject, payload.body, recipients,
             recipient=payload.recipient, creating=True,
+            category=payload.category, audience=payload.audience, lawful_basis=payload.lawful_basis,
         )
     except TemplateValidationError as e:
         raise _invalid(e)
@@ -110,7 +119,8 @@ async def create_template(
     t = await template_store.save(
         db, payload.name, subject=payload.subject, body=payload.body, description=payload.description,
         extra_recipients=recipients, enabled=payload.enabled, is_custom=True, updated_by=user.email,
-        recipient=payload.recipient,
+        recipient=payload.recipient, category=payload.category, audience=payload.audience,
+        lawful_basis=payload.lawful_basis,
     )
     return DataResponse(data=_detail(t))
 
@@ -127,7 +137,8 @@ async def update_template(
     try:
         template_store.validate(
             name, payload.subject, payload.body, recipients,
-            recipient=payload.recipient,
+            recipient=payload.recipient, category=payload.category,
+            audience=payload.audience, lawful_basis=payload.lawful_basis,
         )
     except TemplateValidationError as e:
         raise _invalid(e)
@@ -135,7 +146,8 @@ async def update_template(
         db, name, subject=payload.subject, body=payload.body,
         description=payload.description or current.description,
         extra_recipients=recipients, enabled=payload.enabled, is_custom=current.is_custom, updated_by=user.email,
-        recipient=payload.recipient,
+        recipient=payload.recipient, category=payload.category, audience=payload.audience,
+        lawful_basis=payload.lawful_basis,
     )
     return DataResponse(data=_detail(t))
 

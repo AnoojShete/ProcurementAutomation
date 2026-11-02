@@ -53,6 +53,7 @@ export const SYSTEM_SECTIONS: SystemSection[] = [
   { label: "Business Rules", to: "/app/business-rules", icon: SL, description: "Spend tiers, SLAs, thresholds" },
   { label: "Audit & Activity", to: "/app/audit", icon: CL, description: "Activity across requests and contracts" },
   { label: "Email & SMTP", to: "/app/email-settings", icon: Mail, description: "Custom SMTP server, credentials, connection testing" },
+  { label: "Privacy & Data Protection", to: "/app/privacy", icon: SC2, description: "Processing register (ROPA), DSR requests, sub-processors, breach tracker" },
 ];
 
 const dashboard = (to: string): NavItem => ({ label: "Dashboard", to, icon: LD, end: true });

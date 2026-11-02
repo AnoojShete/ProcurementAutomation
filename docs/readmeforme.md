@@ -1553,3 +1553,40 @@ requester at 390 / 1440 px, then finance at 1440 px after the fixes.
 - No real e-sign provider, SMTP server or GSTIN API was called.
 - Accessibility was checked automatically (labels, alt text, overflow), not
   with a screen reader or keyboard-only walk-through.
+
+---
+
+## Appendix E: Privacy Controls & Personal Data Governance (Prompt 12B)
+
+**Scope & Baseline:**
+- Exclusively operational B2B emails (approvals, reminders, contracts, security alerts); strictly no marketing.
+- Uniform technical baseline (GDPR-standard) across all environments; regional legal variations (India DPDP Act, UK GDPR, US CAN-SPAM, Canada CASL, Australia Spam Act) configured via `privacy.regime_by_country`. Where country is unknown, apply EU baseline (strictest).
+- All technical documentation marked **"DRAFT — requires legal review"**; zero compliance claims made in UI or documentation.
+
+**Summary of Controls Built:**
+1. **Processing Register (ROPA)**: `privacy_processing_records` table, read-only admin UI (`/app/privacy`), CSV export with formula injection escaping.
+2. **Template Governance**: Category enum (`transactional`, `security`, `reminder`, `digest`); `marketing` strictly forbidden at API validation level; promotional words blocklist; placeholder classifications (`public`, `internal`, `personal`, `restricted`); restricted placeholders blocked at save AND render; personal data blocked from email subjects.
+3. **Recipient Controls**: Header injection CR/LF stripping (`sanitize_header`); standard compliant footers with mandatory operational stance; RFC 8058 one-click List-Unsubscribe for digests; email suppressions table (`email_suppressions`).
+4. **Anti-Tracking**: Zero remote tracking pixels (`<img src="http...`), no click-tracking redirect domains.
+5. **Minimisation & Automated Retention**: Email bodies omitted by default (`privacy.store_email_bodies=false`); daily Temporal retention purge (`DailyPrivacyPurgeWorkflow`) purges past retention, truncates IPs to `/24`, drops user agents, respects `legal_hold`, scrubs email addresses from audit payloads (`[SCRUBBED_EMAIL]`).
+6. **Data Subject Requests (DSR)**: Access export ZIP generator; two-admin approval required for erasure (`execute_dsr_erasure`), pseudonymising identifiers to `erased:<sha256_prefix>`.
+7. **Sub-Processors & Cross-Border**: `data_processors` table; blocks non-essential emails to EU/EEA/UK recipients if active processor region is not in `privacy.allowed_processor_regions`.
+8. **Transport Security**: TLS enforced (STARTTLS/SMTPS) outside development; live DNS domain health panel (SPF, DMARC, DKIM).
+9. **Security Incident Tracker**: 72-hour timer tracking with supervisory authority notification runbook.
+
+---
+
+## Appendix F: OWASP API Security Top 10 (2023) Defences (Prompt 12C)
+
+Threat model document: [`docs/security/api-threat-model.md`](security/api-threat-model.md).
+
+1. **API1: BOLA**: Central authorization engine `can(user, action, resource)` in `shared/authz/policy.py`. Evaluates ownership strictly by UUID, never email. Separation of duties prevents requester self-approval.
+2. **API2: Broken Authentication**: JWT verification strictly allowlisting HS256, rejecting algorithm "none", verifying `kid`, `iss`, `aud`, `nbf`, `exp`. Refresh token rotation with family revocation on reuse. Step-up re-authentication (`require_step_up`) required for sensitive actions (5-minute validity). Timing-safe authentication endpoints prevent enumeration.
+3. **API3: Property-Level Authorization**: Pydantic v2 `extra="forbid"` rejects mass assignment and unauthorized privilege escalation properties.
+4. **API4: Resource Consumption**: Redis token bucket rate limiting with immutable hard minimums (429 + `Retry-After`). Temporary IP auto-blocking (15 mins) after 20 violations in 10 mins (office allowlist exempt).
+5. **API5: Function-Level Authorization**: Deny-by-default route inventory. Gateway denies `/internal/*`, `/metrics`, `/docs`, `/openapi.json` outside development. Role-gated endpoints enforced via `require_role()`.
+6. **API6: Sensitive Business Flows**: Sensitive flow rate caps with 3x historical velocity alert detection.
+7. **API7: SSRF**: Outbound safe HTTP client `shared.net.safe_http` with IP pinning, loopback/metadata/RFC1918 blocking, decimal/hex IP handling, and redirect revalidation.
+8. **API8: Security Misconfiguration**: Gateway security headers (CSP, HSTS, X-Frame-Options DENY, X-Content-Type-Options nosniff) and standard JSON error envelopes.
+9. **API9: Inventory Management**: `/api/v1` compatibility rewrite at gateway. Unused demo routes disabled outside development.
+10. **API10: Unsafe API Consumption**: Enforced 1 MB streaming response size cap on outbound calls; sensitive credentials and bearer tokens redacted from log streams.

@@ -419,6 +419,7 @@ services:
       # Demo stack: allows the well-known dev secrets, demo accounts and
       # showcase/simulated-signing features. Unset = production rules.
       APP_ENV: ${APP_ENV:-development}
+      RULES_ENGINE_INTERNAL_SECRET: ${RULES_ENGINE_INTERNAL_SECRET:-dev-rules-secret-change-me}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-service-token-change-me}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-${APP_BASE_URL:-http://localhost:8080}}
       APP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_USER:-postgres}

@@ -4,7 +4,7 @@ is auth-service's own concern, not the shared procurement schema)."""
 from datetime import datetime
 from typing import Optional, Any
 
-from sqlalchemy import Boolean, DateTime, Integer, Numeric, String
+from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -34,6 +34,8 @@ class User(Base):
     # migrations/versions/0013_user_profile.py
     display_name: Mapped[Optional[str]] = mapped_column(String(100))
     theme: Mapped[str] = mapped_column(String(10), nullable=False, default="system")
+    # migrations/versions/0025_security_events_and_refresh_families.py
+    country: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
 
 
 class BusinessRule(Base):
@@ -63,3 +65,28 @@ class BusinessRuleHistory(Base):
     changed_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     justification: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class SecurityEvent(Base):
+    """OWASP API Security detection & audit event trail."""
+    __tablename__ = "security_events"
+
+    id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    user_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    ip_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    route: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class RefreshTokenFamily(Base):
+    """Tracks refresh token lineage for rotation and reuse detection."""
+    __tablename__ = "auth_refresh_token_families"
+
+    family_id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    user_id: Mapped[str] = mapped_column(Uuid, nullable=False)
+    last_token_jti: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

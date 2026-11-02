@@ -135,6 +135,9 @@ function TemplateEditor({
   const [recipients, setRecipients] = useState((template?.extra_recipients ?? []).join(", "));
   const [enabled, setEnabled] = useState(template?.enabled ?? true);
   const [description, setDescription] = useState(template?.description ?? "");
+  const [category, setCategory] = useState<string>(template?.category ?? "transactional");
+  const [audience, setAudience] = useState<string>(template?.audience ?? "internal");
+  const [lawfulBasis, setLawfulBasis] = useState<string>(template?.lawful_basis ?? "contract");
   const [busy, setBusy] = useState<"save" | "reset" | "preview" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -208,6 +211,9 @@ function TemplateEditor({
         recipient: recipient.trim() || undefined,
         extra_recipients: extra,
         enabled,
+        category,
+        audience,
+        lawful_basis: lawfulBasis,
       };
       if (creating) {
         const { data } = await notificationsApi.createTemplate({ ...input, name: name.trim() });
@@ -276,6 +282,52 @@ function TemplateEditor({
             <input className="field" value={description} onChange={(e) => setDescription(e.target.value)} />
           </label>
         )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border border-rule rounded-md p-3 bg-sheet-sunk/30">
+          <label className="flex flex-col gap-1 text-13 text-ink-2">
+            Governance Category
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="field"
+            >
+              <option value="transactional">Transactional</option>
+              <option value="security">Security & Breaches</option>
+              <option value="reminder">Reminder & Tasks</option>
+              <option value="digest">Digest (Batch Summary)</option>
+            </select>
+            <span className="text-[11px] text-ink-3">Marketing category is strictly forbidden.</span>
+          </label>
+
+          <label className="flex flex-col gap-1 text-13 text-ink-2">
+            Intended Audience
+            <select
+              value={audience}
+              onChange={(e) => setAudience(e.target.value)}
+              className="field"
+            >
+              <option value="internal">Internal Staff</option>
+              <option value="requester">Purchase Requester</option>
+              <option value="approver">Approval Authority</option>
+              <option value="vendor">Vendor Contact</option>
+            </select>
+            <span className="text-[11px] text-ink-3">Target recipient classification.</span>
+          </label>
+
+          <label className="flex flex-col gap-1 text-13 text-ink-2">
+            Lawful Basis
+            <select
+              value={lawfulBasis}
+              onChange={(e) => setLawfulBasis(e.target.value)}
+              className="field"
+            >
+              <option value="contract">Contract (Art 6(1)(b))</option>
+              <option value="legitimate_interest">Legitimate Interest (Art 6(1)(f))</option>
+              <option value="legal_obligation">Legal Obligation (Art 6(1)(c))</option>
+              <option value="consent">Consent (Art 6(1)(a))</option>
+            </select>
+            <span className="text-[11px] text-ink-3">ROPA processing basis.</span>
+          </label>
+        </div>
         <label className="flex flex-col gap-1 text-13 text-ink-2">
           Subject
           <input
@@ -315,21 +367,38 @@ function TemplateEditor({
         </label>
         {availablePlaceholders.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <span className="text-13 text-ink-2">
-              Dynamic placeholders (click to insert into {activeField}):
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-13 text-ink-2">
+                Dynamic placeholders (click to insert into {activeField}):
+              </span>
+              <span className="text-[11px] text-ink-3">
+                Personal blocked from subject; Restricted blocked entirely.
+              </span>
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {availablePlaceholders.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => insert(p)}
-                  className="rounded-sm border border-rule bg-sheet-sunk px-1.5 py-0.5 font-mono text-13 text-ink-2 hover:border-rule-strong hover:text-ink"
-                  title={`Insert {{ ${p} }} into ${activeField}`}
-                >
-                  {`{{ ${p} }}`}
-                </button>
-              ))}
+              {availablePlaceholders.map((p) => {
+                const isRestricted = ["bank_account_number", "ifsc", "pan", "password", "raw_api_data", "auth_token"].includes(p);
+                const isPersonal = ["requested_by", "recipient", "approver_name", "email", "contact_name"].includes(p);
+                const pClass = isRestricted ? "restricted" : isPersonal ? "personal" : "internal";
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => insert(p)}
+                    className="inline-flex items-center gap-1 rounded-sm border border-rule bg-sheet-sunk px-1.5 py-0.5 font-mono text-13 text-ink-2 hover:border-rule-strong hover:text-ink"
+                    title={`[${pClass.toUpperCase()}] Insert {{ ${p} }} into ${activeField}`}
+                  >
+                    <span>{`{{ ${p} }}`}</span>
+                    <span className={`text-[10px] uppercase px-1 rounded font-sans font-semibold ${
+                      isRestricted ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300" :
+                      isPersonal ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" :
+                      "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                    }`}>
+                      {pClass}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

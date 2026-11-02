@@ -147,6 +147,15 @@ async def _validate_rule_value(db: AsyncSession, rule: BusinessRule, new_value: 
         elif rule.rule_key == "risk.contract_renewal_milestones_days":
             if not isinstance(new_value, list) or not all(isinstance(x, int) and x > 0 for x in new_value):
                 raise HTTPException(status_code=400, detail="renewal milestones must be a list of positive integers")
+        elif rule.rule_key in ("privacy.allowed_processor_regions", "privacy.promotional_words_blocklist", "privacy.internal_cc_domain_allowlist"):
+            if not isinstance(new_value, list) or not all(isinstance(x, str) and x.strip() for x in new_value):
+                raise HTTPException(status_code=400, detail=f"{rule.rule_key} must be a list of non-empty strings")
+        elif rule.rule_key == "privacy.regime_by_country":
+            if not isinstance(new_value, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in new_value.items()):
+                raise HTTPException(status_code=400, detail="privacy.regime_by_country must be a dict mapping country code to regime name")
+        elif rule.rule_key == "security.idempotency_required_endpoints":
+            if not isinstance(new_value, list) or not all(isinstance(x, str) and x.startswith("/") for x in new_value):
+                raise HTTPException(status_code=400, detail="security.idempotency_required_endpoints must be a list of path strings starting with /")
 
     # Min / Max bounds
     if rule.min_value is not None:

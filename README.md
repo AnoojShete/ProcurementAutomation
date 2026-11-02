@@ -198,11 +198,98 @@ To ensure zero-disruption evaluation in live testing and prevent false or unveri
 - **Session-Based Batch Uploads**: Backed by `upload_batches` and `upload_batch_files` with endpoints for creation (`POST /batches`), tracking (`GET /batches/{id}`), cancellation (`POST /batches/{id}/cancel`), retry (`POST /batches/{id}/retry`), and CSV audit export (`GET /batches/{id}/report.csv`).
 - **File Validation & Safety**:
   - Maximum 100 pages per PDF document.
-  - Magic byte verification (`%PDF-`, `PK` for DOCX, `II* ` / `MM *` for TIFF, JPEG, PNG).
+  - Magic byte verification (`%PDF-`, `PK` for DOCX, `II*\x00` / `MM\x00*` for TIFF, JPEG, PNG).
   - SHA-256 duplicate detection flag (`is_likely_duplicate: True`).
   - Rate limiting enforced at 60 uploads per minute per user/IP.
 - **Nginx Unbuffered Streaming**: Configured with `proxy_request_buffering off` and `client_max_body_size 500M` for unbuffered chunked file processing.
 - **Folder Upload UI**: Desktop React UI supports drag-and-drop, individual file selection, and recursive folder upload via Chromium `webkitdirectory` and `DataTransferItem.webkitGetAsEntry()` with paginated `readEntries` batching.
+
+
+---
+
+## Privacy Controls & Personal Data Governance (Prompt 12B)
+
+> **Legal Disclaimer**: All privacy policies, ROPA registers, DPIAs, and operational controls implemented in this codebase are marked **"DRAFT — requires legal review"**. The platform does not claim statutory compliance anywhere in the UI or documentation. Legal counsel must review and approve before production deployment.
+
+### 1. Operational Stance & Scope
+The platform sends operational B2B notifications exclusively (approvals, reminders, contract notices, and security alerts). **Marketing, advertising, and promotional communications are strictly prohibited and technically blocked.** A uniform GDPR-level technical baseline applies across all environments, with regional legal regime variations (India DPDP Act 2023, UK GDPR, US CAN-SPAM, Canada CASL, Australia Spam Act) configured via `privacy.regime_by_country`. Where recipient country is unknown, the strictest baseline (EU) applies.
+
+### 2. Processing Register & Inventory
+- **Data Inventory**: Detailed mapping in `docs/privacy/data-inventory.md` across 11 platform stores (users, vendor contacts, notification logs, email tokens, audit payloads, scorecards, raw API responses, and external providers).
+- **Processing Register (ROPA)**: Backed by `privacy_processing_records` (Article 30 GDPR / Section 8 DPDP), accessible via `/admin/privacy/processing-records` and exportable to CSV with formula injection defenses (`_escape_csv`).
+
+### 3. Template Governance & Anti-Promotional Controls
+- **Categories**: Strict enum (`transactional`, `security`, `reminder`, `digest`). Any template with category `"marketing"` is rejected with `TemplateValidationError`.
+- **Promotional Blocklist**: Wording such as "discount", "special offer", "free trial", "promo" is blocked by regex at save.
+- **Placeholder Classification**: Placeholders are classified as `public`, `internal`, `personal`, or `restricted`.
+- **Restricted Placeholders**: Bank account numbers, IFSC, PAN, passwords, raw API data, and auth tokens are blocked from email subjects and bodies at both **save and render** time.
+- **Subject Privacy**: Personal data placeholders (`requested_by`, `recipient`, `approver_name`, `email`) are blocked from email subject lines (`privacy.no_personal_data_in_subject=true`).
+
+### 4. Recipient Controls & Email Transport Security
+- **Anti-Header Injection**: CR (`\r`) and LF (`\n`) characters are stripped from all subject, sender, and recipient fields (`sanitize_header`).
+- **Standardized Footers**: Every outgoing message includes sender organization, physical address, purpose of message, privacy notice link, and privacy contact email. Essential transactional and security messages cannot be unsubscribed; digest and reminder emails include preference and unsubscribe links.
+- **RFC 8058 One-Click Unsubscribe**: Digest emails include `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers.
+- **Email Suppressions**: Handled by `email_suppressions` (indexed by SHA-256 hash). Bounces, objections, and erased addresses suppress future non-security emails.
+- **Anti-Tracking**: Zero open-tracking pixels (`<img src="http...`), no click-tracking redirects, and no remote images in templates. Enforced by automated tests.
+- **TLS Enforcement**: `shared/mailer.py` requires STARTTLS or SMTPS with certificate validation outside development mode.
+- **Email Domain Health**: Administrative DNS verification panel inspecting SPF, DMARC, and DKIM selector records.
+
+### 5. Minimisation, Retention & Temporal Purge
+- **Email Body Minimisation**: `privacy.store_email_bodies=false` stores only metadata, recipient, timestamps, and variable hashes, omitting the message body.
+- **Automated Retention Purge**: Temporal workflow `DailyPrivacyPurgeWorkflow` runs daily:
+  - Deletes notification logs past `privacy.retention_notification_log_months` (default 12).
+  - Truncates email action token IPs to `/24` subnets and drops user agents past `privacy.retention_ip_user_agent_months` (default 12).
+  - Purges raw vendor API responses past retention, skipping vendors or requests on active `legal_hold`.
+  - Scrubs email addresses from audit log payloads (`[SCRUBBED_EMAIL]`), ensuring audit tables store only immutable UUIDs.
+  - Inserts summary purge audit entries with counts only.
+
+### 6. Data Subject Requests (DSR) & Dual-Admin Erasure
+- **DSR Register**: Managed in `privacy_requests` with statutory 30-day timers (`privacy.dsr_days`).
+- **Machine-Readable Export**: Generates an in-memory ZIP containing JSON exports of user accounts, vendor records, notification logs, ratings, evidence, and audit references.
+- **Dual-Control Erasure**: `execute_dsr_erasure` requires approval by two distinct administrators (`initiating_admin != second_admin`). Personal identifiers are pseudonymised to `erased:<sha256_prefix>`, nulling optional fields while preserving primary keys for statutory financial audit integrity.
+- **Cross-Border Protection**: Non-essential emails to EU/EEA/UK recipients are blocked if the active processor region is not in `privacy.allowed_processor_regions`.
+
+---
+
+## API Request Attack Defences (Prompt 12C — OWASP API Security Top 10, 2023)
+
+Detailed threat model and control matrix available at [`docs/security/api-threat-model.md`](docs/security/api-threat-model.md).
+
+| OWASP Risk | Platform Control Built | Verification Test | Status |
+|---|---|---|---|
+| **API1: BOLA** | Central authorization engine `can(user, action, resource)` in `shared/authz/policy.py`. Resource ownership evaluated exclusively by User ID (UUID), never email. Separation of duties prevents self-approval. | `tests/test_api_security_owasp.py::test_api1_bola_*` | ACTIVE |
+| **API2: Broken Authentication** | JWT verification with HS256 allowlist, strict rejection of "none", `kid`, `iss`, `aud`, `nbf`, `exp` checks. Refresh token family rotation revokes all tokens on reuse. Step-up re-authentication (`require_step_up`) required for sensitive actions (valid for 5 mins). Timing-safe login and password reset prevent user enumeration. | `tests/test_api_security_owasp.py::test_api2_*`, `services/auth-service/tests/test_jwt.py` | ACTIVE |
+| **API3: Property-Level Auth** | Pydantic v2 schemas enforce `model_config = ConfigDict(extra="forbid")`, rejecting mass-assignment attempts to inject elevated roles or bypass validations. | `tests/test_api_security_owasp.py::test_api3_*` | ACTIVE |
+| **API4: Resource Consumption** | Redis token bucket rate limiting with immutable hard minimums returning standard 429 with `Retry-After` header. Automatic temporary IP blocking (15 mins) after 20 violations in 10 mins (office IPs allowlisted). | `tests/test_api_security_owasp.py::test_api4_*` | ACTIVE |
+| **API5: Function-Level Auth** | Deny-by-default route inventory. Gateway denies `/internal/*`, `/metrics`, `/docs`, `/openapi.json` outside development (404). Role gating via `require_role("admin", ...)`. | `tests/test_route_inventory_auth.py`, `tests/test_security_config.py` | ACTIVE |
+| **API6: Sensitive Business Flows** | Sensitive flow tracking in Redis (`check_daily_sensitive_cap`) tracks daily execution rates on bulk approvals and vendor onboarding, triggering security alert logs if activity exceeds 3x historical baseline. | `tests/test_api_security_owasp.py::test_api6_*` | ACTIVE |
+| **API7: SSRF** | Safe outbound HTTP client `shared.net.safe_http` pins DNS resolution to IP literal, blocks loopback, cloud metadata (169.254.169.254), RFC 1918 private IPs, decimal/hex encoded IPs, and re-validates each redirect hop. | `tests/test_safe_http_ssrf.py` | ACTIVE |
+| **API8: Security Misconfiguration** | Hardened Nginx configuration: HSTS, Content-Security-Policy, X-Frame-Options DENY, X-Content-Type-Options nosniff, unbuffered body size limits (413), and standard JSON error handlers. | `tests/test_api_security_owasp.py::test_api8_*` | ACTIVE |
+| **API9: Inventory Management** | API versioning rewrite (`/api/v1/` -> `/api/`). Gateway blocks documentation and metrics endpoints outside development. Unused demo routes gated behind `APP_ENV=development`. | `tests/test_route_inventory_auth.py` | ACTIVE |
+| **API10: Unsafe API Consumption** | `safe_fetch` enforces maximum response streaming size cap (1 MB) and maximum 2 redirect hops. Passwords, secrets, bearer tokens, and email-action tokens are redacted from logs and audit trails (`[REDACTED]`). | `tests/test_safe_http_ssrf.py`, `tests/test_log_redaction.py` | ACTIVE |
+
+### Automated Test Suites
+Run all privacy and security test suites locally:
+```bash
+# Set development environment and Python module path
+$env:APP_ENV="development"
+$env:PYTHONPATH=".;services/notification-agent;services/auth-service"
+
+# Run OWASP Top 10 API Security tests
+pytest tests/test_api_security_owasp.py -v
+
+# Run Privacy controls & GDPR baseline tests
+pytest tests/test_privacy_controls.py -v
+
+# Run SSRF defense tests
+pytest tests/test_safe_http_ssrf.py -v
+
+# Run Route inventory & deny-by-default audit
+pytest tests/test_route_inventory_auth.py -v
+
+# Run Gateway & fail-closed configuration audit
+pytest tests/test_security_config.py -v
+```
 
 ## Try it
 

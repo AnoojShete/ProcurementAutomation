@@ -20,7 +20,11 @@ from shared.runtime_env import require_secret  # noqa: E402
 require_secret("JWT_SECRET", JWT_SECRET, {_DEFAULT_JWT_SECRET})
 
 JWT_ALGORITHM = "HS256"
+ALLOWED_JWT_ALGORITHMS = ["HS256"]
 JWT_EXPIRY_MINUTES = int(os.environ.get("JWT_EXPIRY_MINUTES", "15"))
 JWT_REFRESH_EXPIRY_DAYS = int(os.environ.get("JWT_REFRESH_EXPIRY_DAYS", "7"))
+JWT_ISSUER = os.environ.get("JWT_ISSUER", "procurement-platform")
+JWT_AUDIENCE = os.environ.get("JWT_AUDIENCE", "procurement-api")
+JWT_KEY_ID = os.environ.get("JWT_KEY_ID", "k1")
 
 ROLES = ("requester", "approver", "finance", "admin")

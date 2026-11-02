@@ -50,6 +50,7 @@ const UsersPage = lazy(() => import("@/pages/admin/UsersPage").then((m) => ({ de
 const AccountPage = lazy(() => import("@/pages/account/AccountPage").then((m) => ({ default: m.AccountPage })));
 const BusinessRulesPage = lazy(() => import("@/pages/admin/BusinessRulesPage").then((m) => ({ default: m.BusinessRulesPage })));
 const EmailSettingsPage = lazy(() => import("@/pages/admin/EmailSettingsPage").then((m) => ({ default: m.EmailSettingsPage })));
+const PrivacyPage = lazy(() => import("@/pages/admin/PrivacyPage").then((m) => ({ default: m.PrivacyPage })));
 
 function Loading() {
   return (
@@ -297,6 +298,14 @@ const router = createBrowserRouter([
         element: withSuspense(
           <RoleGuard allow={["admin"]}>
             <EmailSettingsPage />
+          </RoleGuard>,
+        ),
+      },
+      {
+        path: "privacy",
+        element: withSuspense(
+          <RoleGuard allow={["admin"]}>
+            <PrivacyPage />
           </RoleGuard>,
         ),
       },

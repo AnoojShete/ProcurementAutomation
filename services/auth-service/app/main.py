@@ -8,7 +8,7 @@ from shared.logging.configure import configure_logging
 from shared.http.correlation import CorrelationMiddleware
 configure_logging(settings.service_name)
 from app.database import init_db
-from app.api import health, auth, business_rules, users
+from app.api import health, auth, business_rules, users, security_admin
 from app.kafka_producer import start_kafka_producer, stop_kafka_producer
 from shared.http.error_handlers import register_error_handlers
 from shared.mailer import load_settings as load_mail_settings
@@ -47,3 +47,4 @@ app.include_router(users.router, prefix="/auth/users", tags=["Users"])
 app.include_router(users.people_router, prefix="/auth/people", tags=["Users"])
 app.include_router(business_rules.admin_router)
 app.include_router(business_rules.internal_router)
+app.include_router(security_admin.router)

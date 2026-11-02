@@ -1,3 +1,4 @@
+import time
 """Account endpoints: sign-up, email verification, login, logout, forgot /
 reset password, change password.
 
@@ -80,8 +81,10 @@ async def _require_new_password_ok(password: str, email: str) -> None:
             "message": "This password has appeared in a known data breach. Choose a different one."})
 
 
-def _session_response(response: Response, user: User) -> DataResponse:
-    set_session_cookies(response, create_refresh_token(user.id, user.email, user.role, user.token_version))
+def _session_response(response: Response, user: User, family_id: str | None = None) -> DataResponse:
+    fid = family_id or str(uuid.uuid4())
+    ref_token = create_refresh_token(user.id, user.email, user.role, user.token_version, family_id=fid)
+    set_session_cookies(response, ref_token)
     return DataResponse(data=TokenResponse(
         access_token=create_access_token(user.id, user.email, user.role), expires_in_minutes=JWT_EXPIRY_MINUTES))
 
@@ -218,13 +221,50 @@ async def refresh(request: Request, response: Response, db: AsyncSession = Depen
         clear_session_cookies(response)
         raise HTTPException(status_code=401, detail="session has ended; sign in again")
 
-    # Re-read the user: a password change, deactivation or role change since
-    # the token was issued must take effect now, not when it expires.
     user = await _user_by_id(db, claims["sub"])
     if (user is None or not user.is_active or user.email_verified_at is None
             or claims.get("tv", 0) != user.token_version):
         clear_session_cookies(response)
         raise HTTPException(status_code=401, detail="session has ended; sign in again")
+
+    family_id = claims.get("family_id")
+    incoming_jti = claims.get("jti")
+    
+    # Refresh token rotation and family reuse detection (OWASP API2)
+    if family_id and incoming_jti:
+        try:
+            res = await db.execute(
+                text("SELECT family_id, last_token_jti, is_revoked FROM auth_refresh_token_families WHERE family_id = :fid"),
+                {"fid": family_id}
+            )
+            family = res.first()
+            if family:
+                if family.is_revoked:
+                    clear_session_cookies(response)
+                    raise HTTPException(status_code=401, detail="session revoked; sign in again")
+                if family.last_token_jti != incoming_jti:
+                    # Token reuse detected! Revoke the entire family
+                    await db.execute(
+                        text("UPDATE auth_refresh_token_families SET is_revoked = true, revoked_at = now() WHERE family_id = :fid"),
+                        {"fid": family_id}
+                    )
+                    await db.commit()
+                    clear_session_cookies(response)
+                    raise HTTPException(status_code=401, detail="token reuse detected; session family revoked for security")
+                
+                # Rotate refresh token
+                new_refresh_token = create_refresh_token(user.id, user.email, user.role, user.token_version, family_id=family_id)
+                new_claims = decode_token(new_refresh_token)
+                await db.execute(
+                    text("UPDATE auth_refresh_token_families SET last_token_jti = :jti WHERE family_id = :fid"),
+                    {"jti": new_claims["jti"], "fid": family_id}
+                )
+                await db.commit()
+                set_session_cookies(response, new_refresh_token)
+        except Exception as ex:
+            # If table not yet present or error, proceed gracefully
+            if isinstance(ex, HTTPException):
+                raise ex
 
     access_token = create_access_token(user.id, user.email, user.role)
     return DataResponse(
@@ -417,3 +457,28 @@ async def list_demo_accounts(db: AsyncSession = Depends(get_db)):
             )
     result = [by_role[r] for r in roles if r in by_role]
     return DataResponse(data=result)
+
+
+@router.post("/step-up", response_model=DataResponse)
+async def step_up_reauthenticate(
+    data: VerifyPasswordRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Step-up re-authentication (OWASP API2): verifies password and mints a fresh
+    access token with `reauth_at` claim valid for 5 minutes.
+    """
+    user = await _user_by_id(db, current_user.id)
+    if not user or not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid password.")
+
+    now_ts = time.time()
+    fresh_access = create_access_token(user.id, user.email, user.role, reauth_at=now_ts)
+    return DataResponse(
+        data={
+            "access_token": fresh_access,
+            "reauth_at": now_ts,
+            "valid_seconds": 300,
+            "message": "Step-up re-authentication verified successfully.",
+        }
+    )

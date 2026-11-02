@@ -17,6 +17,7 @@ MIGRATIONS = (
     "0002_notification_templates.sql",
     "0003_company_smtp_settings.sql",
     "0004_template_recipient.sql",
+    "0005_privacy_controls_and_tables.sql",
 )
 
 
