@@ -165,7 +165,10 @@ def cmd_extract(args):
 # -------------------------------------------------------------------- evidence
 
 def _load_ledger_module():
-    path = os.path.join(REPO_ROOT, "services", "approval-inventory-agent", "app", "services", "invoice_ledger.py")
+    # The study's numbers were produced with the three-way match as of commit a091d11; later phases
+    # added partial receipts and TDS to it. STUDY_LEDGER_PATH pins the older file (see docs/results).
+    path = os.environ.get("STUDY_LEDGER_PATH") or os.path.join(
+        REPO_ROOT, "services", "approval-inventory-agent", "app", "services", "invoice_ledger.py")
     spec = importlib.util.spec_from_file_location("invoice_ledger", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules["invoice_ledger"] = module
