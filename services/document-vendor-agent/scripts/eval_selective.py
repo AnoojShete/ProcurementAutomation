@@ -730,9 +730,6 @@ def main():
      "heldout": cmd_heldout}[args.stage](args)
 
 
-if __name__ == "__main__":
-    main()
-
 
 # ------------------------------------------------------------- follow-up stages
 
@@ -918,3 +915,6 @@ def cmd_followup(args):
 def load_review_threshold():
     from app.config import load_extraction_config
     return load_extraction_config().get("confidence_threshold", 0.8)
+
+if __name__ == "__main__":
+    main()
