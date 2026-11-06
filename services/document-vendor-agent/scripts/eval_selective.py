@@ -120,10 +120,27 @@ def _extract_one(seed: int, doc) -> dict:
     }
 
 
+def _out_dir(args):
+    return os.path.join(DATA_DIR, f"seed{args.seed}" + ("-dupvar" if args.dup_variant else ""))
+
+
 def cmd_extract(args):
-    world = build_world(seed=args.seed, n_vendors=args.vendors, n_invoices=args.invoices)
-    out_dir = os.path.join(DATA_DIR, f"seed{args.seed}")
+    world = build_world(seed=args.seed, n_vendors=args.vendors, n_invoices=args.invoices,
+                        dup_number_variant=args.dup_variant)
+    out_dir = _out_dir(args)
     os.makedirs(out_dir, exist_ok=True)
+    if args.dup_variant and not os.path.exists(os.path.join(out_dir, "extraction.jsonl")):
+        # Only the changed duplicates need reading again; every other document is
+        # byte-identical to the base world, so reuse its cached reading.
+        base_dir = os.path.join(DATA_DIR, f"seed{args.seed}")
+        base = build_world(seed=args.seed, n_vendors=args.vendors, n_invoices=args.invoices)
+        from dataclasses import asdict
+        same = {d.doc_id for d, b in zip(world.documents, base.documents) if asdict(d) == asdict(b)}
+        with open(os.path.join(base_dir, "extraction.jsonl")) as f, \
+                open(os.path.join(out_dir, "extraction.jsonl"), "w") as out:
+            for line in f:
+                if line.strip() and json.loads(line)["doc_id"] in same:
+                    out.write(line)
     with open(os.path.join(out_dir, "world.json"), "w") as f:
         json.dump(world.to_dict(), f)
     path = os.path.join(out_dir, "extraction.jsonl")
@@ -341,7 +358,7 @@ def compute_evidence(world: dict, extraction: dict, noise: float = 0.0, noise_se
                      and feat["currency_matches_master"] == 1.0)
 
         rows.append({"doc_id": doc["doc_id"], "vendor_id": doc["vendor_id"], "visual": doc["visual"],
-                     "injection": doc["injection"], "amount_inr": _to_inr(doc["total"], doc["currency"]),
+                     "injection": doc["injection"], "conf_score": overall if not forced else 0.0, "amount_inr": _to_inr(doc["total"], doc["currency"]),
                      "features": feat, "labels": labels, "b0": b0_accept, "b2": b2_accept,
                      "seconds": ex["seconds"]})
 
@@ -460,10 +477,8 @@ def bootstrap_diff(a: list, b: list, n: int = 10000, seed: int = 0) -> dict:
     return {"mean": float(d.mean()), "ci95": [float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))]}
 
 
-def cmd_evaluate(args):
-    from app.services.vendor_matching import normalize_vendor_name  # noqa: F401  (config warm-up)
-
-    out_dir = os.path.join(DATA_DIR, f"seed{args.seed}")
+def _load(args):
+    out_dir = _out_dir(args)
     with open(os.path.join(out_dir, "world.json")) as f:
         world = json.load(f)
     extraction = {}
@@ -475,6 +490,34 @@ def cmd_evaluate(args):
     missing = [d["doc_id"] for d in world["documents"] if d["doc_id"] not in extraction]
     if missing:
         sys.exit(f"{len(missing)} documents not read yet; run `extract` first")
+    return world, extraction
+
+
+def _commit():
+    commit = os.environ.get("GIT_COMMIT")
+    if not commit:
+        try:
+            commit = subprocess.run(["git", "-C", REPO_ROOT, "rev-parse", "--short", "HEAD"], capture_output=True,
+                                    text=True).stdout.strip() or None
+        except OSError:
+            commit = None
+    return commit
+
+
+def _merge_results(name: str, key: str, payload: dict):
+    """Several runs share one results file, keyed by run (the evaluate stage's
+    selective.json is never touched by these follow-up stages)."""
+    path = os.path.join(RESULTS_DIR, name)
+    data = json.load(open(path)) if os.path.exists(path) else {}
+    data[key] = payload
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def cmd_evaluate(args):
+    from app.services.vendor_matching import normalize_vendor_name  # noqa: F401  (config warm-up)
+
+    world, extraction = _load(args)
 
     t0 = time.time()
     rows = compute_evidence(world, extraction)
@@ -675,14 +718,203 @@ def render_markdown(r: dict) -> str:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("stage", choices=["extract", "evaluate"])
+    p.add_argument("stage", choices=["extract", "evaluate", "followup", "heldout"])
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--vendors", type=int, default=100)
     p.add_argument("--invoices", type=int, default=3000)
     p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--dup-variant", type=float, default=0.0,
+                   help="share of duplicates that keep the original number or get a one-character edit")
     args = p.parse_args()
-    {"extract": cmd_extract, "evaluate": cmd_evaluate}[args.stage](args)
+    {"extract": cmd_extract, "evaluate": cmd_evaluate, "followup": cmd_followup,
+     "heldout": cmd_heldout}[args.stage](args)
 
 
 if __name__ == "__main__":
     main()
+
+
+# ------------------------------------------------------------- follow-up stages
+
+class _ScoreModel:
+    """Treats one feature column as an already-computed score in [0, 1]."""
+    def predict_proba(self, X):
+        p = np.asarray(X, dtype=float).reshape(len(X), -1)[:, 0]
+        return np.column_stack([1 - p, p])
+
+
+def cmd_heldout(args):
+    """Frozen G-rec+dup (and G-rec for reference) on another seed or on the duplicate-number variant.
+    Nothing is tuned: same features, calibrators, grid and delta as `evaluate`.
+    Writes docs/results/selective_heldout.json."""
+    world, extraction = _load(args)
+    rows = compute_evidence(world, extraction)
+    splits = vendor_splits(rows, N_SPLITS, args.seed)
+    alphas = (0.02, 0.05, 0.10)
+    res, _ = run_systems(rows, splits, alphas, calibrators=("hgb",), with_fc=False,
+                         feature_sets={"P": CORE_GROUPS, "P+dup": list(FEATURE_GROUPS)})
+    key = f"seed{args.seed}" + (f"-dupvar{args.dup_variant}" if args.dup_variant else "")
+    y = np.array([r["labels"]["correct"] for r in rows], dtype=int)
+    payload = {
+        "generated": time.strftime("%Y-%m-%d %H:%M"), "git_commit": _commit(),
+        "config": {"seed": args.seed, "generator_version": GENERATOR_VERSION, "dup_number_variant": args.dup_variant,
+                   "alphas": alphas, "delta": DELTA, "splits": N_SPLITS},
+        "dataset": {"documents": len(rows), "correct_share": float(y.mean()),
+                    "injections": dict(Counter(r["injection"] or "none" for r in rows))},
+        "systems": {f"{n}@{a}": summarize(v) for (n, a), v in res.items()},
+    }
+    _merge_results("selective_heldout.json", key, payload)
+    for a in alphas:
+        m = payload["systems"][f"P+dup-hgb@{a}"]
+        print(f"{key} alpha={a}: P+dup coverage {100 * m['coverage']['mean']:.1f} sd {100 * m['coverage']['sd']:.1f} "
+              f"risk {100 * m['risk']['mean']:.1f} violations {m.get('violation_rate')}")
+
+
+def cmd_followup(args):
+    """Analyses the paper's draft 5 needs on top of `evaluate` (same seed, same splits, same code):
+    Conf+LTT, per-split acceptance of G-rec, calibration slice, failure breakdowns for Conf and Rules,
+    number-independent duplicate false alarms, arithmetic / duplicate failure inspection, stale records
+    with gradient boosting. Writes docs/results/selective_followup.json."""
+    from sklearn.metrics import roc_auc_score
+
+    from app.services.selective_gate import Gate, aurc, fit_calibrator, selective_metrics
+    from app.services.vendor_matching import normalize_vendor_name  # noqa: F401
+
+    world, extraction = _load(args)
+    rows = compute_evidence(world, extraction)
+    evidence_ms = None
+    t0 = time.time()
+    compute_evidence(world, extraction)
+    evidence_ms = (time.time() - t0) / len(rows) * 1000
+    splits = vendor_splits(rows, N_SPLITS, args.seed)
+    y = np.array([r["labels"]["correct"] for r in rows], dtype=int)
+    wrong = 1 - y
+    by_id = {r["doc_id"]: r for r in rows}
+    docs = {d["doc_id"]: d for d in world["documents"]}
+    out = {"generated": time.strftime("%Y-%m-%d %H:%M"), "git_commit": _commit(),
+           "config": {"seed": args.seed, "generator_version": GENERATOR_VERSION, "delta": DELTA, "splits": N_SPLITS}}
+
+    # Conf+LTT: deployed score S, forced-review invoices scored 0, LTT threshold instead of 0.8
+    conf = np.array([[r["conf_score"]] for r in rows])
+    per = defaultdict(list)
+    for sp in splits:
+        tr, ca, te = sp["train"], sp["cal"], sp["test"]
+        for a in (0.02, 0.05):
+            g = Gate.from_model(_ScoreModel(), conf[tr], conf[ca], y[ca], alpha=a, delta=DELTA)
+            s = g.scores(conf[te])
+            acc = (s >= g.threshold) & (s > 0)
+            m = selective_metrics(acc, wrong[te], a)
+            m.update(threshold=g.threshold, aurc=aurc(s, wrong[te]), auroc=float(roc_auc_score(y[te], s)))
+            per[a].append(m)
+    out["conf_ltt"] = {f"alpha={a}": summarize(v) for a, v in per.items()}
+    out["conf_ltt_thresholds"] = {f"alpha={a}": [m["threshold"] if math.isfinite(m["threshold"]) else None for m in v]
+                                  for a, v in per.items()}
+    out["conf_deployed_threshold"] = float(load_review_threshold())
+
+    # G-rec (hgb) at 5 %: splits with any acceptance; calibration slice that holds the LTT floor at 2 %
+    P = _matrix(rows, CORE_GROUPS)[0]
+    accepted_splits = {0.02: 0, 0.05: 0, 0.10: 0}
+    slice_x, slice_err = [], []
+    floor2 = math.ceil(math.log(DELTA) / math.log(1 - 0.02))
+    for si, sp in enumerate(splits):
+        tr, ca, te = sp["train"], sp["cal"], sp["test"]
+        model = fit_calibrator(P[tr], y[tr], "hgb", seed=si)
+        for a in accepted_splits:
+            g = Gate.from_model(model, P[tr], P[ca], y[ca], alpha=a, delta=DELTA)
+            accepted_splits[a] += int(((g.scores(P[te]) >= g.threshold)).any())
+        sc = model.predict_proba(P[ca])[:, 1]
+        order = np.argsort(-sc, kind="stable")
+        top = order[:floor2]
+        slice_x.append(100 * floor2 / ca.sum())
+        slice_err.append(float(wrong[ca][top].mean()))
+    out["grec_hgb_splits_with_acceptance"] = accepted_splits
+    out["calibration_slice"] = {"invoices": floor2, "share_of_calibration_pct_mean": float(np.mean(slice_x)),
+                                "share_pct_min": float(np.min(slice_x)), "share_pct_max": float(np.max(slice_x)),
+                                "error_rate_mean": float(np.mean(slice_err)),
+                                "error_rate_min": float(np.min(slice_err)), "error_rate_max": float(np.max(slice_err))}
+
+    # Failure breakdown of what Conf and Rules accept wrongly (fixed rules, all 3,000 invoices)
+    for name, key in (("conf", "b0"), ("rules", "b2")):
+        acc = [r for r in rows if r[key]]
+        bad = [r for r in acc if not r["labels"]["correct"]]
+        c = Counter(r["injection"] or "misread field only" for r in bad)
+        out[f"failures_{name}"] = {"accepted": len(acc), "wrong": len(bad),
+                                   "by_injection": {k: v for k, v in c.most_common()}}
+
+    # Number-independent duplicate check: false alarms on correct invoices, and legitimate repeats in the generator
+    correct = [r for r in rows if r["labels"]["correct"]]
+    flagged = [r for r in correct if r["features"]["is_duplicate_any_number"] == 1.0]
+    out["dup_any_number_on_correct"] = {"correct": len(correct), "flagged": len(flagged),
+                                        "share_pct": 100 * len(flagged) / len(correct)}
+    from datetime import date as _d
+    byv = defaultdict(list)
+    for d in sorted(world["documents"], key=lambda d: (d["document_date"], d["doc_id"])):
+        byv[d["vendor_id"]].append(d)
+    legit = 0
+    for ds in byv.values():
+        for i, d in enumerate(ds):
+            if d["injection"] is not None:
+                continue
+            if any(p["injection"] is None and abs(p["total"] - d["total"]) <= max(d["total"] * 0.02, 0.01)
+                   and abs((_d.fromisoformat(p["document_date"]) - _d.fromisoformat(d["document_date"])).days) <= 7
+                   for p in ds[:i]):
+                legit += 1
+    out["legitimate_repeats_in_generator"] = {"clean_invoices_with_clean_earlier_same_amount_within_7d": legit,
+                                              "clean_invoices": sum(d["injection"] is None for d in world["documents"])}
+
+    # What P+dup (hgb, alpha 10 %) accepts wrongly, and why (the paper's failure table)
+    res, accepted_wrong = run_systems(rows, splits, (0.10,), calibrators=("hgb",), with_fc=False,
+                                      feature_sets={"P+dup": list(FEATURE_GROUPS)})
+    fails = Counter()
+    arith, dups = Counter(), Counter()
+    for si, ids in accepted_wrong.items():
+        for i in ids:
+            r, d, ex = by_id[i], docs[i], extraction[i]
+            bad = [c for c in ("vendor", "total", "currency", "number") if not r["labels"][c]]
+            fails[(r["injection"] or "none", r["visual"], ",".join(bad) or "-")] += 1
+            f = ex["fields"]
+            if r["injection"] == "arithmetic" and r["visual"] == "scan_clean":
+                ac = f.get("amount_check") or {}
+                arith[(ac.get("status"), "total=" + ("right" if r["labels"]["total"] else "wrong"),
+                       "subtotal" if f.get("subtotal") is not None else "no-subtotal",
+                       "tax" if f.get("tax_total", f.get("tax")) is not None else "no-tax")] += 1
+            if r["injection"] == "duplicate" and r["visual"] == "scan_clean" and not [1 for c in ("vendor", "total", "currency", "number") if not r["labels"][c]]:
+                o = docs[d["duplicate_of"]]
+                num = (f.get("document_number") or "").upper()
+                try:
+                    dd = abs((_d.fromisoformat(f.get("document_date") or "") - _d.fromisoformat(o["document_date"])).days)
+                except ValueError:
+                    dd = None
+                from rapidfuzz import fuzz
+                dups[("number_sim>=85" if fuzz.ratio(num, o["document_number"]) >= 85 else "number_sim<85",
+                      "date_ok" if dd is not None and dd <= 7 else "date_off_or_missing",
+                      "amount_ok" if f.get("total") is not None and abs(float(f["total"]) - o["total"]) <= o["total"] * 0.02 else "amount_off")] += 1
+    out["pdup_hgb_alpha10_failures"] = [{"injection": k[0], "visual": k[1], "misread": k[2], "count": n}
+                                        for k, n in fails.most_common(10)]
+    out["pdup_arithmetic_clean_scan"] = [{"key": list(k), "count": n} for k, n in arith.most_common()]
+    out["pdup_duplicate_clean_scan_nomisread"] = [{"key": list(k), "count": n} for k, n in dups.most_common()]
+    arith_example = next((i for ids in accepted_wrong.values() for i in ids
+                          if by_id[i]["injection"] == "arithmetic" and by_id[i]["visual"] == "scan_clean"), None)
+    if arith_example:
+        out["arithmetic_example"] = {"doc_id": arith_example, "fields": extraction[arith_example]["fields"],
+                                     "truth_total": docs[arith_example]["total"],
+                                     "lines": docs[arith_example]["lines"]}
+
+    # Stale records with gradient boosting at alpha = 10 % (model trained on equally stale records)
+    stale = {}
+    for noise in (0.0, 0.05, 0.1, 0.2, 0.4):
+        noisy = rows if noise == 0 else compute_evidence(world, extraction, noise=noise, noise_seed=args.seed)
+        r_, _ = run_systems(noisy, splits, (0.10,), calibrators=("hgb",), with_fc=False,
+                            feature_sets={"P": CORE_GROUPS})
+        stale[str(noise)] = summarize(r_[("P-hgb", 0.10)])
+    out["stale_hgb_alpha10"] = stale
+    out["evidence_ms_per_document_this_machine"] = evidence_ms
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    with open(os.path.join(RESULTS_DIR, "selective_followup.json"), "w") as f:
+        json.dump(out, f, indent=2)
+    print("wrote docs/results/selective_followup.json")
+
+
+def load_review_threshold():
+    from app.config import load_extraction_config
+    return load_extraction_config().get("confidence_threshold", 0.8)

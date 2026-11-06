@@ -196,8 +196,13 @@ def _render_lines(rng: random.Random, doc: Document, vendor_name: str, items: Li
     return lines
 
 
-def build_world(seed: int = 7, n_vendors: int = 100, n_invoices: int = 3000) -> World:
+def build_world(seed: int = 7, n_vendors: int = 100, n_invoices: int = 3000,
+                dup_number_variant: float = 0.0) -> World:
+    """`dup_number_variant` (default 0 = the published generator 1.0): the share of
+    duplicates that keep the original invoice number or get a one-character edit.
+    It draws from its own random stream, so nothing else in the world changes."""
     rng = random.Random(seed)
+    variant_rng = random.Random(seed * 7919 + 1)
     names = _vendor_names(rng, n_vendors)
     vendors = []
     for i, name in enumerate(names):
@@ -262,6 +267,12 @@ def build_world(seed: int = 7, n_vendors: int = 100, n_invoices: int = 3000) -> 
             doc.document_date = (date.fromisoformat(orig.document_date) + timedelta(days=rng.randint(1, 3))).isoformat()
             doc.layout, doc.bank, doc.po_id, doc.po_reference = orig.layout, orig.bank, orig.po_id, orig.po_reference
             doc.invoice_lines, doc.duplicate_of = orig.invoice_lines, orig.doc_id
+            if dup_number_variant and variant_rng.random() < dup_number_variant:
+                if variant_rng.random() < 0.5:
+                    doc.document_number = orig.document_number  # same number again
+                else:  # one-character edit: change the last digit
+                    last = orig.document_number[-1]
+                    doc.document_number = orig.document_number[:-1] + str((int(last) + variant_rng.randint(1, 9)) % 10)
             doc.lines = [ln.replace(orig.document_number, doc.document_number).replace(orig.document_date, doc.document_date)
                          for ln in orig.lines]
             doc.total = orig.total
