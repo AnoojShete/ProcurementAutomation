@@ -815,6 +815,7 @@ def cmd_followup(args):
     P = _matrix(rows, CORE_GROUPS)[0]
     accepted_splits = {0.02: 0, 0.05: 0, 0.10: 0}
     slice_x, slice_err = [], []
+    slice_types = Counter()
     floor2 = math.ceil(math.log(DELTA) / math.log(1 - 0.02))
     for si, sp in enumerate(splits):
         tr, ca, te = sp["train"], sp["cal"], sp["test"]
@@ -825,13 +826,17 @@ def cmd_followup(args):
         sc = model.predict_proba(P[ca])[:, 1]
         order = np.argsort(-sc, kind="stable")
         top = order[:floor2]
+        for i in np.where(ca)[0][top]:
+            if wrong[i]:
+                slice_types[rows[i]["injection"] or "misread field only"] += 1
         slice_x.append(100 * floor2 / ca.sum())
         slice_err.append(float(wrong[ca][top].mean()))
     out["grec_hgb_splits_with_acceptance"] = accepted_splits
     out["calibration_slice"] = {"invoices": floor2, "share_of_calibration_pct_mean": float(np.mean(slice_x)),
                                 "share_pct_min": float(np.min(slice_x)), "share_pct_max": float(np.max(slice_x)),
                                 "error_rate_mean": float(np.mean(slice_err)),
-                                "error_rate_min": float(np.min(slice_err)), "error_rate_max": float(np.max(slice_err))}
+                                "error_rate_min": float(np.min(slice_err)), "error_rate_max": float(np.max(slice_err)),
+                                "wrong_by_injection_summed_over_splits": dict(slice_types.most_common())}
 
     # Failure breakdown of what Conf and Rules accept wrongly (fixed rules, all 3,000 invoices)
     for name, key in (("conf", "b0"), ("rules", "b2")):
@@ -877,7 +882,7 @@ def cmd_followup(args):
                 ac = f.get("amount_check") or {}
                 arith[(ac.get("status"), "total=" + ("right" if r["labels"]["total"] else "wrong"),
                        "subtotal" if f.get("subtotal") is not None else "no-subtotal",
-                       "tax" if f.get("tax_total", f.get("tax")) is not None else "no-tax")] += 1
+                       "tax" if f.get("tax_amount") is not None else "no-tax")] += 1
             if r["injection"] == "duplicate" and r["visual"] == "scan_clean" and not [1 for c in ("vendor", "total", "currency", "number") if not r["labels"][c]]:
                 o = docs[d["duplicate_of"]]
                 num = (f.get("document_number") or "").upper()
@@ -887,7 +892,7 @@ def cmd_followup(args):
                     dd = None
                 from rapidfuzz import fuzz
                 dups[("number_sim>=85" if fuzz.ratio(num, o["document_number"]) >= 85 else "number_sim<85",
-                      "date_ok" if dd is not None and dd <= 7 else "date_off_or_missing",
+                      "date_ok" if dd is not None and dd <= 7 else ("date_missing" if dd is None else "date_off"),
                       "amount_ok" if f.get("total") is not None and abs(float(f["total"]) - o["total"]) <= o["total"] * 0.02 else "amount_off")] += 1
     out["pdup_hgb_alpha10_failures"] = [{"injection": k[0], "visual": k[1], "misread": k[2], "count": n}
                                         for k, n in fails.most_common(10)]
