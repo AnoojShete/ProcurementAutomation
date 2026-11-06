@@ -905,6 +905,20 @@ def cmd_followup(args):
                                      "truth_total": docs[arith_example]["total"],
                                      "lines": docs[arith_example]["lines"]}
 
+    # Risk of the learned gates counted only over the splits that accept something, and pooled over
+    # all accepted test invoices (summarize() averages over all 20 splits, an empty split counting as 0).
+    res2, _ = run_systems(rows, splits, (0.02, 0.05, 0.10), calibrators=("hgb", "logistic"), with_fc=False,
+                          feature_sets={"P": CORE_GROUPS, "P+dup": list(FEATURE_GROUPS)})
+    acc_risk = {}
+    for (name, a), per in res2.items():
+        acc_splits = [m for m in per if m["accepted"] > 0]
+        tot = sum(m["accepted"] for m in per)
+        acc_risk[f"{name}@{a}"] = {
+            "splits_accepting": len(acc_splits),
+            "mean_risk_over_accepting_splits": float(np.mean([m["risk"] for m in acc_splits])) if acc_splits else None,
+            "pooled_risk": sum(m["errors"] for m in per) / tot if tot else None}
+    out["risk_when_accepting"] = acc_risk
+
     # Stale records with gradient boosting at alpha = 10 % (model trained on equally stale records)
     stale = {}
     for noise in (0.0, 0.05, 0.1, 0.2, 0.4):
