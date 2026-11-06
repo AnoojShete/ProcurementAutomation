@@ -305,8 +305,9 @@ def test_overrides():
     }]
     res = evaluate_risk(ruleset, obs, assessed_at=assessed_at)
     assert res["total_points"] == 20
-    # Only the GST check ran, so its 20 of 20 points weigh as 100 (30 Oct 2026)
-    assert res["weighted_points"] == 100 and res["points_band"] == "High"
+    # Only the GST check ran, so its 20 of 20 points weigh as 100 (30 Oct 2026), held
+    # toward the middle while 80% of the scorecard is open (31 Oct 2026)
+    assert res["reweighted_points"] == 100 and res["weighted_points"] == 50 and res["points_band"] == "High"
     assert res["final_band"] == "High"
     assert "R-GST-01" in res["override_rule_ids"]
 
@@ -409,8 +410,9 @@ def test_remediation_and_vendor_safe_filter():
                                                          "gstin.verification_level": "live",
                                                          "gstin.name_match_level": "exact"}, assessed_at)
     assert what_if["total_points"] == 0
-    assert what_if["points_band"] == "Low"
-    assert what_if["final_band"] == "Low"
+    # Only GST is on file, so the provisional score is held toward the middle (31 Oct 2026)
+    assert what_if["points_band"] == "Medium"
+    assert what_if["final_band"] == "Medium"
 
 
 # =====================================================================

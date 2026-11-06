@@ -268,7 +268,8 @@ def test_pure_what_if_simulation():
     sim_res = simulate_what_if(RULESET_V2, base_obs, hypothetical, now)
 
     assert sim_res["total_points"] == 0
-    assert sim_res["points_band"] == "Low"
+    # Only GST is on file, so the provisional score is held toward the middle (31 Oct 2026)
+    assert sim_res["points_band"] == "Medium"
     assert "blocked_by" in sim_res
     assert "cleared_by_tier" in sim_res
     assert isinstance(sim_res["cleared_by_tier"], dict)

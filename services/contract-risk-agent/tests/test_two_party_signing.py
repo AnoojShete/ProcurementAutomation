@@ -315,3 +315,105 @@ def test_signature_lines_are_recorded_where_they_are_drawn():
     assert 0 < pct["positionX"] < 50 and 0 < pct["positionY"] < 100
     # Percent from the top: the box's top edge.
     assert pct["positionY"] == round((A4[1] - company.y - company.height) / A4[1] * 100, 2)
+
+
+# A 1x1 PNG, as Documenso stores a drawn signature.
+SIGNATURE_PNG = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+                 "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+
+
+def _pdf_text(pdf: bytes) -> bytes:
+    """Every page stream of a ReportLab PDF, decompressed."""
+    import base64
+    import re
+    import zlib
+    out = []
+    for raw in re.findall(rb"stream\r?\n(.*?)endstream", pdf, re.S):
+        try:
+            out.append(zlib.decompress(base64.a85decode(raw.strip(), adobe=True)))
+        except Exception:
+            continue  # an image's stream
+    return b"\n".join(out)
+
+
+class TestCompanySignedCopy:
+    """While the vendor hasn't signed: the agreement with our signature,
+    marked as not yet executed."""
+
+    @pytest.fixture
+    def copy_env(self, env, monkeypatch):
+        monkeypatch.setattr(signing_service, "build_pdf_input",
+                            AsyncMock(side_effect=lambda db, c: _pdf_input(contract_id=CID, status="pending_signature")))
+        env.recipient = []
+
+        async def image(recipient_id):
+            env.recipient.append(recipient_id)
+            return env.image
+        env.image = SIGNATURE_PNG
+        monkeypatch.setattr(esign_client, "documenso_signature_image", image)
+        return env
+
+    @pytest.mark.asyncio
+    async def test_has_our_drawn_signature_and_the_awaiting_vendor_line(self, copy_env):
+        db = FakeDB(_contract(), [_signer("company", status="signed", signed_at=NOW), _signer("vendor", status="ready")])
+        pdf = await signing_service.company_signed_copy(db, db.contract)
+        text = _pdf_text(pdf)
+        assert copy_env.recipient == ["7"]
+        assert b"/Subtype /Image" in pdf
+        assert b"awaiting the vendor" in text and b"Not an executed agreement" in text
+        assert b"CFO" in text and b"30 Oct 2026, 12:00 UTC" in text
+        assert b"DRAFT" not in text
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_the_name_when_the_drawn_signature_cant_be_read(self, copy_env):
+        copy_env.image = None
+        db = FakeDB(_contract(), [_signer("company", status="signed", signed_at=NOW), _signer("vendor", status="ready")])
+        pdf = await signing_service.company_signed_copy(db, db.contract)
+        assert b"/Subtype /Image" not in pdf
+        assert b"CFO" in _pdf_text(pdf) and b"awaiting the vendor" in _pdf_text(pdf)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("company_status,contract_status", [
+        ("ready", "pending_signature"),  # we haven't signed yet
+        ("signed", "signed"),            # both signed: Documenso's sealed copy instead
+        ("signed", "draft"),             # declined and back to draft
+    ])
+    async def test_none_unless_only_we_have_signed(self, copy_env, company_status, contract_status):
+        db = FakeDB(_contract(status=contract_status), [_signer("company", status=company_status), _signer("vendor")])
+        assert await signing_service.company_signed_copy(db, db.contract) is None
+
+    @pytest.mark.asyncio
+    async def test_signature_read_failure_is_not_an_error(self, monkeypatch):
+        monkeypatch.setattr(esign_client.settings, "documenso_api_url", "http://documenso.test")
+        monkeypatch.setattr(esign_client.settings, "documenso_api_token", "t")
+        import asyncpg
+        monkeypatch.setattr(asyncpg, "connect", AsyncMock(side_effect=OSError("connection refused")))
+        assert await esign_client.documenso_signature_image("7") is None
+
+    def test_documenso_database_is_next_to_ours(self, monkeypatch):
+        monkeypatch.setattr(esign_client.settings, "documenso_database_url", None)
+        monkeypatch.setattr(esign_client.settings, "database_url", "postgresql+asyncpg://u:p@postgres:5432/postgres")
+        assert esign_client._documenso_dsn() == "postgresql://u:p@postgres:5432/documenso"
+
+
+def test_download_while_waiting_for_the_vendor_is_the_company_signed_copy(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api import contracts
+    from app.database import get_db
+    from shared.auth import get_current_user
+    from shared.auth.middleware import CurrentUser
+
+    app = FastAPI()
+    app.include_router(contracts.router, prefix="/contracts")
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(id="u", email="a@b.com", role="finance")
+    app.dependency_overrides[get_db] = lambda: AsyncMock()
+    contract = SimpleNamespace(id="c1234567-aaaa", status="pending_signature", version=1)
+    monkeypatch.setattr(contract_service, "get_contract", AsyncMock(return_value=contract))
+    monkeypatch.setattr(signing_service, "company_signed_copy", AsyncMock(return_value=b"%PDF-1.4 ours"))
+    with TestClient(app) as client:
+        resp = client.get("/contracts/c1234567-aaaa/signed-document")
+    assert resp.status_code == 200
+    assert 'filename="contract-c1234567-v1-signed-by-company.pdf"' in resp.headers["content-disposition"]
+    assert resp.content == b"%PDF-1.4 ours"

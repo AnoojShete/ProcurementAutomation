@@ -60,7 +60,8 @@ def svc():
          patch.object(contract_service, "get_signature_certificate", AsyncMock(return_value={"ok": 1})), \
          patch.object(contract_service, "was_sent_automatically", AsyncMock(return_value=False)), \
          patch.object(contract_service, "signing_risk", AsyncMock(return_value=None)), \
-         patch.object(signing_service, "signers_of", AsyncMock(return_value=[])):
+         patch.object(signing_service, "signers_of", AsyncMock(return_value=[])), \
+         patch.object(signing_service, "company_signed_copy", AsyncMock(return_value=None)):
         yield SimpleNamespace(list=list_contracts, renewals=renewals, render=render, render_signed=render_signed)
 
 

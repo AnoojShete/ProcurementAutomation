@@ -175,7 +175,8 @@ PROFILES = [
      "inherent_tier": "critical", "status": "onboarding",
      "observations": {"jurisdiction": {"country.is_domestic": True}, "bank": {"bank.status": "pending"}},
      "skipped": ["breach"],
-     "expected": {"points": 0, "final_band": "Low", "rating_status": "provisional", "cleared": False,
+     # Owner, 31 Oct 2026: a provisional score is held toward the middle while checks are open.
+     "expected": {"points": 0, "final_band": "Medium", "rating_status": "provisional", "cleared": False,
                   "unscored": ["breach"]}},
     # Owner decision 30 Oct 2026: a check that can't run is left out and the rest re-weighted.
     {"name": "News search unavailable",
@@ -185,7 +186,7 @@ PROFILES = [
     {"name": "Missing check re-weighted, still not cleared",
      "attack": "skip the financial check so its weight can't add risk, hoping to be cleared on a re-weighted Low",
      "observations": obs(financial=None, email={"email.dmarc_policy": "none", "email.spf_present": False}),
-     "expected": {"points": 3, "weighted_points": 3, "final_band": "Low", "rating_status": "provisional",
+     "expected": {"points": 3, "weighted_points": 4, "final_band": "Low", "rating_status": "provisional",
                   "cleared": False, "reason": "rating_provisional"}},
     # Owner decision 30 Oct 2026 (later the same day): no information is a risk, not a free pass.
     # Revised that evening: information missing from our records costs a third of the check
@@ -200,7 +201,7 @@ PROFILES = [
                       "bank": {"bank.status": "none", "na_reason_code": "no_bank_details"},
                       "email": {"email.confidence": "live", "email.has_mx": False, "email.dmarc_policy": "missing",
                                 "email.spf_present": False, "na_reason_code": "no_mx_records"}},
-     "expected": {"weighted_points": 27, "final_band": "Medium", "rating_status": "provisional", "cleared": False,
+     "expected": {"weighted_points": 36, "final_band": "Medium", "rating_status": "provisional", "cleared": False,
                   "data_needed": ["country", "registration_date", "financials", "bank_details"]}},
     {"name": "Verified vendor, bank details not given yet",
      "attack": "control: bank details are collected before the first payment, so their absence costs nothing yet",
@@ -212,7 +213,7 @@ PROFILES = [
      "observations": obs(gst={"gstin.status": "not_entered", "gstin.verification_level": "pending",
                               "gstin.pan_type_consistent": None},
                          company_age={"age.basis": "domain_only"}),
-     "expected": {"points": 0, "weighted_points": 8, "final_band": "Low", "rating_status": "provisional",
+     "expected": {"points": 0, "weighted_points": 14, "final_band": "Low", "rating_status": "provisional",
                   "cleared": False, "reason": "rating_provisional", "unscored": ["gst"],
                   "data_needed": ["gstin", "registration_date"]}},
     {"name": "Blank country passes the jurisdiction check",

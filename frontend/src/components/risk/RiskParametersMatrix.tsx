@@ -76,7 +76,7 @@ function VendorBreakdown({ vendor, parameters }: { vendor: VendorRiskParameters;
     <div className="p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-ink">{vendor.name}</span>
-        <RiskBadge band={vendor.final_band} ratingStatus={vendor.rating_status} />
+        <RiskBadge band={vendor.final_band} ratingStatus={vendor.rating_status} showProvisional />
         <Link to={`/app/vendors/${vendor.vendor_id}/risk`} className="ml-auto text-13 font-semibold text-brand-600 hover:text-brand-800">
           Full risk scorecard
         </Link>

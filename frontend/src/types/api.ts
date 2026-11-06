@@ -445,6 +445,7 @@ export interface VendorRisk {
     reasons: (string | { code?: string; signal?: string; message?: string })[];
   };
   provisional_reasons?: (string | { code?: string; signal?: string; message?: string })[];
+  data_needed?: DataNeededItem[];
   override_rule_ids?: string[];
   headline?: string;
   ruleset_version?: number;

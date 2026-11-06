@@ -56,8 +56,9 @@ def test_missing_data_is_never_cleared():
 
 
 def test_missing_checks_are_left_out_and_the_rest_re_weighted():
-    """7 points over the 57 points that were checked score 12/100 (Hathway,
-    30 Oct): the band comes from the share of what was actually checked."""
+    """7 points over the 57 points that were checked re-weight to 12/100
+    (Hathway, 30 Oct). It is provisional, so it is held toward the middle of
+    Medium by the share still open (31 Oct): 23, still Low."""
     from app.services.scorecard.default_ruleset import get_default_ruleset
     from app.services.scorecard.engine import evaluate_risk
     observed = rt.obs(bank=None, adverse_media=None, delivery_sla=None, feedback=None, incidents=None,
@@ -68,7 +69,25 @@ def test_missing_checks_are_left_out_and_the_rest_re_weighted():
     res = evaluate_risk(get_default_ruleset(), obs, rt.NOW, vendor_context={"name": "Hathway", "country": "IN",
                                                                              "inherent_tier": "high"})
     assert res["total_points"] == 7 and res["checked_max_points"] == 57
-    assert res["weighted_points"] == 12 and res["final_band"] == "Low" and res["score_float"] == 0.12
+    assert res["reweighted_points"] == 12 and res["rating_status"] == "provisional"
+    assert res["weighted_points"] == 23 and res["final_band"] == "Low" and res["score_float"] == 0.23
+
+
+def test_a_provisional_score_is_held_toward_the_middle_but_never_below_what_was_found():
+    """Few checks done swing the re-weighted score to either end; while the
+    rating is provisional it moves toward Medium's midpoint by the share open."""
+    from app.services.scorecard.default_ruleset import get_default_ruleset
+    from app.services.scorecard.engine import evaluate_risk
+    ruleset = get_default_ruleset()
+    clean = evaluate_risk(ruleset, {"sanctions": {"signal_key": "sanctions", "status": "ok", "fetched_at": rt.NOW.isoformat(),
+                                                  "fields": {"sanctions.status": "no_match"}}},
+                          rt.NOW, vendor_context={"name": "X", "country": "IN", "inherent_tier": "moderate"})
+    assert clean["rating_status"] == "provisional" and clean["reweighted_points"] == 0
+    assert clean["weighted_points"] > 24, "a vendor with almost nothing checked must not read Low"
+    found = evaluate_risk(ruleset, {"gst": {"signal_key": "gst", "status": "ok", "fetched_at": rt.NOW.isoformat(),
+                                            "fields": {"gstin.status": "cancelled", "gstin.verification_level": "live"}}},
+                          rt.NOW, vendor_context={"name": "X", "country": "IN", "inherent_tier": "moderate"})
+    assert found["reweighted_points"] == 100 and found["total_points"] <= found["weighted_points"] < 100
 
 
 def test_the_engine_is_deterministic():

@@ -1,10 +1,17 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { vendorsApi } from "@/api/vendors";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
 import { InlineError } from "@/components/ui/ErrorState";
 import type { DataNeededItem } from "@/types/api";
+
+// Not typed in: they come from an uploaded document on the full scorecard.
+const UPLOADED: Record<string, string> = {
+  registration_date: "Upload the incorporation certificate",
+  financials: "Upload financials",
+};
 
 const FILLABLE: Record<string, { label: string; placeholder: string }> = {
   country: { label: "Country", placeholder: "2-letter code, e.g. IN" },
@@ -18,17 +25,20 @@ const FILLABLE: Record<string, { label: string; placeholder: string }> = {
  * (the scorecard's `data_needed`). Each costs a third of its check until it
  * is filled in, and the vendor isn't cleared meanwhile. Finance can fill the
  * blanks or confirm the vendor has no GSTIN (asked only for Indian vendors);
- * `onSaved` re-runs the checks.
+ * `onSaved` re-runs the checks. `uploadHref` (the full scorecard) links the
+ * items that come from an uploaded document instead.
  * Talks only to document-vendor-agent (/vendors/:id/details, confirm-no-gstin).
  */
 export function VendorDataNeeded({
   vendorId,
   items,
   onSaved,
+  uploadHref,
 }: {
   vendorId: string;
   items: DataNeededItem[];
   onSaved: () => Promise<void> | void;
+  uploadHref?: string;
 }) {
   const { user } = useAuth();
   const [values, setValues] = useState<Record<string, string>>({});
@@ -67,6 +77,11 @@ export function VendorDataNeeded({
               {item.message}
               {item.points > 0 && <span className="text-ink-2"> (+{item.points} points meanwhile)</span>}
             </p>
+            {canEdit && uploadHref && item.field in UPLOADED && (
+              <Link to={uploadHref} className="text-13 font-semibold text-brand-600 hover:text-brand-800">
+                {UPLOADED[item.field]}
+              </Link>
+            )}
             {canEdit && item.field in FILLABLE && (
               <input
                 value={values[item.field] ?? ""}

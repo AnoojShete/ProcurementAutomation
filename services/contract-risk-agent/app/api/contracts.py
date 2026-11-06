@@ -397,10 +397,13 @@ async def download_contract_document(contract_id: str, db: AsyncSession = Depend
 @router.get("/{contract_id}/signed-document")
 async def download_signed_contract(contract_id: str, db: AsyncSession = Depends(get_db),
                                    user: CurrentUser = Depends(get_current_user)):
-    """The executed contract, available once signing has completed."""
+    """The executed contract, available once signing has completed. While a
+    two-party contract waits for the vendor, the copy signed by the company."""
     contract = await _visible_contract(db, contract_id, user)
     try:
-        pdf = await contract_service.render_signed_document(db, contract)
+        pdf = await signing_service.company_signed_copy(db, contract)
+        if pdf is None:
+            pdf = await contract_service.render_signed_document(db, contract)
     except contract_service.ContractNotSignedError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except EsignProviderError as e:

@@ -226,7 +226,9 @@ in `docs/readmeforme.md` (Research experiment).
   `tests/test_risk_redteam.py`) must stay green; add a profile for any new
   rule. Write-up: `docs/index.html#risk`. **No vendor is Unrated** (owner,
   30 Oct): missing checks are re-weighted out of the score (`weighted_points`),
-  nothing checked = High. Information missing from our records (GSTIN, country,
+  nothing checked = High; a provisional score is then pulled toward Medium's midpoint
+  by the share still open, never below the points found (31 Oct). The provisional tag
+  shows on item pages only (`RiskBadge showProvisional`), not in tables. Information missing from our records (GSTIN, country,
   registration date, financials, website, contact email) costs a third of its check and
   is listed as `data_needed` for the buyer (`engine.data_gap` / `gap_charge`; bank 0 until
   payment); the vendor's own gap (mail domain without MX) counts in full. Unverified
