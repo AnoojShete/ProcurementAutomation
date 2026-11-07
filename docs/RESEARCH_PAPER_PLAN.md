@@ -193,22 +193,26 @@ conclusions unchanged.)
   similar, and the PO still has quantity left), plus overbilling the
   three-way match can't see when scanned line items are misread. LTT
   correctly refuses to accept anything it can't certify.
-- **Enterprise evidence does carry signal.** Threshold-free: AUROC 0.938
-  (P) vs 0.741 (B1, document only); AURC 0.137 vs 0.268. Ablation: the PO
-  match matters most (AUROC 0.831 without it), then bank details (0.897),
-  duplicates (0.919) and GSTIN (0.921).
+- **Enterprise evidence does carry signal.** Threshold-free: AUROC 0.940
+  (P) vs 0.745 (B1, document only); AURC 0.135 vs 0.266. Ablation: the PO
+  match matters most (AUROC 0.833 without it), then bank details (0.898),
+  duplicates (0.921) and GSTIN (0.923). (Numbers from the 6 Nov re-run,
+  commit 1306b21; the 19 Oct run could not be reproduced exactly after the
+  image was rebuilt, see docs/forResearchPaper/PAPER_ISSUES.md.)
 - **The current rules are not risk-controlled.** B0 (today's heuristic)
-  accepts 41.2 % of invoices with 6.8 % of them wrong; B2 (all
-  enterprise checks pass) accepts 58.9 % with 12.8 % wrong.
+  accepts 41.2 % of invoices with 7.2 % of them wrong; B2 (all
+  enterprise checks pass) accepts 58.8 % with 13.2 % wrong.
 - **RQ2:** the field-composed gate (FC) accepts nothing at any α tested;
   no evidence yet for or against H2.
 - **Exploratory (decided after seeing the diagnosis, so not a test of
   H1):** adding the duplicate check without the number condition (P+dup,
   equal to setting rule `vendor.duplicate_invoice_number_fuzzy_threshold`
-  to 0) gives 12.1 % coverage at α = 2 % (risk 0.3 %, violations 5 %)
-  and 35.4 % at α = 5 % (risk 2.3 %, violations 10 %).
+  to 0) gives 20.7 % coverage at α = 2 % (risk 0.7 %, violations 15 %)
+  and 39.9 % at α = 5 % (risk 2.9 %, violations 15 %). On three new seeds
+  (11, 12, 13) it covers 21.0 ± 10.3 % and 37.0 ± 7.0 %, with violation
+  rates up to 20 %: the error guarantee is not met reliably.
 - **RQ3 (at α = 10 %, added because nothing passes at ≤ 5 %):** P's AUROC
-  falls from 0.938 to 0.838 as 40 % of master data goes stale; coverage
+  falls from 0.940 to 0.838 as 40 % of master data goes stale; coverage
   is near zero throughout, so the coverage curve says little yet.
 - **Validity of the guarantee:** violation rates reach 20 % on one
   exploratory setting (P+dup-hgb at α = 10 %), above δ. LTT assumes calibration and test

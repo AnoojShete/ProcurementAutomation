@@ -765,7 +765,7 @@ smtplib.SMTP('mailpit', 1025).send_message(m); print('sent')" &lt; data/syntheti
       <tr><td>Works end to end through the gateway</td><td><code>make e2e</code> 17/17 · invoice lifecycle through all agents 71/71 · budgets 30/30 · contract obligations 47/47 · sourcing 69/69 · GST and TDS 44/44 · risk 49/49 · assistant 20/20 · demo scenarios 28/28 (eight scenarios) · document pipeline 48/52 (one timeout fixture now reads in time)</td></tr>
       <tr><td>Document reading measured</td><td>PDFs 100 % of fields; images 49 % (with preprocessing) — <code>docs/results/extraction.md</code></td></tr>
       <tr><td>Risk scoring auditable</td><td>Deterministic 100-point scorecard; any stored score replays to the same SHA-256 snapshot; <code>tests/e2e/risk_flow.py</code> 49/49; red team 25/25 profiles (incl. the team's three test vendors); the ruleset ranks synthetic incidents with ROC-AUC 0.738 (the archived random forest: 0.715) — <a href="risk-model.html">risk-model.html</a></td></tr>
-      <tr><td>Research measured</td><td>3,000 synthetic invoices: company records lift AUROC 0.74 → 0.94; today's rule accepts 41 % with 6.8 % wrong; no gate can be certified yet at ≤ 5 % — <code>docs/results/selective.md</code></td></tr>
+      <tr><td>Research measured</td><td>3,000 synthetic invoices: company records lift AUROC 0.74 → 0.94; today's rule accepts 41 % with 7.2 % wrong; no gate can be certified yet at ≤ 5 % — <code>docs/results/selective.md</code></td></tr>
       <tr><td>Deployable safely</td><td>Production mode refuses the published secrets in every service; backups and restore verified — <code>docs/index.html#deploy</code></td></tr>
       <tr><td>Fixes proven</td><td>Each fix is checked by reverting it and watching a test fail</td></tr>
     </table></div>
@@ -2345,7 +2345,7 @@ needs_review = overall < threshold  OR duplicate OR forced (other / look-alike /
 threshold = per-vendor calibrated value, else rule document.confidence_review_threshold (0.8)</code></pre>
 <p><b>Worked example.</b> A clean PDF (q = 1.0) with classification 0.95, vendor 0.85, number 0.9, date 0.9, total 0.98 (amounts consistent), no line items:
 (0.3·0.98 + 0.2·0.85 + 0.15·0.95 + 0.15·0.9 + 0.1·0.9) / 0.9 = 0.8317/0.9 ≈ <b>0.924</b> → no review unless forced. The same read from a phone photo with q = 0.6 scores ≈ 0.55 → review.
-<b>Complexity:</b> O(1). <b>Limitation (team's own):</b> the threshold is uncalibrated. Measured on 3,000 synthetic invoices (docs/results/selective.md): this rule plus the forced-review flags accepts 41 % of invoices, and 6.8 % of those are wrong; a calibrated replacement is in <code>selective_gate.py</code> (not wired in).</p>
+<b>Complexity:</b> O(1). <b>Limitation (team's own):</b> the threshold is uncalibrated. Measured on 3,000 synthetic invoices (docs/results/selective.md): this rule plus the forced-review flags accepts 41 % of invoices, and 7.2 % of those are wrong; a calibrated replacement is in <code>selective_gate.py</code> (not wired in).</p>
 </details>
 
 <details class="alg"><summary><h3 id="alg-classify">Document classification</h3></summary>
@@ -3816,7 +3816,7 @@ details.q .a { padding:0 16px 14px 38px; }
   <div class="kpi" style="--c:var(--pink)"><b>25 / 25</b><span>risk red-team profiles behave as expected</span></div>
   <div class="kpi" style="--c:var(--pink)"><b>0.738 vs 0.715</b><span>ROC-AUC: ruleset (shipped) vs Random Forest (retired)</span></div>
   <div class="kpi" style="--c:var(--teal)"><b>0.954</b><span>ROC-AUC of the licence-usage anomaly model</span></div>
-  <div class="kpi" style="--c:var(--teal)"><b>41 % / 6.8 %</b><span>today's review rule: share accepted, and share of those wrong</span></div>
+  <div class="kpi" style="--c:var(--teal)"><b>41 % / 7.2 %</b><span>today's review rule: share accepted, and share of those wrong</span></div>
 </div>
 
 <!-- ───────────────────────── Architecture ───────────────────────── -->
@@ -4195,7 +4195,7 @@ details.q .a { padding:0 16px 14px 38px; }
   <p>Each model has a simpler backup: Legal-BERT falls back to regex, the classifier to keywords, OCR to LayoutLMv3 when quality is low. Every routing decision is logged with its reason, and a development-only rule forces the fallback so it can be shown live.</p>
 </div></details>
 <details class="q"><summary>What is your research contribution?</summary><div class="a">
-  <p>Deciding when an invoice is safe to accept without review, with a fixed error budget. Today's rule accepts 41 % of invoices, but 6.8 % of those are wrong. A calibrated gate that adds enterprise evidence (the PO, the vendor master, invoice history) separates right from wrong far better than the document alone: AUROC 0.95–0.97 vs 0.72.</p>
+  <p>Deciding when an invoice is safe to accept without review, with a fixed error budget. Today's rule accepts 41 % of invoices, but 7.2 % of those are wrong. A calibrated gate that adds enterprise evidence (the PO, the vendor master, invoice history) separates right from wrong far better than the document alone: AUROC 0.95–0.97 vs 0.72.</p>
   <div class="push"><b>Caveat to say first:</b> 3,000 synthetic invoices. At very tight budgets the gate accepts almost nothing; that's the honest result, and it ships behind a rule with today's heuristic as default.</div>
 </div></details>
 
@@ -4263,7 +4263,7 @@ details.q .a { padding:0 16px 14px 38px; }
     <p class="say"><b>Say:</b> it's on because it helps the common case; we measured both and recorded the trade-off.</p></div>
   <div class="box"><h3>Shared database coupling</h3><p class="muted">One open P0 on a cross-service foreign key.</p>
     <p class="say"><b>Say:</b> a known trade-off of the shared database; here's how we'd separate it.</p></div>
-  <div class="box"><h3>The review threshold is uncalibrated</h3><p class="muted">Today's 0.8 cut-off accepts invoices with 6.8 % wrong.</p>
+  <div class="box"><h3>The review threshold is uncalibrated</h3><p class="muted">Today's 0.8 cut-off accepts invoices with 7.2 % wrong.</p>
     <p class="say"><b>Say:</b> that's exactly what the research measures and fixes.</p></div>
   <div class="box"><h3>Runs on one machine, never deployed</h3><p class="muted">~8 GB of memory for Docker, ~15 GB of images.</p>
     <p class="say"><b>Say:</b> a deliberate scope for a prototype; the Deployment tab lists what production needs.</p></div>

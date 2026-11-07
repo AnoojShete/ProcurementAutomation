@@ -1,0 +1,688 @@
+{
+  "generated": "2026-11-06 20:11",
+  "git_commit": "7157c60",
+  "config": {
+    "seed": 7,
+    "generator_version": "1.0",
+    "delta": 0.1,
+    "splits": 20
+  },
+  "conf_ltt": {
+    "alpha=0.02": {
+      "splits": 20,
+      "coverage": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "risk": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "aurc": {
+        "mean": 0.17134569037524863,
+        "sd": 0.012629390098945075,
+        "min": 0.15415003571999275,
+        "max": 0.19485498669589044
+      },
+      "auroc": {
+        "mean": 0.8506086401813319,
+        "sd": 0.017643274967349618,
+        "min": 0.8253049753319752,
+        "max": 0.8835105295440605
+      },
+      "violation_rate": 0.0
+    },
+    "alpha=0.05": {
+      "splits": 20,
+      "coverage": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "risk": {
+        "mean": 0.0,
+        "sd": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "aurc": {
+        "mean": 0.17134569037524863,
+        "sd": 0.012629390098945075,
+        "min": 0.15415003571999275,
+        "max": 0.19485498669589044
+      },
+      "auroc": {
+        "mean": 0.8506086401813319,
+        "sd": 0.017643274967349618,
+        "min": 0.8253049753319752,
+        "max": 0.8835105295440605
+      },
+      "violation_rate": 0.0
+    }
+  },
+  "conf_ltt_thresholds": {
+    "alpha=0.02": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "alpha=0.05": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "conf_deployed_threshold": 0.8,
+  "grec_hgb_splits_with_acceptance": {
+    "0.02": 0,
+    "0.05": 3,
+    "0.1": 6
+  },
+  "calibration_slice": {
+    "invoices": 114,
+    "share_of_calibration_pct_mean": 16.19236105110082,
+    "share_pct_min": 9.604043807919124,
+    "share_pct_max": 27.20763723150358,
+    "error_rate_mean": 0.03771929824561403,
+    "error_rate_min": 0.0,
+    "error_rate_max": 0.07894736842105263,
+    "wrong_by_injection_summed_over_splits": {
+      "duplicate": 67,
+      "overbill_qty": 7,
+      "arithmetic": 5,
+      "misread field only": 4,
+      "overbill_price": 3
+    }
+  },
+  "failures_conf": {
+    "accepted": 1232,
+    "wrong": 93,
+    "by_injection": {
+      "gstin_mismatch": 43,
+      "duplicate": 38,
+      "misread field only": 6,
+      "overbill_price": 3,
+      "overbill_qty": 3
+    }
+  },
+  "failures_rules": {
+    "accepted": 1766,
+    "wrong": 248,
+    "by_injection": {
+      "arithmetic": 85,
+      "misread field only": 63,
+      "duplicate": 55,
+      "overbill_price": 23,
+      "overbill_qty": 11,
+      "bank_change": 7,
+      "lookalike_vendor": 4
+    }
+  },
+  "dup_any_number_on_correct": {
+    "correct": 1794,
+    "flagged": 82,
+    "share_pct": 4.570791527313267
+  },
+  "legitimate_repeats_in_generator": {
+    "clean_invoices_with_clean_earlier_same_amount_within_7d": 26,
+    "clean_invoices": 2105
+  },
+  "pdup_hgb_alpha10_failures": [
+    {
+      "injection": "arithmetic",
+      "visual": "scan_clean",
+      "misread": "-",
+      "count": 112
+    },
+    {
+      "injection": "none",
+      "visual": "scan_mild",
+      "misread": "total",
+      "count": 76
+    },
+    {
+      "injection": "overbill_price",
+      "visual": "scan_clean",
+      "misread": "-",
+      "count": 74
+    },
+    {
+      "injection": "none",
+      "visual": "scan_clean",
+      "misread": "number",
+      "count": 63
+    },
+    {
+      "injection": "overbill_qty",
+      "visual": "scan_clean",
+      "misread": "-",
+      "count": 41
+    },
+    {
+      "injection": "duplicate",
+      "visual": "scan_clean",
+      "misread": "-",
+      "count": 38
+    },
+    {
+      "injection": "overbill_price",
+      "visual": "scan_mild",
+      "misread": "-",
+      "count": 28
+    },
+    {
+      "injection": "overbill_qty",
+      "visual": "pdf",
+      "misread": "-",
+      "count": 26
+    },
+    {
+      "injection": "duplicate",
+      "visual": "pdf",
+      "misread": "-",
+      "count": 25
+    },
+    {
+      "injection": "gstin_mismatch",
+      "visual": "scan_clean",
+      "misread": "-",
+      "count": 18
+    }
+  ],
+  "pdup_arithmetic_clean_scan": [
+    {
+      "key": [
+        "mismatch",
+        "total=right",
+        "subtotal",
+        "no-tax"
+      ],
+      "count": 82
+    },
+    {
+      "key": [
+        "mismatch",
+        "total=right",
+        "subtotal",
+        "tax"
+      ],
+      "count": 45
+    }
+  ],
+  "pdup_duplicate_clean_scan_nomisread": [
+    {
+      "key": [
+        "number_sim>=85",
+        "date_missing",
+        "amount_ok"
+      ],
+      "count": 13
+    },
+    {
+      "key": [
+        "number_sim<85",
+        "date_missing",
+        "amount_ok"
+      ],
+      "count": 13
+    },
+    {
+      "key": [
+        "number_sim>=85",
+        "date_ok",
+        "amount_ok"
+      ],
+      "count": 8
+    },
+    {
+      "key": [
+        "number_sim<85",
+        "date_ok",
+        "amount_ok"
+      ],
+      "count": 4
+    }
+  ],
+  "arithmetic_example": {
+    "doc_id": "D00791",
+    "fields": {
+      "vendor_name_raw": "Ixtor Technologies Pvt Ltd",
+      "document_number": "INV-020-0008",
+      "document_date": null,
+      "total": 334923.43,
+      "currency": "INR",
+      "line_items": [
+        {
+          "description": "AWs Support Plan (Business)",
+          "item_description": "AWs Support Plan (Business)",
+          "quantity": 1.0,
+          "unit_price": 1794.89,
+          "line_total": 1794.89,
+          "category": "services"
+        }
+      ],
+      "bank_account_number": "705133674493",
+      "routing_code": "ICIC0326814",
+      "payment_beneficiary_name": "Ixtor Technologies Pvt Ltd",
+      "subtotal": 270680.53,
+      "discount": null,
+      "amount_check": {
+        "status": "mismatch",
+        "checks": [
+          {
+            "check": "subtotal - discount + tax = total",
+            "ok": false,
+            "expected": 319403.03,
+            "found": 334923.43
+          },
+          {
+            "check": "line items add up to subtotal",
+            "ok": false,
+            "expected": 1794.89,
+            "found": 270680.53
+          }
+        ]
+      },
+      "invoice_number": "INV-020-0008",
+      "invoice_date": null,
+      "due_date": null,
+      "payment_terms": null,
+      "tax_amount": 48722.5,
+      "matched_po_number": null,
+      "po_reference": "PO-75913B82",
+      "po_backed": true
+    },
+    "truth_total": 334923.43,
+    "lines": [
+      "Ixtor Technologies Pvt Ltd",
+      "67 Tech Park, Bengaluru, India",
+      "GSTIN: 19WGVPJ8462J8ZO",
+      "",
+      "TAX INVOICE",
+      "",
+      "Bill#: INV-020-0008",
+      "Invoice Date: 2026-05-08",
+      "PO Reference: PO-75913B82",
+      "Bill To: Acme Corp IT Department",
+      "",
+      "Qty    Item                                        Unit Price    Line Total",
+      "1      AWS Support Plan (Business)                   1,794.89      1,794.89",
+      "2      ThinkPad X1 Carbon Laptop                   127,349.92    254,699.84",
+      "10     Microsoft 365 E3 Seat License                 1,418.58     14,185.80",
+      "",
+      "Subtotal: 270,680.53",
+      "Tax (18%): 48,722.50",
+      "Amount Due: 334,923.43",
+      "Currency: INR",
+      "",
+      "Bank Details (for payment):",
+      "Account Name: Ixtor Technologies Pvt Ltd",
+      "Bank Account Number: 705133674493",
+      "Routing/IFSC Code: ICIC0326814"
+    ]
+  },
+  "risk_when_accepting": {
+    "B0@0.02": {
+      "splits_accepting": 20,
+      "mean_risk_over_accepting_splits": 0.0715199600882847,
+      "pooled_risk": 0.07275132275132275
+    },
+    "B0@0.05": {
+      "splits_accepting": 20,
+      "mean_risk_over_accepting_splits": 0.0715199600882847,
+      "pooled_risk": 0.07275132275132275
+    },
+    "B0@0.1": {
+      "splits_accepting": 20,
+      "mean_risk_over_accepting_splits": 0.0715199600882847,
+      "pooled_risk": 0.07275132275132275
+    },
+    "B2@0.02": {
+      "splits_accepting": 20,
+      "mean_risk_over_accepting_splits": 0.13208589940507248,
+      "pooled_risk": 0.136
+    },
+    "B2@0.05": {
+      "splits_accepting": 20,
+      "mean_risk_over_accepting_splits": 0.13208589940507248,
+      "pooled_risk": 0.136
+    },
+    "B2@0.1": {
+      "splits_accepting": 20,
+      "mean_risk_over_accepting_splits": 0.13208589940507248,
+      "pooled_risk": 0.136
+    },
+    "P-hgb@0.02": {
+      "splits_accepting": 0,
+      "mean_risk_over_accepting_splits": null,
+      "pooled_risk": null
+    },
+    "P-hgb@0.05": {
+      "splits_accepting": 3,
+      "mean_risk_over_accepting_splits": 0.043314212223031355,
+      "pooled_risk": 0.046610169491525424
+    },
+    "P-hgb@0.1": {
+      "splits_accepting": 6,
+      "mean_risk_over_accepting_splits": 0.08005737806546913,
+      "pooled_risk": 0.09008061689449702
+    },
+    "P-logistic@0.02": {
+      "splits_accepting": 0,
+      "mean_risk_over_accepting_splits": null,
+      "pooled_risk": null
+    },
+    "P-logistic@0.05": {
+      "splits_accepting": 0,
+      "mean_risk_over_accepting_splits": null,
+      "pooled_risk": null
+    },
+    "P-logistic@0.1": {
+      "splits_accepting": 2,
+      "mean_risk_over_accepting_splits": 0.07697977411173015,
+      "pooled_risk": 0.07717569786535304
+    },
+    "P+dup-hgb@0.02": {
+      "splits_accepting": 11,
+      "mean_risk_over_accepting_splits": 0.012489009544104838,
+      "pooled_risk": 0.013367991088005942
+    },
+    "P+dup-hgb@0.05": {
+      "splits_accepting": 18,
+      "mean_risk_over_accepting_splits": 0.03188355662093409,
+      "pooled_risk": 0.036968264686022954
+    },
+    "P+dup-hgb@0.1": {
+      "splits_accepting": 19,
+      "mean_risk_over_accepting_splits": 0.0739505571274387,
+      "pooled_risk": 0.07807664841704356
+    },
+    "P+dup-logistic@0.02": {
+      "splits_accepting": 2,
+      "mean_risk_over_accepting_splits": 0.02483878917320409,
+      "pooled_risk": 0.024719101123595506
+    },
+    "P+dup-logistic@0.05": {
+      "splits_accepting": 3,
+      "mean_risk_over_accepting_splits": 0.05302745500113921,
+      "pooled_risk": 0.052873563218390804
+    },
+    "P+dup-logistic@0.1": {
+      "splits_accepting": 5,
+      "mean_risk_over_accepting_splits": 0.07394486020709456,
+      "pooled_risk": 0.07013815090329437
+    }
+  },
+  "stale_hgb_alpha10": {
+    "0.0": {
+      "splits": 20,
+      "coverage": {
+        "mean": 0.16626865863179227,
+        "sd": 0.25860201898849206,
+        "min": 0.0,
+        "max": 0.6305418719211823
+      },
+      "risk": {
+        "mean": 0.024017213419640738,
+        "sd": 0.04063748820719369,
+        "min": 0.0,
+        "max": 0.13668061366806136
+      },
+      "aurc": {
+        "mean": 0.12658800562862035,
+        "sd": 0.018721764940761308,
+        "min": 0.0982020635920137,
+        "max": 0.16311405767053777
+      },
+      "auroc": {
+        "mean": 0.9450921650849414,
+        "sd": 0.018447801528790754,
+        "min": 0.9049923447069117,
+        "max": 0.9735002188009706
+      },
+      "ece": {
+        "mean": 0.04171449522763375,
+        "sd": 0.01369486793103971,
+        "min": 0.016438598563532553,
+        "max": 0.07551430163111217
+      },
+      "brier": {
+        "mean": 0.07727469773624837,
+        "sd": 0.014170372247611446,
+        "min": 0.059245966535415535,
+        "max": 0.10987428971292662
+      },
+      "value_at_risk_inr": {
+        "mean": 9275119.651,
+        "sd": 18932194.80995681,
+        "min": 0.0,
+        "max": 64832274.72
+      },
+      "violation_rate": 0.05
+    },
+    "0.05": {
+      "splits": 20,
+      "coverage": {
+        "mean": 0.20061130114470674,
+        "sd": 0.24094650577417598,
+        "min": 0.0,
+        "max": 0.5553602811950791
+      },
+      "risk": {
+        "mean": 0.031092644191736386,
+        "sd": 0.03949127789625849,
+        "min": 0.0,
+        "max": 0.11544715447154472
+      },
+      "aurc": {
+        "mean": 0.13447824131753744,
+        "sd": 0.019436521789676815,
+        "min": 0.10393686250878661,
+        "max": 0.17839859324518276
+      },
+      "auroc": {
+        "mean": 0.925722119570433,
+        "sd": 0.018704801737380806,
+        "min": 0.8822874413425594,
+        "max": 0.9625750885149381
+      },
+      "ece": {
+        "mean": 0.050271419860797875,
+        "sd": 0.012475348402950859,
+        "min": 0.024152117588942337,
+        "max": 0.07611179321520184
+      },
+      "brier": {
+        "mean": 0.10186085009723334,
+        "sd": 0.0132377236387019,
+        "min": 0.07539702982677539,
+        "max": 0.13026970627110387
+      },
+      "value_at_risk_inr": {
+        "mean": 7948189.906499999,
+        "sd": 13051991.38119546,
+        "min": 0.0,
+        "max": 53070127.39000001
+      },
+      "violation_rate": 0.1
+    },
+    "0.1": {
+      "splits": 20,
+      "coverage": {
+        "mean": 0.0807020884205373,
+        "sd": 0.16653323860542027,
+        "min": 0.0,
+        "max": 0.530812324929972
+      },
+      "risk": {
+        "mean": 0.013004524200964184,
+        "sd": 0.027878541862327046,
+        "min": 0.0,
+        "max": 0.09234828496042216
+      },
+      "aurc": {
+        "mean": 0.14255113197599897,
+        "sd": 0.02130855674304012,
+        "min": 0.11216441812222136,
+        "max": 0.18481302455205387
+      },
+      "auroc": {
+        "mean": 0.9144638930859863,
+        "sd": 0.021336398313316487,
+        "min": 0.8725890797741191,
+        "max": 0.946463380673907
+      },
+      "ece": {
+        "mean": 0.04407780329205098,
+        "sd": 0.014032713496846715,
+        "min": 0.02490365042623984,
+        "max": 0.07471146058781845
+      },
+      "brier": {
+        "mean": 0.1071140289534221,
+        "sd": 0.015053122742165876,
+        "min": 0.0859758001427891,
+        "max": 0.14105712337979706
+      },
+      "value_at_risk_inr": {
+        "mean": 1746675.4419999998,
+        "sd": 3902475.282213507,
+        "min": 0.0,
+        "max": 12712937.969999997
+      },
+      "violation_rate": 0.0
+    },
+    "0.2": {
+      "splits": 20,
+      "coverage": {
+        "mean": 0.09763097052302844,
+        "sd": 0.1510030282539479,
+        "min": 0.0,
+        "max": 0.3891625615763547
+      },
+      "risk": {
+        "mean": 0.024886118793110566,
+        "sd": 0.03653703907939358,
+        "min": 0.0,
+        "max": 0.11764705882352941
+      },
+      "aurc": {
+        "mean": 0.1534646561793033,
+        "sd": 0.019067234554622125,
+        "min": 0.1198602265034226,
+        "max": 0.1920864576828085
+      },
+      "auroc": {
+        "mean": 0.8937227690643843,
+        "sd": 0.014987557826262992,
+        "min": 0.8554339737052452,
+        "max": 0.9122112882238126
+      },
+      "ece": {
+        "mean": 0.05085911172184573,
+        "sd": 0.015511355558779966,
+        "min": 0.028365134467380978,
+        "max": 0.079779664837268
+      },
+      "brier": {
+        "mean": 0.12153019202442539,
+        "sd": 0.009716526978870054,
+        "min": 0.10988494520231679,
+        "max": 0.14646149416134566
+      },
+      "value_at_risk_inr": {
+        "mean": 2538113.527,
+        "sd": 5187570.538225031,
+        "min": 0.0,
+        "max": 22210196.24
+      },
+      "violation_rate": 0.05
+    },
+    "0.4": {
+      "splits": 20,
+      "coverage": {
+        "mean": 0.05126269054574484,
+        "sd": 0.08628104548406981,
+        "min": 0.0,
+        "max": 0.2665406427221172
+      },
+      "risk": {
+        "mean": 0.01516711749902432,
+        "sd": 0.031170171574109045,
+        "min": 0.0,
+        "max": 0.11347517730496454
+      },
+      "aurc": {
+        "mean": 0.1742313227449766,
+        "sd": 0.02137966098112716,
+        "min": 0.14111148761633896,
+        "max": 0.22190253751227518
+      },
+      "auroc": {
+        "mean": 0.8578250992187085,
+        "sd": 0.02405132505502522,
+        "min": 0.8048297084441662,
+        "max": 0.8994314143567874
+      },
+      "ece": {
+        "mean": 0.05842117490876381,
+        "sd": 0.021251729345892405,
+        "min": 0.021504031307719145,
+        "max": 0.10872526372472638
+      },
+      "brier": {
+        "mean": 0.1372062154519813,
+        "sd": 0.012981727171510544,
+        "min": 0.11909200239642838,
+        "max": 0.16622657460715679
+      },
+      "value_at_risk_inr": {
+        "mean": 1825098.322,
+        "sd": 4550856.689294055,
+        "min": 0.0,
+        "max": 18371138.98
+      },
+      "violation_rate": 0.05
+    }
+  },
+  "evidence_ms_per_document_this_machine": 0.9688286781311035
+}

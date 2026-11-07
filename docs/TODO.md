@@ -149,7 +149,7 @@ How the pieces interact:
 | Credentials for any shared deploy | BLOCKED | dev defaults; production mode checked (Oct 19): every service and worker refuses the published secrets and starts with real ones ([index.html#deploy](index.html#deploy)) | Rotate GSTINCheck key (P0) | a person |
 | Backups and restore | COMPLETE | `scripts/backup.sh` / `restore.sh` (Oct 19): Postgres (app + Temporal) and MinIO; restore checked into a throwaway Postgres and volume, identical counts | Schedule it on a real host | — |
 | Linux (Ubuntu VM) run | UNVERIFIED | steps in `readmeforme.md`; macOS fresh-clone build passes and every image pulls (FR-26, REPRO-1) | Full rehearsal on the VM (FR-26) | VM |
-| Research: calibrated document gate | PARTIAL | First run Oct 19 (`docs/results/selective.md`): at α ≤ 5 % no calibrated gate accepts anything (H1 not supported); enterprise evidence lifts AUROC 0.74 → 0.94; current heuristic 6.8 % wrong among accepted | Duplicate-rule decision, new seed, RS-08, RS-10…12 | decision |
+| Research: calibrated document gate | PARTIAL | Re-run Nov 6 (`docs/results/selective.md`, replaces the Oct 19 run): at α ≤ 5 % no calibrated gate certifies more than 2.6 % (H1 not supported); enterprise evidence lifts AUROC 0.745 → 0.940; current heuristic 7.2 % wrong among accepted; duplicate-number gate tested on 3 new seeds (`selective_heldout.json`); open items in `docs/forResearchPaper/PAPER_ISSUES.md` | Duplicate-rule decision, new seed, RS-08, RS-10…12 | decision |
 
 ## A.4 Decisions, constraints and known limitations
 
